@@ -33,6 +33,13 @@ Open `index.html` in any modern browser. It is a single file with no dependencie
 - **Look and sound:** a canvas night forest with parallax trees, moon, stars, mist and fireflies, tinted per act. All 16 creatures and the keeper are drawn procedurally and animated (flapping moths, breathing frogs, wiggling spiders, a flickering lantern). Card art is generated per card. There are particles and popups for damage, Glow, burns and kills. The ~25 sound effects are synthesized with WebAudio and include an ambient cricket chirp, with mute.
 - **Screen sizes:** a fixed 1280×800 stage scales to any window. Tested at 1280×800 and on tablet in both landscape (1180×820) and portrait (820×1180).
 
+## v7 additions (part 2): first outlier tuning
+- **Aurora** (rare) now gives +2 Blaze and +1 Lumen (was +2/+2; upgraded still +3/+3). It was top-3 for every keeper in the card report. Bot win rates at Ember 0 (600 runs, Lantern/Moth/Wick): 36.8/33.5/33.5% → 35.2/32.7/31.8%.
+- **Tangle** in final decks comes only from the Mushroom Ring and Ash Grove events (intended trade-offs). Tangles from enemy web attacks stay in that combat.
+
+## v7 additions (part 1): per-card sim report
+- `node tools/sim.js 1000 --bots=heuristic --cards --quiet` writes `tools/card_report.txt`: per keeper and card, how often it was offered and picked at card rewards, its pick rate, and the win rate (beat the Moon-Eater) of runs whose final deck held it. `delta` is against the keeper baseline; `rel` is against the average reward-picked card, which removes the bias that long runs pick more cards. Marks: `++`/`--` (|rel| ≥ 10 pp), `+`/`-` (≥ 5 pp), `!pick` (pick rate ≥ 60%), `?pick` (≤ 10%). The first findings are in PLAN.md (Aurora is strong for every keeper, the bot over-picks Wildfire, and it under-picks Swarm, Wing Wall and Flicker).
+
 ## v6 additions (part 2): Ember ladder and more motion
 - **Ember retune.** Before, the sim bot went from 35–40% at Ember 0 to 1–4% at Ember 5 and about 0% at Ember 6–10, so the top half of the ladder could not be tuned. Ember 1–5 scaling is halved (now in `TUNE.emHp` / `TUNE.emDmg`), and Night Without End (E10) dropped its 2 Blaze and went from +15% to +10% boss HP (`TUNE.nightHp`, `TUNE.nightBlaze`). New bot win rates (300 runs each, Acts 1–3, Lantern / Moth / Wick):
 
@@ -181,7 +188,7 @@ Open `index.html` in any modern browser. It is a single file with no dependencie
 ## Code
 - `src/engine.js` is the pure rules engine: plain-data state (JSON-serializable), `newRun / legal / act`, the content tables and two bots. It runs in node and the browser.
 - `src/ui.js`, `src/art.js`, `src/audio.js`, `src/style.css` and `src/template.html` are the UI. `node tools/build.js` inlines everything into `index.html`.
-- `tools/sim.js` is the balancing sim (`--keeper=lantern|moth|wick|all`, `--hpW=` for the Wick HP offset, `--act4=0|1` to lock or open Act 4, and `--act4m=` for the Act 4 multiplier). `tools/test.js` holds the rules tests, and `tools/browser-test.js` runs a headless Chrome playthrough. `tools/record-gif.js` records lantern-keeper.gif.
+- `tools/sim.js` is the balancing sim (`--keeper=lantern|moth|wick|all`, `--cards` for the per-card report, `--hpW=` for the Wick HP offset, `--act4=0|1` to lock or open Act 4, and `--act4m=` for the Act 4 multiplier). `tools/test.js` holds the rules tests, and `tools/browser-test.js` runs a headless Chrome playthrough. `tools/record-gif.js` records lantern-keeper.gif.
 
 ## Balancing (tools/sim.js, outputs in tools/sim_results.txt)
 - **v4 (Act 4 open, lookahead bot, 600 runs per keeper, Ember 0).** "Act 3" is the share of runs that beat the Moon-Eater. The bot always follows the moon. `--act4=0` gives the old 3-act numbers, which are unchanged:

@@ -525,7 +525,7 @@ card('starfall', 'Starfall', 'attack', 'rare', 3, 'all', [15], [20], 'Deal {D0} 
 card('moonwell', 'Moonwell', 'power', 'rare', 3, 'none', [1], [1], 'Gain 1 extra energy at the start of each turn.', (R) => addSt(R, P(R), 'moonwell', 1, 1), { costUp: 2, tier: 9 });
 card('fireheart', 'Fireheart', 'power', 'rare', 1, 'none', [1], [2], 'Each of your attack hits applies {0} Kindled.', (R, t, v) => addSt(R, P(R), 'fireheart', v[0], 1), { tier: 8 });
 card('great', 'Great Lantern', 'attack', 'rare', 2, 'enemy', [12], [16], 'Deal {D0} damage. Gain Glow equal to the unblocked damage.', (R, t, v) => { const n = hit(R, P(R), t, v[0]); if (n > 0) gainBlock(R, P(R), n); }, { tier: 8 });
-card('aurora', 'Aurora', 'skill', 'rare', 1, 'none', [2], [3], 'Gain {0} Blaze and {0} Lumen. Exhaust.', (R, t, v) => { addSt(R, P(R), 'blaze', v[0], 1); addSt(R, P(R), 'lumen', v[0], 1); }, { exhaust: 1, tier: 9 });
+card('aurora', 'Aurora', 'skill', 'rare', 1, 'none', [2, 1], [3, 3], 'Gain {0} Blaze and {1} Lumen. Exhaust.', (R, t, v) => { addSt(R, P(R), 'blaze', v[0], 1); addSt(R, P(R), 'lumen', v[1], 1); }, { exhaust: 1, tier: 9 });
 card('lastlight', 'Last Light', 'skill', 'rare', 2, 'none', [20], [20], 'Gain {B0} Glow. Exhaust.', (R, t, v) => glow(R, v[0]), { exhaust: 1, costUp: 1, tier: 7 });
 card('pyre', 'Pyre', 'attack', 'rare', 2, 'enemy', [4, 2], [6, 3], 'Deal {D0} damage, plus {1} for each Kindled on the target.', (R, t, v) => hit(R, P(R), t, v[0] + v[1] * (t.st.kindled || 0)), { tier: 7 });
 // ---- The Moth Whisperer: class cards built around Swarm (moths that strike at the end of every turn) ----

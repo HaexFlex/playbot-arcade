@@ -82,12 +82,20 @@ A deep, polished roguelite deckbuilder set in the night forest that keeps growin
 - [x] Smoother Ember 1–10 ladder (2026-11-21)
 
 ### v7: balance and accessibility
-- [ ] Per-card sim statistics and outlier tuning
+- [x] Per-card sim report: `node tools/sim.js N --cards` → `tools/card_report.txt` (2026-11-21)
+- [ ] Outlier tuning from the card report (part 2 2026-11-21: Aurora base Lumen 2→1; Tangle sources checked, intended. Still open: bot pick values, Great Lantern, Singe, unpicked shared cards)
 - [ ] Colour-blind-safe intents, font-size setting
 - [ ] Keyboard-only and screen-reader pass; tutorial fight
 
 ## Next steps (for the next run)
-1. Start **v7: balance and accessibility**: a per-card sim report (pick rate, win rate when picked) in `tools/sim.js`, tune outliers, then colour-blind-safe intents and a font-size option.
+1. **v7 outlier tuning** (report: `node tools/sim.js 1000 --bots=heuristic --cards --quiet`, 1000 runs/keeper, ~75 s; read the `rel` column, which compares with the average reward-picked card and removes the "long runs pick more cards" bias). Outliers from the first report (Ember 0, all shrine gifts):
+   - ~~Aurora~~ done (part 2): base now +2 Blaze/+1 Lumen (upgrade unchanged +3/+3). Tested at 600 runs: cost 2 dropped all keepers 5–8 pp (28.8/26.5/28.3%), +2/+1 → +3/+2 dropped 3–6 pp (31.3/29.7/30.8%), both too much; chosen version 35.2/32.7/31.8% (was 36.8/33.5/33.5%). Rel still +10.9/+9.3/+14.5 (was +11.5/+10.6/+18.3 on 1000 runs) and picked 64–72%: re-check after the bot pick-value fix below, since the bot rates it tier 9; if it is still ++ then, try upgrade +3/+2.
+   - **Great Lantern** (Lantern rare) rel +14.1 pp (66.6% win in deck vs 36.4% baseline). Watch; maybe 12→11 damage.
+   - **Wildfire** (Lantern) is the bot's favourite pick (83.9%) but rel -8.5 pp; Fan the Flames, Moonwell and Dance are also over-picked with negative rel. Likely a bot pick-value issue (`deckValue`), not card strength: lower their bot scores before buffing anything.
+   - Under-picked strong cards: Moth **Swarm** (shrine, 7.8% pick, rel +15.6) and **Wing Wall** (9.5%, rel +10.4); Wick **Flicker** (11.7%, rel +17.0) and **Snare** (rel +10.8). Raise their bot pick value first, then re-check.
+   - Wick starter **Singe** (in 90% of decks) rel -22 pp, worse than the other starters (-16/-17): a cheap Wick starter buff could help. Candle Flare is offered as a reward but picked only 3%.
+   - ~~Tangle~~ checked (part 2), intended: the only permanent sources are the Mushroom Ring (+6 max HP, bot always eats) and Ash Grove (+55 gold) events. Enemy web moves put Tangles only into the combat discard pile, which never touches the deck. Removal is already possible (shrine, trader, Cold Hearth, Candlemaker, and the bot prioritises removing it). Possible later: make the Mushroom Ring bot smarter (skip it when the deck is lean).
+   - Shared cards Chirp / Dart / Gather / Dewdrop are picked 1–2%: too few samples; consider a small buff or dropping them from the reward pool.
 2. Ember ladder is smooth now (README table); Lean Purse is -25 gold. Re-check the ladder after any card or enemy change with `for e in 0 5 10; do node tools/sim.js 300 --act4=0 --bots=heuristic --ember=$e --quiet; done`.
 3. v5 follow-ups:
    - With every shrine gift unlocked, Lantern/Moth sim rates drop by about 4 points (40.3 → 36.8, 38.3 → 33.5), still in range. A per-card pick/win report (v7) would show which shrine cards the bot over-picks.
