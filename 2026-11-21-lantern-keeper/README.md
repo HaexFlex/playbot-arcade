@@ -45,6 +45,9 @@ Open `index.html` in any modern browser. It is a single file with no dependencie
   A human who knows the cards should do clearly better than this bot. Lean Purse (E9) hurts the Lantern most.
 - **Enemy bolts:** every attacking move sends 1–3 glowing bolts (one per hit, colour per creature) from the enemy to the keeper.
 - **Screen fades** between title, map and combat.
+- **Signature attacks:** spiders and the Grand Weaver shoot sticky web strands, frogs, the Old Croaker and the Bog King lash out with a tongue, and the Moon-Eater and the Hollow Moon throw big silver moonlight orbs.
+- **Lean Purse (E9)** now takes 25 starting gold instead of 40 (bot at E9: Lantern 2.7 → 4.0%, Moth 5.3%, Wick 5.7%; E10: 1.7 / 3.0 / 3.7%).
+- **New GIF** (`tools/record-gif.js`): title, Options, then the Grand Weaver's intro card and a fight with web strands and dealt hands.
 - **Heartbeat:** at 30% HP or less, a soft double kick joins the act music (boss music already has a pulse).
 - All of these respect reduced motion.
 
@@ -62,7 +65,7 @@ Open `index.html` in any modern browser. It is a single file with no dependencie
   - **E6 Restless Elites:** elites start every combat with 2 Blaze.
   - **E7 Thin Campfires:** resting heals 20% of max HP instead of 30%.
   - **E8 Cursed Pack:** you start with **Gloom**, a new curse card. It costs 1, does nothing, and can only be removed at a trader.
-  - **E9 Lean Purse:** you start with 40 less gold and earn 30% less gold from combat.
+  - **E9 Lean Purse:** you start with 25 less gold (v6; it was 40) and earn 30% less gold from combat.
   - **E10 Night Without End:** bosses have 10% more HP (v6; it was 15% and 2 Blaze).
   - The title screen lists the active modifiers under the Ember picker (each has a tooltip), keeper cards show their own Ember cap, and the map side panel lists the run's modifiers.
 - **The Lantern Shrine** (title → *Lantern Shrine*, or `S`). Every finished run brings **light**: 1 per floor, +5 per elite, +10 per boss, +20 for a win, +25 for the true ending and +2 per Ember level. Light wakes **9 shrine gifts**. Once awake, a gift joins the reward, trader and charm pools. The shrine never gives raw stats. Locked gifts never drop (tested over 36 full runs).

@@ -76,7 +76,10 @@ A deep, polished roguelite deckbuilder set in the night forest that keeps growin
 - [x] Boss intro name card and phase cards, deal-in and exhaust burn-away animations (2026-11-21)
 - [x] Enemy attack bolts and screen fades (2026-11-21)
 - [x] Reduced-motion option, following the system setting (2026-11-21)
-- [ ] Shop and reward layout polish; new GIF
+- [ ] Shop and reward layout polish
+- [x] New GIF with the boss intro, web strands and dealt hands (2026-11-21)
+- [x] Signature attacks: web strands, frog tongues, moonlight orbs (2026-11-21)
+- [x] Smoother Ember 1–10 ladder (2026-11-21)
 
 ### v7: balance and accessibility
 - [ ] Per-card sim statistics and outlier tuning
@@ -84,8 +87,8 @@ A deep, polished roguelite deckbuilder set in the night forest that keeps growin
 - [ ] Keyboard-only and screen-reader pass; tutorial fight
 
 ## Next steps (for the next run)
-1. Finish **v6**: shop and reward layout polish, and a new GIF that shows the boss intro, bolts and the deal animation. Maybe special attack animations for bosses (web strands for the Weaver, a tongue for the Bog King).
-2. Ember ladder is now smooth (see the README table). Follow-up: Lean Purse (E9) hits the Lantern hardest (5.0 → 2.7); consider -25 gold instead of -40.
+1. Finish **v6**: shop and reward layout polish (the last open v6 item), then start **v7** (per-card sim stats first).
+2. Ember ladder is smooth now (README table); Lean Purse is -25 gold. Re-check the ladder after any card or enemy change with `for e in 0 5 10; do node tools/sim.js 300 --act4=0 --bots=heuristic --ember=$e --quiet; done`.
 3. v5 follow-ups:
    - With every shrine gift unlocked, Lantern/Moth sim rates drop by about 4 points (40.3 → 36.8, 38.3 → 33.5), still in range. A per-card pick/win report (v7) would show which shrine cards the bot over-picks.
    - More shrine tiers later: about 6 more cards (shared ones, plus some for a 4th keeper) and a shrine cosmetic such as lantern colours.

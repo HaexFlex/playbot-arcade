@@ -260,6 +260,13 @@ body.reduce #bossCard .bcLine{transition:none}
 @keyframes fadein{0%{opacity:.85}100%{opacity:0}}
 .bolt{position:absolute;width:28px;height:28px;border-radius:50%;pointer-events:none;z-index:46;transition:transform .3s ease-in,opacity .3s ease-in}
 body.reduce .bolt,body.reduce #fade{display:none}
+.strand{position:absolute;height:4px;margin-top:-2px;transform-origin:0 50%;pointer-events:none;z-index:46;border-radius:4px;animation:strand .5s ease-out forwards}
+.strand>i{display:none}
+.strand.web{height:2px;background:linear-gradient(90deg,rgba(255,255,255,.9),rgba(230,230,255,.5));box-shadow:0 0 6px #fff}
+.strand.tongue{height:11px;margin-top:-5px;background:linear-gradient(90deg,#c2486b,#ff8fb0);border-radius:6px 10px 10px 6px;box-shadow:0 0 8px rgba(255,120,160,.6)}
+@keyframes strand{0%{clip-path:inset(0 100% 0 0)}35%{clip-path:inset(0 0 0 0)}55%{clip-path:inset(0 0 0 0);opacity:1}100%{clip-path:inset(0 0 0 100%);opacity:.3}}
+.bolt.moon{width:40px;height:40px;border-radius:50%}
+body.reduce .strand{display:none}
 
 </style>
 </head>
@@ -1213,7 +1220,7 @@ E.newRun = function (seed, opts) {
   R.shrine = hasMod(R, 'shrine') ? E.SHRINE.map(s => s.id) : (opts.shrine === 'all' ? E.SHRINE.map(s => s.id) : (opts.shrine || []).filter(id => E.SHRINE.some(s => s.id === id)));
   R.hp = R.maxHp = K.hp + (TUNE.hp[R.keeper] || 0);
   if (hasMod(R, 'glass')) R.hp = R.maxHp = Math.round(R.maxHp * 0.85);
-  if (emb(R, 9)) R.gold -= 40;
+  if (emb(R, 9)) R.gold -= 25;
   R.charms.push(K.charm);
   for (const [id, n] of K.deck) for (let i = 0; i < n; i++) addCard(R, id);
   if (emb(R, 8)) addCard(R, 'gloom');
@@ -1352,7 +1359,7 @@ E.EMBER_MODS = [
   { lv: 6, id: 'elites', n: 'Restless Elites', d: 'Elites start every combat with 2 Blaze.' },
   { lv: 7, id: 'campfires', n: 'Thin Campfires', d: 'Resting heals 20% of max HP instead of 30%.' },
   { lv: 8, id: 'curse', n: 'Cursed Pack', d: 'Start with a Gloom curse in your deck (costs 1, does nothing).' },
-  { lv: 9, id: 'purse', n: 'Lean Purse', d: 'Start with 40 less gold and earn 30% less gold from combat.' },
+  { lv: 9, id: 'purse', n: 'Lean Purse', d: 'Start with 25 less gold and earn 30% less gold from combat.' },
   { lv: 10, id: 'night', n: 'Night Without End', d: 'Bosses have 10% more HP.' },
 ];
 function emb(R, lv) { return (R.ember || 0) >= lv; }
@@ -2575,15 +2582,31 @@ let deal = false;
 function flash() { if (meta.reduce) return; const f = $('flash'); f.classList.remove('on'); void f.offsetWidth; f.classList.add('on'); }
 function bossIntro(name, sub, ms) { SFX.play('boss'); flash(); const b = $('bossCard'); b.querySelector('.bcName').textContent = name; b.querySelector('.bcSub').textContent = sub || ''; b.classList.remove('on'); void b.offsetWidth; b.classList.add('on'); clearTimeout(bossIntro.t); bossIntro.t = setTimeout(() => b.classList.remove('on'), ms || 2000); }
 function hue(s) { let h = 7; for (const ch of String(s)) h = (h * 31 + ch.charCodeAt(0)) % 997; return h % 360; }
+let col2 = null;
+function strand(a, b, kind, hits) {
+  // a line from the enemy to the keeper that shoots out and snaps back: sticky web strands or a frog tongue
+  const dx = b.x - a.x, dy = b.y - a.y, len = Math.hypot(dx, dy), ang = Math.atan2(dy, dx) * 180 / Math.PI;
+  const n = kind === 'web' ? 3 : Math.min(3, hits);
+  for (let i = 0; i < n; i++) setTimeout(() => {
+    const l = document.createElement('div'); l.className = 'strand ' + kind;
+    l.style.left = a.x + 'px'; l.style.top = a.y + 'px'; l.style.width = len + 'px';
+    l.style.transform = 'rotate(' + (ang + (kind === 'web' ? (i - 1) * 4 : 0)) + 'deg)';
+    $('popLayer').appendChild(l); setTimeout(() => l.remove(), 520);
+  }, kind === 'web' ? i * 40 : i * 160);
+}
 function bolt(fromEl, id, hits) {
   if (meta.reduce || !fromEl || !fromEl.isConnected) return;
   const a = rectOf(fromEl.querySelector('canvas') || fromEl), b = rectOf($('player').querySelector('canvas')), col = 'hsl(' + hue(id) + ',90%,72%)';
+  const sig = { gweaver: 'web', spiderling: 'web', glassspider: 'web', bogking: 'tongue', frog: 'tongue', croaker: 'tongue' }[id];
+  if (sig) { strand(a, b, sig, hits); return; }
+  if (id === 'mooneater' || /^hollowmoon/.test(id)) { col2 = '#e8ecff'; }
   for (let i = 0; i < Math.min(3, hits); i++) setTimeout(() => {
-    const o = document.createElement('div'); o.className = 'bolt'; o.style.left = (a.x - 14) + 'px'; o.style.top = (a.y - 14 + (i - 1) * 18) + 'px'; o.style.background = 'radial-gradient(circle,#fff 0,' + col + ' 40%,transparent 70%)'; o.style.boxShadow = '0 0 24px ' + col;
+    const o = document.createElement('div'); o.className = 'bolt'; o.style.left = (a.x - 14) + 'px'; o.style.top = (a.y - 14 + (i - 1) * 18) + 'px'; const cc = col2 || col; o.style.background = 'radial-gradient(circle,#fff 0,' + cc + ' 40%,transparent 70%)'; o.style.boxShadow = '0 0 24px ' + cc; if (col2) o.classList.add('moon');
     $('popLayer').appendChild(o);
     requestAnimationFrame(() => requestAnimationFrame(() => { o.style.transform = 'translate(' + (b.x - a.x) + 'px,' + (b.y - a.y + (1 - i) * 14) + 'px) scale(.5)'; o.style.opacity = '.2'; }));
     setTimeout(() => o.remove(), 340);
   }, i * 90);
+  col2 = null;
 }
 function ghostCard(id, from) {
   if (meta.reduce || !E.CARDS[id]) return;
