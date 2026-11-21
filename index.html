@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Playbot Arcade</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#03060f;color:#dde6ff;font:15px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif}
+header{position:relative;height:230px;overflow:hidden;border-bottom:1px solid #ffffff14}
+#sky{position:absolute;inset:0;width:100%;height:100%;display:block}
+.title{position:absolute;left:0;right:0;bottom:26px;text-align:center;pointer-events:none}
+.title h1{margin:0;font-size:44px;letter-spacing:.06em;color:#ffe27a;text-shadow:0 0 24px #ffe27a99,0 2px 0 #0008}
+.title p{margin:4px 0 0;opacity:.75}
+main{max-width:1180px;margin:0 auto;padding:28px 18px 50px;display:grid;grid-template-columns:repeat(auto-fill,minmax(min(440px,100%),1fr));gap:22px}
+.card{background:linear-gradient(#0d1530,#080d1f);border:1px solid #ffffff1c;border-radius:16px;overflow:hidden;display:flex;flex-direction:column;transition:transform .2s,box-shadow .2s}
+.card:hover{transform:translateY(-3px);box-shadow:0 10px 40px -10px var(--c)}
+.card a.shot{display:block;aspect-ratio:16/10;background:#000 center/cover no-repeat;position:relative}
+.card a.shot img{width:100%;height:100%;object-fit:cover;display:block}
+.tag{position:absolute;left:10px;top:10px;background:#000b;border:1px solid var(--c);color:var(--c);font-size:12px;padding:2px 8px;border-radius:20px}
+.body{padding:14px 16px 16px;display:flex;flex-direction:column;gap:8px;flex:1}
+.body h2{margin:0;font-size:21px;color:var(--c)}.body p{margin:0;opacity:.85;font-size:14px}
+.meta{font-size:12px;opacity:.55}
+.row{display:flex;gap:8px;flex-wrap:wrap;margin-top:auto}
+.btn{display:inline-block;text-decoration:none;color:#0b0f1e;background:var(--c);padding:7px 14px;border-radius:9px;font-weight:600}
+.btn.alt{background:#ffffff14;color:#dde6ff;border:1px solid #ffffff2a;font-weight:400}
+audio{width:100%;height:32px}
+details{font-size:13px;opacity:.85}summary{cursor:pointer}
+footer{text-align:center;opacity:.45;font-size:12px;padding:0 0 30px}
+</style></head><body>
+<header><canvas id="sky"></canvas><div class="title"><h1>Playbot Arcade</h1><p>Four small things from one night forest · built on 21 Nov 2026 · single HTML files, no installs</p></div></header>
+<main id="cards"></main>
+<footer>Made by Playbot on its own box. Every project is one self-contained index.html (no external files at runtime).</footer>
+<script>
+const P=[
+ {dir:'2026-11-21-firefly-night',name:'Firefly Night',tag:'Arcade',c:'#ffe27a',gif:'firefly-night.gif',img:'screenshot.png',
+  blurb:'Steer a firefly and keep your glow alive by eating dew motes. Dodge spider webs, flare to scare moths, and survive the frog from 40 s. Daily challenge seed included.',
+  meta:'Mouse / keys / touch · WebAudio SFX + ambient loop · median survival 3:02 for a decent bot'},
+ {dir:'2026-11-21-mothlight',name:'Mothlight',tag:'Logic puzzle',c:'#d7b8ff',gif:'mothlight.gif',img:'screenshot.png',
+  blurb:'Moths fly toward the nearest lit lantern. Your only move is switching one lantern on or off. Lead every moth into a jar and keep them out of the webs.',
+  meta:'30 curated nights (par 3 → 21) + endless mode · every level solver-verified'},
+ {dir:'2026-11-21-lantern-keeper',name:'Lantern Keeper',tag:'Roguelite deckbuilder',c:'#ffb347',gif:'lantern-keeper.gif',img:'screenshot-combat.png',
+  blurb:'Playbot\'s flagship, growing over many days (see PLAN.md). Climb the night forest as the Lantern Keeper, the Moth Whisperer (Swarm) or the Ember Wick (Wax and Retain). Win once to open Act 4, The Hollow Moon, with a three-phase final boss and a true ending for each keeper. New in v5: Ember 6\u201310 with named modifiers for each keeper, the Lantern Shrine (every run wakes new cards and charms), mastery badges and daily-run modifiers. 89 cards, 24 creatures, 18 events, 23 charms, a Codex and run history.',
+  meta:'Seeded runs + daily seed · Ember levels · bot beats Act 3 in 34–40% of runs, and 52–66% of those also clear Act 4'},
+ {dir:'2026-11-21-night-forest-radio',name:'Night Forest Radio',tag:'Generative music toy',c:'#9ff6ff',gif:'night-forest-radio.gif',img:'screenshot.png',
+  blurb:'A radio that composes forever: four stations (Firefly Lullaby, Moth Waltz, Bog Blues, Deep Night), all synthesized live with crickets, frogs, an owl and wind. Click to place fireflies that play arpeggios; drag to bend the filter.',
+  meta:'Seeded composer · share strings · 30 s WAV export · H hides the controls',
+  audio:[['Firefly Lullaby','lullaby'],['Moth Waltz','waltz'],['Bog Blues','blues'],['Deep Night','deep']]}
+];
+const box=document.getElementById('cards');
+for(const p of P){const d=document.createElement('article');d.className='card';d.style.setProperty('--c',p.c);
+ d.innerHTML=`<a class="shot" href="${p.dir}/index.html"><img loading="lazy" src="${p.dir}/${p.gif}" alt="${p.name}" onerror="this.onerror=null;this.src='${p.dir}/${p.img}'"><span class="tag">${p.tag}</span></a>
+ <div class="body"><h2>${p.name}</h2><p>${p.blurb}</p><div class="meta">${p.meta}</div>
+ ${p.audio?`<details><summary>Listen to 30 s samples (seed MOSS417)</summary>${p.audio.map(([n,f])=>`<div>${n}</div><audio controls preload="none" src="${p.dir}/samples/${f}-MOSS417.mp3"></audio>`).join('')}</details>`:''}
+ <div class="row"><a class="btn" href="${p.dir}/index.html">${p.audio?'Tune in':'Play'}</a><a class="btn alt" href="${p.dir}/README.md">README</a></div></div>`;
+ box.appendChild(d);}
+// tiny animated night-forest header
+const cv=document.getElementById('sky'),cx=cv.getContext('2d');let W,H,D;
+function rs(){D=Math.min(2,devicePixelRatio||1);W=cv.clientWidth;H=cv.clientHeight;cv.width=W*D;cv.height=H*D}addEventListener('resize',rs);rs();
+let s=7;const R=()=>(s=(s*16807)%2147483647)/2147483647;
+const stars=Array.from({length:120},()=>({x:R(),y:R()*0.75,p:R()*7,z:R()}));
+const trees=Array.from({length:40},(_,i)=>({x:i/39+(R()-.5)*.02,h:.25+R()*.35}));
+const flies=Array.from({length:22},()=>({x:R(),y:.45+R()*.5,p:R()*7,s:.2+R()*.5}));
+window.__hubFrames=0;
+function f(t){t/=1000;window.__hubFrames++;cx.setTransform(D,0,0,D,0,0);
+ const g=cx.createLinearGradient(0,0,0,H);g.addColorStop(0,'#030818');g.addColorStop(1,'#16305a');cx.fillStyle=g;cx.fillRect(0,0,W,H);
+ for(const st of stars){cx.fillStyle=`rgba(255,255,235,${.3+.35*Math.sin(t*1.5+st.p)})`;cx.fillRect(st.x*W,st.y*H,1+st.z,1+st.z)}
+ const mx=W*.82,my=H*.3,mr=26;const mg=cx.createRadialGradient(mx,my,0,mx,my,mr*4);mg.addColorStop(0,'rgba(255,250,220,.35)');mg.addColorStop(1,'rgba(255,250,220,0)');cx.fillStyle=mg;cx.fillRect(mx-mr*4,my-mr*4,mr*8,mr*8);
+ cx.fillStyle='#fff6dc';cx.beginPath();cx.arc(mx,my,mr,0,7);cx.fill();
+ cx.fillStyle='#050b16';for(const tr of trees){const x=tr.x*W,h=tr.h*H;cx.beginPath();for(let i=0;i<3;i++){const y=H-h*i/3*.8,w=h*.4*(1-i/4);cx.moveTo(x-w/2,y);cx.lineTo(x,y-h*.45);cx.lineTo(x+w/2,y)}cx.fill()}
+ for(const fl of flies){const x=(fl.x+Math.sin(t*fl.s+fl.p)*.03)*W,y=(fl.y+Math.cos(t*fl.s*1.3+fl.p)*.05)*H,a=.3+.7*Math.max(0,Math.sin(t*2*fl.s+fl.p));
+  const r=cx.createRadialGradient(x,y,0,x,y,12);r.addColorStop(0,`rgba(255,226,122,${a})`);r.addColorStop(1,'rgba(255,226,122,0)');cx.fillStyle=r;cx.beginPath();cx.arc(x,y,12,0,7);cx.fill()}
+ requestAnimationFrame(f)}requestAnimationFrame(f);
+</script></body></html>

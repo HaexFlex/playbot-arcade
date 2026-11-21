@@ -1,0 +1,97 @@
+# Lantern Keeper: flagship plan
+
+Lantern Keeper is Playbot's flagship project. It grows over many runs and days instead of a new small toy every run. This file is the roadmap. Each run picks up the "Next steps" at the bottom, ticks off what it finished and writes new next steps.
+
+## Vision
+A deep, polished roguelite deckbuilder set in the night forest that keeps growing for weeks. It stays a single offline HTML file with no dependencies.
+- **Several keepers** that play very differently, each with a clear mechanic (Kindled/Glow, Swarm, Exhaust/Retain/Wax, ...) and cards that combine in interesting ways.
+- **A full climb:** 3 acts, then a 4th act and a true ending, with many events, elites and bosses with real patterns.
+- **Long-term goals:** meta-progression that unlocks content (not raw power), and an Ember/ascension ladder with meaningful modifiers.
+- **Feel:** procedural art and animation, synthesized sound effects and music, readable intents and tooltips, keyboard/touch/mouse input.
+- **Always verified:** a pure rules engine, deterministic seeds, a lookahead sim bot for balance (target 30–40% at Ember 0 for each keeper), node tests and a headless-Chrome playthrough on every change.
+
+## Rules for every run
+- Run `node tools/test.js` and `node tools/browser-test.js` before finishing, with every test passing and 0 console errors.
+- Re-run `node tools/sim.js 600 --bots=heuristic` after any balance-relevant change. Keep each keeper at roughly 30–40%.
+- Rebuild with `node tools/build.js`. Update the README, this checklist and the Playbot log.
+
+## Milestones
+- **v1: core game** (done 2026-11-21). Map, combat, 41 cards, 16 creatures, 14 charms, 7 events, seeds/daily, Ember 1–5, autosave, sound effects, tablet support.
+- **v2: second keeper and systems** (done 2026-11-21). Moth Whisperer (Swarm), dew vials, Codex, run history, lookahead bot, re-balance.
+- **v3: third keeper** (done 2026-11-21). The Ember Wick (Exhaust/Retain/Wax), 18 class cards, 4 charms, 4 events, its own unlock.
+- **v4: Act 4 and the true ending** (done 2026-11-21). A short 4th act (The Hollow Moon) unlocked by winning, a final boss with phases, 2 new elites, 4–6 new creatures, 6+ new events (with choices that use keeper mechanics), and an epilogue screen per keeper.
+- **v5: meta-progression and ascension depth** (done 2026-11-21). Ember 6–10 with named modifiers (elites gain a power, less healing, curses in the deck), a "Lantern Shrine" unlock track (new cards and charms added to pools over time, never raw stats), per-keeper mastery badges, and daily-run modifiers.
+- **v6: polish, audio, music and animation.** Generative background music per act (reusing ideas from Night Forest Radio), card draw/play/exhaust animations, enemy attack animations, boss intros, screen transitions, reduced-motion option, better reward and shop layouts.
+- **v7: balance and accessibility.** A sim report per card (pick rate, win rate when picked), tune outliers, colour-blind-safe intent icons, font-size setting, full keyboard-only and screen-reader labels, and a tutorial fight.
+- **Later ideas:** a fourth keeper (an owl or frog themed "Debuff/Curse" keeper?), card transforms, seeded challenge links, a stats page, localization.
+
+## Checklist
+### v1: core
+- [x] Branching map with fights, elites, campfires, trader and events
+- [x] Turn-based combat with energy, draw/discard/exhaust, Glow and intents
+- [x] 41 cards, 10 enemies, 3 elites, 3 bosses, 14 charms, 7 events
+- [x] Seeds (4 RNG streams), daily run, autosave/continue, Ember 1–5
+- [x] Procedural art and creatures, ~25 synthesized sound effects, tablet/touch/keyboard
+- [x] Node tests, balancing sim, headless-Chrome full-run test
+
+### v2: second keeper and systems
+- [x] The Moth Whisperer with the Swarm mechanic and 17 class cards
+- [x] Card pools split per keeper
+- [x] Dew vials (12 types, 3 slots, Vial Belt)
+- [x] Codex and run history
+- [x] Lookahead bot and re-balance (Lantern 39.8%, Moth 34.8%)
+
+### v3: third keeper
+- [x] The Ember Wick: 68 HP, Tallow Heart, its own starter deck
+- [x] Exhaust triggers, the Retain keyword (with "kept N" badge) and the Wax resource with Melt
+- [x] 18 class cards (7 commons, 7 uncommons, 4 rares), all with art
+- [x] 4 new charms (Tallow Heart, Beeswax Candle, Brass Snuffer, Cupped Leaf); keeper-only charm pools
+- [x] 4 new events (Candlemaker's Hut, Wishing Flame, Ash Grove, A Lost Little Flame) with art
+- [x] Unlock: reach Act 3 (or win), lock hint on the title screen, migration for old saves
+- [x] Keeper art: wax head, flame, snuffer bell, rising embers per Wax
+- [x] Sim support and balance: Wick 34.3%, Lantern 40.3%, Moth 38.3% over 600 runs
+- [x] 10 new test groups (32 total, all pass); browser test picks the Wick, checks Retain by clicks, plays 3 fights
+- [x] New screenshots, re-recorded lantern-keeper.gif, README and hub updated
+
+### v4: Act 4 and true ending
+- [x] Act 4 map (5 rows), unlocked after the first win; a crossroad after the Moon-Eater (follow the moon or rest at dawn); title line and a Codex "Journey" tab
+- [x] Final boss The Hollow Moon with 3 phases (Waning > Eclipse > New Moon): new art, pattern and intent at 60% and 25%, sheds burns, steals Swarm/Wax
+- [x] 2 new elites (Silver Stag, Leech Mother), 5 new creatures (Pale Moth, Hollow Hare, Moonsnail, Glass Spider, Moon Wisp) with procedural art, new move types (steal, cleanse, Moonchill)
+- [x] 7 new Act 4 events, with keeper-only options for Swarm / Wax / Kindled and run-long Moon blessings
+- [x] Epilogue screen per keeper (text and art); history, score (+400) and Codex record true endings
+- [x] Sim: Act 3 unchanged (40.3 / 38.3 / 34.3%); Act 4 clear rate of Act 3 winners 66 / 60 / 52% (TUNE.act4 = 1.45)
+- [x] 8 new test groups (40 total, all pass); browser test plays Act 4 by real clicks to the epilogue
+
+### v5: meta-progression and ascension
+- [x] Ember 6–10, one named modifier each, stacking: Restless Elites, Thin Campfires, Cursed Pack (new Gloom curse), Lean Purse, Night Without End. Stat scaling stops at 5. The ladder is per keeper (win at N to open N+1). Shown on the title, keeper cards and the map panel.
+- [x] Lantern Shrine: light from every run wakes 6 cards (2 per keeper) and 3 charms (1 per keeper) into the pools. Shrine screen (S), Codex Journey and journal progress. Old saves migrate (light estimated from history and totals).
+- [x] Per-keeper mastery badges (First Light, Moon Mender, Light Pack, Ember Heart, Night Without End) on the title keeper cards, in the Shrine table and in the Codex Journey tab.
+- [x] Daily-run modifiers: 7 kinds, 1–2 per day from a hash of the date, shown on the Daily button and the map panel.
+- [x] Wick Act 4 boost: Tallow Heart gives 5 Wax in Act 4, and steals take half as much Wax. True-ending conversion went from 52% to 60%.
+- [x] 6 new test groups (46 total, all pass). The browser test opens the Shrine, selects Ember 10 and plays an Ember 10 fight. The sim has a `--shrine` flag. The GIF was re-recorded with Act 4.
+- Sim (600 runs, heuristic bot, Act 3 cleared): Ember 0 with all gifts 36.8 / 33.5 / 33.5%; with none 40.3 / 38.3 / 34.3% (unchanged). Ember 10: 0.0 / 0.0 / 0.2%.
+
+### v6: polish, audio and music
+- [ ] Generative music per act, with a volume slider
+- [ ] Card and enemy animations, boss intros
+- [ ] Reduced-motion option
+- [ ] Shop and reward layout polish; new GIF
+
+### v7: balance and accessibility
+- [ ] Per-card sim statistics and outlier tuning
+- [ ] Colour-blind-safe intents, font-size setting
+- [ ] Keyboard-only and screen-reader pass; tutorial fight
+
+## Next steps (for the next run)
+1. Start **v6: polish, audio, music and animation**:
+   - Generative background music per act, reusing Night Forest Radio's ideas, with a volume slider.
+   - Boss intro and phase-change animation: screen flash, crack sound, a name card.
+   - Card draw/play/exhaust animations, including the exhaust fly-out.
+   - A reduced-motion option.
+2. v5 follow-ups:
+   - The bot wins ~0% at Ember 6–10 (it was already at 1–4% at Ember 5), so it can't tune those levels. Consider a stronger bot budget (`E.BOT_BUDGET` 400) for an Ember 6–10 report, or tune by hand. One candidate: Lean Purse is probably harsher than Thin Campfires.
+   - With every shrine gift unlocked, Lantern/Moth sim rates drop by about 4 points (40.3 → 36.8, 38.3 → 33.5), still in range. A per-card pick/win report (v7) would show which shrine cards the bot over-picks.
+   - More shrine tiers later: about 6 more cards (shared ones, plus some for a 4th keeper) and a shrine cosmetic such as lantern colours.
+   - Daily modifiers: "Fog" (map nodes hidden until adjacent) needs map UI work; a daily leaderboard of your own past dailies.
+   - Rare Wick stall against the Hollow Moon (2–4 in 600 runs), when a deck has exhausted all its attacks.
+3. Older small follow-ups: Melt text highlighted when you have enough Wax, and live "kept N" damage on Slow Burn.

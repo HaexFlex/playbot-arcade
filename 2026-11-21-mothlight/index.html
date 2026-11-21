@@ -1,0 +1,744 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Mothlight: a lantern puzzle</title>
+<style>
+:root{--ink:#e9e4ff;--dim:#9c97c9;--gold:#ffcf6e;--bg:#0b0f24;--panel:rgba(18,22,52,.86);--line:rgba(190,180,255,.18)}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);font-family:"Trebuchet MS","Segoe UI",system-ui,sans-serif;overflow:hidden;user-select:none;-webkit-user-select:none}
+canvas{position:fixed;inset:0;width:100%;height:100%;touch-action:none;display:block}
+.screen{position:fixed;inset:0;display:none;align-items:center;justify-content:center;flex-direction:column;padding:20px;z-index:5}
+.screen.on{display:flex}
+h1{font-size:clamp(44px,9vw,92px);margin:0;letter-spacing:.06em;font-weight:700;color:#fff3d6;text-shadow:0 0 24px rgba(255,200,110,.75),0 0 60px rgba(255,170,80,.35)}
+.sub{color:var(--dim);margin:6px 0 28px;font-size:clamp(14px,2.4vw,19px);text-align:center;max-width:560px;line-height:1.45}
+.btn{font:inherit;color:var(--ink);background:rgba(40,44,96,.75);border:1px solid var(--line);border-radius:14px;padding:12px 26px;margin:6px;font-size:18px;cursor:pointer;min-width:220px;transition:transform .12s,background .2s,box-shadow .2s;backdrop-filter:blur(4px)}
+.btn:hover{background:rgba(70,70,140,.85);box-shadow:0 0 18px rgba(255,207,110,.25);transform:translateY(-1px)}
+.btn.primary{background:linear-gradient(180deg,#ffd98a,#f0a64a);color:#2a1a05;border:none;font-weight:700;box-shadow:0 0 26px rgba(255,190,90,.45)}
+.btn.small{min-width:0;padding:8px 14px;font-size:15px;margin:3px}
+#hud{position:fixed;left:0;right:0;top:0;display:none;align-items:center;justify-content:space-between;padding:10px 12px;z-index:4;gap:8px;flex-wrap:wrap;pointer-events:none}
+#hud.on{display:flex}
+#hud>*{pointer-events:auto}
+.hgroup{display:flex;align-items:center;gap:4px;flex-wrap:wrap}
+.chip{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:7px 12px;font-size:15px;color:var(--ink);white-space:nowrap}
+.chip b{color:var(--gold)}
+.ibtn{font:inherit;width:44px;height:44px;border-radius:12px;border:1px solid var(--line);background:var(--panel);color:var(--ink);font-size:20px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;transition:background .2s,box-shadow .2s}
+.ibtn:hover{background:rgba(70,70,140,.9)}
+.ibtn.wide{width:auto;padding:0 14px;font-size:16px;gap:6px}
+.ibtn.pulse{animation:pulse 1s infinite}
+@keyframes pulse{0%,100%{box-shadow:0 0 0 rgba(255,207,110,0)}50%{box-shadow:0 0 22px rgba(255,207,110,.9)}}
+#grid{display:grid;grid-template-columns:repeat(6,1fr);gap:10px;max-width:560px;width:100%}
+.lvl{position:relative;aspect-ratio:1;border-radius:14px;border:1px solid var(--line);background:rgba(30,34,80,.8);color:var(--ink);font:inherit;font-size:20px;font-weight:700;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;transition:transform .12s,box-shadow .2s}
+.lvl:hover:not(:disabled){transform:translateY(-2px);box-shadow:0 0 16px rgba(255,207,110,.35)}
+.lvl:disabled{opacity:.35;cursor:default}
+.lvl .st{font-size:11px;letter-spacing:1px;color:var(--gold);margin-top:2px;font-weight:400}
+.lvl.done{background:rgba(60,52,110,.85)}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:22px;padding:26px 30px;text-align:center;max-width:520px;box-shadow:0 20px 60px rgba(0,0,0,.5);backdrop-filter:blur(6px)}
+.panel h2{margin:0 0 6px;font-size:30px;color:#fff3d6}
+.stars{font-size:44px;letter-spacing:6px;color:var(--gold);text-shadow:0 0 18px rgba(255,200,100,.6);margin:6px 0}
+.stars .off{color:rgba(255,255,255,.15);text-shadow:none}
+#toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:10px 16px;z-index:6;display:none;align-items:center;gap:10px;font-size:16px;max-width:92vw}
+#toast.on{display:flex}
+.help{text-align:left;line-height:1.5;font-size:15.5px;color:#d9d4f7}
+.help li{margin:4px 0}
+.k{display:inline-block;border:1px solid var(--line);border-radius:6px;padding:0 6px;font-size:13px;background:rgba(255,255,255,.06)}
+.foot{position:fixed;bottom:10px;width:100%;text-align:center;color:rgba(160,150,210,.55);font-size:12px;pointer-events:none}
+#busy{position:fixed;inset:0;display:none;align-items:center;justify-content:center;z-index:7;font-size:20px;color:var(--gold);background:rgba(8,10,28,.55)}
+#busy.on{display:flex}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+
+<div id="title" class="screen on">
+  <h1>Mothlight</h1>
+  <div class="sub">Moths follow the nearest light. Light the lanterns, one at a time, and coax every moth home into a glass jar.</div>
+  <button class="btn primary" id="bPlay">Play</button>
+  <button class="btn" id="bLevels">Levels</button>
+  <button class="btn" id="bEndless">Endless night</button>
+  <button class="btn" id="bHelp">How to play</button>
+  <div class="foot">every level is checked by a solver · progress saves in this browser</div>
+</div>
+
+<div id="select" class="screen">
+  <h2 style="margin:0 0 4px;font-size:32px;color:#fff3d6">Choose a night</h2>
+  <div class="sub" id="selSub" style="margin-bottom:16px"></div>
+  <div id="grid"></div>
+  <div style="margin-top:16px;display:flex;flex-wrap:wrap;justify-content:center">
+    <button class="btn small" id="bSelEndless">Endless night</button>
+    <button class="btn small" id="bSelBack">Back</button>
+  </div>
+</div>
+
+<div id="help" class="screen">
+  <div class="panel" style="max-width:600px">
+    <h2>How to play</h2>
+    <ul class="help">
+      <li>Each turn you either <b>switch one lantern</b> on or off (tap it), or <b>wait</b>. Then every moth flies <b>one step</b>.</li>
+      <li>A moth flies toward the <b>nearest lit lantern</b> (counted in straight grid steps). It closes the longer gap first; on equal gaps it goes sideways first.</li>
+      <li>If a tree or lantern is in the way, it tries its other direction; if that is blocked too, it hovers.</li>
+      <li>Two lit lanterns at the same distance <b>confuse</b> a moth: it stays where it is. In the dark, moths rest.</li>
+      <li>Lead <b>every moth into a jar</b>. Jars hold any number of moths. Moths that touch a <b>spider web</b> are stuck, so undo.</li>
+      <li>Faint arrows preview where each moth will go. Hover a lantern to preview switching it.</li>
+    </ul>
+    <div class="help" style="font-size:13.5px;color:var(--dim)">Keys: <span class="k">1</span>…<span class="k">6</span> lanterns · <span class="k">Space</span> wait · <span class="k">Z</span> undo · <span class="k">R</span> reset · <span class="k">H</span> hint · <span class="k">M</span> mute · <span class="k">Esc</span> menu</div>
+    <button class="btn primary" id="bHelpOk" style="margin-top:14px">Got it</button>
+  </div>
+</div>
+
+<div id="hud">
+  <div class="hgroup">
+    <button class="ibtn" id="bMenu" title="Menu (Esc)">☰</button>
+    <span class="chip" id="hLevel">Night 1</span>
+    <span class="chip">Moves <b id="hMoves">0</b> · par <span id="hPar">0</span></span>
+  </div>
+  <div class="hgroup">
+    <button class="ibtn wide" id="bWait" title="Wait (Space)">⏳ Wait</button>
+    <button class="ibtn" id="bUndo" title="Undo (Z)">↶</button>
+    <button class="ibtn" id="bReset" title="Reset (R)">⟲</button>
+    <button class="ibtn" id="bHint" title="Hint (H)">?</button>
+    <button class="ibtn" id="bMute" title="Mute (M)">🔊</button>
+  </div>
+</div>
+
+<div id="win" class="screen">
+  <div class="panel">
+    <h2 id="wTitle">All moths home!</h2>
+    <div class="stars" id="wStars"></div>
+    <div class="sub" id="wText" style="margin:4px 0 14px"></div>
+    <button class="btn primary" id="bNext">Next night</button><br>
+    <button class="btn small" id="bReplay">Replay</button>
+    <button class="btn small" id="bWinMenu">Levels</button>
+  </div>
+</div>
+
+<div id="toast"><span id="toastText"></span><button class="btn small" id="bToastUndo">Undo</button></div>
+<div id="busy">Weaving a new night…</div>
+
+<script id="engine">
+// Mothlight engine: rules, solver, analyser, generator. Shared by node (tests, curation) and the browser.
+(function (root) {
+  'use strict';
+  const EMPTY = 0, TREE = 1, WEB = 2, JAR = 3, LANTERN = 4;
+  const CH = { '.': EMPTY, 'T': TREE, 'W': WEB, 'J': JAR, 'L': LANTERN, 'M': EMPTY };
+
+  // ---------- RNG ----------
+  function rng(seed) { let a = (seed >>> 0) || 1; return function () { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+
+  // ---------- level ----------
+  function parse(rows) {
+    const h = rows.length, w = rows[0].length;
+    if (w * h > 64) throw new Error('grid too large');
+    const grid = new Uint8Array(w * h), lanterns = [], moths = [];
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+      const c = rows[y][x], i = y * w + x;
+      if (!(c in CH)) throw new Error('bad cell ' + c);
+      grid[i] = CH[c];
+      if (c === 'L') lanterns.push(i);
+      if (c === 'M') moths.push(i);
+    }
+    if (lanterns.length > 6) throw new Error('max 6 lanterns');
+    return { w, h, grid, lanterns, moths, rows: rows.slice() };
+  }
+  function blocked(lv, x, y) { if (x < 0 || y < 0 || x >= lv.w || y >= lv.h) return true; const g = lv.grid[y * lv.w + x]; return g === TREE || g === LANTERN; }
+
+  // Where does a moth at cell p go, given the lit-lantern mask? Returns {to, kind, target}
+  // kind: 'jar' (already caught), 'dark' (no light), 'confused' (tie), 'move', 'stuck' (blocked)
+  function mothMove(lv, mask, p) {
+    if (lv.grid[p] === JAR) return { to: p, kind: 'jar', target: -1 };
+    const w = lv.w, x = p % w, y = (p / w) | 0;
+    let best = 1e9, target = -1, tie = false;
+    for (let k = 0; k < lv.lanterns.length; k++) {
+      if (!(mask >> k & 1)) continue;
+      const l = lv.lanterns[k], d = Math.abs(l % w - x) + Math.abs(((l / w) | 0) - y);
+      if (d < best) { best = d; target = k; tie = false; } else if (d === best) tie = true;
+    }
+    if (target < 0) return { to: p, kind: 'dark', target: -1 };
+    if (tie) return { to: p, kind: 'confused', target: -1 };
+    const l = lv.lanterns[target], dx = l % w - x, dy = ((l / w) | 0) - y;
+    const sx = Math.sign(dx), sy = Math.sign(dy);
+    const tries = Math.abs(dx) >= Math.abs(dy) ? [[sx, 0], [0, sy]] : [[0, sy], [sx, 0]];
+    for (const [ax, ay] of tries) {
+      if (ax === 0 && ay === 0) continue;
+      if (!blocked(lv, x + ax, y + ay)) return { to: (y + ay) * w + x + ax, kind: 'move', target };
+    }
+    return { to: p, kind: 'stuck', target };
+  }
+  // apply one player action (toggle lantern k, or k === -1 / k >= L : wait). Returns new state.
+  function act(lv, st, k) {
+    let mask = st.mask;
+    if (k >= 0 && k < lv.lanterns.length) mask ^= 1 << k;
+    const moths = new Array(st.moths.length), info = new Array(st.moths.length);
+    let dead = false, win = true;
+    for (let i = 0; i < st.moths.length; i++) {
+      const m = mothMove(lv, mask, st.moths[i]);
+      moths[i] = m.to; info[i] = m;
+      const g = lv.grid[m.to];
+      if (g === WEB) dead = true;
+      if (g !== JAR) win = false;
+    }
+    return { mask, moths, info, dead, win };
+  }
+  function startState(lv) { return { mask: 0, moths: lv.moths.slice(), dead: false, win: false }; }
+  function key(mask, moths) { const s = moths.slice().sort((a, b) => a - b); let k = mask; for (const p of s) k = k * 64 + p; return k; }
+
+  // ---------- solver: full BFS over the reachable graph ----------
+  // Returns {solvable, par, path, states, ...analysis}. maxStates caps work.
+  function solve(lv, opts) {
+    opts = opts || {};
+    const maxStates = opts.maxStates || 250000, A = lv.lanterns.length + 1;
+    const ids = new Map(), masks = [], mothsArr = [], status = []; // status: 0 live,1 dead,2 win
+    const parent = [], pact = [], depth = [], children = [];
+    const s0 = startState(lv);
+    ids.set(key(s0.mask, s0.moths), 0); masks.push(0); mothsArr.push(s0.moths); status.push(0); parent.push(-1); pact.push(-1); depth.push(0);
+    let head = 0, goal = -1, capped = false;
+    const full = opts.full !== false;
+    while (head < masks.length) {
+      const id = head++;
+      const ch = new Int32Array(A).fill(-1); children[id] = ch;
+      if (status[id] !== 0) continue;
+      if (!full && goal >= 0) break;
+      const st = { mask: masks[id], moths: mothsArr[id] };
+      for (let a = 0; a < A; a++) {
+        const k = a < A - 1 ? a : -1;
+        const n = act(lv, st, k);
+        const kk = key(n.mask, n.moths);
+        let nid = ids.get(kk);
+        if (nid === undefined) {
+          if (masks.length >= maxStates) { capped = true; continue; }
+          nid = masks.length; ids.set(kk, nid); masks.push(n.mask); mothsArr.push(n.moths);
+          status.push(n.dead ? 1 : n.win ? 2 : 0); parent.push(id); pact.push(k); depth.push(depth[id] + 1);
+          if (n.win && goal < 0) goal = nid;
+        }
+        ch[a] = nid;
+      }
+    }
+    const res = { solvable: goal >= 0, states: masks.length, capped };
+    if (goal < 0) return res;
+    const path = []; for (let c = goal; parent[c] >= 0; c = parent[c]) path.push(pact[c]); path.reverse();
+    res.par = path.length; res.path = path;
+    if (!opts.analyse) return res;
+    // reverse BFS: distance-to-goal for every explored node
+    const N = masks.length, rev = Array.from({ length: N }, () => []);
+    for (let i = 0; i < N; i++) { const ch = children[i]; if (!ch || status[i] !== 0) continue; for (let a = 0; a < A; a++) if (ch[a] >= 0) rev[ch[a]].push(i); }
+    const dist = new Int32Array(N).fill(-1), q = [];
+    for (let i = 0; i < N; i++) if (status[i] === 2) { dist[i] = 0; q.push(i); }
+    for (let h2 = 0; h2 < q.length; h2++) { const v = q[h2]; for (const u of rev[v]) if (dist[u] < 0) { dist[u] = dist[v] + 1; q.push(u); } }
+    let hopeless = 0; for (let i = 0; i < N; i++) if (dist[i] < 0) hopeless++;
+    // along the optimal path: how many actions are optimal / traps (lead to hopeless states)
+    let narrow = 0, traps = 0, cur = 0, steps = 0;
+    while (status[cur] !== 2) {
+      const ch = children[cur]; let good = 0, bad = 0, tot = 0, next = -1;
+      for (let a = 0; a < A; a++) { const c = ch[a]; if (c < 0) continue; tot++; if (dist[c] < 0) bad++; else if (dist[c] === dist[cur] - 1) { good++; if (next < 0) next = c; } }
+      narrow += 1 - good / tot; traps += bad / tot; steps++; cur = next;
+    }
+    // random-player rollouts (a player who never walks straight into a web, no undo)
+    const R = rng(opts.seed || 12345), rolls = opts.rollouts || 300, budget = res.par * 3 + 6; let wins = 0;
+    for (let r = 0; r < rolls; r++) {
+      let c = 0;
+      for (let t = 0; t < budget && status[c] === 0; t++) {
+        const ch = children[c]; const opt = []; for (let a = 0; a < A; a++) if (ch[a] >= 0 && status[ch[a]] !== 1) opt.push(ch[a]);
+        if (!opt.length) break; c = opt[(R() * opt.length) | 0];
+        if (children[c] === undefined) break;
+      }
+      if (status[c] === 2) wins++;
+    }
+    res.hopelessRatio = hopeless / N;
+    res.narrowness = narrow / steps;
+    res.trapRatio = traps / steps;
+    res.randomSolve = wins / rolls;
+    res.difficulty = +(res.par + 6 * res.narrowness + 10 * res.trapRatio + 8 * (1 - res.randomSolve) + 0.5 * Math.log2(N)).toFixed(2);
+    return res;
+  }
+
+  // next best action from an arbitrary state (for hints). Returns action index (-1 = wait) or null.
+  function hint(lv, st, maxStates) {
+    const A = lv.lanterns.length + 1, seen = new Map(); const q = [{ mask: st.mask, moths: st.moths, first: null }];
+    seen.set(key(st.mask, st.moths), 1);
+    for (let h = 0; h < q.length && q.length < (maxStates || 200000); h++) {
+      const s = q[h];
+      for (let a = 0; a < A; a++) {
+        const k = a < A - 1 ? a : -1; const n = act(lv, s, k); if (n.dead) continue;
+        const first = s.first === null ? k : s.first;
+        if (n.win) return first;
+        const kk = key(n.mask, n.moths); if (seen.has(kk)) continue; seen.set(kk, 1);
+        q.push({ mask: n.mask, moths: n.moths, first });
+      }
+    }
+    return null;
+  }
+
+  // ---------- generator ----------
+  function randomLevel(R, p) {
+    const w = p.w, h = p.h, n = w * h, cells = new Array(n).fill('.');
+    const free = () => { for (let t = 0; t < 500; t++) { const i = (R() * n) | 0; if (cells[i] === '.') return i; } return -1; };
+    const put = (c, count) => { for (let j = 0; j < count; j++) { const i = free(); if (i >= 0) cells[i] = c; } };
+    put('L', p.lanterns); put('J', p.jars); put('T', p.trees); put('W', p.webs); put('M', p.moths);
+    const rows = []; for (let y = 0; y < h; y++) rows.push(cells.slice(y * w, y * w + w).join(''));
+    return rows;
+  }
+  function setCell(rows, i, c) { const w = rows[0].length, y = (i / w) | 0, x = i % w; const r = rows.slice(); r[y] = r[y].slice(0, x) + c + r[y].slice(x + 1); return r; }
+  // remove clutter that does not make the level easier (unused lanterns, idle trees/webs)
+  function prune(rows, base, opts) {
+    let cur = rows, curRes = base;
+    const lv0 = parse(rows);
+    const order = [];
+    for (let i = 0; i < lv0.grid.length; i++) { const c = rows[(i / lv0.w) | 0][i % lv0.w]; if (c === 'L') order.push(i); }
+    for (let i = 0; i < lv0.grid.length; i++) { const c = rows[(i / lv0.w) | 0][i % lv0.w]; if (c === 'T' || c === 'W') order.push(i); }
+    for (const i of order) {
+      const c = cur[(i / lv0.w) | 0][i % lv0.w]; if (c === 'L' && parse(cur).lanterns.length <= 1) continue;
+      const cand = setCell(cur, i, '.');
+      if (c === 'L') { // unused lanterns go if the puzzle stays as long
+        const r = solve(parse(cand), { maxStates: opts.maxStates });
+        if (r.solvable && !r.capped && r.par >= curRes.par) { cur = cand; curRes = r; }
+      } else { // trees and webs go only if they add nothing measurable
+        if (!curRes.difficulty) curRes = solve(parse(cur), { analyse: true, maxStates: opts.maxStates, rollouts: 120 });
+        const r = solve(parse(cand), { analyse: true, maxStates: opts.maxStates, rollouts: 120 });
+        if (r.solvable && !r.capped && r.par >= curRes.par && r.difficulty >= curRes.difficulty - 0.25) { cur = cand; curRes = r; }
+      }
+    }
+    return cur;
+  }
+  // generate one solvable, analysed level. p: size/piece params, seed: number
+  function generate(seed, p, opts) {
+    opts = opts || {}; const R = rng(seed);
+    for (let tries = 0; tries < (opts.tries || 400); tries++) {
+      const rows = randomLevel(R, p); const lv = parse(rows);
+      if (lv.moths.length !== p.moths || lv.lanterns.length !== p.lanterns) continue;
+      const r = solve(lv, { maxStates: opts.maxStates || 120000 });
+      if (!r.solvable || r.capped || r.par < (p.minPar || 2)) continue;
+      const pruned = opts.prune === false ? rows : prune(rows, r, { maxStates: opts.maxStates || 120000 });
+      const a = solve(parse(pruned), { analyse: true, maxStates: opts.maxStates || 120000, seed: seed + 7, rollouts: opts.rollouts || 200 });
+      if (!a.solvable || a.capped) continue;
+      return { rows: pruned, seed, tries, ...strip(a) };
+    }
+    return null;
+  }
+  function strip(a) { return { par: a.par, path: a.path, states: a.states, difficulty: a.difficulty, narrowness: +a.narrowness.toFixed(3), trapRatio: +a.trapRatio.toFixed(3), randomSolve: +a.randomSolve.toFixed(3), hopelessRatio: +a.hopelessRatio.toFixed(3) }; }
+
+  // difficulty ramp used by endless mode (and as a template for curation)
+  function paramsFor(n, R) {
+    const t = Math.min(1, n / 40);
+    const w = 5 + Math.round(t * 3 * (0.6 + 0.4 * R())), h = 5 + Math.round(t * 3 * (0.6 + 0.4 * R()));
+    const area = w * h;
+    return {
+      w, h,
+      moths: 1 + Math.min(2, Math.floor(n / 6 + R() * 1.2)),
+      lanterns: 2 + Math.min(3, Math.floor(n / 5 + R() * 1.5)),
+      jars: 1 + (R() < 0.35 ? 1 : 0),
+      trees: Math.round(area * (0.08 + 0.1 * R())),
+      webs: Math.round(area * (0.03 + 0.05 * t * R())),
+      minPar: 3 + Math.min(8, Math.floor(n / 3)),
+    };
+  }
+
+  // endless mode: night n is deterministic (same n -> same level); retries seeds until the solver accepts one
+  function endless(n) {
+    for (let s = 0; s < 60; s++) {
+      const seed = 777000 + n * 97 + s, R = rng(seed);
+      const p = paramsFor(Math.min(44, 4 + n * 1.2), R);
+      const g = generate(seed, p, { tries: 80, maxStates: 60000, rollouts: 120 });
+      if (g) return { rows: g.rows, par: g.par, difficulty: g.difficulty, solution: g.path, seed };
+    }
+    return null;
+  }
+
+  const API = { endless, EMPTY, TREE, WEB, JAR, LANTERN, rng, parse, mothMove, act, startState, key, solve, hint, generate, randomLevel, prune, paramsFor };
+  if (typeof module !== 'undefined' && module.exports) module.exports = API; else root.Moth = API;
+})(typeof window !== 'undefined' ? window : globalThis);
+
+</script>
+<script>
+const LEVELS = [{"id":1,"rows":[".....","..L..",".J...",".....","M...."],"par":3,"difficulty":7.29},{"id":2,"rows":[".....",".M.L.","..J..",".L...","....."],"par":3,"difficulty":7.57},{"id":3,"rows":["....L",".....","..J..",".....","M...."],"par":4,"difficulty":8.58},{"id":4,"rows":[".J...","....L","..M..","..TJ.","..L.."],"par":3,"difficulty":12.47},{"id":5,"rows":["M....","..J.L","L....",".....","....."],"par":3,"difficulty":12.88},{"id":6,"rows":["L...M",".JM..","...L.",".....","....J"],"par":4,"difficulty":13.13},{"id":7,"rows":[".....","L.MJ.",".J...",".M...","L...."],"par":3,"difficulty":13.4},{"id":8,"rows":[".....","....M","..M..",".L.J.","....L"],"par":4,"difficulty":13.42},{"id":9,"rows":["...L.","..M..","..J..",".....","L..M."],"par":4,"difficulty":14.1},{"id":10,"rows":["L..M.",".J.J.",".....",".....",".M.L."],"par":4,"difficulty":15.11},{"id":11,"rows":["..M..L","......","......","....JM","...L.."],"par":5,"difficulty":16.13},{"id":12,"rows":[".....","..ML.",".J...",".L...","M...."],"par":7,"difficulty":17.15},{"id":13,"rows":["L....","..J..","...L.","..M..",".M..."],"par":5,"difficulty":18.2},{"id":14,"rows":[".ML...",".M....",".L....",".LJ..J","......"],"par":6,"difficulty":19.24},{"id":15,"rows":["..L...","......","..T..M",".MMT..","J.....","L....."],"par":9,"difficulty":20.29},{"id":16,"rows":[".M....",".T....","......","..M..L","JJ....","L...M."],"par":7,"difficulty":21.37},{"id":17,"rows":[".M..WL",".TTJ..","..M...","M.L...","......","......"],"par":10,"difficulty":22.46},{"id":18,"rows":[".....M.",".......",".M...L.",".....J.",".M.....",".......",".L....."],"par":11,"difficulty":23.57},{"id":19,"rows":[".L.J..","..J...","..L...","MTMM..","..W..L"],"par":7,"difficulty":24.64},{"id":20,"rows":["..JL..","...TTM","....T.","MM....","......",".L....","......"],"par":11,"difficulty":25.78},{"id":21,"rows":["LJ...M",".L...T","..T..L",".....T","J.....",".MM..."],"par":11,"difficulty":26.91},{"id":22,"rows":["...L.M",".M....",".J....","....JT",".W.LLM","L....."],"par":10,"difficulty":28.04},{"id":23,"rows":["J..L..","......",".L..ML","...WJW","....L.",".M..M."],"par":10,"difficulty":29.18},{"id":24,"rows":["L.....","..MT..",".MT.JL","...L..","......","...LWM"],"par":12,"difficulty":30.32},{"id":25,"rows":[".......","M.L....",".......","M.T..LJ","..L....","..M.W..","......L"],"par":13,"difficulty":31.47},{"id":26,"rows":[".......L","M.....W.","M....TJ.","....L.M.",".....T.L","..W.....","..L....."],"par":13,"difficulty":32.64},{"id":27,"rows":[".....J.","......L","JL..T..","LT....M","...M...","...T..M","...LW.."],"par":14,"difficulty":33.81},{"id":28,"rows":[".L.....","...TJ.L",".....MT","..M..W.",".......",".......","......M"],"par":16,"difficulty":35.01},{"id":29,"rows":[".L......",".TM.....",".T..L...","....TM..","LMWW....","....J..W",".......L"],"par":17,"difficulty":36.18},{"id":30,"rows":["..J..L.","......J",".......",".......","....W..","MT..M.M","..T...L"],"par":21,"difficulty":37.36}];
+(function(){
+'use strict';
+const $ = id => document.getElementById(id);
+const cv = $('c'), cx = cv.getContext('2d');
+const SAVE = 'mothlight.v1';
+let save = { best: {}, endless: 1, endlessBest: 0, mute: false };
+try { Object.assign(save, JSON.parse(localStorage.getItem(SAVE) || '{}')); } catch (e) {}
+function persist(){ try { localStorage.setItem(SAVE, JSON.stringify(save)); } catch (e) {} }
+
+// ---------------- audio ----------------
+let ac = null, master = null;
+function audio(){
+  if (!ac) { try { ac = new (window.AudioContext || window.webkitAudioContext)(); master = ac.createGain(); master.gain.value = save.mute ? 0 : 0.5; master.connect(ac.destination);} catch(e){ ac = null; } }
+  if (ac && ac.state === 'suspended') ac.resume();
+  return ac;
+}
+function tone(f, dur, type, vol, f2, delay){
+  if (!ac || save.mute) return; const t = ac.currentTime + (delay||0);
+  const o = ac.createOscillator(), g = ac.createGain(); o.type = type||'sine'; o.frequency.setValueAtTime(f, t);
+  if (f2) o.frequency.exponentialRampToValueAtTime(f2, t + dur);
+  g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol||0.2, t + 0.012); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  o.connect(g); g.connect(master); o.start(t); o.stop(t + dur + 0.05);
+}
+function noise(dur, vol, freq, q, delay){
+  if (!ac || save.mute) return; const t = ac.currentTime + (delay||0);
+  const n = Math.floor(ac.sampleRate * dur), b = ac.createBuffer(1, n, ac.sampleRate), d = b.getChannelData(0);
+  for (let i = 0; i < n; i++) d[i] = (Math.random()*2-1) * (1 - i/n);
+  const s = ac.createBufferSource(); s.buffer = b; const f = ac.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = freq||1200; f.Q.value = q||1.5;
+  const g = ac.createGain(); g.gain.value = vol||0.15; s.connect(f); f.connect(g); g.connect(master); s.start(t);
+}
+const SFX = {
+  on(){ tone(520, .25, 'triangle', .16, 880); tone(1040, .4, 'sine', .06, 1320, .03); },
+  off(){ tone(640, .22, 'triangle', .13, 300); },
+  wait(){ tone(1500, .06, 'sine', .07); tone(1900, .05, 'sine', .04, null, .07); },
+  flutter(){ noise(.12, .07, 2600, 3); },
+  jar(){ [1318, 1760, 2093].forEach((f,i)=>tone(f, .9, 'sine', .09, null, i*.06)); },
+  web(){ tone(180, .5, 'sawtooth', .12, 60); noise(.3, .12, 400, .8); },
+  undo(){ tone(700, .1, 'sine', .1, 420); },
+  click(){ tone(900, .05, 'triangle', .07); },
+  hint(){ tone(880, .15, 'sine', .08); tone(1320, .25, 'sine', .06, null, .1); },
+  win(){ [523, 659, 784, 1047, 1319].forEach((f,i)=>{ tone(f, .7, 'triangle', .1, null, i*.1); tone(f*2, .5, 'sine', .04, null, i*.1+.02); }); },
+};
+function setMute(m){ save.mute = m; persist(); if (master) master.gain.value = m ? 0 : 0.5; $('bMute').textContent = m ? '🔇' : '🔊'; }
+
+// ---------------- game state ----------------
+let mode = 'title'; // title | select | play | help | win
+let cur = null; // {lv, def, kind:'level'|'endless', index, endlessN}
+let st = null, hist = [], moves = 0, hintsUsed = 0;
+let anim = null; // {from:[], to:[], info:[], t0}
+let hover = -1, hintLantern = null, deadShown = false, wonAt = 0;
+const parts = [];
+
+function loadDef(def, kind, index){
+  const lv = Moth.parse(def.rows);
+  cur = { lv, def, kind, index };
+  st = { mask: 0, moths: lv.moths.slice(), dead: false, win: false };
+  hist = []; moves = 0; hintsUsed = 0; anim = null; hintLantern = null; deadShown = false; wonAt = 0; parts.length = 0;
+  $('hLevel').textContent = kind === 'level' ? 'Night ' + (index+1) + ' / ' + LEVELS.length : 'Endless · night ' + index;
+  $('hPar').textContent = def.par; updateHud(); hideToast();
+  decor = makeDecor(lv);
+  show('play');
+}
+function playLevel(i){ save.last = i; persist(); loadDef(LEVELS[i], 'level', i); }
+// endless levels are generated in a Web Worker (built from the inlined engine) and the next night is prefetched
+let worker = null; const pending = {}, cache = {};
+try {
+  const src = $('engine').textContent + '\nonmessage = e => postMessage({ n: e.data, def: Moth.endless(e.data) });';
+  worker = new Worker(URL.createObjectURL(new Blob([src], { type: 'text/javascript' })));
+  worker.onmessage = e => { const { n, def } = e.data; cache[n] = def || LEVELS[(n - 1) % LEVELS.length]; const cb = pending[n]; delete pending[n]; if (cb) cb(cache[n]); };
+  worker.onerror = e => { e.preventDefault(); worker = null; for (const n in pending) { const cb = pending[n]; delete pending[n]; if (cb) cb(Moth.endless(+n) || LEVELS[0]); } };
+} catch (e) { worker = null; }
+function getEndless(n, cb){
+  if (cache[n]) return cb(cache[n]);
+  if (worker) { const was = n in pending; pending[n] = cb; if (!was) worker.postMessage(n); return; }
+  setTimeout(() => cb(Moth.endless(n) || LEVELS[(n - 1) % LEVELS.length]), 30);
+}
+function prefetch(n){ if (worker && !cache[n] && !(n in pending)) { pending[n] = null; worker.postMessage(n); } }
+function playEndless(n){
+  n = n || save.endless || 1; save.endless = n; persist();
+  if (!cache[n]) $('busy').classList.add('on');
+  getEndless(n, def => { $('busy').classList.remove('on'); loadDef(def, 'endless', n); prefetch(n + 1); });
+}
+function doAct(k){
+  if (mode !== 'play' || st.dead || st.win) return false;
+  audio();
+  const prev = st; const n = Moth.act(cur.lv, prev, k);
+  hist.push(prev); st = n; moves++; hintLantern = null; $('bWait').classList.remove('pulse');
+  anim = { from: prev.moths.slice(), to: n.moths.slice(), info: n.info, t0: performance.now() };
+  if (k >= 0) ((n.mask >> k) & 1 ? SFX.on : SFX.off)(); else SFX.wait();
+  if (n.info.some(m => m.kind === 'move')) setTimeout(SFX.flutter, 60);
+  n.info.forEach((m, i) => { if (m.kind === 'move' && cur.lv.grid[m.to] === Moth.JAR) setTimeout(() => { SFX.jar(); burst(m.to, '#ffe7a8', 18); }, 200); });
+  if (n.dead) setTimeout(() => { SFX.web(); toast('A moth is tangled in a web.'); }, 220);
+  if (n.win) { wonAt = performance.now(); setTimeout(onWin, 900); }
+  updateHud(); return true;
+}
+function undo(){ if (mode !== 'play' || !hist.length || st.win) return; st = hist.pop(); moves--; anim = null; SFX.undo(); hideToast(); updateHud(); }
+function reset(){ if (mode !== 'play') return; if (st.win) return; if (hist.length) SFX.undo(); st = { mask: 0, moths: cur.lv.moths.slice(), dead: false, win: false }; hist = []; moves = 0; anim = null; hideToast(); updateHud(); }
+function hint(){
+  if (mode !== 'play' || st.win) return; audio();
+  if (st.dead) { toast('Undo first: that moth is stuck.'); return; }
+  const a = Moth.hint(cur.lv, st, 120000); hintsUsed++;
+  if (a === null) { toast('No way out from here. Undo or reset.'); return; }
+  SFX.hint();
+  if (a < 0) { hintLantern = null; $('bWait').classList.add('pulse'); } else hintLantern = { k: a, t: performance.now() };
+}
+function stars(m, par){ return m <= par ? 3 : m <= par + 3 ? 2 : 1; }
+function onWin(){
+  if (!st || !st.win) return;
+  SFX.win();
+  const s = stars(moves, cur.def.par);
+  let html = '';
+  for (let i = 0; i < 3; i++) html += i < s ? '★' : '<span class="off">★</span>';
+  $('wStars').innerHTML = html;
+  let txt = moves + ' moves (par ' + cur.def.par + ')';
+  if (cur.kind === 'level') {
+    const b = save.best[cur.index]; if (!b || moves < b) save.best[cur.index] = moves;
+    $('wTitle').textContent = cur.index === LEVELS.length - 1 ? 'Every night solved!' : 'All moths home!';
+    $('bNext').style.display = cur.index < LEVELS.length - 1 ? '' : 'none';
+  } else {
+    save.endlessBest = Math.max(save.endlessBest || 0, cur.index); save.endless = cur.index + 1;
+    $('wTitle').textContent = 'Endless night ' + cur.index + ' cleared'; $('bNext').style.display = '';
+    txt += ' · difficulty ' + cur.def.difficulty;
+  }
+  if (hintsUsed) txt += ' · ' + hintsUsed + ' hint' + (hintsUsed > 1 ? 's' : '');
+  $('wText').textContent = txt; persist(); show('win');
+}
+function updateHud(){ $('hMoves').textContent = moves; $('bUndo').disabled = !hist.length; }
+let toastT = 0;
+function toast(t){ $('toastText').textContent = t; $('toast').classList.add('on'); }
+function hideToast(){ $('toast').classList.remove('on'); }
+
+// ---------------- screens ----------------
+function show(m){
+  mode = m;
+  for (const id of ['title','select','help','win']) $(id).classList.toggle('on', id === m);
+  $('hud').classList.toggle('on', m === 'play' || m === 'win');
+  if (m === 'select') buildSelect();
+  if (m !== 'play') hideToast();
+}
+function unlockedUpTo(){ let hi = -1; for (const k in save.best) hi = Math.max(hi, +k); return Math.min(LEVELS.length - 1, hi + 3); }
+function buildSelect(){
+  const g = $('grid'); g.innerHTML = ''; const u = unlockedUpTo(); let solved = 0, st3 = 0;
+  LEVELS.forEach((L, i) => {
+    const b = document.createElement('button'); b.className = 'lvl'; const best = save.best[i];
+    let s = ''; if (best) { solved++; const n = stars(best, L.par); st3 += n; s = '★'.repeat(n) + '☆'.repeat(3 - n); b.classList.add('done'); }
+    b.innerHTML = (i + 1) + '<span class="st">' + (s || '&nbsp;') + '</span>';
+    b.disabled = i > u; b.onclick = () => { SFX.click(); playLevel(i); };
+    b.dataset.level = i; g.appendChild(b);
+  });
+  $('selSub').textContent = solved + ' / ' + LEVELS.length + ' solved · ' + st3 + ' / ' + LEVELS.length * 3 + ' stars · endless best: night ' + (save.endlessBest || 0);
+}
+
+// ---------------- layout & drawing ----------------
+let W = 0, H = 0, DPR = 1, bx = 0, by = 0, cs = 40, bg = null, decor = null;
+function resize(){
+  DPR = Math.min(2, window.devicePixelRatio || 1); W = innerWidth; H = innerHeight;
+  cv.width = W * DPR; cv.height = H * DPR; bg = makeBg();
+}
+function layout(){
+  if (!cur) return; const lv = cur.lv; const top = W < 640 ? 112 : 70, pad = 16;
+  cs = Math.floor(Math.min((W - pad*2) / lv.w, (H - top - pad*2) / lv.h, 92));
+  bx = Math.round((W - cs * lv.w) / 2); by = Math.round(top + (H - top - pad - cs * lv.h) / 2);
+}
+function hash(i, s){ let x = Math.imul(i + 1, 2654435761) ^ Math.imul(s + 7, 40503); x ^= x >>> 15; x = Math.imul(x, 2246822519); x ^= x >>> 13; return (x >>> 0) / 4294967296; }
+function makeBg(){
+  const c = document.createElement('canvas'); c.width = W * DPR; c.height = H * DPR; const g = c.getContext('2d'); g.scale(DPR, DPR);
+  const gr = g.createLinearGradient(0, 0, 0, H); gr.addColorStop(0, '#070a1c'); gr.addColorStop(.55, '#121a3d'); gr.addColorStop(1, '#0d1a2a'); g.fillStyle = gr; g.fillRect(0, 0, W, H);
+  // moon
+  const mx = W * .84, my = H * .14, mr = Math.max(22, Math.min(W, H) * .05);
+  const mg = g.createRadialGradient(mx, my, mr * .5, mx, my, mr * 5); mg.addColorStop(0, 'rgba(220,225,255,.25)'); mg.addColorStop(1, 'rgba(220,225,255,0)'); g.fillStyle = mg; g.fillRect(0, 0, W, H);
+  g.fillStyle = '#eef0ff'; g.beginPath(); g.arc(mx, my, mr, 0, 7); g.fill();
+  g.fillStyle = 'rgba(180,185,220,.35)'; [[-.3,-.2,.22],[.25,.15,.16],[-.05,.35,.12]].forEach(([a,b,r]) => { g.beginPath(); g.arc(mx + a*mr, my + b*mr, r*mr, 0, 7); g.fill(); });
+  // treeline silhouettes
+  for (let layer = 0; layer < 2; layer++) {
+    g.fillStyle = layer ? '#060914' : '#0a1024';
+    const base = H * (layer ? .93 : .86), n = Math.ceil(W / 34) + 2;
+    for (let i = 0; i < n; i++) {
+      const x = i * 34 - 20 + hash(i, layer) * 20, th = (layer ? 70 : 110) * (0.6 + hash(i, layer + 5) * .8), tw = th * .42;
+      g.beginPath(); g.moveTo(x - tw/2, base + 4); g.lineTo(x, base - th); g.lineTo(x + tw/2, base + 4); g.fill();
+    }
+    g.fillRect(0, base, W, H - base);
+  }
+  return c;
+}
+function makeDecor(lv){
+  const d = [];
+  for (let i = 0; i < lv.w * lv.h; i++) if (lv.grid[i] === Moth.EMPTY && hash(i, lv.w*13 + lv.h) < .35) d.push({ i, kind: hash(i, 3) < .5 ? 'grass' : hash(i, 4) < .5 ? 'flower' : 'stone', a: hash(i, 5), b: hash(i, 6) });
+  return d;
+}
+const stars0 = Array.from({ length: 140 }, (_, i) => ({ x: hash(i, 1), y: hash(i, 2) * .7, r: .4 + hash(i, 3) * 1.3, p: hash(i, 4) * 6.28 }));
+function cc(i){ const lv = cur.lv; return [bx + (i % lv.w + .5) * cs, by + (((i / lv.w) | 0) + .5) * cs]; }
+function ease(t){ return t < .5 ? 2*t*t : 1 - Math.pow(-2*t + 2, 2) / 2; }
+function rr(g, x, y, w, h, r){ g.beginPath(); g.moveTo(x + r, y); g.arcTo(x + w, y, x + w, y + h, r); g.arcTo(x + w, y + h, x, y + h, r); g.arcTo(x, y + h, x, y, r); g.arcTo(x, y, x + w, y, r); g.closePath(); }
+
+function draw(now){
+  const g = cx; g.setTransform(DPR, 0, 0, DPR, 0, 0);
+  if (bg) g.drawImage(bg, 0, 0, W, H);
+  const t = now / 1000;
+  for (const s of stars0) { g.globalAlpha = .35 + .65 * Math.abs(Math.sin(t * .8 + s.p)); g.fillStyle = '#fff'; g.beginPath(); g.arc(s.x * W, s.y * H, s.r, 0, 7); g.fill(); }
+  g.globalAlpha = 1;
+  if (!cur || mode === 'title' || mode === 'select' || mode === 'help') { drawAmbient(g, t); return; }
+  layout(); drawBoard(g, t, now);
+}
+// floating fireflies on menus
+const amb = Array.from({ length: 26 }, (_, i) => ({ x: hash(i, 9), y: .3 + hash(i, 10) * .6, p: hash(i, 11) * 6.28, s: .3 + hash(i, 12) }));
+function drawAmbient(g, t){
+  g.globalCompositeOperation = 'lighter';
+  for (const a of amb) {
+    const x = (a.x + Math.sin(t * .2 * a.s + a.p) * .05) * W, y = (a.y + Math.cos(t * .27 * a.s + a.p) * .04) * H, al = .4 + .6 * Math.max(0, Math.sin(t * 1.3 * a.s + a.p));
+    const gr = g.createRadialGradient(x, y, 0, x, y, 16); gr.addColorStop(0, 'rgba(255,220,120,' + al + ')'); gr.addColorStop(1, 'rgba(255,200,90,0)'); g.fillStyle = gr; g.fillRect(x - 16, y - 16, 32, 32);
+  }
+  g.globalCompositeOperation = 'source-over';
+  drawMoth(g, W * .5 + Math.sin(t * .7) * W * .18, H * .2 + Math.sin(t * 1.3) * 12, Math.min(W, H) * .07, t, 0, 1);
+}
+function drawBoard(g, t, now){
+  const lv = cur.lv, n = lv.w * lv.h;
+  // board base
+  g.save(); g.shadowColor = 'rgba(0,0,0,.6)'; g.shadowBlur = 30; g.fillStyle = '#10261f'; rr(g, bx - 10, by - 10, cs * lv.w + 20, cs * lv.h + 20, 18); g.fill(); g.restore();
+  for (let i = 0; i < n; i++) {
+    const x = bx + (i % lv.w) * cs, y = by + ((i / lv.w) | 0) * cs, v = hash(i, 77);
+    g.fillStyle = 'hsl(' + (150 + v * 18) + ',' + (28 + v * 10) + '%,' + (13 + v * 4) + '%)'; rr(g, x + 1.5, y + 1.5, cs - 3, cs - 3, cs * .16); g.fill();
+  }
+  for (const d of decor) {
+    const [x, y] = cc(d.i), s = cs;
+    if (d.kind === 'grass') { g.strokeStyle = 'rgba(120,190,140,.35)'; g.lineWidth = Math.max(1, s * .025); for (let k = 0; k < 4; k++) { const ox = x + (d.a - .5) * s * .5 + (k - 1.5) * s * .06, oy = y + s * .3; g.beginPath(); g.moveTo(ox, oy); g.quadraticCurveTo(ox + Math.sin(t + k) * s * .03, oy - s * .12, ox + (k - 1.5) * s * .05, oy - s * (.16 + .06 * ((k * 7) % 3) / 2)); g.stroke(); } }
+    else if (d.kind === 'flower') { const ox = x + (d.a - .5) * s * .5, oy = y + (d.b - .5) * s * .5; g.fillStyle = 'rgba(190,170,255,.45)'; for (let k = 0; k < 5; k++) { g.beginPath(); g.arc(ox + Math.cos(k * 1.256) * s * .04, oy + Math.sin(k * 1.256) * s * .04, s * .03, 0, 7); g.fill(); } g.fillStyle = 'rgba(255,230,150,.6)'; g.beginPath(); g.arc(ox, oy, s * .022, 0, 7); g.fill(); }
+    else { g.fillStyle = 'rgba(150,160,180,.18)'; g.beginPath(); g.ellipse(x + (d.a - .5) * s * .4, y + (d.b - .5) * s * .4, s * .09, s * .06, d.a, 0, 7); g.fill(); }
+  }
+  // lantern light pools
+  g.globalCompositeOperation = 'lighter';
+  lv.lanterns.forEach((l, k) => { if (!(st.mask >> k & 1)) return; const [x, y] = cc(l), f = 1 + Math.sin(t * 9 + k) * .03 + Math.sin(t * 13.7 + k * 2) * .02, R = cs * 3.2 * f; const gr = g.createRadialGradient(x, y, 0, x, y, R); gr.addColorStop(0, 'rgba(255,190,90,.38)'); gr.addColorStop(.4, 'rgba(255,150,60,.12)'); gr.addColorStop(1, 'rgba(255,140,50,0)'); g.fillStyle = gr; g.fillRect(x - R, y - R, R * 2, R * 2); });
+  g.globalCompositeOperation = 'source-over';
+  // static pieces
+  for (let i = 0; i < n; i++) {
+    const c = lv.grid[i]; if (c === Moth.EMPTY) continue; const [x, y] = cc(i);
+    if (c === Moth.TREE) drawTree(g, x, y, cs, i, t);
+    else if (c === Moth.WEB) drawWeb(g, x, y, cs, t);
+    else if (c === Moth.JAR) drawJar(g, x, y, cs, t, st.moths.some(m => m === i) && !animating(now));
+  }
+  lv.lanterns.forEach((l, k) => { const [x, y] = cc(l); drawLantern(g, x, y, cs, !!(st.mask >> k & 1), t, k, hover === k, hintLantern && hintLantern.k === k); });
+  // moth positions
+  const at = anim ? Math.min(1, (now - anim.t0) / 260) : 1; if (at >= 1) anim = null;
+  // moths may share a cell: fan them out so each one stays visible
+  const share = {}; st.moths.forEach((p, i) => (share[p] = share[p] || []).push(i));
+  const off = i => { const grp = share[st.moths[i]]; if (grp.length < 2) return [0, 0]; const j = grp.indexOf(i), a = j / grp.length * 6.283 - 1.57; return [Math.cos(a) * cs * .2, Math.sin(a) * cs * .17]; };
+  const pos = st.moths.map((p, i) => { const [ox, oy] = off(i); const [x1, y1] = [cc(p)[0] + ox, cc(p)[1] + oy]; if (!anim) return [x1, y1]; const [x0, y0] = cc(anim.from[i]); const e = ease(at); return [x0 + (x1 - x0) * e, y0 + (y1 - y0) * e - Math.sin(e * Math.PI) * cs * .12]; });
+  // preview arrows (wait, or the hovered lantern)
+  if (!anim && !st.dead && !st.win) {
+    const pm = hover >= 0 ? st.mask ^ (1 << hover) : st.mask;
+    st.moths.forEach((p, i) => {
+      const m = Moth.mothMove(lv, pm, p); if (m.kind === 'jar') return; const [x, y] = cc(p);
+      g.save(); g.globalAlpha = hover >= 0 ? .85 : .45;
+      if (m.kind === 'move') { const [x2, y2] = cc(m.to), dx = x2 - x, dy = y2 - y; const ang = Math.atan2(dy, dx); const hx = x + dx * .62, hy = y + dy * .62; g.strokeStyle = lv.grid[m.to] === Moth.WEB ? '#ff7b7b' : '#ffe1a0'; g.lineWidth = Math.max(2, cs * .05); g.lineCap = 'round'; g.beginPath(); g.moveTo(hx - Math.cos(ang - .6) * cs * .12, hy - Math.sin(ang - .6) * cs * .12); g.lineTo(hx, hy); g.lineTo(hx - Math.cos(ang + .6) * cs * .12, hy - Math.sin(ang + .6) * cs * .12); g.stroke(); }
+      else if (m.kind === 'confused') { g.fillStyle = '#c9c2ff'; g.font = 'bold ' + Math.round(cs * .28) + 'px sans-serif'; g.textAlign = 'center'; g.fillText('?', x + cs * .3, y - cs * .22 + Math.sin(t * 4) * 2); }
+      else if (m.kind === 'dark') { g.fillStyle = '#8f8ac0'; g.font = Math.round(cs * .2) + 'px sans-serif'; g.textAlign = 'center'; g.fillText('z', x + cs * .3, y - cs * .24 - (t * 6 % 6)); }
+      else if (m.kind === 'stuck') { g.strokeStyle = 'rgba(255,225,160,.6)'; g.lineWidth = 1.5; g.beginPath(); g.arc(x, y, cs * .36, 0, 7); g.stroke(); }
+      g.restore();
+    });
+  }
+  st.moths.forEach((p, i) => {
+    const inJar = lv.grid[p] === Moth.JAR && !anim, onWeb = lv.grid[p] === Moth.WEB && !anim;
+    const [x, y] = pos[i];
+    const lit = (() => { const m = Moth.mothMove(lv, st.mask, p); return m.kind !== 'dark'; })();
+    drawMoth(g, x + (inJar ? 0 : Math.sin(t * 2 + i) * cs * .03), y + (inJar ? Math.sin(t * 3 + i) * cs * .04 : Math.cos(t * 2.3 + i) * cs * .03), cs * (inJar ? .5 : .62) * (share[p].length > 1 ? .78 : 1), t + i, i, onWeb ? .35 : 1, lit || inJar, inJar);
+  });
+  // particles
+  g.globalCompositeOperation = 'lighter';
+  for (let i = parts.length - 1; i >= 0; i--) { const q = parts[i]; q.life -= 1 / 60; if (q.life <= 0) { parts.splice(i, 1); continue; } q.x += q.vx; q.y += q.vy; q.vy -= .02; g.globalAlpha = Math.min(1, q.life * 1.5); g.fillStyle = q.c; g.beginPath(); g.arc(q.x, q.y, q.r, 0, 7); g.fill(); }
+  g.globalAlpha = 1; g.globalCompositeOperation = 'source-over';
+  if (st.win && wonAt) { const k = Math.min(1, (now - wonAt) / 900); g.fillStyle = 'rgba(255,220,140,' + (.12 * Math.sin(k * Math.PI)) + ')'; g.fillRect(0, 0, W, H); }
+  if (st.dead) { g.fillStyle = 'rgba(120,20,40,.12)'; g.fillRect(0, 0, W, H); }
+}
+function animating(now){ return anim && now - anim.t0 < 260; }
+function burst(i, c, n){ if (!cur) return; layout(); const [x, y] = cc(i); for (let k = 0; k < n; k++) { const a = Math.random() * 6.28, s = .5 + Math.random() * 2.2; parts.push({ x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s - 1, r: 1 + Math.random() * 2.2, life: .6 + Math.random() * .7, c }); } }
+function drawTree(g, x, y, s, i, t){
+  const sw = Math.sin(t * .9 + i) * s * .015;
+  g.fillStyle = 'rgba(0,0,0,.3)'; g.beginPath(); g.ellipse(x, y + s * .36, s * .32, s * .08, 0, 0, 7); g.fill();
+  g.fillStyle = '#3b2a1e'; g.fillRect(x - s * .05, y + s * .18, s * .1, s * .2);
+  const cols = ['#0f3b2c', '#145038', '#1b6345'];
+  for (let k = 0; k < 3; k++) { const w = s * (.42 - k * .1), top = y - s * (.05 + k * .17) - s * .2, bot = y + s * (.24 - k * .15); g.fillStyle = cols[k]; g.beginPath(); g.moveTo(x - w + sw * k, bot); g.lineTo(x + sw * (k + 1), top); g.lineTo(x + w + sw * k, bot); g.closePath(); g.fill(); }
+  g.fillStyle = 'rgba(200,220,255,.08)'; g.beginPath(); g.moveTo(x + sw * 3, y - s * .54); g.lineTo(x + s * .18, y - s * .1); g.lineTo(x + s * .03, y - s * .1); g.fill();
+}
+function drawWeb(g, x, y, s, t){
+  g.save(); g.translate(x, y); g.strokeStyle = 'rgba(220,225,255,.55)'; g.lineWidth = Math.max(.8, s * .015);
+  const R = s * .42;
+  for (let k = 0; k < 8; k++) { const a = k * Math.PI / 4 + .2; g.beginPath(); g.moveTo(0, 0); g.lineTo(Math.cos(a) * R, Math.sin(a) * R); g.stroke(); }
+  for (let r = 1; r <= 4; r++) { g.beginPath(); for (let k = 0; k <= 8; k++) { const a = k * Math.PI / 4 + .2, rr2 = R * r / 4.4; const px = Math.cos(a) * rr2, py = Math.sin(a) * rr2; k ? g.lineTo(px, py) : g.moveTo(px, py); } g.stroke(); }
+  g.fillStyle = '#1a1420'; g.beginPath(); g.arc(Math.sin(t) * s * .04, s * .04, s * .07, 0, 7); g.fill(); g.beginPath(); g.arc(Math.sin(t) * s * .04, -s * .04, s * .05, 0, 7); g.fill();
+  g.fillStyle = '#ff5a6a'; g.beginPath(); g.arc(Math.sin(t) * s * .04 - s * .02, -s * .055, s * .012, 0, 7); g.arc(Math.sin(t) * s * .04 + s * .02, -s * .055, s * .012, 0, 7); g.fill();
+  g.restore();
+}
+function drawJar(g, x, y, s, t, full){
+  g.save(); g.translate(x, y);
+  if (full) { g.globalCompositeOperation = 'lighter'; const gr = g.createRadialGradient(0, 0, 0, 0, 0, s * .8); gr.addColorStop(0, 'rgba(255,230,160,.35)'); gr.addColorStop(1, 'rgba(255,230,160,0)'); g.fillStyle = gr; g.fillRect(-s, -s, s * 2, s * 2); g.globalCompositeOperation = 'source-over'; }
+  g.fillStyle = 'rgba(0,0,0,.3)'; g.beginPath(); g.ellipse(0, s * .36, s * .26, s * .06, 0, 0, 7); g.fill();
+  g.fillStyle = 'rgba(170,220,255,.12)'; g.strokeStyle = 'rgba(200,235,255,.7)'; g.lineWidth = Math.max(1.2, s * .03);
+  rr(g, -s * .24, -s * .22, s * .48, s * .58, s * .12); g.fill(); g.stroke();
+  g.fillStyle = '#8a6a3c'; rr(g, -s * .2, -s * .32, s * .4, s * .11, s * .03); g.fill();
+  g.strokeStyle = 'rgba(255,255,255,.35)'; g.beginPath(); g.moveTo(-s * .15, -s * .12); g.lineTo(-s * .15, s * .2); g.stroke();
+  g.restore();
+}
+function drawLantern(g, x, y, s, on, t, k, hov, hinted){
+  g.save(); g.translate(x, y);
+  if (hinted) { const p = .5 + .5 * Math.sin(t * 8); g.strokeStyle = 'rgba(255,230,140,' + (.4 + .6 * p) + ')'; g.lineWidth = 3; g.beginPath(); g.arc(0, 0, s * (.44 + .04 * p), 0, 7); g.stroke(); }
+  if (hov) { g.fillStyle = 'rgba(255,255,255,.07)'; g.beginPath(); g.arc(0, 0, s * .45, 0, 7); g.fill(); }
+  // post
+  g.strokeStyle = '#3c3550'; g.lineWidth = s * .05; g.beginPath(); g.moveTo(0, s * .42); g.lineTo(0, s * .22); g.stroke();
+  g.fillStyle = 'rgba(0,0,0,.3)'; g.beginPath(); g.ellipse(0, s * .42, s * .18, s * .05, 0, 0, 7); g.fill();
+  // body
+  const fl = on ? .85 + Math.sin(t * 11 + k) * .1 + Math.sin(t * 17 + k) * .05 : 0;
+  g.fillStyle = on ? 'rgba(255,' + Math.round(190 + 40 * fl) + ',110,' + (.75 + .25 * fl) + ')' : '#2a2840';
+  if (on) { g.shadowColor = 'rgba(255,190,90,.95)'; g.shadowBlur = s * .5; }
+  rr(g, -s * .15, -s * .2, s * .3, s * .38, s * .06); g.fill(); g.shadowBlur = 0;
+  g.strokeStyle = on ? '#7a4a1c' : '#55507a'; g.lineWidth = Math.max(1, s * .03); g.stroke();
+  g.beginPath(); g.moveTo(0, -s * .2); g.lineTo(0, s * .18); g.stroke();
+  g.fillStyle = '#4a3a5a'; g.beginPath(); g.moveTo(-s * .2, -s * .2); g.lineTo(0, -s * .32); g.lineTo(s * .2, -s * .2); g.closePath(); g.fill();
+  g.strokeStyle = '#4a3a5a'; g.lineWidth = Math.max(1, s * .025); g.beginPath(); g.arc(0, -s * .35, s * .04, 0, 7); g.stroke();
+  if (on) { g.fillStyle = '#fff6d8'; g.beginPath(); g.ellipse(0, s * .02, s * .04, s * (.07 + .015 * Math.sin(t * 15)), 0, 0, 7); g.fill(); }
+  g.fillStyle = on ? 'rgba(60,30,10,.85)' : 'rgba(200,195,240,.55)'; g.font = 'bold ' + Math.round(s * .17) + 'px sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.fillText(String(k + 1), s * .3, s * .3);
+  g.restore();
+}
+function drawMoth(g, x, y, s, t, i, alpha, lit, calm){
+  g.save(); g.translate(x, y); g.globalAlpha = alpha;
+  const flap = calm ? .55 + .2 * Math.sin(t * 6) : lit === false ? .3 + .1 * Math.sin(t * 2) : .5 + .5 * Math.sin(t * 22 + i * 2);
+  if (lit !== false) { g.globalCompositeOperation = 'lighter'; const gr = g.createRadialGradient(0, 0, 0, 0, 0, s * .7); gr.addColorStop(0, 'rgba(220,210,255,.25)'); gr.addColorStop(1, 'rgba(220,210,255,0)'); g.fillStyle = gr; g.fillRect(-s, -s, s * 2, s * 2); g.globalCompositeOperation = 'source-over'; }
+  for (const side of [-1, 1]) {
+    g.save(); g.scale(side * (.35 + .65 * flap), 1);
+    g.fillStyle = '#d9d0f5'; g.beginPath(); g.ellipse(s * .2, -s * .07, s * .22, s * .15, -.5, 0, 7); g.fill();
+    g.fillStyle = '#b8acdf'; g.beginPath(); g.ellipse(s * .15, s * .1, s * .14, s * .1, .6, 0, 7); g.fill();
+    g.fillStyle = 'rgba(120,100,170,.7)'; g.beginPath(); g.arc(s * .23, -s * .08, s * .045, 0, 7); g.fill();
+    g.restore();
+  }
+  g.fillStyle = '#efe6ff'; g.beginPath(); g.ellipse(0, s * .02, s * .055, s * .17, 0, 0, 7); g.fill();
+  g.strokeStyle = '#efe6ff'; g.lineWidth = Math.max(1, s * .02);
+  g.beginPath(); g.moveTo(-s * .02, -s * .13); g.quadraticCurveTo(-s * .08, -s * .25, -s * .13, -s * .26); g.moveTo(s * .02, -s * .13); g.quadraticCurveTo(s * .08, -s * .25, s * .13, -s * .26); g.stroke();
+  g.restore();
+}
+
+// ---------------- input ----------------
+function cellAt(px, py){ if (!cur) return -1; layout(); const lv = cur.lv; const x = Math.floor((px - bx) / cs), y = Math.floor((py - by) / cs); if (x < 0 || y < 0 || x >= lv.w || y >= lv.h) return -1; return y * lv.w + x; }
+function lanternAt(px, py){ const c = cellAt(px, py); return c < 0 ? -1 : cur.lv.lanterns.indexOf(c); }
+cv.addEventListener('pointermove', e => { if (mode !== 'play' || e.pointerType === 'touch') return; hover = lanternAt(e.clientX, e.clientY); cv.style.cursor = hover >= 0 ? 'pointer' : 'default'; });
+cv.addEventListener('pointerleave', () => { hover = -1; });
+cv.addEventListener('pointerdown', e => {
+  audio(); if (mode !== 'play') return; e.preventDefault();
+  const k = lanternAt(e.clientX, e.clientY);
+  if (k >= 0) { doAct(k); if (e.pointerType === 'touch') hover = -1; }
+});
+document.addEventListener('keydown', e => {
+  if (e.repeat && !/^Key[ZU]$/.test(e.code)) return;
+  audio();
+  if (e.code === 'KeyM') { setMute(!save.mute); return; }
+  if (e.code === 'Escape') { if (mode === 'play' || mode === 'win') show('select'); else if (mode !== 'title') show('title'); return; }
+  if (mode === 'win' && (e.code === 'Enter' || e.code === 'Space')) { e.preventDefault(); $('bNext').style.display !== 'none' ? $('bNext').click() : show('select'); return; }
+  if (mode !== 'play') return;
+  if (/^Digit[1-6]$/.test(e.code)) { const k = +e.code.slice(5) - 1; if (k < cur.lv.lanterns.length) doAct(k); }
+  else if (e.code === 'Space' || e.code === 'KeyW') { e.preventDefault(); doAct(-1); }
+  else if (e.code === 'KeyZ' || e.code === 'KeyU' || e.code === 'Backspace') { e.preventDefault(); undo(); }
+  else if (e.code === 'KeyR') reset();
+  else if (e.code === 'KeyH') hint();
+});
+const on = (id, f) => $(id).addEventListener('click', e => { audio(); f(e); });
+on('bPlay', () => { SFX.click(); const u = unlockedUpTo(); let i = 0; while (i < u && save.best[i]) i++; playLevel(i); if (!save.seenHelp) { save.seenHelp = 1; persist(); show('help'); } });
+on('bLevels', () => { SFX.click(); show('select'); });
+on('bEndless', () => { SFX.click(); playEndless(); });
+on('bSelEndless', () => { SFX.click(); playEndless(); });
+on('bSelBack', () => { SFX.click(); show('title'); });
+on('bHelp', () => { SFX.click(); show('help'); });
+on('bHelpOk', () => { SFX.click(); show(cur ? 'play' : 'title'); });
+on('bMenu', () => { SFX.click(); show('select'); });
+on('bWait', () => doAct(-1));
+on('bUndo', undo); on('bReset', reset); on('bHint', hint); on('bToastUndo', undo);
+on('bMute', () => setMute(!save.mute));
+on('bNext', () => { SFX.click(); if (cur.kind === 'level') playLevel(cur.index + 1); else playEndless(cur.index + 1); });
+on('bReplay', () => { SFX.click(); if (cur.kind === 'level') playLevel(cur.index); else loadDef(cur.def, 'endless', cur.index); });
+on('bWinMenu', () => { SFX.click(); show('select'); });
+addEventListener('resize', resize);
+setMute(!!save.mute); resize();
+(function loop(now){ draw(now); requestAnimationFrame(loop); })(performance.now());
+
+// test / debug handle
+window.ML = {
+  levels: LEVELS, mode: () => mode, state: () => st, moves: () => moves, cur: () => cur, save: () => save,
+  play: playLevel, endless: playEndless, act: doAct, undo, reset, hint,
+  lanternPoint(k){ layout(); return cc(cur.lv.lanterns[k]); },
+};
+})();
+</script>
+</body>
+</html>
