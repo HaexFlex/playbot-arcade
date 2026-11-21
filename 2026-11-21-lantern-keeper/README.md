@@ -59,6 +59,11 @@ Open `index.html` in any modern browser. It is a single file with no dependencie
 - **Shop and rewards:** the trader shows your gold, items you can't afford are greyed out, the layout is more compact (Leave no longer overlaps the vials), and reward cards slide in one after another.
 - All of these respect reduced motion. v6 is complete.
 
+## v7 accessibility (part 3)
+- **Text size** in Options (Normal / Large / Larger, saved): enlarges tooltips, event text, panel text, intents and card text; at the larger sizes the card art shrinks so the text still fits inside the fixed 1280x800 stage.
+- **Colour-blind-safe intents:** every intent kind has its own shape, not just a colour: attack = sword, block = ring, debuff = diamond with a down chevron, buff = up arrow, summon = twin circles with a +. Intents and cards have aria-labels for screen readers.
+- Verified with `node tools/v6-check.js` (text size cycles, applies and survives a reload). Screenshot: `screenshot-options.png`.
+
 ## v6 additions (part 1): music, options and motion
 - **Generative music** (`src/audio.js`, `MOODS`): a small step sequencer on the WebAudio clock with 6 moods. Title: D major pentatonic, 64 bpm. Act 1: D dorian, 72 bpm. Act 2: A aeolian with a darker sawtooth pad, 66 bpm. Act 3: E phrygian, 60 bpm. Act 4: C lydian with more bells, 54 bpm. Boss fights: G phrygian-ish at 92 bpm with a kick pulse. Each mood plays a 4-chord loop (2 bars per chord) with pad, bass, random plucks and bells, so it never repeats exactly. Moods crossfade over about 2 seconds. Music only starts after your first tap (needed on iOS), and Mute stops it too.
 - **Options screen:** Sound on/off, Music volume, Effects volume and Motion (full or reduced). All of it is saved.

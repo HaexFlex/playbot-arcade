@@ -84,10 +84,11 @@ A deep, polished roguelite deckbuilder set in the night forest that keeps growin
 ### v7: balance and accessibility
 - [x] Per-card sim report: `node tools/sim.js N --cards` → `tools/card_report.txt` (2026-11-21)
 - [ ] Outlier tuning from the card report (part 2 2026-11-21: Aurora base Lumen 2→1; Tangle sources checked, intended. Still open: bot pick values, Great Lantern, Singe, unpicked shared cards)
-- [ ] Colour-blind-safe intents, font-size setting
-- [ ] Keyboard-only and screen-reader pass; tutorial fight
+- [x] Colour-blind-safe intents, font-size setting (part 3 2026-11-21: Options "Text size" Normal/Large/Larger saved in meta; intent icons are distinct shapes (sword, ring, diamond with down chevron, up arrow, twin circles with +) with aria-labels; cards have role=button + aria-label)
+- [ ] Keyboard-only and screen-reader pass (started: intent/card aria-labels); tutorial fight
 
 ## Next steps (for the next run)
+0. **Accessibility follow-ups (v7 part 3 left these):** three long card texts (Glow/Exhaust random, Deal 10 Exhaust random, Retain energy) already overflow their 72px text box slightly at Normal size; at Large/Larger only the first one does (the art shrinks to make room). Shorten those texts or tighten the box. Then the keyboard-only/screen-reader pass (focus outlines, aria-live for combat log, map node labels) and the tutorial fight.
 1. **v7 outlier tuning** (report: `node tools/sim.js 1000 --bots=heuristic --cards --quiet`, 1000 runs/keeper, ~75 s; read the `rel` column, which compares with the average reward-picked card and removes the "long runs pick more cards" bias). Outliers from the first report (Ember 0, all shrine gifts):
    - ~~Aurora~~ done (part 2): base now +2 Blaze/+1 Lumen (upgrade unchanged +3/+3). Tested at 600 runs: cost 2 dropped all keepers 5–8 pp (28.8/26.5/28.3%), +2/+1 → +3/+2 dropped 3–6 pp (31.3/29.7/30.8%), both too much; chosen version 35.2/32.7/31.8% (was 36.8/33.5/33.5%). Rel still +10.9/+9.3/+14.5 (was +11.5/+10.6/+18.3 on 1000 runs) and picked 64–72%: re-check after the bot pick-value fix below, since the bot rates it tier 9; if it is still ++ then, try upgrade +3/+2.
    - **Great Lantern** (Lantern rare) rel +14.1 pp (66.6% win in deck vs 36.4% baseline). Watch; maybe 12→11 damage.

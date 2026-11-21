@@ -19,14 +19,14 @@ html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);font-family
 h1{font-size:84px;margin:0;letter-spacing:.05em;color:#fff3d6;text-shadow:0 0 24px rgba(255,200,110,.75),0 0 70px rgba(255,170,80,.35);text-align:center}
 h2{margin:4px 0 8px;color:#fff3d6;text-shadow:0 0 14px rgba(255,200,110,.5);font-size:30px}
 h3{margin:0 0 6px;color:#fff3d6}
-.dim{color:var(--dim)}.small{font-size:13px}
-.sub{color:var(--dim);font-size:18px;max-width:620px;text-align:center;line-height:1.45;margin:8px auto 18px}
+.dim{color:var(--dim)}.small{font-size:calc(13px*var(--tsk))}
+.sub{color:var(--dim);font-size:calc(18px*var(--tsk));max-width:620px;text-align:center;line-height:1.45;margin:8px auto 18px}
 #sTitle{text-align:center;padding-top:16px}
 #sTitle.on{display:flex;flex-direction:column;align-items:center}
 #titleArt{width:300px;height:250px;margin-bottom:-14px}
 .col{display:flex;flex-direction:column;align-items:center;gap:6px}
 .row{display:flex;gap:10px;align-items:center;justify-content:center;flex-wrap:wrap}
-#meta{margin-top:12px;font-size:14px;line-height:1.5}
+#meta{margin-top:12px;font-size:calc(14px*var(--tsk));line-height:1.5}
 .btn{font:inherit;color:var(--ink);background:rgba(40,44,96,.8);border:1px solid var(--line);border-radius:12px;padding:10px 22px;font-size:17px;cursor:pointer;transition:transform .12s,background .2s,box-shadow .2s;min-width:150px}
 .btn:hover:not(:disabled),.btn.kb{background:rgba(78,74,150,.92);box-shadow:0 0 18px rgba(255,207,110,.3);transform:translateY(-1px)}
 .btn:disabled{opacity:.4;cursor:default}
@@ -140,7 +140,7 @@ input{font:inherit;font-size:16px;background:rgba(10,12,32,.8);color:var(--ink);
 .card .nm{margin:9px 6px 0 36px;font-size:14px;font-weight:bold;height:34px;display:flex;align-items:center;justify-content:center;line-height:1.05}
 .card .art{height:66px;margin:2px 9px 0;border-radius:8px;background-size:cover;background-position:center;border:1px solid rgba(255,255,255,.12)}
 .card .ty{font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--dim);margin-top:3px}
-.card .tx{font-size:13px;line-height:1.25;padding:3px 8px;height:72px;display:flex;align-items:center;justify-content:center}
+.card .tx{font-size:calc(13px*var(--tsc));line-height:calc(1.25 - (var(--tsc) - 1));padding:3px 8px;height:72px;display:flex;align-items:center;justify-content:center}
 .card .tx b.up{color:#7dff9a}.card .tx b.dn{color:#ff8080}
 .card.attack{border-color:#e48a55;background:linear-gradient(160deg,#4a2525,#1c1020)}
 .card.skill{border-color:#5ccbbd;background:linear-gradient(160deg,#173d44,#0f1830)}
@@ -169,7 +169,7 @@ input{font:inherit;font-size:16px;background:rgba(10,12,32,.8);color:var(--ink);
 #turnBanner{position:absolute;left:0;right:0;top:300px;text-align:center;font-size:44px;font-weight:bold;color:#fff3d6;text-shadow:0 0 24px rgba(255,190,100,.9);opacity:0;pointer-events:none;transition:opacity .25s}
 #turnBanner.on{opacity:1}
 #hint{position:absolute;left:0;right:0;top:536px;text-align:center;pointer-events:none}
-#tip{position:absolute;z-index:60;max-width:280px;background:rgba(10,10,30,.96);border:1px solid rgba(255,220,150,.45);border-radius:10px;padding:8px 11px;font-size:14px;line-height:1.35;pointer-events:none;display:none;text-align:left}
+#tip{position:absolute;z-index:60;max-width:calc(280px*var(--tsk));background:rgba(10,10,30,.96);border:1px solid rgba(255,220,150,.45);border-radius:10px;padding:8px 11px;font-size:calc(14px*var(--tsk));line-height:1.35;pointer-events:none;display:none;text-align:left}
 #tip b{color:#ffe1a0}
 #popLayer{position:absolute;inset:0;pointer-events:none;z-index:40}
 .pop{position:absolute;font-weight:bold;font-size:30px;transform:translate(-50%,-50%);animation:popup 1s ease-out forwards;text-shadow:0 0 6px #000,0 0 12px #000;white-space:nowrap}
@@ -177,7 +177,7 @@ input{font:inherit;font-size:16px;background:rgba(10,12,32,.8);color:var(--ink);
 @keyframes popup{0%{opacity:0;margin-top:10px}12%{opacity:1}100%{opacity:0;margin-top:-60px}}
 .flycard{position:absolute;pointer-events:none;z-index:45;transition:transform .32s ease-in,opacity .32s ease-in}
 #evCan,#fireCan{display:block;margin:0 auto}
-#evText{font-size:17px;line-height:1.5;max-width:600px;margin:6px auto 14px}
+#evText{font-size:calc(17px*var(--tsk));line-height:1.5;max-width:600px;margin:6px auto 14px}
 #evOpts .btn{min-width:460px;font-size:16px}
 .stats{display:grid;grid-template-columns:auto auto;gap:4px 22px;justify-content:center;margin:10px 0 18px;font-size:16px}
 .stats span:nth-child(odd){color:var(--dim);text-align:right}
@@ -278,6 +278,12 @@ body.reduce .strand{display:none}
 .shopItem{transition:transform .15s,opacity .2s}
 #rwCards .card.reveal{animation:reveal .3s ease-out backwards}
 @keyframes reveal{0%{opacity:0;transform:translateY(24px) scale(.94)}100%{opacity:1}}
+
+/* v7 text size option: body.ts1 Large, body.ts2 Larger (cards grow less so text still fits) */
+body{--tsk:1;--tsc:1}body.ts1{--tsk:1.15;--tsc:1.08}body.ts2{--tsk:1.3;--tsc:1.15}
+.panel p:not([class]):not([id]){font-size:calc(16px*var(--tsk))}
+.intent{font-size:calc(19px*var(--tsk))}.intent .ii{width:calc(28px*var(--tsk));height:calc(28px*var(--tsk))}
+body.ts1 .card .art{height:56px}body.ts1 .card .tx{height:82px;padding:2px 6px}body.ts2 .card .art{height:46px}body.ts2 .card .tx{height:92px;padding:2px 5px}
 
 </style>
 </head>
@@ -384,7 +390,8 @@ body.reduce .strand{display:none}
     <label class="optRow"><span>Music</span><input type="range" id="volMus" min="0" max="100" step="5"><b id="volMusV"></b></label>
     <label class="optRow"><span>Effects</span><input type="range" id="volSfx" min="0" max="100" step="5"><b id="volSfxV"></b></label>
     <div class="optRow"><span>Motion</span><button class="btn small" id="bMotion">Full motion</button></div>
-    <p class="dim small">Reduced motion turns off shaking, flashes, card flights and most particles. The music is generated live: each act has its own mode and tempo, and bosses bring a drum pulse.</p>
+    <div class="optRow"><span>Text size</span><button class="btn small" id="bText" aria-label="Text size">Text: Normal</button></div>
+    <p class="dim small">Reduced motion turns off shaking, flashes, card flights and most particles. Text size enlarges tooltips, event and card text. The music is generated live: each act has its own mode and tempo, and bosses bring a drum pulse.</p>
     <button class="btn" id="bOptClose">Close</button></div></section>
   <div id="bossCard"><div class="bcLine"></div><div class="bcName"></div><div class="bcSub"></div><div class="bcLine"></div></div>
   <div id="flash"></div><div id="fade"></div>
@@ -2065,11 +2072,11 @@ const ICON = {
   shop: '<svg viewBox="0 0 32 32"><path d="M9 12 Q16 6 23 12 L25 26 L7 26Z" fill="#e9b440"/><path d="M12 12 Q16 4 20 12" stroke="#8a5a10" stroke-width="2" fill="none"/><circle cx="16" cy="19" r="3.5" fill="#fff2b0"/></svg>',
   event: '<svg viewBox="0 0 32 32"><text x="16" y="25" text-anchor="middle" font-size="24" font-weight="bold" fill="#b9a6ff" font-family="Georgia,serif">?</text></svg>',
   boss: '<svg viewBox="0 0 64 64"><circle cx="32" cy="32" r="22" fill="#dfe6ff"/><circle cx="42" cy="26" r="20" fill="#141634"/><path d="M8 40 Q20 24 32 40 Q44 24 56 40 Q44 34 32 46 Q20 34 8 40Z" fill="#7a6ad0"/></svg>',
-  attack: '<svg viewBox="0 0 32 32" class="ii"><path d="M5 27 L21 11 L23 5 L27 9 L21 11" stroke="#ff8a7a" stroke-width="3" fill="none" stroke-linecap="round"/><path d="M9 23 L5 19 M9 23 L13 27" stroke="#ff8a7a" stroke-width="3"/></svg>',
-  defend: '<svg viewBox="0 0 32 32" class="ii"><circle cx="16" cy="16" r="11" fill="none" stroke="#8ff5ea" stroke-width="3"/><circle cx="16" cy="16" r="5" fill="#8ff5ea"/></svg>',
-  debuff: '<svg viewBox="0 0 32 32" class="ii"><path d="M16 4 L28 16 L16 28 L4 16Z" fill="#c26aff"/><circle cx="16" cy="16" r="4" fill="#2a0a3a"/></svg>',
-  buff: '<svg viewBox="0 0 32 32" class="ii"><path d="M16 4 L22 14 H18 V28 H14 V14 H10Z" fill="#7dff9a"/></svg>',
-  summon: '<svg viewBox="0 0 32 32" class="ii"><circle cx="11" cy="18" r="6" fill="#c7a6ff"/><circle cx="21" cy="14" r="6" fill="#9a7ae0"/></svg>',
+  attack: '<svg viewBox="0 0 32 32" class="ii" role="img" aria-label="Attack"><title>Attack</title><path d="M5 27 L21 11 L23 5 L27 9 L21 11" stroke="#ff8a7a" stroke-width="3" fill="none" stroke-linecap="round"/><path d="M9 23 L5 19 M9 23 L13 27" stroke="#ff8a7a" stroke-width="3"/></svg>',
+  defend: '<svg viewBox="0 0 32 32" class="ii" role="img" aria-label="Block"><title>Block</title><circle cx="16" cy="16" r="11" fill="none" stroke="#8ff5ea" stroke-width="3"/><circle cx="16" cy="16" r="5" fill="#8ff5ea"/></svg>',
+  debuff: '<svg viewBox="0 0 32 32" class="ii" role="img" aria-label="Debuff"><title>Debuff</title><path d="M16 4 L28 16 L16 28 L4 16Z" fill="#c26aff"/><path d="M11 13 L16 19 L21 13" stroke="#2a0a3a" stroke-width="3" fill="none" stroke-linecap="round"/></svg>',
+  buff: '<svg viewBox="0 0 32 32" class="ii" role="img" aria-label="Buff"><title>Buff</title><path d="M16 4 L22 14 H18 V28 H14 V14 H10Z" fill="#7dff9a"/></svg>',
+  summon: '<svg viewBox="0 0 32 32" class="ii" role="img" aria-label="Summon"><title>Summon</title><circle cx="11" cy="18" r="6" fill="#c7a6ff"/><circle cx="21" cy="14" r="6" fill="#9a7ae0"/><path d="M24 22 V30 M20 26 H28" stroke="#fff" stroke-width="2.4"/></svg>',
 };
 /* ---- background scene ---- */
 function makeTrees(seed, w, h, n, col, minH, maxH) {
@@ -2277,7 +2284,7 @@ let scale = 1, offX = 0, offY = 0, dpr = 1, T0 = performance.now(), parts = [], 
 const enemyEls = new Map();
 
 /* ---------- storage ---------- */
-function metaDefaults() { return { light: 0, badges: {}, emberWon: {}, best: null, wins: 0, runs: 0, emberMax: 0, ember: 0, daily: {}, mute: false, vMus: 50, vSfx: 70, reduce: !!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches), seen: false, keeper: 'lantern', unlocked: {}, trueEnds: {}, history: [], codex: { cards: {}, charms: {}, vials: {}, enemies: {} } }; }
+function metaDefaults() { return { light: 0, badges: {}, emberWon: {}, best: null, wins: 0, runs: 0, emberMax: 0, ember: 0, daily: {}, mute: false, vMus: 50, vSfx: 70, textSize: 0, reduce: !!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches), seen: false, keeper: 'lantern', unlocked: {}, trueEnds: {}, history: [], codex: { cards: {}, charms: {}, vials: {}, enemies: {} } }; }
 function loadMeta() { try { const m = Object.assign(metaDefaults(), JSON.parse(localStorage.getItem(META) || '{}')); m.codex = Object.assign(metaDefaults().codex, m.codex); if (m.wins > 0) { m.unlocked.moth = true; m.unlocked.moon = true; } m.trueEnds = m.trueEnds || {}; if (m.wins > 0 || (m.history || []).some(h => h.win || h.act >= 3)) m.unlocked.wick = true; return E.migrateMeta(m); } catch (e) { return metaDefaults(); } }
 function saveMeta() { try { localStorage.setItem(META, JSON.stringify(meta)); } catch (e) { } }
 function saveRun() { try { if (run && !run.result) localStorage.setItem(SAVE, JSON.stringify(run)); else localStorage.removeItem(SAVE); } catch (e) { } }
@@ -2471,6 +2478,7 @@ function cardEl(cd, opts) {
   el.className = 'card ' + d.type + ' ' + d.rarity + (cd.up ? ' upg' : '');
   el.innerHTML = '<div class="cost' + (opts.dear ? ' dear' : '') + '">' + cost + '</div><div class="nm">' + E.cardName(cd) + '</div><div class="art" style="background-image:url(' + ART.cardArt(cd.id, d.type) + ')"></div><div class="ty">' + (d.k === 'moth' ? '&#10022; ' : d.k === 'wick' ? '&#10040; ' : '') + d.rarity + ' ' + d.type + '</div><div class="tx">' + E.cardText(cd, opts.live ? run : null, opts.tgt) + '</div>' + (d.retain ? '<div class="rtn">' + (cd.held ? 'kept ' + cd.held : 'retain') + '</div>' : cd.held ? '<div class="rtn">kept ' + cd.held + '</div>' : '');
   const tip = kwTip(cd); if (tip) el.dataset.tip = tip;
+  el.setAttribute('role', 'button'); el.setAttribute('aria-label', E.cardName(cd) + ', cost ' + cost + ', ' + d.rarity + ' ' + d.type + '. ' + el.querySelector('.tx').textContent);
   return el;
 }
 
@@ -2508,6 +2516,7 @@ function renderCombat(c, live) {
       const info = E.intentInfo(run, e);
       it.innerHTML = info.kind.map(k => ART.ICON[k]).join('') + (info.dmg || info.kind.indexOf('attack') >= 0 ? '<span class="atk">' + info.dmg + (info.hits > 1 ? '&times;' + info.hits : '') + '</span>' : '');
       it.dataset.tip = '<b>' + info.name + '</b><br>' + info.desc;
+      it.setAttribute('role', 'img'); it.setAttribute('aria-label', 'Intent: ' + info.kind.join(' and ') + '. ' + info.name + ': ' + info.desc);
     } else if (!live || c.over) { it.innerHTML = ''; }
   }
   for (const [uid, el] of enemyEls) if (!seen.has(uid)) { el.remove(); enemyEls.delete(uid); }
@@ -2972,9 +2981,11 @@ addEventListener('keydown', e => {
 });
 
 /* ---------- buttons ---------- */
+const TEXT_SIZES = ['Normal', 'Large', 'Larger'];
 function applyOpts() {
   SFX.setVolumes(meta.vSfx / 100, meta.vMus / 100); document.body.classList.toggle('reduce', !!meta.reduce);
   $('volMus').value = meta.vMus; $('volSfx').value = meta.vSfx; $('volMusV').textContent = meta.vMus + '%'; $('volSfxV').textContent = meta.vSfx + '%';
+  const ts = [0, 1, 2].indexOf(meta.textSize) >= 0 ? meta.textSize : 0; document.body.classList.toggle('ts1', ts === 1); document.body.classList.toggle('ts2', ts === 2); $('bText').textContent = 'Text: ' + TEXT_SIZES[ts];
   $('bMotion').textContent = meta.reduce ? 'Reduced motion' : 'Full motion'; $('bMute2').textContent = 'Sound: ' + (meta.mute ? 'off' : 'on');
 }
 function openOpt() { applyOpts(); $('sOpt').classList.add('on'); kbIdx = -1; SFX.unlock(); }
@@ -2996,6 +3007,7 @@ $('bOpt').onclick = $('bOpt2').onclick = openOpt;
 $('bOptClose').onclick = () => $('sOpt').classList.remove('on');
 $('volMus').oninput = e => { meta.vMus = +e.target.value; applyOpts(); saveMeta(); };
 $('volSfx').oninput = e => { meta.vSfx = +e.target.value; applyOpts(); saveMeta(); SFX.play('click'); };
+$('bText').onclick = () => { meta.textSize = ((meta.textSize | 0) + 1) % 3; applyOpts(); saveMeta(); SFX.play('click'); };
 $('bMotion').onclick = () => { meta.reduce = !meta.reduce; applyOpts(); saveMeta(); SFX.play('click'); };
 $('bMenu').onclick = goTitle;
 $('bDeck').onclick = openDeck;
