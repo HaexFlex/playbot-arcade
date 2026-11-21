@@ -267,6 +267,17 @@ body.reduce .bolt,body.reduce #fade{display:none}
 @keyframes strand{0%{clip-path:inset(0 100% 0 0)}35%{clip-path:inset(0 0 0 0)}55%{clip-path:inset(0 0 0 0);opacity:1}100%{clip-path:inset(0 0 0 100%);opacity:.3}}
 .bolt.moon{width:40px;height:40px;border-radius:50%}
 body.reduce .strand{display:none}
+#sShop .panel{padding:12px 26px}
+#sShop h2{margin:2px 0}
+#sShop p{margin:4px 0 8px}
+#shopRow,#shopVials{margin:6px 0}
+#shopVials .shopItem{padding:6px 10px}
+.shopItem.poor{opacity:.55;filter:grayscale(.6)}
+.shopItem.poor .price{color:#e07070}
+.shopItem:not(.sold):not(.poor):hover{transform:translateY(-4px)}
+.shopItem{transition:transform .15s,opacity .2s}
+#rwCards .card.reveal{animation:reveal .3s ease-out backwards}
+@keyframes reveal{0%{opacity:0;transform:translateY(24px) scale(.94)}100%{opacity:1}}
 
 </style>
 </head>
@@ -350,7 +361,7 @@ body.reduce .strand{display:none}
     <h2>Campfire</h2><p class="dim">The fire crackles. Fireflies gather around you.</p>
     <div class="row"><button class="btn big" id="bHeal">Rest<br><small id="healTxt">heal 30%</small></button><button class="btn big" id="bUpg">Tend lantern<br><small>upgrade a card</small></button></div></div></section>
   <section id="sShop" class="scr ov"><div class="panel wide">
-    <h2>Moth Trader</h2><p class="dim">"Bright wares for bright coin, keeper."</p>
+    <h2>Moth Trader</h2><p class="dim">"Bright wares for bright coin, keeper." <span id="shopGold"></span></p>
     <div class="cards" id="shopCards"></div>
     <div class="row" id="shopRow"></div>
     <div class="row" id="shopVials"></div>
@@ -2724,7 +2735,7 @@ function renderReward() {
   $('rwTitle').textContent = rw.boss ? 'The boss falls!' : run.combat && run.combat.kind === 'elite' ? 'Elite defeated!' : 'Victory!';
   $('rwLoot').innerHTML = '<span style="color:var(--gold)">+' + rw.gold + ' gold</span>' + (rw.charm ? ' &middot; Charm: <b>' + E.CHARMS[rw.charm].n + '</b> <span class="dim">(' + E.CHARMS[rw.charm].d + ')</span>' : '') + (rw.vial ? ' &middot; ' + (rw.vialLost ? '<span class="dim">Found a ' + E.VIALS[rw.vial].n + ', but your vial belt is full.</span>' : 'Dew vial: <b>' + E.VIALS[rw.vial].n + '</b>') : '');
   const box = $('rwCards'); box.innerHTML = '';
-  rw.cards.forEach((cd, i) => { const el = cardEl(cd); el.classList.add('kbable'); el.onclick = () => doAct({ t: 'reward', i }); box.appendChild(el); });
+  rw.cards.forEach((cd, i) => { const el = cardEl(cd); el.classList.add('kbable'); if (!meta.reduce) { el.classList.add('reveal'); el.style.animationDelay = (60 + i * 70) + 'ms'; } el.onclick = () => doAct({ t: 'reward', i }); box.appendChild(el); });
   $('bSkip').classList.add('kbable');
 }
 function renderCharm() {
@@ -2742,6 +2753,7 @@ function renderRest() {
 }
 function renderShop() {
   const s = run.shop, box = $('shopCards'); box.innerHTML = '';
+  $('shopGold').innerHTML = '&middot; You have <b style="color:var(--gold)">' + run.gold + ' gold</b>';
   s.cards.forEach((c, i) => { const w = document.createElement('div'); w.className = 'shopItem' + (c.sold ? ' sold' : '') + (run.gold < c.price ? ' poor' : ''); const el = cardEl(c); el.classList.add('kbable'); el.onclick = () => buy({ t: 'buy', k: 'card', i }); w.appendChild(el); w.insertAdjacentHTML('beforeend', '<span class="price">' + c.price + ' g</span>'); box.appendChild(w); });
   const row = $('shopRow'); row.innerHTML = '';
   s.charms.forEach((c, i) => { const ch = E.CHARMS[c.id], w = document.createElement('div'); w.className = 'shopItem charmCard kbable' + (c.sold ? ' sold' : '') + (run.gold < c.price ? ' poor' : ''); w.style.width = '230px'; w.innerHTML = charmHtml(c.id) + '<b>' + ch.n + '</b><span class="dim small">' + ch.d + '</span><span class="price">' + c.price + ' g</span>'; w.onclick = () => buy({ t: 'buy', k: 'charm', i }); row.appendChild(w); });

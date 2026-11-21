@@ -49,7 +49,8 @@ Open `index.html` in any modern browser. It is a single file with no dependencie
 - **Lean Purse (E9)** now takes 25 starting gold instead of 40 (bot at E9: Lantern 2.7 → 4.0%, Moth 5.3%, Wick 5.7%; E10: 1.7 / 3.0 / 3.7%).
 - **New GIF** (`tools/record-gif.js`): title, Options, then the Grand Weaver's intro card and a fight with web strands and dealt hands.
 - **Heartbeat:** at 30% HP or less, a soft double kick joins the act music (boss music already has a pulse).
-- All of these respect reduced motion.
+- **Shop and rewards:** the trader shows your gold, items you can't afford are greyed out, the layout is more compact (Leave no longer overlaps the vials), and reward cards slide in one after another.
+- All of these respect reduced motion. v6 is complete.
 
 ## v6 additions (part 1): music, options and motion
 - **Generative music** (`src/audio.js`, `MOODS`): a small step sequencer on the WebAudio clock with 6 moods. Title: D major pentatonic, 64 bpm. Act 1: D dorian, 72 bpm. Act 2: A aeolian with a darker sawtooth pad, 66 bpm. Act 3: E phrygian, 60 bpm. Act 4: C lydian with more bells, 54 bpm. Boss fights: G phrygian-ish at 92 bpm with a kick pulse. Each mood plays a 4-chord loop (2 bars per chord) with pad, bass, random plucks and bells, so it never repeats exactly. Moods crossfade over about 2 seconds. Music only starts after your first tap (needed on iOS), and Mute stops it too.

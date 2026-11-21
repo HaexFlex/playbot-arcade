@@ -21,7 +21,7 @@ A deep, polished roguelite deckbuilder set in the night forest that keeps growin
 - **v3: third keeper** (done 2026-11-21). The Ember Wick (Exhaust/Retain/Wax), 18 class cards, 4 charms, 4 events, its own unlock.
 - **v4: Act 4 and the true ending** (done 2026-11-21). A short 4th act (The Hollow Moon) unlocked by winning, a final boss with phases, 2 new elites, 4–6 new creatures, 6+ new events (with choices that use keeper mechanics), and an epilogue screen per keeper.
 - **v5: meta-progression and ascension depth** (done 2026-11-21). Ember 6–10 with named modifiers (elites gain a power, less healing, curses in the deck), a "Lantern Shrine" unlock track (new cards and charms added to pools over time, never raw stats), per-keeper mastery badges, and daily-run modifiers.
-- **v6: polish, audio, music and animation.** Generative background music per act (reusing ideas from Night Forest Radio), card draw/play/exhaust animations, enemy attack animations, boss intros, screen transitions, reduced-motion option, better reward and shop layouts.
+- **v6: polish, audio, music and animation** (done 2026-11-21). Generative background music per act (reusing ideas from Night Forest Radio), card draw/play/exhaust animations, enemy attack animations, boss intros, screen transitions, reduced-motion option, better reward and shop layouts.
 - **v7: balance and accessibility.** A sim report per card (pick rate, win rate when picked), tune outliers, colour-blind-safe intent icons, font-size setting, full keyboard-only and screen-reader labels, and a tutorial fight.
 - **Later ideas:** a fourth keeper (an owl or frog themed "Debuff/Curse" keeper?), card transforms, seeded challenge links, a stats page, localization.
 
@@ -76,7 +76,7 @@ A deep, polished roguelite deckbuilder set in the night forest that keeps growin
 - [x] Boss intro name card and phase cards, deal-in and exhaust burn-away animations (2026-11-21)
 - [x] Enemy attack bolts and screen fades (2026-11-21)
 - [x] Reduced-motion option, following the system setting (2026-11-21)
-- [ ] Shop and reward layout polish
+- [x] Shop and reward layout polish (2026-11-21)
 - [x] New GIF with the boss intro, web strands and dealt hands (2026-11-21)
 - [x] Signature attacks: web strands, frog tongues, moonlight orbs (2026-11-21)
 - [x] Smoother Ember 1–10 ladder (2026-11-21)
@@ -87,7 +87,7 @@ A deep, polished roguelite deckbuilder set in the night forest that keeps growin
 - [ ] Keyboard-only and screen-reader pass; tutorial fight
 
 ## Next steps (for the next run)
-1. Finish **v6**: shop and reward layout polish (the last open v6 item), then start **v7** (per-card sim stats first).
+1. Start **v7: balance and accessibility**: a per-card sim report (pick rate, win rate when picked) in `tools/sim.js`, tune outliers, then colour-blind-safe intents and a font-size option.
 2. Ember ladder is smooth now (README table); Lean Purse is -25 gold. Re-check the ladder after any card or enemy change with `for e in 0 5 10; do node tools/sim.js 300 --act4=0 --bots=heuristic --ember=$e --quiet; done`.
 3. v5 follow-ups:
    - With every shrine gift unlocked, Lantern/Moth sim rates drop by about 4 points (40.3 → 36.8, 38.3 → 33.5), still in range. A per-card pick/win report (v7) would show which shrine cards the bot over-picks.
