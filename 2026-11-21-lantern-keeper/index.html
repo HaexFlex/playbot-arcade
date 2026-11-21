@@ -140,7 +140,8 @@ input{font:inherit;font-size:16px;background:rgba(10,12,32,.8);color:var(--ink);
 .card .nm{margin:9px 6px 0 36px;font-size:14px;font-weight:bold;height:34px;display:flex;align-items:center;justify-content:center;line-height:1.05}
 .card .art{height:66px;margin:2px 9px 0;border-radius:8px;background-size:cover;background-position:center;border:1px solid rgba(255,255,255,.12)}
 .card .ty{font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--dim);margin-top:3px}
-.card .tx{font-size:calc(13px*var(--tsc));line-height:calc(1.25 - (var(--tsc) - 1));padding:3px 8px;height:72px;display:flex;align-items:center;justify-content:center}
+.card .tx{font-size:calc(13px*var(--tsc));line-height:calc(1.25 - (var(--tsc) - 1));padding:2px 7px;height:72px;display:flex;align-items:center;justify-content:center}
+.card .tx.long{font-size:calc(11.5px*var(--tsc));line-height:1.12;padding:2px 5px}
 .card .tx b.up{color:#7dff9a}.card .tx b.dn{color:#ff8080}
 .card.attack{border-color:#e48a55;background:linear-gradient(160deg,#4a2525,#1c1020)}
 .card.skill{border-color:#5ccbbd;background:linear-gradient(160deg,#173d44,#0f1830)}
@@ -569,11 +570,11 @@ function melt(R, n) { const p = P(R); if ((p.st.wax || 0) < n || n <= 0) return 
 function meltAll(R) { const n = WX(R); if (n) melt(R, n); return n; }
 const wi = (o) => Object.assign({ k: 'wick' }, o);
 card('singe', 'Singe', 'attack', 'starter', 1, 'enemy', [6], [9], 'Deal {D0} damage.', (R, t, v) => hit(R, P(R), t, v[0]), wi({ tier: 1 }));
-card('meltdown', 'Melt Down', 'skill', 'starter', 1, 'none', [7], [10], 'Gain {B0} Glow. Exhaust a random other card in your hand (Tangles first, attacks last). Draw 1 card.', (R, t, v) => { glow(R, v[0]); exhaustRandom(R, 1); draw(R, 1); }, wi({ tier: 4 }));
+card('meltdown', 'Melt Down', 'skill', 'starter', 1, 'none', [7], [10], 'Gain {B0} Glow. Exhaust another random hand card (Tangles first, attacks last). Draw 1.', (R, t, v) => { glow(R, v[0]); exhaustRandom(R, 1); draw(R, 1); }, wi({ tier: 4 }));
 // commons
 card('candleflare', 'Candle Flare', 'attack', 'common', 1, 'enemy', [7, 5], [10, 7], 'Deal {D0} damage. Melt 2 Wax: deal {1} more.', (R, t, v) => hit(R, P(R), t, v[0] + (melt(R, 2) ? v[1] : 0)), wi({ tier: 6 }));
 card('waxseal', 'Wax Seal', 'skill', 'common', 1, 'none', [7], [10], 'Retain. Gain {B0} Glow.', (R, t, v) => glow(R, v[0]), wi({ retain: 1, tier: 5 }));
-card('snuff', 'Snuff Out', 'attack', 'common', 1, 'enemy', [10], [13], 'Deal {D0} damage. Exhaust a random other card in your hand (Tangles first, attacks last).', (R, t, v) => { hit(R, P(R), t, v[0]); exhaustRandom(R, 1); }, wi({ tier: 6 }));
+card('snuff', 'Snuff Out', 'attack', 'common', 1, 'enemy', [10], [13], 'Deal {D0} damage. Exhaust another random hand card (Tangles first, attacks last).', (R, t, v) => { hit(R, P(R), t, v[0]); exhaustRandom(R, 1); }, wi({ tier: 6 }));
 card('drip', 'Wax Drip', 'skill', 'common', 0, 'none', [2], [3], 'Gain {0} Wax. Exhaust.', (R, t, v) => wax(R, v[0]), wi({ exhaust: 1, tier: 5 }));
 card('slowburn', 'Slow Burn', 'attack', 'common', 1, 'enemy', [6, 3], [8, 4], 'Retain. Deal {D0} damage, plus {1} for each turn this card was Retained.', (R, t, v, cd) => hit(R, P(R), t, v[0] + v[1] * ((cd && cd.held) || 0)), wi({ retain: 1, tier: 6 }));
 card('tallowguard', 'Tallow Guard', 'skill', 'common', 1, 'none', [5], [7], 'Gain {B0} Glow, plus 1 for each Wax.', (R, t, v) => glow(R, v[0] + WX(R)), wi({ tier: 6 }));
@@ -583,7 +584,7 @@ card('cinderhalo', 'Cinder Halo', 'power', 'uncommon', 1, 'none', [4], [6], 'Whe
 card('waxwork', 'Waxwork', 'power', 'uncommon', 1, 'none', [3], [5], 'Whenever a card is exhausted, gain {0} Glow.', (R, t, v) => addSt(R, P(R), 'waxwork', v[0], 1), wi({ tier: 7 }));
 card('consume', 'Consume', 'attack', 'uncommon', 2, 'enemy', [7], [9], 'Exhaust all other cards in your hand. Deal {D0} damage for each.', (R, t, v) => { const c = C_(R), cards = c.hand.splice(0); for (const x of cards) exhaustCard(R, x); for (let i = 0; i < cards.length; i++) hit(R, P(R), t, v[0]); }, wi({ tier: 7 }));
 card('moltenwave', 'Molten Wave', 'attack', 'uncommon', 2, 'all', [4, 2], [6, 3], 'Melt all Wax. Deal {D0} damage plus {1} per Wax melted to ALL enemies.', (R, t, v) => { const n = meltAll(R); for (const e of alive(R)) hit(R, P(R), e, v[0] + v[1] * n); }, wi({ tier: 7 }));
-card('patience', 'Patient Flame', 'skill', 'uncommon', 0, 'none', [1], [2], 'Retain. Gain {0} energy, plus 1 for each turn this card was Retained (max 3). Exhaust.', (R, t, v, cd) => { C_(R).energy += Math.min(3, v[0] + ((cd && cd.held) || 0)); }, wi({ retain: 1, exhaust: 1, tier: 6 }));
+card('patience', 'Patient Flame', 'skill', 'uncommon', 0, 'none', [1], [2], 'Retain. Gain {0} energy, +1 per turn Retained (max 3). Exhaust.', (R, t, v, cd) => { C_(R).energy += Math.min(3, v[0] + ((cd && cd.held) || 0)); }, wi({ retain: 1, exhaust: 1, tier: 6 }));
 card('rekindle', 'Rekindle', 'skill', 'uncommon', 1, 'none', [], [], 'Put a random card from your exhaust pile into your hand. Exhaust.', (R) => { const c = C_(R), pool = c.exhaust.filter(x => C[x.id].type !== 'status'); if (!pool.length || c.hand.length >= 10) return; const x = pickR(R, 'fight', pool); c.exhaust.splice(c.exhaust.indexOf(x), 1); c.hand.push(x); fx({ k: 'draw', n: 1 }); }, wi({ exhaust: 1, costUp: 0, tier: 5 }));
 card('effigy', 'Wax Effigy', 'skill', 'uncommon', 1, 'none', [3], [4], 'Melt all Wax. Gain {0} Glow per Wax melted. Exhaust.', (R, t, v) => { const n = meltAll(R); if (n) glow(R, v[0] * n); }, wi({ exhaust: 1, tier: 6 }));
 // rares
@@ -594,7 +595,7 @@ card('candlemass', 'Candlemass', 'skill', 'rare', 1, 'none', [], [], 'Retain. Do
 // status card added by spiders
 card('tangle', 'Tangle', 'status', 'status', 1, 'none', [], [], 'Sticky silk. Does nothing. Exhaust.', () => {}, { exhaust: 1, tier: 0 });
 card('chill', 'Moonchill', 'status', 'status', 0, 'none', [2], [2], 'Cold moonlight. Lose {0} HP. Exhaust.', (R, t, v) => loseHp(R, P(R), v[0], false), { exhaust: 1, tier: 0 });
-card('gloom', 'Gloom', 'status', 'status', 1, 'none', [], [], 'Curse. A cold weight in your pack. Does nothing. Remove it at a trader.', () => {}, { tier: 0, curse: 1 });
+card('gloom', 'Gloom', 'status', 'status', 1, 'none', [], [], 'Curse. A cold weight in your pack. Does nothing. Remove at a trader.', () => {}, { tier: 0, curse: 1 });
 // Lantern Shrine cards: only in the pools once unlocked on the shrine track (see E.SHRINE)
 const sh = (k, o) => Object.assign({ k, shrine: 1 }, o);
 card('fanflames', 'Fan the Flames', 'attack', 'uncommon', 1, 'enemy', [4, 6], [6, 9], 'Deal {D0} damage. Apply Kindled equal to the target\'s Kindled (max {1}).', (R, t, v) => { hit(R, P(R), t, v[0]); if (!t.dead) addSt(R, t, 'kindled', Math.min(v[1], t.st.kindled || 0), 1); }, sh('lantern', { tier: 7 }));
@@ -1549,10 +1550,18 @@ function planTurn(R, budget) {
   return best.path;
 }
 E.planTurn = planTurn;
-const TIER = id => C[id].tier;
+// Bot-only pick ratings (v7 part 4, from tools/card_report.txt 'rel' column): override the card's base tier for the sim bot.
+// Over-picked with negative rel: Wildfire, Fan the Flames, Moonwell, Moth Dance. Under-picked strong: Moth Swarm, Wing Wall, Flicker, Silk Snare (Wick).
+// Card stats are untouched; per-keeper entries win over the '*' entry.
+const BOT_TIER = {
+  '*': { wildfire: 6.5, fanflames: 5.5, moonwell: 7.5, dance: 5.5, swarm: 6.5, wingwall: 7, flicker: 7 },
+  wick: { swarm: 5, snare: 7 },
+};
+E.BOT_TIER = BOT_TIER;
+const TIER = (id, R) => { const k = R && BOT_TIER[R.keeper]; return k && k[id] != null ? k[id] : BOT_TIER['*'][id] != null ? BOT_TIER['*'][id] : C[id].tier; };
 function deckValue(R, id) {
   const n = R.deck.filter(c => c.id === id).length;
-  const t = TIER(id) - n * 1.5 - (C[id].type === 'power' && n ? 2 : 0);
+  const t = TIER(id, R) - n * 1.5 - (C[id].type === 'power' && n ? 2 : 0);
   return t - Math.max(0, R.deck.length - 18) * 0.25;
 }
 E.BOT_BUDGET = 160;
@@ -1600,9 +1609,9 @@ E.bots = {
         const pk = R.pick; let bi = -1, bs = -1e9;
         R.deck.forEach((cd, i) => {
           let s;
-          if (pk.mode === 'upgrade') { if (!E.canUpgrade(cd)) return; s = TIER(cd.id) + (cd.id === 'swing' || cd.id === 'callmoths' || cd.id === 'meltdown' ? 3 : 0); }
-          else if (pk.mode === 'copy') { if (C[cd.id].type === 'status') return; s = TIER(cd.id) + (cd.up ? 1 : 0) + (C[cd.id].type === 'power' ? -2 : 0); }
-          else s = cd.id === 'tangle' || cd.id === 'chill' || cd.id === 'gloom' ? 100 : cd.id === 'spark' || cd.id === 'wingflick' || cd.id === 'singe' ? 50 : cd.id === 'shield' ? 40 : -TIER(cd.id);
+          if (pk.mode === 'upgrade') { if (!E.canUpgrade(cd)) return; s = TIER(cd.id, R) + (cd.id === 'swing' || cd.id === 'callmoths' || cd.id === 'meltdown' ? 3 : 0); }
+          else if (pk.mode === 'copy') { if (C[cd.id].type === 'status') return; s = TIER(cd.id, R) + (cd.up ? 1 : 0) + (C[cd.id].type === 'power' ? -2 : 0); }
+          else s = cd.id === 'tangle' || cd.id === 'chill' || cd.id === 'gloom' ? 100 : cd.id === 'spark' || cd.id === 'wingflick' || cd.id === 'singe' ? 50 : cd.id === 'shield' ? 40 : -TIER(cd.id, R);
           if (s > bs) { bs = s; bi = i; }
         });
         return { t: 'pick', i: bi };
@@ -2471,12 +2480,14 @@ function kwTip(cd) {
   if (d.type === 'power') out.push('<b>Power</b>: stays in play for the rest of the combat.');
   return out.join('<br>');
 }
+// long rules texts (over ~78 visible chars) get a tighter font so they stay inside the 72px text box
+function txHtml(t) { return '<div class="tx' + (t.replace(/<[^>]*>/g, '').length > 78 ? ' long' : '') + '">' + t + '</div>'; }
 function cardEl(cd, opts) {
   opts = opts || {};
   const d = E.CARDS[cd.id], el = document.createElement('div');
   const cost = E.cardCost(cd);
   el.className = 'card ' + d.type + ' ' + d.rarity + (cd.up ? ' upg' : '');
-  el.innerHTML = '<div class="cost' + (opts.dear ? ' dear' : '') + '">' + cost + '</div><div class="nm">' + E.cardName(cd) + '</div><div class="art" style="background-image:url(' + ART.cardArt(cd.id, d.type) + ')"></div><div class="ty">' + (d.k === 'moth' ? '&#10022; ' : d.k === 'wick' ? '&#10040; ' : '') + d.rarity + ' ' + d.type + '</div><div class="tx">' + E.cardText(cd, opts.live ? run : null, opts.tgt) + '</div>' + (d.retain ? '<div class="rtn">' + (cd.held ? 'kept ' + cd.held : 'retain') + '</div>' : cd.held ? '<div class="rtn">kept ' + cd.held + '</div>' : '');
+  el.innerHTML = '<div class="cost' + (opts.dear ? ' dear' : '') + '">' + cost + '</div><div class="nm">' + E.cardName(cd) + '</div><div class="art" style="background-image:url(' + ART.cardArt(cd.id, d.type) + ')"></div><div class="ty">' + (d.k === 'moth' ? '&#10022; ' : d.k === 'wick' ? '&#10040; ' : '') + d.rarity + ' ' + d.type + '</div>' + txHtml(E.cardText(cd, opts.live ? run : null, opts.tgt)) + (d.retain ? '<div class="rtn">' + (cd.held ? 'kept ' + cd.held : 'retain') + '</div>' : cd.held ? '<div class="rtn">kept ' + cd.held + '</div>' : '');
   const tip = kwTip(cd); if (tip) el.dataset.tip = tip;
   el.setAttribute('role', 'button'); el.setAttribute('aria-label', E.cardName(cd) + ', cost ' + cost + ', ' + d.rarity + ' ' + d.type + '. ' + el.querySelector('.tx').textContent);
   return el;

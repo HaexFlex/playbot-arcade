@@ -83,13 +83,15 @@ A deep, polished roguelite deckbuilder set in the night forest that keeps growin
 
 ### v7: balance and accessibility
 - [x] Per-card sim report: `node tools/sim.js N --cards` → `tools/card_report.txt` (2026-11-21)
-- [ ] Outlier tuning from the card report (part 2 2026-11-21: Aurora base Lumen 2→1; Tangle sources checked, intended. Still open: bot pick values, Great Lantern, Singe, unpicked shared cards)
+- [ ] Outlier tuning from the card report (part 2 2026-11-21: Aurora base Lumen 2→1; Tangle sources checked, intended. Part 4 2026-11-21: bot pick values via `BOT_TIER`. Still open: Great Lantern, Singe, unpicked shared cards)
+- [x] Card texts fit their box at every text size (part 4 2026-11-21: shorter Melt Down/Snuff Out/Patient Flame wording, `.tx.long` tighter font, `node tools/fit-check.js`)
 - [x] Colour-blind-safe intents, font-size setting (part 3 2026-11-21: Options "Text size" Normal/Large/Larger saved in meta; intent icons are distinct shapes (sword, ring, diamond with down chevron, up arrow, twin circles with +) with aria-labels; cards have role=button + aria-label)
 - [ ] Keyboard-only and screen-reader pass (started: intent/card aria-labels); tutorial fight
 
 ## Next steps (for the next run)
-0. **Accessibility follow-ups (v7 part 3 left these):** three long card texts (Glow/Exhaust random, Deal 10 Exhaust random, Retain energy) already overflow their 72px text box slightly at Normal size; at Large/Larger only the first one does (the art shrinks to make room). Shorten those texts or tighten the box. Then the keyboard-only/screen-reader pass (focus outlines, aria-live for combat log, map node labels) and the tutorial fight.
-1. **v7 outlier tuning** (report: `node tools/sim.js 1000 --bots=heuristic --cards --quiet`, 1000 runs/keeper, ~75 s; read the `rel` column, which compares with the average reward-picked card and removes the "long runs pick more cards" bias). Outliers from the first report (Ember 0, all shrine gifts):
+0. **Accessibility follow-ups:** card text overflow is fixed (part 4; re-run `node tools/fit-check.js` after adding or rewording cards). Next: the keyboard-only/screen-reader pass (focus outlines, aria-live for combat log, map node labels) and the tutorial fight.
+1. **Bot pick fix done (part 4):** `BOT_TIER` overrides in `src/engine.js` (bot-only; card stats unchanged): Wildfire 8→6.5, Fan the Flames 7→5.5, Moonwell 9→7.5, Moth Dance 7→5.5, Moth Swarm 5→6.5 (Wick stays 5), Wing Wall 5→7, Flicker 5→7, Silk Snare 6→7 for the Wick. Ember 0, 600 runs: Lantern 35.2→**39.2%** (A4 17.8→25.0%), Moth 32.7→34.3%, Wick 31.8→35.0%. All still in 30–40%, but **Lantern is now at the top edge (39.2%)**: watch it; if it passes 40% after the next change, Great Lantern 12→11 damage is the first candidate. Card report not regenerated yet: next run, rerun `--cards` and re-check Aurora, Great Lantern and the pick rates of the adjusted cards before touching any card stats.
+2. **v7 outlier tuning** (report: `node tools/sim.js 1000 --bots=heuristic --cards --quiet`, 1000 runs/keeper, ~75 s; read the `rel` column, which compares with the average reward-picked card and removes the "long runs pick more cards" bias). Outliers from the first report (Ember 0, all shrine gifts):
    - ~~Aurora~~ done (part 2): base now +2 Blaze/+1 Lumen (upgrade unchanged +3/+3). Tested at 600 runs: cost 2 dropped all keepers 5–8 pp (28.8/26.5/28.3%), +2/+1 → +3/+2 dropped 3–6 pp (31.3/29.7/30.8%), both too much; chosen version 35.2/32.7/31.8% (was 36.8/33.5/33.5%). Rel still +10.9/+9.3/+14.5 (was +11.5/+10.6/+18.3 on 1000 runs) and picked 64–72%: re-check after the bot pick-value fix below, since the bot rates it tier 9; if it is still ++ then, try upgrade +3/+2.
    - **Great Lantern** (Lantern rare) rel +14.1 pp (66.6% win in deck vs 36.4% baseline). Watch; maybe 12→11 damage.
    - **Wildfire** (Lantern) is the bot's favourite pick (83.9%) but rel -8.5 pp; Fan the Flames, Moonwell and Dance are also over-picked with negative rel. Likely a bot pick-value issue (`deckValue`), not card strength: lower their bot scores before buffing anything.
@@ -97,10 +99,10 @@ A deep, polished roguelite deckbuilder set in the night forest that keeps growin
    - Wick starter **Singe** (in 90% of decks) rel -22 pp, worse than the other starters (-16/-17): a cheap Wick starter buff could help. Candle Flare is offered as a reward but picked only 3%.
    - ~~Tangle~~ checked (part 2), intended: the only permanent sources are the Mushroom Ring (+6 max HP, bot always eats) and Ash Grove (+55 gold) events. Enemy web moves put Tangles only into the combat discard pile, which never touches the deck. Removal is already possible (shrine, trader, Cold Hearth, Candlemaker, and the bot prioritises removing it). Possible later: make the Mushroom Ring bot smarter (skip it when the deck is lean).
    - Shared cards Chirp / Dart / Gather / Dewdrop are picked 1–2%: too few samples; consider a small buff or dropping them from the reward pool.
-2. Ember ladder is smooth now (README table); Lean Purse is -25 gold. Re-check the ladder after any card or enemy change with `for e in 0 5 10; do node tools/sim.js 300 --act4=0 --bots=heuristic --ember=$e --quiet; done`.
-3. v5 follow-ups:
+3. Ember ladder is smooth now (README table); Lean Purse is -25 gold. Re-check the ladder after any card or enemy change with `for e in 0 5 10; do node tools/sim.js 300 --act4=0 --bots=heuristic --ember=$e --quiet; done`.
+4. v5 follow-ups:
    - With every shrine gift unlocked, Lantern/Moth sim rates drop by about 4 points (40.3 → 36.8, 38.3 → 33.5), still in range. A per-card pick/win report (v7) would show which shrine cards the bot over-picks.
    - More shrine tiers later: about 6 more cards (shared ones, plus some for a 4th keeper) and a shrine cosmetic such as lantern colours.
    - Daily modifiers: "Fog" (map nodes hidden until adjacent) needs map UI work; a daily leaderboard of your own past dailies.
    - Rare Wick stall against the Hollow Moon (2–4 in 600 runs), when a deck has exhausted all its attacks.
-4. Older small follow-ups: Melt text highlighted when you have enough Wax, and live "kept N" damage on Slow Burn.
+5. Older small follow-ups: Melt text highlighted when you have enough Wax, and live "kept N" damage on Slow Burn.

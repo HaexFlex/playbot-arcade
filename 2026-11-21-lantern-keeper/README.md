@@ -59,6 +59,10 @@ Open `index.html` in any modern browser. It is a single file with no dependencie
 - **Shop and rewards:** the trader shows your gold, items you can't afford are greyed out, the layout is more compact (Leave no longer overlaps the vials), and reward cards slide in one after another.
 - All of these respect reduced motion. v6 is complete.
 
+## v7 additions (part 4): card text fit and smarter bot picks
+- Long rules texts now fit their card at every text size: Melt Down, Snuff Out and Patient Flame have shorter wording (same effects), and texts over ~78 characters use a slightly tighter font. `node tools/fit-check.js` renders every card (base and upgraded) at Normal/Large/Larger in headless Chrome and lists any overflow.
+- The sim bot's card-pick ratings now have bot-only overrides (`BOT_TIER` in `src/engine.js`; card stats unchanged), based on the card report: lower for Wildfire, Fan the Flames, Moonwell and Moth Dance, higher for Moth Swarm, Wing Wall and Flicker (and Silk Snare for the Wick). Bot win rates at Ember 0 (600 runs, Lantern/Moth/Wick): 35.2/32.7/31.8% → 39.2/34.3/35.0%.
+
 ## v7 accessibility (part 3)
 - **Text size** in Options (Normal / Large / Larger, saved): enlarges tooltips, event text, panel text, intents and card text; at the larger sizes the card art shrinks so the text still fits inside the fixed 1280x800 stage.
 - **Colour-blind-safe intents:** every intent kind has its own shape, not just a colour: attack = sword, block = ring, debuff = diamond with a down chevron, buff = up arrow, summon = twin circles with a +. Intents and cards have aria-labels for screen readers.
