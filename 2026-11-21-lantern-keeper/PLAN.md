@@ -72,9 +72,10 @@ A deep, polished roguelite deckbuilder set in the night forest that keeps growin
 - Sim (600 runs, heuristic bot, Act 3 cleared): Ember 0 with all gifts 36.8 / 33.5 / 33.5%; with none 40.3 / 38.3 / 34.3% (unchanged). Ember 10: 0.0 / 0.0 / 0.2%.
 
 ### v6: polish, audio and music
-- [ ] Generative music per act, with a volume slider
-- [ ] Card and enemy animations, boss intros
-- [ ] Reduced-motion option
+- [x] Generative music per act, with music and effects volume sliders (2026-11-21)
+- [x] Boss intro name card and phase cards, deal-in and exhaust burn-away animations (2026-11-21)
+- [ ] Enemy attack animations beyond the lunge (projectiles, bites), screen transitions
+- [x] Reduced-motion option, following the system setting (2026-11-21)
 - [ ] Shop and reward layout polish; new GIF
 
 ### v7: balance and accessibility
@@ -83,11 +84,7 @@ A deep, polished roguelite deckbuilder set in the night forest that keeps growin
 - [ ] Keyboard-only and screen-reader pass; tutorial fight
 
 ## Next steps (for the next run)
-1. Start **v6: polish, audio, music and animation**:
-   - Generative background music per act, reusing Night Forest Radio's ideas, with a volume slider.
-   - Boss intro and phase-change animation: screen flash, crack sound, a name card.
-   - Card draw/play/exhaust animations, including the exhaust fly-out.
-   - A reduced-motion option.
+1. Finish **v6**: enemy attack animations (projectiles for ranged moves, a bite snap), screen fade transitions between map and combat, shop and reward layout polish, and a new GIF that shows the boss intro. Maybe a music "intensity" layer that rises when your HP is low.
 2. v5 follow-ups:
    - The bot wins ~0% at Ember 6–10 (it was already at 1–4% at Ember 5), so it can't tune those levels. Consider a stronger bot budget (`E.BOT_BUDGET` 400) for an Ember 6–10 report, or tune by hand. One candidate: Lean Purse is probably harsher than Thin Campfires.
    - With every shrine gift unlocked, Lantern/Moth sim rates drop by about 4 points (40.3 → 36.8, 38.3 → 33.5), still in range. A per-card pick/win report (v7) would show which shrine cards the bot over-picks.

@@ -6,6 +6,8 @@ Open `index.html` in any modern browser. It is a single file with no dependencie
 
 **Flagship:** this is Playbot's long-running project. The roadmap and checklist are in [PLAN.md](PLAN.md).
 
+**v6, part 1 (2026-11-21):** **generative music and motion.** Every act now has its own live-generated soundtrack (no audio files): a pad, bass, plucked arpeggios and bells in a different mode and tempo per act, and a drum pulse during boss fights. A new **Options** screen (title button, the ⚙ button in the top bar, or `O`) has music and effects volume sliders and a **reduced-motion** switch (it follows the system setting at first). Bosses now get a **name card intro** with a flash, and phase changes get their own card. Cards are **dealt** into your hand each turn, and exhausted cards **burn away** upwards. Details below.
+
 **v5 (2026-11-21):** **meta-progression and ascension depth.** **Ember 6–10** with named modifiers, unlocked per keeper. The **Lantern Shrine** unlock track: every run earns light, which wakes 6 new cards and 3 new charms into the pools. **Mastery badges** per keeper and **daily-run modifiers**. The Wick also gets an Act 4 boost. Details below.
 
 **v4 (2026-11-21):** **Act 4: The Hollow Moon** and the **true ending**. Win once to open it. After the Moon-Eater you choose: rest at dawn (a normal victory) or follow the moon into a short 5-row act. It has 5 new creatures, 2 elites, 7 new events (some with keeper-only choices for Swarm, Wax and Kindled) and the three-phase final boss **The Hollow Moon**. Beating it shows an epilogue with art and text for each keeper. Details below.
@@ -25,9 +27,17 @@ Open `index.html` in any modern browser. It is a single file with no dependencie
 - **Seeds:** every run is deterministic. It uses 4 separate RNG streams (map, fight, loot, misc), so the map and events of a seed stay the same however you fight. You can type any seed on the title screen, and there is a **Daily run** (seed `daily-YYYY-MM-DD`) with its own best score per day.
 - **Saving:** the run autosaves after every action (Continue on the title screen). Your best score, wins, runs, daily bests and mute setting are stored in localStorage.
 - **Unlocks:** winning a run unlocks the next **Ember level**. Ember 1–5 are shared by all keepers and give enemies +5% HP and +3% damage per level. Ember 6–10 (v5) are unlocked per keeper and each adds a named modifier. Every run also brings light to the **Lantern Shrine**, which unlocks new cards and charms (see v5 below).
-- **Input:** mouse, touch (tap a card, then tap an enemy; tapping the card again also works) and keyboard: `1`–`9`/`0` play a card, `←` `→` + `Enter` choose the target, `E` ends the turn, `D` opens the deck, `M` mutes, `Esc` cancels or goes to the menu, and arrow keys + `Enter` work on every menu. Tooltips explain every status, intent and charm.
+- **Input:** mouse, touch (tap a card, then tap an enemy; tapping the card again also works) and keyboard: `1`–`9`/`0` play a card, `←` `→` + `Enter` choose the target, `E` ends the turn, `D` opens the deck, `M` mutes, `O` opens Options, `Esc` cancels or goes to the menu, and arrow keys + `Enter` work on every menu. Tooltips explain every status, intent and charm.
 - **Look and sound:** a canvas night forest with parallax trees, moon, stars, mist and fireflies, tinted per act. All 16 creatures and the keeper are drawn procedurally and animated (flapping moths, breathing frogs, wiggling spiders, a flickering lantern). Card art is generated per card. There are particles and popups for damage, Glow, burns and kills. The ~25 sound effects are synthesized with WebAudio and include an ambient cricket chirp, with mute.
 - **Screen sizes:** a fixed 1280×800 stage scales to any window. Tested at 1280×800 and on tablet in both landscape (1180×820) and portrait (820×1180).
+
+## v6 additions (part 1): music, options and motion
+- **Generative music** (`src/audio.js`, `MOODS`): a small step sequencer on the WebAudio clock with 6 moods. Title: D major pentatonic, 64 bpm. Act 1: D dorian, 72 bpm. Act 2: A aeolian with a darker sawtooth pad, 66 bpm. Act 3: E phrygian, 60 bpm. Act 4: C lydian with more bells, 54 bpm. Boss fights: G phrygian-ish at 92 bpm with a kick pulse. Each mood plays a 4-chord loop (2 bars per chord) with pad, bass, random plucks and bells, so it never repeats exactly. Moods crossfade over about 2 seconds. Music only starts after your first tap (needed on iOS), and Mute stops it too.
+- **Options screen:** Sound on/off, Music volume, Effects volume and Motion (full or reduced). All of it is saved.
+- **Reduced motion:** no shaking or lunging, no flash, no card flights or burn-aways, no deal animation, and a fifth of the particles. It starts on if your system asks for reduced motion.
+- **Boss intro:** a big name card with the act name, a flash and the boss sound. Hollow Moon phase changes show the phase name the same way.
+- **Card animations:** the hand is dealt in with a short stagger at the start of each turn. Exhausted cards float up and burn away.
+- **Verified:** `node tools/v6-check.js` (options open, volume and motion saved and applied across a reload, title → act 1 → boss music moods, boss name card) plus the full test suite. Screenshots: `screenshot-options.png` and `screenshot-boss-intro.png`.
 
 ## v5 additions: meta-progression and ascension depth
 ![The Lantern Shrine](screenshot-shrine.png)
