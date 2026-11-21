@@ -255,6 +255,11 @@ body.reduce .flycard,body.reduce .ghost{display:none}
 body.reduce #flash.on{animation:none}
 body.reduce .card{transition:none}
 body.reduce #bossCard .bcLine{transition:none}
+#fade{position:absolute;inset:0;z-index:42;pointer-events:none;background:#05060f;opacity:0}
+#fade.on{animation:fadein .45s ease-out}
+@keyframes fadein{0%{opacity:.85}100%{opacity:0}}
+.bolt{position:absolute;width:28px;height:28px;border-radius:50%;pointer-events:none;z-index:46;transition:transform .3s ease-in,opacity .3s ease-in}
+body.reduce .bolt,body.reduce #fade{display:none}
 
 </style>
 </head>
@@ -364,7 +369,7 @@ body.reduce #bossCard .bcLine{transition:none}
     <p class="dim small">Reduced motion turns off shaking, flashes, card flights and most particles. The music is generated live: each act has its own mode and tempo, and bosses bring a drum pulse.</p>
     <button class="btn" id="bOptClose">Close</button></div></section>
   <div id="bossCard"><div class="bcLine"></div><div class="bcName"></div><div class="bcSub"></div><div class="bcLine"></div></div>
-  <div id="flash"></div>
+  <div id="flash"></div><div id="fade"></div>
   <section id="sHow" class="scr ov top"><div class="panel">
     <h2>How to play</h2>
     <ul class="how">
@@ -410,7 +415,7 @@ body.reduce #bossCard .bcLine{transition:none}
 'use strict';
 const E = {};
 E.VERSION = 5;
-const TUNE = E.TUNE = { ehp: 1.0, edmg: 1.02, act1: 1.1, act3: 0.97, act4: 1.45, startGold: 99, actHeal: 0.6, restHeal: 0.3, vialDrop: 0.4, hp: { lantern: 0, moth: 0, wick: 0 } };
+const TUNE = E.TUNE = { ehp: 1.0, edmg: 1.02, act1: 1.1, act3: 0.97, act4: 1.45, startGold: 99, actHeal: 0.6, restHeal: 0.3, vialDrop: 0.4, emHp: 0.025, emDmg: 0.015, nightHp: 1.1, nightBlaze: 0, hp: { lantern: 0, moth: 0, wick: 0 } };
 
 /* ---------- seeded RNG: 4 independent streams so maps and loot stay comparable across players ---------- */
 function hashStr(s) {
@@ -906,9 +911,9 @@ function spawn(R, id) {
   const d = EN[id], c = C_(R);
   const am = R.act === 1 ? TUNE.act1 : R.act === 3 ? TUNE.act3 : R.act === 4 ? TUNE.act4 : 1;
   const el = Math.min(5, R.ember || 0);
-  const em = (1 + 0.05 * el) * am * (d.boss && emb(R, 10) ? 1.15 : 1) * (hasMod(R, 'restless') ? 1.1 : 1);
+  const em = (1 + TUNE.emHp * el) * am * (d.boss && emb(R, 10) ? TUNE.nightHp : 1) * (hasMod(R, 'restless') ? 1.1 : 1);
   const hp = Math.max(1, Math.round(ri(R, 'fight', d.hp[0], d.hp[1]) * TUNE.ehp * em));
-  const e = { uid: c.nextUid++, id, name: d.name, hp, maxHp: hp, block: 0, st: {}, hist: [], intent: null, dead: false, dm: TUNE.edmg * am * (1 + 0.03 * el) };
+  const e = { uid: c.nextUid++, id, name: d.name, hp, maxHp: hp, block: 0, st: {}, hist: [], intent: null, dead: false, dm: TUNE.edmg * am * (1 + TUNE.emDmg * el) };
   c.enemies.push(e);
   return e;
 }
@@ -985,7 +990,7 @@ function startCombat(R, group, kind) {
   if (hasCh(R, 'firefern')) for (const e of c.enemies) addSt(R, e, 'kindled', 3, 1);
   if (hasMod(R, 'kindlednight')) for (const e of c.enemies) addSt(R, e, 'kindled', 3, 1);
   if (kind === 'elite' && emb(R, 6)) for (const e of c.enemies) addSt(R, e, 'blaze', 2);
-  if (kind === 'boss' && emb(R, 10)) for (const e of c.enemies) addSt(R, e, 'blaze', 2);
+  if (kind === 'boss' && emb(R, 10) && TUNE.nightBlaze) for (const e of c.enemies) addSt(R, e, 'blaze', TUNE.nightBlaze);
   if (hasCh(R, 'elderlantern')) for (const e of c.enemies) loseHp(R, e, 10, true);
   R.screen = 'combat';
   R.stats.fights++;
@@ -1340,7 +1345,7 @@ E.score = R => { const r = R.result || {}; return R.floor * 10 + R.stats.kills *
 E.migrate = R => { if (R && R.v === 1) { R.v = 2; R.keeper = 'lantern'; R.vials = [null, null, null]; R.stats.vials = 0; if (R.shop && !R.shop.vials) R.shop.vials = []; } if (R && R.v === 2) R.v = 3; if (R && R.v === 3) { R.v = 4; R.act4 = !!R.act4; R.boons = R.boons || {}; } if (R && R.v === 4) { R.v = 5; R.shrine = R.shrine || []; R.mods = R.mods || []; } return R; };
 
 /* ---------- meta-progression (v5): Ember 6-10, the Lantern Shrine, mastery badges, daily modifiers ---------- */
-// Ember 1-5: enemies +5% HP and +3% damage per level (shared by all keepers).
+// Ember 1-5: enemies +2.5% HP and +1.5% damage per level (v6 retune; was +5%/+3%) (shared by all keepers).
 // Ember 6-10: no more stat scaling; each level adds one named modifier (cumulative), unlocked per keeper.
 E.EMBER_MAX = 10;
 E.EMBER_MODS = [
@@ -1348,11 +1353,11 @@ E.EMBER_MODS = [
   { lv: 7, id: 'campfires', n: 'Thin Campfires', d: 'Resting heals 20% of max HP instead of 30%.' },
   { lv: 8, id: 'curse', n: 'Cursed Pack', d: 'Start with a Gloom curse in your deck (costs 1, does nothing).' },
   { lv: 9, id: 'purse', n: 'Lean Purse', d: 'Start with 40 less gold and earn 30% less gold from combat.' },
-  { lv: 10, id: 'night', n: 'Night Without End', d: 'Bosses have 15% more HP and start every combat with 2 Blaze.' },
+  { lv: 10, id: 'night', n: 'Night Without End', d: 'Bosses have 10% more HP.' },
 ];
 function emb(R, lv) { return (R.ember || 0) >= lv; }
 E.emberMods = lv => E.EMBER_MODS.filter(m => m.lv <= lv);
-E.emberStatText = lv => { const l = Math.min(5, lv); return l ? 'enemies +' + l * 5 + '% HP, +' + l * 3 + '% damage' : 'normal'; };
+E.emberStatText = lv => { const l = Math.min(5, lv); return l ? 'enemies +' + +(l * TUNE.emHp * 100).toFixed(1) + '% HP, +' + +(l * TUNE.emDmg * 100).toFixed(1) + '% damage' : 'normal'; };
 E.restAmount = R => Math.round(R.maxHp * ((emb(R, 7) ? 0.2 : TUNE.restHeal) + (hasCh(R, 'mushroom') ? 0.15 : 0)));
 // highest Ember level a keeper may pick: 1-5 are shared (meta.emberMax); 6-10 need a win at the level below with that keeper
 E.emberCap = (meta, k) => { const w = (meta.emberWon || {})[k]; const per = w != null && w >= 5 ? Math.min(E.EMBER_MAX, w + 1) : 0; return Math.max(Math.min(5, meta.emberMax || 0), per); };
@@ -2202,7 +2207,7 @@ const MOODS = {
   a4: { root: 130.81, scale: [0, 2, 4, 6, 7, 9, 11], bpm: 54, prog: [0, 1, 4, 5], pad: 'triangle', cut: 1400, pl: .45, bell: .3, pulse: 0 },
   boss: { root: 98.0, scale: [0, 1, 3, 5, 6, 8, 10], bpm: 92, prog: [0, 0, 5, 1], pad: 'sawtooth', cut: 700, pl: .85, bell: 0, pulse: 1 },
 };
-let mood = null, want = 'title', mStep = 0, mNext = 0, mTimer = null, mFade = null;
+let tense = false, mood = null, want = 'title', mStep = 0, mNext = 0, mTimer = null, mFade = null;
 const hz = (m, deg, oct) => { const n = m.scale.length, d = ((deg % n) + n) % n, o = Math.floor(deg / n) + (oct || 0); return m.root * Math.pow(2, (m.scale[d] + 12 * o) / 12); };
 function mnote(f, t, dur, type, vol, cut) {
   const o = ac.createOscillator(), g = ac.createGain(), fl = ac.createBiquadFilter();
@@ -2220,6 +2225,7 @@ function schedule(m, t, i) {
   if (Math.random() < m.pl * (pos % 2 ? .45 : .8)) mpluck(hz(m, chord + [0, 2, 4, 7, 4, 2, 9, 4][(pos + bar) % 8], 1), t, .045);
   if (m.bell && pos === 4 && Math.random() < m.bell * 2) mnote(hz(m, chord + 4 + Math.floor(Math.random() * 3), 2), t, 2.4, 'sine', .025, 6000);
   if (m.pulse && pos % 2 === 0) mkick(t, pos === 0 ? .28 : .14);
+  if (tense && !m.pulse && (pos === 0 || pos === 1)) mkick(t, pos === 0 ? .2 : .12);
 }
 function tick() {
   if (!ac || muted || ac.state !== 'running') return;
@@ -2235,7 +2241,7 @@ function tick() {
 }
 function startMusic() { if (!mTimer) mTimer = setInterval(() => { try { tick(); } catch (e) { } }, 120); }
 function play(k) { if (muted) return; try { S[k] && S[k](); } catch (e) { } }
-return { play, music(k) { want = k; }, get mood() { return mood ? mood.key : null; }, get running() { return !!(ac && ac.state === 'running'); },
+return { play, music(k) { want = k; }, tense(v) { tense = !!v; }, get isTense() { return tense; }, get mood() { return mood ? mood.key : null; }, get running() { return !!(ac && ac.state === 'running'); },
   setVolumes(sv, mv) { sfxVol = sv; musVol = mv; if (master) master.gain.setTargetAtTime(sv, ac.currentTime, .05); if (mbus) mbus.gain.setTargetAtTime(mv * .5, ac.currentTime, .05); }, setMuted(m) { muted = m; if (ac) { if (m) ac.suspend(); else ac.resume(); } }, get muted() { return muted; }, unlock() { ctx(); } };
 })();
 
@@ -2271,8 +2277,11 @@ function rectOf(el) { const r = el.getBoundingClientRect(); return { wx: r.left 
 
 /* ---------- screens ---------- */
 const OVERLAYS = ['sCross', 'sReward', 'sCharm', 'sRest', 'sShop', 'sEvent', 'sPick', 'sEnd'];
+let lastBase = null;
 const TOPS = ['sDeck', 'sHow', 'sCodex', 'sHist', 'sOpt'];
 function show(base, ov) {
+  if (!meta.reduce && !$(base).classList.contains('on') && lastBase) { const f = $('fade'); f.classList.remove('on'); void f.offsetWidth; f.classList.add('on'); }
+  lastBase = base;
   for (const id of ['sTitle', 'sMap', 'sCombat']) $(id).classList.toggle('on', id === base);
   for (const id of OVERLAYS) $(id).classList.toggle('on', id === ov);
   $('topbar').classList.toggle('on', base !== 'sTitle');
@@ -2295,7 +2304,7 @@ function render() {
     show(base, ov);
     ({ crossroad: renderCross, reward: renderReward, charm: renderCharm, rest: renderRest, shop: renderShop, event: renderEvent, pick: renderPick, victory: renderEnd, defeat: renderEnd })[s]();
   }
-  SFX.music(moodKey());
+  SFX.music(moodKey()); SFX.tense((run.screen === 'combat' && run.combat ? run.combat.p.hp : run.hp) <= run.maxHp * 0.3);
 }
 
 /* ---------- title ---------- */
@@ -2565,6 +2574,17 @@ function moodKey() { if (!run) return 'title'; if (run.combat && run.combat.kind
 let deal = false;
 function flash() { if (meta.reduce) return; const f = $('flash'); f.classList.remove('on'); void f.offsetWidth; f.classList.add('on'); }
 function bossIntro(name, sub, ms) { SFX.play('boss'); flash(); const b = $('bossCard'); b.querySelector('.bcName').textContent = name; b.querySelector('.bcSub').textContent = sub || ''; b.classList.remove('on'); void b.offsetWidth; b.classList.add('on'); clearTimeout(bossIntro.t); bossIntro.t = setTimeout(() => b.classList.remove('on'), ms || 2000); }
+function hue(s) { let h = 7; for (const ch of String(s)) h = (h * 31 + ch.charCodeAt(0)) % 997; return h % 360; }
+function bolt(fromEl, id, hits) {
+  if (meta.reduce || !fromEl || !fromEl.isConnected) return;
+  const a = rectOf(fromEl.querySelector('canvas') || fromEl), b = rectOf($('player').querySelector('canvas')), col = 'hsl(' + hue(id) + ',90%,72%)';
+  for (let i = 0; i < Math.min(3, hits); i++) setTimeout(() => {
+    const o = document.createElement('div'); o.className = 'bolt'; o.style.left = (a.x - 14) + 'px'; o.style.top = (a.y - 14 + (i - 1) * 18) + 'px'; o.style.background = 'radial-gradient(circle,#fff 0,' + col + ' 40%,transparent 70%)'; o.style.boxShadow = '0 0 24px ' + col;
+    $('popLayer').appendChild(o);
+    requestAnimationFrame(() => requestAnimationFrame(() => { o.style.transform = 'translate(' + (b.x - a.x) + 'px,' + (b.y - a.y + (1 - i) * 14) + 'px) scale(.5)'; o.style.opacity = '.2'; }));
+    setTimeout(() => o.remove(), 340);
+  }, i * 90);
+}
 function ghostCard(id, from) {
   if (meta.reduce || !E.CARDS[id]) return;
   const el = cardEl({ id }, {}); el.className += ' ghost burn'; el.style.left = (from.x - 75) + 'px'; el.style.top = (from.y - 106) + 'px'; el.style.transform = 'scale(.7)';
@@ -2601,7 +2621,7 @@ function fxOne(f, view) {
     case 'heal': if (ent) ent.hp += f.n; pop(f.who, '+' + f.n, 'heal'); SFX.play('heal'); break;
     case 'st': { if (ent) ent.st[f.s] = (ent.st[f.s] || 0) + f.n; const s = E.STATUS[f.s]; if (!s) break; pop(f.who, (f.n > 0 ? '+' : '') + f.n + ' ' + s.n, 'st'); SFX.play(f.s === 'kindled' ? 'kindle' : s.bad ? 'debuff' : 'buff'); if (f.s === 'kindled') burst(pop(f.who, '', 'st'), '255,140,60', 12, 2.5); break; }
     case 'die': if (ent) ent.dead = true; SFX.play('die'); { const el = enemyEls.get(f.who); if (el) { burst(rectOf(el.querySelector('canvas')), '220,255,140', 40, 6); el.classList.add('dead'); } } break;
-    case 'act': if (typeof f.who === 'number') { shake(enemyEls.get(f.who), 'lunge'); SFX.play('enemy'); } break;
+    case 'act': if (typeof f.who === 'number') { shake(enemyEls.get(f.who), 'lunge'); SFX.play('enemy'); if (ent && E.ENEMIES[ent.id]) { const m = E.ENEMIES[ent.id].moves[ent.intent]; if (m && m.dmg) bolt(enemyEls.get(f.who), ent.id, m.hits || 1); } } break;
     case 'summon': SFX.play('buff'); break;
     case 'tangle': flashHint('+' + f.n + ' ' + E.CARDS[f.id || 'tangle'].name + ' shuffled into your discard pile'); break;
     case 'phase': { bossIntro(f.name, f.boss + ' \u00b7 a new phase', 1600); const el = enemyEls.get(f.who); if (el) { const live = run.combat && run.combat.enemies.find(e => e.uid === f.who); if (live) el._art = live.art; shake(el, 'shake'); burst(rectOf(el.querySelector('canvas')), '255,170,120', 46, 7); } break; }
@@ -2992,7 +3012,7 @@ render();
 requestAnimationFrame(frame);
 window.LK = {
   E, get run() { return run; }, mode: () => mode, busy: () => busy, sel: () => sel, meta: () => meta,
-  act: doAct, startRun, openOpt, music: () => SFX.mood, moodKey, goTitle, render, openCodex, openHist, openShrine, saveMeta, vsel: () => vsel,
+  act: doAct, startRun, openOpt, tense: () => SFX.isTense, music: () => SFX.mood, moodKey, goTitle, render, openCodex, openHist, openShrine, saveMeta, vsel: () => vsel,
   handEl: i => $('hand').children[i], enemyEl: uid => enemyEls.get(uid), nodeEl: id => document.querySelector('.node[data-id="' + id + '"]'),
 };
 })();

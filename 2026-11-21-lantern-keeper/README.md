@@ -6,6 +6,8 @@ Open `index.html` in any modern browser. It is a single file with no dependencie
 
 **Flagship:** this is Playbot's long-running project. The roadmap and checklist are in [PLAN.md](PLAN.md).
 
+**v6, part 2 (2026-11-21):** a **smoother Ember ladder** (Ember 1–5 now add +2.5% enemy HP and +1.5% damage per level, and Night Without End is now just +10% boss HP), so every level from 0 to 10 is beatable and each one is a bit harder than the last. Enemy attacks now **fly a glowing bolt** at you, screens **fade** into each other, and the music adds a **heartbeat** when you are at 30% HP or less.
+
 **v6, part 1 (2026-11-21):** **generative music and motion.** Every act now has its own live-generated soundtrack (no audio files): a pad, bass, plucked arpeggios and bells in a different mode and tempo per act, and a drum pulse during boss fights. A new **Options** screen (title button, the ⚙ button in the top bar, or `O`) has music and effects volume sliders and a **reduced-motion** switch (it follows the system setting at first). Bosses now get a **name card intro** with a flash, and phase changes get their own card. Cards are **dealt** into your hand each turn, and exhausted cards **burn away** upwards. Details below.
 
 **v5 (2026-11-21):** **meta-progression and ascension depth.** **Ember 6–10** with named modifiers, unlocked per keeper. The **Lantern Shrine** unlock track: every run earns light, which wakes 6 new cards and 3 new charms into the pools. **Mastery badges** per keeper and **daily-run modifiers**. The Wick also gets an Act 4 boost. Details below.
@@ -26,10 +28,25 @@ Open `index.html` in any modern browser. It is a single file with no dependencie
 - **Rewards:** after each fight you pick 1 of 3 cards or skip (elites give better odds, bosses give rares). From act 2 on, some reward cards come already upgraded. A boss also lets you choose 1 of 3 charms. Between acts you heal 60% of your missing HP.
 - **Seeds:** every run is deterministic. It uses 4 separate RNG streams (map, fight, loot, misc), so the map and events of a seed stay the same however you fight. You can type any seed on the title screen, and there is a **Daily run** (seed `daily-YYYY-MM-DD`) with its own best score per day.
 - **Saving:** the run autosaves after every action (Continue on the title screen). Your best score, wins, runs, daily bests and mute setting are stored in localStorage.
-- **Unlocks:** winning a run unlocks the next **Ember level**. Ember 1–5 are shared by all keepers and give enemies +5% HP and +3% damage per level. Ember 6–10 (v5) are unlocked per keeper and each adds a named modifier. Every run also brings light to the **Lantern Shrine**, which unlocks new cards and charms (see v5 below).
+- **Unlocks:** winning a run unlocks the next **Ember level**. Ember 1–5 are shared by all keepers and give enemies +2.5% HP and +1.5% damage per level (halved in v6). Ember 6–10 (v5) are unlocked per keeper and each adds a named modifier. Every run also brings light to the **Lantern Shrine**, which unlocks new cards and charms (see v5 below).
 - **Input:** mouse, touch (tap a card, then tap an enemy; tapping the card again also works) and keyboard: `1`–`9`/`0` play a card, `←` `→` + `Enter` choose the target, `E` ends the turn, `D` opens the deck, `M` mutes, `O` opens Options, `Esc` cancels or goes to the menu, and arrow keys + `Enter` work on every menu. Tooltips explain every status, intent and charm.
 - **Look and sound:** a canvas night forest with parallax trees, moon, stars, mist and fireflies, tinted per act. All 16 creatures and the keeper are drawn procedurally and animated (flapping moths, breathing frogs, wiggling spiders, a flickering lantern). Card art is generated per card. There are particles and popups for damage, Glow, burns and kills. The ~25 sound effects are synthesized with WebAudio and include an ambient cricket chirp, with mute.
 - **Screen sizes:** a fixed 1280×800 stage scales to any window. Tested at 1280×800 and on tablet in both landscape (1180×820) and portrait (820×1180).
+
+## v6 additions (part 2): Ember ladder and more motion
+- **Ember retune.** Before, the sim bot went from 35–40% at Ember 0 to 1–4% at Ember 5 and about 0% at Ember 6–10, so the top half of the ladder could not be tuned. Ember 1–5 scaling is halved (now in `TUNE.emHp` / `TUNE.emDmg`), and Night Without End (E10) dropped its 2 Blaze and went from +15% to +10% boss HP (`TUNE.nightHp`, `TUNE.nightBlaze`). New bot win rates (300 runs each, Acts 1–3, Lantern / Moth / Wick):
+
+| Ember | 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| Lantern | 38.3 | 29.0 | 23.3 | 19.3 | 13.3 | 9.0 | 8.3 | 8.0 | 5.0 | 2.7 | 1.3 |
+| Moth | 32.0 | 27.3 | 23.7 | 20.0 | 11.3 | 8.7 | 8.7 | 7.0 | 7.7 | 7.7 | 4.0 |
+| Wick | 34.3 | 26.7 | 22.7 | 19.0 | 14.7 | 12.7 | 9.3 | 8.3 | 6.0 | 5.3 | 3.0 |
+
+  A human who knows the cards should do clearly better than this bot. Lean Purse (E9) hurts the Lantern most.
+- **Enemy bolts:** every attacking move sends 1–3 glowing bolts (one per hit, colour per creature) from the enemy to the keeper.
+- **Screen fades** between title, map and combat.
+- **Heartbeat:** at 30% HP or less, a soft double kick joins the act music (boss music already has a pulse).
+- All of these respect reduced motion.
 
 ## v6 additions (part 1): music, options and motion
 - **Generative music** (`src/audio.js`, `MOODS`): a small step sequencer on the WebAudio clock with 6 moods. Title: D major pentatonic, 64 bpm. Act 1: D dorian, 72 bpm. Act 2: A aeolian with a darker sawtooth pad, 66 bpm. Act 3: E phrygian, 60 bpm. Act 4: C lydian with more bells, 54 bpm. Boss fights: G phrygian-ish at 92 bpm with a kick pulse. Each mood plays a 4-chord loop (2 bars per chord) with pad, bass, random plucks and bells, so it never repeats exactly. Moods crossfade over about 2 seconds. Music only starts after your first tap (needed on iOS), and Mute stops it too.
@@ -41,12 +58,12 @@ Open `index.html` in any modern browser. It is a single file with no dependencie
 
 ## v5 additions: meta-progression and ascension depth
 ![The Lantern Shrine](screenshot-shrine.png)
-- **Ember 6–10, per keeper.** Ember 1–5 work as before: they are shared by all keepers, and each level gives enemies +5% HP and +3% damage. From Ember 6 on, stat scaling stops. Each level adds one **named modifier** instead, and the modifiers stack. Win at Ember N with a keeper to open Ember N+1 for **that keeper** (Ember 5 → 6 → … → 10). Daily runs don't climb the ladder.
+- **Ember 6–10, per keeper.** Ember 1–5 work as before: they are shared by all keepers, and each level gives enemies +2.5% HP and +1.5% damage (v6; it was +5%/+3%). From Ember 6 on, stat scaling stops. Each level adds one **named modifier** instead, and the modifiers stack. Win at Ember N with a keeper to open Ember N+1 for **that keeper** (Ember 5 → 6 → … → 10). Daily runs don't climb the ladder.
   - **E6 Restless Elites:** elites start every combat with 2 Blaze.
   - **E7 Thin Campfires:** resting heals 20% of max HP instead of 30%.
   - **E8 Cursed Pack:** you start with **Gloom**, a new curse card. It costs 1, does nothing, and can only be removed at a trader.
   - **E9 Lean Purse:** you start with 40 less gold and earn 30% less gold from combat.
-  - **E10 Night Without End:** bosses have 15% more HP and start every combat with 2 Blaze.
+  - **E10 Night Without End:** bosses have 10% more HP (v6; it was 15% and 2 Blaze).
   - The title screen lists the active modifiers under the Ember picker (each has a tooltip), keeper cards show their own Ember cap, and the map side panel lists the run's modifiers.
 - **The Lantern Shrine** (title → *Lantern Shrine*, or `S`). Every finished run brings **light**: 1 per floor, +5 per elite, +10 per boss, +20 for a win, +25 for the true ending and +2 per Ember level. Light wakes **9 shrine gifts**. Once awake, a gift joins the reward, trader and charm pools. The shrine never gives raw stats. Locked gifts never drop (tested over 36 full runs).
   - 15 light: **Wax Ward** (Wick, common): 6 Glow; melt 3 Wax for 6 more.
