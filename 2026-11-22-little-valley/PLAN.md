@@ -59,11 +59,13 @@ every feature must be visible on screen (no hidden numbers); stays at 30+ fps at
 - [x] Snowmen (2026-11-22): when snow lies around a cottage (max snow in its 3x3 cells above 0.04), about 3 cottages in 5 (picked by place, so it is stable) have a little snowman in the garden: two snowballs, stick arms, coal eyes, a carrot nose, a red scarf and a dark hat so it reads on white snow. They melt away with the snow (`st.snowmenDrawn`; browser test: 3-14 in winter, none in summer)
 
 ### v5: sound and goals
-- [ ] WebAudio: rain, river murmur by flow, birds by vegetation, cowbells near the village
+- [x] WebAudio: rain, river murmur by flow, birds by vegetation, cowbells near the village (part 1, 2026-11-23): speaker toggle (off by default, remembered, starts on a gesture), all sound synthesized in code: river by total flow, rain hiss by the cloud (storms louder) and thunder after lightning, wind (winter, storms), birds by day by forest, crickets on summer evenings, owl at night, mill creak and clack while wheels turn, cowbells by the village by day; smooth gain ramps, suspends when the tab is hidden, `window.LV_AUDIO` levels for tests
+- [ ] Sound part 2 (ideas): river louder near the view or the brush (pan by where the water is), splash when Raise/Dig hits water, a soft 'plop' for a new spring, cottage built chime, rain on the ice/snow muffled, a volume slider in a small settings popover
 - [ ] Goal mode: "valley wishes" (make a lake of size X, grow a forest, keep 5 cottages dry through a spring flood) with stars
 - [ ] Save/share a valley (compressed state in localStorage, seed + edits string)
 
 ## Next steps
+0. v5 part 1 (sound) is done. Next: goal mode ("valley wishes" with stars) or save/share a valley; sound part 2 ideas are in the v5 list. Listen on a real phone/tablet once (headless tests only check levels, not how it sounds).
 1. v4 is done (clock, rain, seasons, storms, droughts, rainbows, ice, snowmen, thicker winter chimney smoke). Next small season ideas: fields resting under snow in winter (no harvest), a calendar strip under the clock showing the year, "Day 3 of spring" on desktop, an ice-jam flood in spring (the thaw releases the dammed water at once). Or start v5 (sound).
 2. Small ideas for day/night (lanterns and fireflies are done): smoke lit by the sunset, an optional "always day" toggle if someone prefers it (rainbows are done).
 3. Ideas for mills and wells: flour sacks or a little millstone sprite by a turning mill, a well bucket animation, a mill race (a short dug channel) so a cottage can bring the river to its wheel.

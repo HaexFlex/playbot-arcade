@@ -44,7 +44,7 @@ button.on{background:#ffe680;box-shadow:0 2px 0 #e0b93a,0 0 0 3px #ffd23f,0 4px 
   #tools button{width:58px;height:calc((100vh - 74px) / 9);max-height:56px;min-height:34px}
   #tools button svg{width:28px;height:28px}
   #ctl{right:calc(env(safe-area-inset-right) + 6px);top:50%;transform:translateY(-50%);gap:4px;padding:5px}
-  #ctl button{width:50px;height:calc((100vh - 76px) / 7);max-height:50px;min-height:36px}
+  #ctl button{width:50px;height:calc((100vh - 76px) / 8);max-height:50px;min-height:36px}
   #ctl button svg{width:22px;height:22px}#ctl button span{font-size:10px}
   #hint{top:40px;font-size:14px}
 }
@@ -893,6 +893,8 @@ const IC = {
   top: '<rect x="5" y="5" width="22" height="22" rx="3" fill="#5fb548"/><path d="M5 18c6-2 9 4 22 1v5a3 3 0 0 1-3 3H8a3 3 0 0 1-3-3z" fill="#4fb6ee"/><circle cx="12" cy="11" r="3" fill="#fff" opacity=".8"/>',
   shower: '<circle cx="23" cy="9" r="5" fill="#ffc533"/><path d="M7 21a5 5 0 0 1 1-10 7 7 0 0 1 13 2 4 4 0 0 1 0 8z" fill="#fff" stroke="#8fb3cf" stroke-width="1.6"/><path d="M9 24l-1.5 4M15 24l-1.5 4M21 24l-1.5 4" stroke="#3a9be0" stroke-width="2.2" stroke-linecap="round"/>',
   dice: '<rect x="5" y="5" width="22" height="22" rx="5" fill="#fff" stroke="#e8792b" stroke-width="2.4"/><circle cx="11" cy="11" r="2.2" fill="#e8792b"/><circle cx="16" cy="16" r="2.2" fill="#e8792b"/><circle cx="21" cy="21" r="2.2" fill="#e8792b"/>',
+  soundOn: '<path d="M4 13h6l8-7v22l-8-7H4z" fill="#3a9be0" stroke="#2a73b0" stroke-width="1.4" stroke-linejoin="round"/><path d="M22 12c2 3 2 7 0 10M26 8c4 5 4 13 0 18" stroke="#3a9be0" stroke-width="2.6" fill="none" stroke-linecap="round"/>',
+  soundOff: '<path d="M4 13h6l8-7v22l-8-7H4z" fill="#a9b6c3" stroke="#7b8fa6" stroke-width="1.4" stroke-linejoin="round"/><path d="M22 13l8 8M30 13l-8 8" stroke="#e8792b" stroke-width="2.8" stroke-linecap="round"/>',
   reset: '<path d="M26 16a10 10 0 1 1-4-8" stroke="#7b8fa6" stroke-width="3" fill="none" stroke-linecap="round"/><path d="M23 2l1 7-7 0" stroke="#7b8fa6" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/>'
 };
 const svg = k => `<svg viewBox="0 0 34 34" aria-hidden="true">${IC[k]}</svg>`;
@@ -937,6 +939,8 @@ const bView = mk('c-view', 'top', 'Map', () => { st.view = st.view === 'tilt' ? 
 const bShower = mk('c-shower', 'shower', 'Shower', () => { st.shower = 14; updUI(); hint('A big rain shower over the whole valley!'); });
 mk('c-new', 'dice', 'New', () => newWorld(LV.randomSeedName()));
 mk('c-reset', 'reset', 'Reset', () => newWorld(st.S.seed));
+const bSound = mk('c-sound', 'soundOff', 'Sound', () => setSound(!AU.want)); // 🔇 / 🔊
+function updSound() { const on = AU.want; bSound.innerHTML = svg(on ? 'soundOn' : 'soundOff') + `<span>${on ? 'Sound' : 'Muted'}</span>`; bSound.classList.toggle('on', on); bSound.setAttribute('aria-label', on ? 'Sound on (tap to mute)' : 'Sound off (tap for sound)'); bSound.title = on && !AU.on && AG == null ? 'Sound on: tap anywhere to start' : bSound.getAttribute('aria-label'); }
 const COTTAGE_MSG = { built: 'A new cottage! It wants water nearby and dry feet', rebuilt: 'The ruin is a cottage again!', taken: 'There is already a cottage here', water: 'Too wet to build here: wait for the water to go', steep: 'Too steep for a cottage', snow: 'Too cold up here for a cottage', edge: 'Too close to the edge of the valley', full: 'The valley is full of cottages' };
 function buildCottage(g) {
   const res = LV.applyTool(st.S, 'cottage', g[0], g[1], 0, 0); st.lastCottage = res;
@@ -1922,6 +1926,7 @@ function frame(now) {
     $('stats').textContent = (vw < 600 ? `${tt} trees · ${hp}% happy · ${ff} 🌼 · 🏠 ${V.cottages} (${V.happy} 😊)${V.mills ? ' ⚙' + V.mills : ''}${V.ruins ? ' · ' + V.ruins + ' ruin' : ''}`
       : vw < 1000 ? `${tt} trees (${hp}% happy) · ${ff} flowers · 🏠 ${V.cottages} (${V.happy} happy)${V.mills ? ' · ⚙ ' + V.mills : ''}${ru}`
       : `${S.N}² · ${Math.round(st.fps)} fps · ${tt} trees (${hp}% happy) · ${ff} flowers · ${V.cottages} cottage${V.cottages === 1 ? '' : 's'} (${V.happy} happy)${fl}${mi}${ru}${S.dryNow > 0.05 ? ' · drought' : LV.weatherEvent(S) === 'storm' ? ' · storm' : ''}`) + (st.paused ? ' · paused' : ''); }
+  auTick(dtReal);
   requestAnimationFrame(frame);
 }
 // auto quality: lower render scale first, then the grid (not in time-lapse, which fills spare time on purpose)
@@ -1935,8 +1940,171 @@ function adapt(dt) {
   }
 }
 
-window.__lv = { st, LV, LT, leaf: LS, clockText, wheelAng, get col() { return [colR, colG, colB]; }, get tilt() { return tilt; }, get area() { return area; }, setTool, newWorld, unproj, proj, get S() { return st.S; } };
-updUI();
+// ---------- sound (v5): a gentle WebAudio soundscape made in code (no audio files) ----------
+// Off by default. The speaker button starts the AudioContext on a tap (browsers and iOS need a gesture);
+// the choice is remembered, but a remembered "on" still waits for the first tap. About four times a second
+// the layers follow the valley: river murmur by the flowing water, rain hiss by the cloud (louder in a storm)
+// and thunder after lightning, wind (stronger in winter and storms), birds by day in the forest, crickets on
+// summer evenings, an owl at night, the creak and clack of turning mill wheels, cowbells near the village.
+// window.LV_AUDIO holds the levels (0..1) and gains so tests can check them without listening.
+const AU = { want: false, on: false, started: false, state: 'none', nodes: 0, live: 0, L: {}, G: {}, ev: { chirp: 0, cricket: 0, owl: 0, clack: 0, creak: 0, bell: 0, thunder: 0 }, flow: 0, veg: 0, ticks: 0 };
+window.LV_AUDIO = AU;
+const AU_KEY = 'lv-sound', AU_MASTER = 0.45, AU_DT = 0.25;
+const AU_MAX = { river: 0.55, rain: 0.42, wind: 0.2, birds: 0.42, crickets: 0.13, owl: 0.38, mill: 0.42, cows: 0.26, thunder: 0.85 }; // full-level gain per layer
+for (const k in AU_MAX) { AU.L[k] = 0; AU.G[k] = 0; }
+try { AU.want = localStorage.getItem(AU_KEY) === '1'; } catch (e) { /* private mode */ }
+let AG = null, auT = 0;
+function noiseBuf(ac, kind) { // 2 s of looping noise (white, pink or brown), cross-faded at the seam so the loop never clicks
+  const n = ac.sampleRate * 2, M = 2048, raw = new Float32Array(n + M); let l = 0, p0 = 0, p1 = 0, p2 = 0;
+  for (let i = 0; i < n + M; i++) { const w = Math.random() * 2 - 1;
+    if (kind === 'brown') { l = (l + 0.02 * w) / 1.02; raw[i] = l * 3.5; }
+    else if (kind === 'pink') { p0 = 0.997 * p0 + 0.029591 * w; p1 = 0.985 * p1 + 0.032534 * w; p2 = 0.95 * p2 + 0.048056 * w; raw[i] = (p0 + p1 + p2 + 0.05 * w) * 2.2; }
+    else raw[i] = w * 0.6; }
+  const b = ac.createBuffer(1, n, ac.sampleRate), d = b.getChannelData(0);
+  for (let i = 0; i < n; i++) d[i] = i < M ? raw[i] * (i / M) + raw[n + i] * (1 - i / M) : raw[i];
+  return b;
+}
+function auGraph(ac) {
+  const g = { ac, bus: {} }; let made = 0;
+  const node = n => { made++; return n; };
+  const gain = v => { const q = node(ac.createGain()); q.gain.value = v; return q; };
+  const filt = (type, f, Q) => { const q = node(ac.createBiquadFilter()); q.type = type; q.frequency.value = f; if (Q != null) q.Q.value = Q; return q; };
+  const loop = buf => { const s = node(ac.createBufferSource()); s.buffer = buf; s.loop = true; s.loopStart = 0; s.start(ac.currentTime + Math.random() * 0.5); return s; };
+  const chain = (...ns) => { for (let i = 0; i < ns.length - 1; i++) ns[i].connect(ns[i + 1]); return ns[ns.length - 1]; };
+  g.master = gain(0); g.master.connect(ac.destination);
+  for (const k in AU_MAX) { g.bus[k] = gain(0); g.bus[k].connect(g.master); }
+  g.white = noiseBuf(ac, 'white'); g.pink = noiseBuf(ac, 'pink'); g.brown = noiseBuf(ac, 'brown');
+  // river: a deep brown-noise murmur plus a softer band of gurgle that wanders
+  chain(loop(g.brown), filt('lowpass', 520, 0.5), gain(0.9), g.bus.river);
+  g.gurgle = filt('bandpass', 900, 1.4); chain(loop(g.pink), g.gurgle, gain(0.5), g.bus.river);
+  // rain: a high hiss and a softer body
+  chain(loop(g.white), filt('highpass', 1100), filt('lowpass', 7000), gain(0.8), g.bus.rain);
+  chain(loop(g.pink), filt('lowpass', 1600), gain(0.6), g.bus.rain);
+  // wind: band-passed pink noise; centre and gusts wander in the tick
+  g.windF = filt('bandpass', 380, 1.1); g.gust = gain(1); chain(loop(g.pink), g.windF, g.gust, g.bus.wind);
+  g.base = made; return g;
+}
+function auStart() { // called from a user gesture
+  if (!AU.want) return;
+  const C = window.AudioContext || window.webkitAudioContext; if (!C) { AU.state = 'unsupported'; return; }
+  try {
+    if (!AG) { const ac = new C(); AG = auGraph(ac); AU.started = true; AU.bolts = st.bolts || 0;
+      const sb = ac.createBuffer(1, 1, ac.sampleRate), s = ac.createBufferSource(); s.buffer = sb; s.connect(ac.destination); s.start(0); // unlocks iOS
+      ac.onstatechange = () => { AU.state = ac.state; }; }
+    if (AG.ac.state !== 'running' && !document.hidden) AG.ac.resume().catch(() => {});
+    AG.master.gain.cancelScheduledValues(AG.ac.currentTime); AG.master.gain.setTargetAtTime(AU_MASTER, AG.ac.currentTime, 0.8);
+    AU.state = AG.ac.state; auT = 0;
+  } catch (e) { AU.state = 'error'; }
+}
+function auStop() { if (!AG) return; const t = AG.ac.currentTime; AG.master.gain.cancelScheduledValues(t); AG.master.gain.setTargetAtTime(0, t, 0.15); setTimeout(() => { if (!AU.want && AG && AG.ac.state === 'running') AG.ac.suspend().catch(() => {}); }, 900); }
+function setSound(on) { AU.want = on; try { localStorage.setItem(AU_KEY, on ? '1' : '0'); } catch (e) { /* private mode */ } if (on) auStart(); else auStop(); updSound(); hint(on ? 'Sound on: listen to the valley' : 'Sound off'); }
+// a remembered "on" starts at the first tap anywhere; any tap also wakes an interrupted iOS context
+for (const ev of ['pointerup', 'touchend', 'keydown', 'click']) addEventListener(ev, () => { if (AU.want && (!AG || AG.ac.state !== 'running') && !document.hidden) { auStart(); updSound(); } }, { passive: true });
+document.addEventListener('visibilitychange', () => { if (!AG) return; const t = AG.ac.currentTime;
+  if (document.hidden) { AG.master.gain.cancelScheduledValues(t); AG.master.gain.setValueAtTime(AG.master.gain.value, t); AG.master.gain.linearRampToValueAtTime(0, t + 0.08); setTimeout(() => { if (document.hidden && AG.ac.state === 'running') AG.ac.suspend().catch(() => {}); }, 120); }
+  else if (AU.want) auStart(); });
+// ---- one-shot sounds; every envelope starts and ends at zero so nothing clicks
+function auVoice(bus, t, dur, pan) { // a gain (envelope) into an optional stereo panner into the bus; frees itself
+  const ac = AG.ac, e = ac.createGain(); e.gain.value = 0; let out = e;
+  if (pan && ac.createStereoPanner) { const p = ac.createStereoPanner(); p.pan.value = pan; e.connect(p); out = p; }
+  out.connect(AG.bus[bus]); AU.live++; setTimeout(() => { e.disconnect(); if (out !== e) out.disconnect(); AU.live--; }, (t - ac.currentTime + dur) * 1000 + 300);
+  return e;
+}
+function osc(type, f, t, dur, dest) { const o = AG.ac.createOscillator(); o.type = type; o.frequency.setValueAtTime(f, t); o.connect(dest); o.start(t); o.stop(t + dur); return o; }
+function chirp(t) { // a little bird: 2 to 5 quick whistled notes
+  const n = 2 + (Math.random() * 4 | 0), f0 = 2300 + Math.random() * 1900, up = Math.random() < 0.5, nd = 0.055 + Math.random() * 0.06, gap = 0.03 + Math.random() * 0.05, dur = n * (nd + gap) + 0.1;
+  const e = auVoice('birds', t, dur, Math.random() * 1.4 - 0.7), o = osc('sine', f0, t, dur, e);
+  for (let k = 0; k < n; k++) { const a = t + k * (nd + gap), f = f0 * (1 + (Math.random() - 0.5) * 0.25);
+    o.frequency.setValueAtTime(up ? f * 0.8 : f * 1.2, a); o.frequency.exponentialRampToValueAtTime(up ? f * 1.25 : f * 0.85, a + nd);
+    e.gain.setValueAtTime(0, a); e.gain.linearRampToValueAtTime(0.22, a + 0.012); e.gain.linearRampToValueAtTime(0, a + nd); }
+  AU.ev.chirp++;
+}
+function cricket(t, f, pan) { // three or four tiny pulses
+  const n = 3 + (Math.random() < 0.4 ? 1 : 0), dur = n * 0.032 + 0.05, e = auVoice('crickets', t, dur, pan); osc('sine', f, t, dur, e);
+  for (let k = 0; k < n; k++) { const a = t + k * 0.032; e.gain.setValueAtTime(0, a); e.gain.linearRampToValueAtTime(0.35, a + 0.006); e.gain.linearRampToValueAtTime(0, a + 0.02); }
+  AU.ev.cricket++;
+}
+function owl(t) { // hoo ... hoo-hoo, soft and low
+  const f = 360 + Math.random() * 60, pan = Math.random() * 1.2 - 0.6, notes = [[0, 0.42], [0.75, 0.2], [1.02, 0.5]], dur = 1.7, e = auVoice('owl', t, dur, pan);
+  const lp = AG.ac.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 900; lp.connect(e); const o = osc('sine', f, t, dur, lp); setTimeout(() => lp.disconnect(), (t - AG.ac.currentTime + dur) * 1000 + 300);
+  for (const [a, d] of notes) { o.frequency.setValueAtTime(f * 1.04, t + a); o.frequency.linearRampToValueAtTime(f * 0.95, t + a + d); e.gain.setValueAtTime(0, t + a); e.gain.linearRampToValueAtTime(0.3, t + a + 0.07); e.gain.setValueAtTime(0.3, t + a + d - 0.1); e.gain.linearRampToValueAtTime(0, t + a + d); }
+  AU.ev.owl++;
+}
+function noiseHit(bus, buf, t, dur, type, f, Q, peak, pan, decay) { // a filtered burst of noise
+  const ac = AG.ac, s = ac.createBufferSource(), fl = ac.createBiquadFilter(), e = auVoice(bus, t, dur, pan); s.buffer = buf; fl.type = type; fl.frequency.value = f; fl.Q.value = Q; s.connect(fl); fl.connect(e);
+  s.start(t, Math.random() * 1.5); s.stop(t + dur); e.gain.setValueAtTime(0, t); e.gain.linearRampToValueAtTime(peak, t + 0.004); e.gain.setTargetAtTime(0, t + 0.006, decay); setTimeout(() => fl.disconnect(), (t - ac.currentTime + dur) * 1000 + 300); return { e, fl };
+}
+function clack(t, pan) { // a paddle of the wheel slapping the water and the wooden axle knocking
+  noiseHit('mill', AG.white, t, 0.18, 'bandpass', 650 + Math.random() * 300, 2.5, 0.5, pan, 0.025);
+  const e = auVoice('mill', t, 0.2, pan), o = osc('sine', 150, t, 0.2, e); o.frequency.exponentialRampToValueAtTime(90, t + 0.12);
+  e.gain.setValueAtTime(0, t); e.gain.linearRampToValueAtTime(0.35, t + 0.005); e.gain.setTargetAtTime(0, t + 0.01, 0.03);
+  AU.ev.clack++;
+}
+function creak(t, pan) { // the old wooden wheel groaning on its axle
+  const dur = 0.5 + Math.random() * 0.4, f = 120 + Math.random() * 60, e = auVoice('mill', t, dur, pan), bp = AG.ac.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 900; bp.Q.value = 5; bp.connect(e);
+  const o = osc('sawtooth', f, t, dur, bp); o.frequency.linearRampToValueAtTime(f * 0.82, t + dur * 0.6); o.frequency.linearRampToValueAtTime(f * 0.9, t + dur);
+  e.gain.setValueAtTime(0, t); e.gain.linearRampToValueAtTime(0.14, t + 0.08); e.gain.setValueAtTime(0.14, t + dur - 0.15); e.gain.linearRampToValueAtTime(0, t + dur); setTimeout(() => bp.disconnect(), (t - AG.ac.currentTime + dur) * 1000 + 300);
+  AU.ev.creak++;
+}
+const BELL_P = [[1, 1, 1.2], [2.02, 0.45, 0.7], [2.76, 0.38, 0.55], [4.07, 0.2, 0.35], [5.4, 0.12, 0.25]]; // partial, amplitude, decay (s)
+function bell(t, pan) { // a distant cowbell: a few inharmonic partials, sometimes a second clank as the cow sways
+  const f = [520, 590, 660, 740][Math.random() * 4 | 0] * (1 + (Math.random() - 0.5) * 0.02), hits = Math.random() < 0.5 ? 2 : 1;
+  for (let h = 0; h < hits; h++) { const a = t + h * (0.28 + Math.random() * 0.2), v = h ? 0.6 : 1, dur = 1.6, e = auVoice('cows', a, dur, pan);
+    e.gain.setValueAtTime(0, a); e.gain.linearRampToValueAtTime(0.16 * v, a + 0.006); e.gain.setTargetAtTime(0, a + 0.01, 0.5);
+    for (const [m, amp, dec] of BELL_P) { const g = AG.ac.createGain(); g.gain.setValueAtTime(amp, a); g.gain.setTargetAtTime(0, a + 0.01, dec / 3); g.connect(e); osc('sine', f * m, a, dur, g); setTimeout(() => g.disconnect(), (a - AG.ac.currentTime + dur) * 1000 + 300); } }
+  AU.ev.bell++;
+}
+function thunder(t, k) { // a crack, then a long rumble that rolls over the hills
+  const dur = 4 + Math.random() * 2, { e, fl } = noiseHit('thunder', AG.brown, t, dur, 'lowpass', 420, 0.7, 0.9 * k, Math.random() * 0.8 - 0.4, 0.9);
+  fl.frequency.setValueAtTime(420, t); fl.frequency.exponentialRampToValueAtTime(110, t + 1.5);
+  for (let b = 0; b < 3; b++) { const a = t + 0.6 + b * (0.6 + Math.random() * 0.8); e.gain.setTargetAtTime(0.55 * k * (1 - b * 0.25), a, 0.12); e.gain.setTargetAtTime(0, a + 0.3, 0.7); }
+  AU.ev.thunder++;
+}
+// ---- the levels follow the valley (cheap: one pass over the grid, four times a second)
+const clamp01 = v => v < 0 ? 0 : v > 1 ? 1 : v;
+function auLevels() {
+  const S = st.S, N = S.N, d = S.d, u = S.u, v = S.v, L = AU.L; let f = 0;
+  for (let i = 0; i < d.length; i += 2) { const w = d[i]; if (w > 0.03) { const s = Math.abs(u[i]) + Math.abs(v[i]); if (s > 0.2) f += Math.min(w, 2) * Math.min(s, 4); } }
+  AU.flow = f * 2 / (N * N);
+  const sea = S.P.seasons, yf = sea ? LV.yearFrac(S) : 0.3, h = LT.h, night = LT.night, day = 1 - night;
+  const winter = sea ? (yf > 0.75 ? 1 : yf > 0.68 ? (yf - 0.68) / 0.07 : yf < 0.04 ? 1 - yf / 0.04 : 0) : 0;
+  const summer = sea ? (yf >= 0.25 && yf < 0.5 ? 1 : yf > 0.2 && yf < 0.25 ? (yf - 0.2) / 0.05 : yf >= 0.5 && yf < 0.55 ? 1 - (yf - 0.5) / 0.05 : 0) : 1;
+  const rain = clamp01(LT.rain), storm = clamp01(LT.storm), dry = 1 - rain;
+  const life = st.life || LV.countLife(S); AU.veg = clamp01(life.trees / (N * N * 0.2));
+  const V = st.village || LV.countVillage(S);
+  let turn = 0, mills = 0; if (!st.paused) for (const c of S.cottages) if (c.wheel && !c.ruin && c.turn > 0) { mills++; turn = Math.max(turn, c.turn); }
+  AU.turn = turn * SPEEDS[st.speed][0];
+  L.river = clamp01(Math.pow(AU.flow / 0.12, 0.6)) * 0.9 + (AU.flow > 0.002 ? 0.1 : 0);
+  L.rain = clamp01(rain * (0.6 + 0.4 * storm) + storm * 0.25);
+  L.wind = clamp01(0.22 + 0.4 * winter + 0.65 * storm + 0.15 * rain) * (0.75 + 0.25 * Math.sin(st.time * 0.31) * Math.sin(st.time * 0.17 + 1));
+  L.birds = clamp01(day * (1 - 0.92 * winter) * (1 - 0.8 * rain) * (0.12 + 0.88 * AU.veg) * (1 + 0.35 * bump(h, 7, 2.5)));
+  L.crickets = clamp01(summer * Math.max(LT.glow * 0.9, night) * (h >= 17 || h < 5 ? 1 : 0) * dry * (1 - winter));
+  L.owl = clamp01(night * dry * (1 - 0.6 * winter) * (0.3 + 0.7 * AU.veg));
+  L.mill = mills ? clamp01(0.55 + 0.15 * mills) : 0;
+  L.cows = V.cottages ? clamp01(day * (1 - winter) * (1 - 0.85 * rain) * (0.35 + V.cottages / 10)) : 0;
+  L.thunder = 1;
+}
+function auTick(dt) {
+  if (!AG || !AU.want || document.hidden) { AU.on = false; return; }
+  AU.state = AG.ac.state; AU.on = AU.state === 'running'; if (!AU.on) return;
+  auT -= dt; if (auT > 0) return; auT = AU_DT; AU.ticks++;
+  auLevels();
+  const ac = AG.ac, t = ac.currentTime, L = AU.L, R = Math.random;
+  for (const k in AU_MAX) { AU.G[k] = L[k] * AU_MAX[k]; AG.bus[k].gain.setTargetAtTime(AU.G[k], t, k === 'thunder' ? 0.1 : 0.7); }
+  AG.gurgle.frequency.setTargetAtTime(700 + 500 * R() + 400 * L.river, t, 0.5);
+  AG.windF.frequency.setTargetAtTime(260 + 380 * R() + 200 * L.wind, t, 1.2); AG.gust.gain.setTargetAtTime(0.6 + 0.6 * R(), t, 1);
+  const at = () => t + 0.05 + R() * AU_DT;
+  if (L.birds > 0.02) for (let k = 0; k < 2; k++) if (R() < 1.5 * L.birds * AU_DT) chirp(at());
+  if (L.crickets > 0.02) for (let k = 0; k < 3; k++) if (R() < 0.75) cricket(at(), 4300 + k * 230, k - 1);
+  if (L.owl > 0.05 && t - (AU.owlT || -99) > 6 && R() < 0.06 * L.owl * AU_DT) { owl(at()); AU.owlT = t; }
+  if (L.mill > 0) { AU.millPh = (AU.millPh || 0) + AU_DT * Math.min(4, 0.6 + 0.9 * AU.turn); while (AU.millPh >= 1) { AU.millPh--; clack(at(), 0.3); } if (R() < 0.25 * AU_DT) creak(at(), 0.3); }
+  if (L.cows > 0.02 && R() < 0.3 * L.cows * AU_DT) bell(at(), R() * 1.2 - 0.6);
+  const bolts = st.bolts || 0; if (bolts > (AU.bolts || 0)) { thunder(t + 0.5 + R() * 1.8, 0.6 + 0.4 * clamp01(LT.storm)); } AU.bolts = bolts;
+  AU.nodes = AG.base + AU.live;
+}
+
+window.__lv = { st, AU, updSound, LV, LT, leaf: LS, clockText, wheelAng, get col() { return [colR, colG, colB]; }, get tilt() { return tilt; }, get area() { return area; }, setTool, newWorld, unproj, proj, get S() { return st.S; } };
+updUI(); updSound();
 const fromHash = decodeURIComponent((location.hash || '').slice(1));
 newWorld(fromHash || LV.randomSeedName());
 requestAnimationFrame(frame);

@@ -33,7 +33,7 @@ find its way: lakes fill, rivers spill over ridges, carve gullies and drop sand.
 - **Speed** cycles 1x, 2x, 4x and **8x Time-lapse** (hourglass): erosion and growth run four
   times faster, so you can watch a river carve its gorge and the forest follow the new banks.
 - **Shower** rains on the whole valley, **Map** switches to a top view, **New** makes a new
-  named world, **Reset** restarts the same one. Keys 1–9 pick tools, Space pauses.
+  named world, **Reset** restarts the same one, the speaker turns the sound on or off. Keys 1–9 pick tools, Space pauses.
 
 ## Day, night and weather
 The valley has its own clock (in the title pill, e.g. "☀️ 14:20"). One day lasts about 100 s at
@@ -92,9 +92,20 @@ Plants and cottages remember water: only water that *stands* for a while (a lake
 drowns trees or ruins a cottage, and only a river that *keeps* running fast and deep scours its
 bed. The sheet runoff and puddles of a big Shower flow past and are forgotten once it is dry.
 
+## Sound
+Tap the speaker (**Muted** / **Sound**) for a gentle soundscape made entirely in code with WebAudio
+(no sound files). It is off until you tap it; the choice is remembered, but the browser still
+waits for your first tap or key press before it plays. What you hear follows the valley: the
+river murmurs louder the more water flows, rain hisses under a cloud (heavier in a storm, with
+thunder rolling in a moment after each lightning flash), the wind blows softly and stronger in
+winter and storms, birds chirp by day where the forest is, the owl hoots at night, crickets chirp
+on summer evenings, turning mill wheels creak and clack (silent when paused or the river is dry),
+and distant cowbells ring near the village by day. Winter and rain hush the birds; the sound fades
+out when the tab is hidden. `window.LV_AUDIO` shows the current layer levels for testing.
+
 ## How it works
 Heightmap terrain from seeded noise, shallow water with the virtual-pipes method (mass
 conserving), sediment erosion and deposition with semi-Lagrangian transport, and thermal
 slumping of steep slopes. Rendering is a software-drawn tilted 3D view on a 2D canvas.
 
-See `PLAN.md` for where it is going (sound, goals).
+See `PLAN.md` for where it is going (goals, saving and sharing a valley).
