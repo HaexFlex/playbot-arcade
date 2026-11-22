@@ -16,6 +16,11 @@ find its way: lakes fill, rivers spill over ridges, carve gullies and drop sand.
   with a lake or stream within a short walk, **sad** (thirsty drop) when it is dry and far from
   water, and **flooded** (blue waves) when water stands on it. A cottage that stays flooded
   turns into a ruin; tap the ruin with the Cottage tool to rebuild it.
+  Happy cottages sow **fields** around them (a patchwork of wheat, barley, rapeseed and cabbage
+  plots that ripen from green to gold, are harvested and sown again) and tread **footpaths** to
+  their neighbours and down to the water. After a while a happy cottage with room around it
+  builds a new cottage next to it, so a village grows by itself along a good river (up to 24
+  new cottages per valley). Sad cottages let their fields go fallow; a flood wipes them out.
 - **Speed** cycles 1x, 2x, 4x and **8x Time-lapse** (hourglass): erosion and growth run four
   times faster, so you can watch a river carve its gorge and the forest follow the new banks.
 - **Shower** rains on the whole valley, **Map** switches to a top view, **New** makes a new
@@ -30,7 +35,7 @@ it and a fast river scours its bed. Leafy trees grow in the warm lowlands and pi
 slopes, and rich moist meadows bloom with buttercups, daisies, clover, gentians and poppies.
 The stats pill counts the trees (and how many of them are happy: moist ground, below the snow,
 not flooded; unhappy crowns turn yellow-brown), the flower patches and the cottages (how many
-are happy, and any ruins).
+are happy, any ruins, and on desktop the number of fields).
 
 Plants and cottages remember water: only water that *stands* for a while (a lake that stays)
 drowns trees or ruins a cottage, and only a river that *keeps* running fast and deep scours its

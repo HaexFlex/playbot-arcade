@@ -97,6 +97,7 @@ const DEFAULTS = {
   talus: 1.6, talusWet: 0.4, thermal: 0.15, thermalEvery: 2,
   springRate: 3.0, erosion: true,
   life: true, lifeEvery: 6,
+  growMax: 24, // cottages the village may build by itself (GROW_MAX)
   boost: 1 // time-lapse: erosion and plant growth run this many times faster
 };
 
@@ -138,7 +139,7 @@ function create(N, seed, opts) {
   const P = Object.assign({}, DEFAULTS, opts || {});
   const n = N * N, F = () => new Float32Array(n);
   const T = generateTerrain(N, seed);
-  const S = { N, seed: String(seed), P, h: T.h, d: F(), s: F(), fL: F(), fR: F(), fT: F(), fB: F(), u: F(), v: F(), tmp: F(), tmp2: F(), ero: F(), wet: F(), dep: F(), veg: F(), tree: F(), bloom: F(), moist: F(), fert: F(), flood: F(), rush: F(), h0: null, springs: [], cottages: [], steps: 0, time: 0 };
+  const S = { N, seed: String(seed), P, h: T.h, d: F(), s: F(), fL: F(), fR: F(), fT: F(), fB: F(), u: F(), v: F(), tmp: F(), tmp2: F(), ero: F(), wet: F(), dep: F(), veg: F(), tree: F(), bloom: F(), moist: F(), fert: F(), flood: F(), rush: F(), field: F(), ripe: F(), path: F(), tend: new Uint8Array(n), h0: null, springs: [], cottages: [], grown: 0, vtick: 0, steps: 0, time: 0 };
   S.h0 = new Float32Array(S.h);
   initLife(S);
   return S;
@@ -211,18 +212,117 @@ function cottageMood(S, c) {
   if (cottageStanding(S, i)) return 'flooded';
   return S.d[i] < 0.05 && waterNear(S, i) >= 3 ? 'happy' : 'sad';
 }
+// ---------- the village grows: fields, footpaths and new cottages ----------
+// field: crop cover 0..1 (> 0.3 shows a field), ripe: 0..1.3 (green → golden, harvested at 1.3, then sown again),
+// path: footpath wear 0..1, tend: 1 where a happy cottage tends the field this step (else the field lies fallow).
+// Fields sit in small square plots (plotSize cells) so they look like a patchwork; each plot has a crop
+// (wheat, barley, rapeseed, cabbage) and a row direction, all from the plot coordinates (deterministic).
+const FIELD_GROW = 20, FIELD_FALLOW = 90, FIELD_RIPEN = 120, FLOOD_FIELD = 3, GROW_T = 200, GROW_MAX = 24, KIDS_MAX = 2;
+function plotSize(N) { return Math.max(2, Math.round(N / 56)); }
+function plotOf(N, i) { const P = plotSize(N), x = i % N, y = (i / N) | 0; return ((y / P) | 0) * 4096 + ((x / P) | 0); }
+function plotCrop(N, i) { return Math.floor(cellRand(plotOf(N, i), 41) * 4); } // 0 wheat, 1 barley, 2 rapeseed, 3 cabbage
+function plotOpen(N, i) { return cellRand(plotOf(N, i), 43) < 0.78; } // some plots stay meadow: hedges and gaps
+function fieldOk(S, i, H) { // flat, dry, fertile lowland that is not a path (forest gets cleared, slowly)
+  const N = S.N, h = S.h; if (S.d[i] > 0.05 || S.path[i] > 0.3 || S.dep[i] > 1.2 || h[i] / H > 0.5) return false;
+  const gx = 0.5 * (h[i + 1] - h[i - 1]), gy = 0.5 * (h[i + N] - h[i - N]);
+  return gx * gx + gy * gy < 0.5 && S.moist[i] + 0.35 * S.fert[i] > 0.16 && plotOpen(N, i);
+}
+// wear a footpath along a straight line (skips steep rock; a water path stops at the shore)
+function wearLine(S, x0, y0, x1, y1, amt, stopAtWater) {
+  const N = S.N, h = S.h, n = Math.ceil(Math.max(Math.abs(x1 - x0), Math.abs(y1 - y0)));
+  for (let k = 1; k < n; k++) {
+    const x = Math.round(x0 + (x1 - x0) * k / n), y = Math.round(y0 + (y1 - y0) * k / n), i = y * N + x;
+    if (S.d[i] > 0.15) { if (stopAtWater) return; continue; } // fords are fine for links
+    const gx = 0.5 * (h[i + 1] - h[i - 1]), gy = 0.5 * (h[i + N] - h[i - N]); if (gx * gx + gy * gy > 2) continue;
+    S.path[i] += (1 - S.path[i]) * amt;
+  }
+}
+function nearestWater(S, x, y, R) {
+  const N = S.N; let best = null, bd = R * R;
+  for (let yy = Math.max(1, Math.floor(y - R)); yy <= Math.min(N - 2, Math.ceil(y + R)); yy++) for (let xx = Math.max(1, Math.floor(x - R)); xx <= Math.min(N - 2, Math.ceil(x + R)); xx++) {
+    const r2 = (xx - x) * (xx - x) + (yy - y) * (yy - y); if (r2 >= bd || S.d[yy * N + xx] < 0.15) continue; bd = r2; best = [xx, yy];
+  }
+  return best;
+}
+// a happy cottage that has been happy for GROW_T sim seconds and has room around it builds a
+// neighbour: deterministic spots on a ring around it (seed + cottage index), only where the new
+// cottage would be happy too (dry, water nearby) and not crowded. Capped: GROW_MAX grown cottages
+// per valley and KIDS_MAX per parent.
+function growVillage(S, ci) {
+  const N = S.N, c = S.cottages[ci], x = c.x * N, y = c.y * N;
+  let crowd = 0; for (const o of S.cottages) if (o !== c && Math.hypot(o.x * N - x, o.y * N - y) < N * 0.07) crowd++;
+  if (crowd >= 4) return false;
+  c.tries = (c.tries || 0) + 1; // a failed try looks at other spots next time
+  const base = hashStr(S.seed + '#village') ^ Math.imul(ci + 1, 7919), r0 = Math.max(3.5, N * 0.024), r1 = Math.max(5, N * 0.04);
+  for (let k = 0; k < 16; k++) {
+    const t = (c.tries - 1) * 16 + k, a = cellRand(base, t) * Math.PI * 2, r = r0 + (r1 - r0) * cellRand(base, 100000 + t);
+    const gx = Math.round(x + Math.cos(a) * r), gy = Math.round(y + Math.sin(a) * r);
+    if (gx < 3 || gy < 3 || gx > N - 4 || gy > N - 4) continue;
+    const i = gy * N + gx; if (S.d[i] > 0.03 || waterNear(S, i) < 3) continue;
+    if (S.cottages.some(o => Math.hypot(o.x * N - gx, o.y * N - gy) < Math.max(3.5, N * 0.025))) continue;
+    if (placeCottage(S, gx, gy) !== 'built') continue;
+    const nc = S.cottages[S.cottages.length - 1]; nc.grown = true; nc.gen = (c.gen || 0) + 1; nc.happyT = 0;
+    c.kids = (c.kids || 0) + 1; S.grown++; return true;
+  }
+  return false;
+}
 function villageStep(S, tl) {
-  const tree = S.tree, N = S.N;
-  for (const c of S.cottages) {
+  const { tree, N, field, ripe, path, tend, d, flood, bloom } = S, H = N * 0.27;
+  const tg = tl * (S.P.boost > 1 ? Math.min(S.P.boost, 3) : 1); // time-lapse grows the village faster too
+  const doPaths = (S.vtick++ & 3) === 0;
+  tend.fill(0);
+  const RF = Math.max(4, N * 0.05), RF2 = RF * RF, n0 = S.cottages.length;
+  for (let ci = 0; ci < n0; ci++) {
+    const c = S.cottages[ci];
     if (c.ruin) continue;
     const i = cottageCell(S, c);
     c.flood = cottageStanding(S, i) ? (c.flood || 0) + tl : (c.flood || 0) * 0.85;
-    if (c.flood > FLOOD_RUIN) { c.ruin = true; c.flood = 0; c.mood = 'ruin'; continue; }
+    if (c.flood > FLOOD_RUIN) { c.ruin = true; c.flood = 0; c.mood = 'ruin'; c.happyT = 0; continue; }
     c.mood = cottageMood(S, c);
     tree[i] = 0; tree[i - 1] *= 0.5; tree[i + 1] *= 0.5; tree[i - N] *= 0.5; tree[i + N] *= 0.5; // the garden stays open
+    const x = i % N, y = (i / N) | 0, happy = c.mood === 'happy';
+    if (happy) { // tend the fields within a short walk
+      for (let yy = Math.max(2, Math.floor(y - RF)); yy <= Math.min(N - 3, Math.ceil(y + RF)); yy++) for (let xx = Math.max(2, Math.floor(x - RF)); xx <= Math.min(N - 3, Math.ceil(x + RF)); xx++) {
+        const r2 = (xx - x) * (xx - x) + (yy - y) * (yy - y); if (r2 > RF2 || r2 < 2.5) continue;
+        const j = yy * N + xx; if (tend[j] || !fieldOk(S, j, H)) continue; tend[j] = 1;
+      }
+      c.happyT = (c.happyT || 0) + tg;
+    } else c.happyT = Math.max(0, (c.happyT || 0) - tg * 2);
+    if (doPaths) { // footpaths: to the two nearest cottages and down to the water
+      const amt = happy ? 0.12 : 0.05, near = [];
+      for (const o of S.cottages) { if (o === c || o.ruin) continue; const dd = Math.hypot(o.x * N - x, o.y * N - y); if (dd < N * 0.1) near.push([dd, o]); }
+      near.sort((a, b) => a[0] - b[0]);
+      for (let k = 0; k < Math.min(2, near.length); k++) { const o = near[k][1]; wearLine(S, x, y, Math.round(o.x * N), Math.round(o.y * N), amt, false); }
+      const w = nearestWater(S, x, y, Math.max(5, N * 0.06)); if (w) wearLine(S, x, y, w[0], w[1], amt, true);
+    }
+    if (happy && c.happyT > GROW_T && (c.kids || 0) < KIDS_MAX && S.grown < (S.P.growMax != null ? S.P.growMax : GROW_MAX) && S.cottages.length < COTTAGE_MAX) {
+      c.happyT = 0; growVillage(S, ci);
+    }
   }
+  // fields grow where tended, lie fallow where not, are wiped by standing water; paths fade slowly
+  const pathFade = 1 - tl / 400;
+  for (let y = 1; y < N - 1; y++) for (let x = 1; x < N - 1; x++) {
+    const i = y * N + x;
+    let f = field[i], p = path[i];
+    if (p > 0.001) { p *= d[i] > 0.2 ? 0.97 : pathFade; if (p > 0.2) tree[i] *= 0.8; path[i] = p < 0.002 ? 0 : p; }
+    if (!tend[i] && f === 0) continue;
+    if (flood[i] > FLOOD_FIELD || d[i] > 0.3 || S.rush[i] > 5) { f -= tl / 4; ripe[i] = 0; } // a flood drowns the crop
+    else if (tend[i]) {
+      if (f === 0) ripe[i] = cellRand(plotOf(N, i), 47) * 0.6; // a new plot starts at its own point in the season
+      f += tg / FIELD_GROW * (1 - 0.7 * tree[i]); let r = ripe[i] + tg / FIELD_RIPEN; if (r > 1.3) r = 0; ripe[i] = r; // harvest, sow again
+    } else { f -= tg / FIELD_FALLOW; ripe[i] = Math.max(0, ripe[i] - tg / FIELD_RIPEN); }
+    f = f < 0 ? 0 : f > 1 ? 1 : f; field[i] = f;
+    if (f > 0.02 && tend[i]) { tree[i] *= 0.93; bloom[i] *= 0.9; } // clearing the plot
+  }
+  for (const c of S.cottages) { const i = cottageCell(S, c); field[i] = 0; }
 }
-function countVillage(S) { let cottages = 0, happy = 0, sad = 0, flooded = 0, ruins = 0; for (const c of S.cottages) { if (c.ruin) { ruins++; continue; } cottages++; const m = c.mood || cottageMood(S, c); if (m === 'happy') happy++; else if (m === 'flooded') flooded++; else sad++; } return { cottages, happy, sad, flooded, ruins }; }
+function countVillage(S) {
+  let cottages = 0, happy = 0, sad = 0, flooded = 0, ruins = 0, grown = 0; for (const c of S.cottages) { if (c.ruin) { ruins++; continue; } cottages++; if (c.grown) grown++; const m = c.mood || cottageMood(S, c); if (m === 'happy') happy++; else if (m === 'flooded') flooded++; else sad++; }
+  // fields: plots with a grown crop; ripe share; path cells
+  const N = S.N, seen = new Set(); let ripeN = 0, cells = 0, paths = 0;
+  for (let i = 0; i < S.field.length; i++) { if (S.path[i] > 0.3) paths++; if (S.field[i] > 0.5) { cells++; seen.add(plotOf(N, i)); if (S.ripe[i] > 0.75) ripeN++; } }
+  return { cottages, happy, sad, flooded, ruins, grown, fields: seen.size, fieldCells: cells, ripe: cells ? ripeN / cells : 0, paths };
+}
 function placeCottage(S, gx, gy) {
   const N = S.N, h = S.h, H = N * 0.27, x = Math.round(gx), y = Math.round(gy);
   if (x < 2 || y < 2 || x > N - 3 || y > N - 3) return 'edge';
@@ -544,15 +644,15 @@ function resample(S, N2) {
     const i = y * N2 + x, px = x * sc, py = y * sc;
     T.h[i] = lerp(S.h, px, py) * hs; T.d[i] = lerp(S.d, px, py) * hs; T.s[i] = lerp(S.s, px, py) * hs;
     T.wet[i] = lerp(S.wet, px, py); T.dep[i] = lerp(S.dep, px, py) * hs; T.h0[i] = lerp(S.h0, px, py) * hs;
-    T.veg[i] = lerp(S.veg, px, py); T.tree[i] = lerp(S.tree, px, py); T.moist[i] = lerp(S.moist, px, py); T.fert[i] = lerp(S.fert, px, py); T.flood[i] = lerp(S.flood, px, py); T.rush[i] = lerp(S.rush, px, py); T.bloom[i] = lerp(S.bloom, px, py);
+    T.veg[i] = lerp(S.veg, px, py); T.tree[i] = lerp(S.tree, px, py); T.moist[i] = lerp(S.moist, px, py); T.fert[i] = lerp(S.fert, px, py); T.flood[i] = lerp(S.flood, px, py); T.rush[i] = lerp(S.rush, px, py); T.bloom[i] = lerp(S.bloom, px, py); T.field[i] = lerp(S.field, px, py); T.ripe[i] = lerp(S.ripe, px, py); T.path[i] = lerp(S.path, px, py);
   }
-  T.springs = S.springs.map(sp => Object.assign({}, sp)); T.cottages = S.cottages.map(c => Object.assign({}, c)); T.steps = S.steps; T.time = S.time;
+  T.springs = S.springs.map(sp => Object.assign({}, sp)); T.cottages = S.cottages.map(c => Object.assign({}, c)); T.grown = S.grown; T.vtick = S.vtick; T.steps = S.steps; T.time = S.time;
   return T;
 }
 
-function hasNaN(S) { for (const k of ['h', 'd', 's', 'u', 'v', 'fL', 'fR', 'fT', 'fB', 'veg', 'tree', 'moist', 'flood', 'rush', 'bloom']) { const a = S[k]; for (let i = 0; i < a.length; i++) if (!Number.isFinite(a[i])) return k; } return false; }
+function hasNaN(S) { for (const k of ['h', 'd', 's', 'u', 'v', 'fL', 'fR', 'fT', 'fB', 'veg', 'tree', 'moist', 'flood', 'rush', 'bloom', 'field', 'ripe', 'path']) { const a = S[k]; for (let i = 0; i < a.length; i++) if (!Number.isFinite(a[i])) return k; } return false; }
 
-const API = { mulberry32, hashStr, makeNoise, randomSeedName, generateTerrain, create, seedLife, step, applyTool, totalWater, totalTerrain, resample, lifeStep, countTrees, countLife, leafy, treeHappy, cottageMood, cottageCell, countVillage, waterNear, FLOOD_RUIN, hasNaN, DEFAULTS };
+const API = { mulberry32, hashStr, makeNoise, randomSeedName, generateTerrain, create, seedLife, step, applyTool, totalWater, totalTerrain, resample, lifeStep, countTrees, countLife, leafy, treeHappy, cottageMood, cottageCell, countVillage, waterNear, FLOOD_RUIN, GROW_MAX, KIDS_MAX, GROW_T, plotSize, plotOf, plotCrop, hasNaN, DEFAULTS };
 if (typeof module !== 'undefined' && module.exports) module.exports = API; else root.LV = API;
 })(typeof window !== 'undefined' ? window : globalThis);
 </script>
@@ -657,7 +757,9 @@ function changeN(i) {
 }
 
 // ---------- rendering buffers ----------
-let colR, colG, colB, surf, grain, patch, topImg, topCanvas, topCtx, tilt = null, leafK = null, flowerH, flowerC;
+let colR, colG, colB, surf, grain, patch, topImg, topCanvas, topCtx, tilt = null, leafK = null, flowerH, flowerC, cropK, rowK;
+// crops: [young green, ripe colour] for wheat, barley, rapeseed, cabbage (plot crop from LV.plotCrop)
+const CROPS = [[[156, 196, 64], [236, 178, 56]], [[170, 200, 96], [240, 218, 140]], [[84, 150, 96], [250, 226, 36]], [[84, 150, 140], [150, 186, 170]]];
 // meadow flowers: buttercup, daisy, clover pink, gentian blue, poppy red
 const FLOWERS = [[255, 214, 60], [252, 250, 240], [238, 120, 172], [84, 120, 236], [232, 72, 58]];
 // leafy share and mood (1 = happy, 0 = thirsty or drowning: the crown turns yellow-brown) per tree cell
@@ -670,6 +772,9 @@ function allocRender() {
   patch = new Float32Array(n); const pn = LV.makeNoise(LV.mulberry32(5)); for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) { const u = x / N * 7, v = y / N * 7; const f = pn(u, v) + 0.5 * pn(u * 2.3 + 9, v * 2.3); patch[y * N + x] = Math.max(-0.28, Math.min(0.3, f * 0.55)); }
   flowerH = new Float32Array(n); flowerC = new Uint8Array(n); const fr = LV.mulberry32(31); const fz = LV.makeNoise(LV.mulberry32(77));
   for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) { const i = y * N + x; flowerH[i] = fr(); const z = fz(x / N * 5, y / N * 5) * 2.6 + (fr() - 0.5) * 0.35; flowerC[i] = Math.max(0, Math.min(4, Math.floor((z + 0.9) * 2.6))); }
+  // field patchwork: crop per plot, rows run east-west or north-south in a checkerboard (alternate rows darker)
+  cropK = new Uint8Array(n); rowK = new Float32Array(n); const P = LV.plotSize(N);
+  for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) { const i = y * N + x; cropK[i] = LV.plotCrop(N, i); const ew = (((x / P) | 0) + ((y / P) | 0)) & 1; rowK[i] = ((ew ? y : x) & 1) ? 0.76 : 1.1; }
   leafK = null;
   topCanvas = document.createElement('canvas'); topCanvas.width = N; topCanvas.height = N; topCtx = topCanvas.getContext('2d'); topImg = topCtx.createImageData(N, N);
   tilt = null; layout();
@@ -690,7 +795,7 @@ function ramp(t, out) { let i = 0; while (i < RAMP.length - 2 && t > RAMP[i + 1]
 
 const tmpc = [0, 0, 0];
 function computeColours(t) {
-  const S = st.S, N = S.N, h = S.h, d = S.d, s = S.s, u = S.u, v = S.v, wet = S.wet, dep = S.dep, veg = S.veg, tree = S.tree, bloom = S.bloom;
+  const S = st.S, N = S.N, h = S.h, d = S.d, s = S.s, u = S.u, v = S.v, wet = S.wet, dep = S.dep, veg = S.veg, tree = S.tree, bloom = S.bloom, field = S.field, ripe = S.ripe, path = S.path, tend = S.tend, noVil = !!st.noVillage;
   if (!(st.frames % 15) || !leafK) updLeafy();
   const H = N * 0.27, ex = 1.6, tiltView = st.view === 'tilt';
   // sun: from the west, a little from the viewer side in 3D view
@@ -732,6 +837,18 @@ function computeColours(t) {
       const dp = dep[i];
       if (dp > 0.15) { const k = smooth(0.15, 2.0, dp) * 0.6; r += (222 - r) * k; g += (200 - g) * k; b += (146 - b) * k; }
       else if (dp < -0.1) { const k = smooth(0.1, 3, -dp) * 0.45; r += (150 - r) * k; g += (112 - g) * k; b += (74 - b) * k; }
+      // fields: brown soil → young green → ripe crop colour, in rows; fallow fields fade to weedy straw
+      const fi = noVil ? 0 : field[i];
+      if (fi > 0.05) {
+        const C = CROPS[cropK[i]], rp = ripe[i]; let fr, fg, fb2;
+        if (rp < 0.16) { const q = rp / 0.16; fr = 138 + (C[0][0] - 138) * q; fg = 104 + (C[0][1] - 104) * q; fb2 = 66 + (C[0][2] - 66) * q; }
+        else { const q = smooth(0.2, 0.95, rp); fr = C[0][0] + (C[1][0] - C[0][0]) * q; fg = C[0][1] + (C[1][1] - C[0][1]) * q; fb2 = C[0][2] + (C[1][2] - C[0][2]) * q; }
+        if (!tend[i]) { fr += (168 - fr) * 0.55; fg += (150 - fg) * 0.55; fb2 += (98 - fb2) * 0.55; }
+        const rk2 = rowK[i], k = smooth(0.05, 0.5, fi) * 0.94; r += (fr * rk2 - r) * k; g += (fg * rk2 - g) * k; b += (fb2 * rk2 - b) * k;
+      }
+      // footpaths: trodden light earth
+      const pa = noVil ? 0 : path[i];
+      if (pa > 0.1) { const k = smooth(0.1, 0.7, pa) * 0.78; r += (206 - r) * k; g += (182 - g) * k; b += (134 - b) * k; }
       // snow
       const sn = smooth(snowBase - 0.03, snowBase + 0.05, hn + grain[i] * 0.06 + 0.04 * cloudAt(x * 0.2 + 17, y * 0.2)) * (1 - smooth(1.4, 2.4, slope));
       if (sn > 0) { r += (246 - r) * sn; g += (250 - g) * sn; b += (255 - b) * sn; }
@@ -1233,7 +1350,7 @@ function frame(now) {
     st.stepsLast = n;
   }
   if (st.wake > 0) st.wake -= dtReal;
-  computeColours(st.time);
+  const tc0 = performance.now(); computeColours(st.time); st.colMs = (st.colMs || 0) * 0.9 + (performance.now() - tc0) * 0.1;
   cx.setTransform(dpr, 0, 0, dpr, 0, 0);
   if (st.view === 'tilt') { tiltGeom(); drawSky(st.time, dtReal); renderTilt(st.time); }
   else { drawSky(st.time, dtReal); renderTop(st.time); drawCottagesTop(); }
@@ -1246,10 +1363,12 @@ function frame(now) {
   adapt(dtReal);
   statT -= dtReal; if (statT <= 0) { statT = 0.5; const L = LV.countLife(S), V = LV.countVillage(S), nt = L.trees, k = v => v >= 1000 ? (v / 1000).toFixed(1) + 'k' : v, tt = k(nt), ff = k(L.flowers); st.life = L; st.village = V; const hp = nt ? Math.round(L.happy / nt * 100) : 100;
     // cottages: count and happy count (ruins only when there are some)
+    if (S.grown > (st.grownSeen || 0)) hint('The village grows: a new cottage by the water!'); st.grownSeen = S.grown;
+    const fl = V.fields ? ` · ${V.fields} field${V.fields > 1 ? 's' : ''}` : '';
     const ru = V.ruins ? ` · ${V.ruins} ruin${V.ruins > 1 ? 's' : ''}` : '';
     $('stats').textContent = (vw < 600 ? `${tt} trees · ${hp}% happy · ${ff} 🌼 · 🏠 ${V.cottages} (${V.happy} 😊)${V.ruins ? ' · ' + V.ruins + ' ruin' : ''}`
       : vw < 1000 ? `${tt} trees (${hp}% happy) · ${ff} flowers · 🏠 ${V.cottages} (${V.happy} happy)${ru}`
-      : `${S.N}² · ${Math.round(st.fps)} fps · ${tt} trees (${hp}% happy) · ${ff} flowers · ${V.cottages} cottage${V.cottages === 1 ? '' : 's'} (${V.happy} happy)${ru}`) + (st.paused ? ' · paused' : ''); }
+      : `${S.N}² · ${Math.round(st.fps)} fps · ${tt} trees (${hp}% happy) · ${ff} flowers · ${V.cottages} cottage${V.cottages === 1 ? '' : 's'} (${V.happy} happy)${fl}${ru}`) + (st.paused ? ' · paused' : ''); }
   requestAnimationFrame(frame);
 }
 // auto quality: lower render scale first, then the grid (not in time-lapse, which fills spare time on purpose)
@@ -1263,7 +1382,7 @@ function adapt(dt) {
   }
 }
 
-window.__lv = { st, LV, get tilt() { return tilt; }, get area() { return area; }, setTool, newWorld, unproj, proj, get S() { return st.S; } };
+window.__lv = { st, LV, get col() { return [colR, colG, colB]; }, get tilt() { return tilt; }, get area() { return area; }, setTool, newWorld, unproj, proj, get S() { return st.S; } };
 updUI();
 const fromHash = decodeURIComponent((location.hash || '').slice(1));
 newWorld(fromHash || LV.randomSeedName());
