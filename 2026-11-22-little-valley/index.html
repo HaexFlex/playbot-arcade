@@ -11,6 +11,7 @@ html,body{margin:0;height:100%;overflow:hidden;background:#9fdaf7;font:600 15px/
 .pill{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:70vw;background:#ffffffd0;border-radius:999px;padding:7px 14px;box-shadow:0 3px 12px #2a5a8030;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
 #title b{font-size:18px;color:#2f7d3a;letter-spacing:.02em;margin-right:8px}
 #seedName{font-weight:500;color:#5a7290;font-size:13px}
+#clock{font-weight:600;color:#3a6a8a;font-size:13px;margin-left:8px;font-variant-numeric:tabular-nums}
 #stats{font-size:12px;font-weight:500;color:#5a7290;font-variant-numeric:tabular-nums}
 #hint{position:fixed;left:50%;top:calc(env(safe-area-inset-top) + 58px);transform:translate(-50%,-8px);background:#fff8d6;color:#6b4a12;border-radius:16px;padding:9px 16px;font-size:16px;box-shadow:0 4px 16px #6b4a1230;opacity:0;transition:opacity .35s,transform .35s;pointer-events:none;white-space:nowrap;max-width:94vw;overflow:hidden;text-overflow:ellipsis}
 #hint.show{opacity:1;transform:translate(-50%,0)}
@@ -53,7 +54,7 @@ button.on{background:#ffe680;box-shadow:0 2px 0 #e0b93a,0 0 0 3px #ffd23f,0 4px 
 </style></head><body>
 <canvas id="view" aria-label="Little Valley: draw on the valley to shape it"></canvas>
 <div id="top">
-  <div class="pill" id="title"><b>Little Valley</b><span id="seedName"></span></div>
+  <div class="pill" id="title"><b>Little Valley</b><span id="seedName"></span><span id="clock" title="Time of day in the valley (one day is about 100 s at 1x)"></span></div>
   <div class="pill" id="stats" title="Trees (happy = moist ground, below the snow, not flooded), flower patches and cottages (happy = water nearby and dry feet)">–</div>
 </div>
 <div id="hint" class="show">Draw on the valley with your finger!</div>
@@ -98,6 +99,8 @@ const DEFAULTS = {
   springRate: 3.0, erosion: true,
   life: true, lifeEvery: 6,
   growMax: 24, // cottages the village may build by itself (GROW_MAX)
+  weather: false, // natural rain that comes and goes by itself (the app turns it on; tests opt in)
+  dayLen: 720, // sim seconds per day (about 100 s at 1x)
   boost: 1 // time-lapse: erosion and plant growth run this many times faster
 };
 
@@ -139,7 +142,7 @@ function create(N, seed, opts) {
   const P = Object.assign({}, DEFAULTS, opts || {});
   const n = N * N, F = () => new Float32Array(n);
   const T = generateTerrain(N, seed);
-  const S = { N, seed: String(seed), P, h: T.h, d: F(), s: F(), fL: F(), fR: F(), fT: F(), fB: F(), u: F(), v: F(), tmp: F(), tmp2: F(), ero: F(), wet: F(), dep: F(), veg: F(), tree: F(), bloom: F(), moist: F(), fert: F(), flood: F(), rush: F(), field: F(), ripe: F(), path: F(), tend: new Uint8Array(n), h0: null, springs: [], cottages: [], grown: 0, vtick: 0, steps: 0, time: 0 };
+  const S = { N, seed: String(seed), P, h: T.h, d: F(), s: F(), fL: F(), fR: F(), fT: F(), fB: F(), u: F(), v: F(), tmp: F(), tmp2: F(), ero: F(), wet: F(), dep: F(), veg: F(), tree: F(), bloom: F(), moist: F(), fert: F(), flood: F(), rush: F(), field: F(), ripe: F(), path: F(), tend: new Uint8Array(n), h0: null, springs: [], cottages: [], grown: 0, vtick: 0, steps: 0, time: 0, wx: null, rainNow: 0 };
   S.h0 = new Float32Array(S.h);
   initLife(S);
   return S;
@@ -538,6 +541,53 @@ function applyTool(S, tool, gx, gy, rad, dtReal, strength) {
   return true;
 }
 
+// ---------- time and weather (v4) ----------
+// The clock runs on sim time, so day and night are deterministic and follow the game speed.
+// One day is P.dayLen sim seconds; the day (6–20 h) takes 70% of it, the evening (20–22 h) 10%,
+// the short night (22–4 h) 10% and the dawn (4–6 h) 10%. A new world starts at 8:00.
+const DAY_START = 0.1;
+function dayFrac(S) { const f = S.time / (S.P.dayLen || 720) + DAY_START; return f - Math.floor(f); }
+function clockHour(S) {
+  const f = dayFrac(S);
+  if (f < 0.7) return 6 + 14 * f / 0.7;
+  if (f < 0.8) return 20 + 2 * (f - 0.7) / 0.1;
+  if (f < 0.9) { const h = 22 + 6 * (f - 0.8) / 0.1; return h >= 24 ? h - 24 : h; }
+  return 4 + 2 * (f - 0.9) / 0.1;
+}
+// Natural rain: a soft rain cloud drifts across the valley on the wind, now and then. Each rain k is
+// planned from the seed (gap, duration, wind, track, size, strength), so the weather is the same for
+// every player of a seed. It rains more on the mountains (the cloud rises and cools), and the gentle
+// sheet water gathers into the streams and swells the rivers. At its heart it rains about half as hard as a Shower, and only under the cloud.
+function planRain(S, k, after) {
+  const r = mulberry32(hashStr(S.seed + '#rain' + k));
+  const gap = (k === 0 ? 90 + r() * 120 : 220 + r() * 300), dur = 90 + r() * 80;
+  const a = (r() - 0.5) * 1.2, dir = r() < 0.75 ? 1 : -1; // mostly from the west, sometimes from the east
+  const ux = Math.cos(a) * dir, uy = Math.sin(a), off = (r() - 0.5) * 0.5, len = 1.6;
+  return { k, start: after + gap, dur, x0: 0.5 - ux * len / 2 - uy * off, y0: 0.45 - uy * len / 2 + ux * off, vx: ux * len / dur, vy: uy * len / dur, r: 0.26 + r() * 0.12, amp: 0.018 + r() * 0.01 };
+}
+function rainCell(S) { // the current rain cloud {x, y, r} in 0..1 map units and its strength k (0..1), or null
+  const W = S.wx; if (!W || !S.rainNow) return null; const tt = S.time - W.start;
+  return { x: W.x0 + W.vx * tt, y: W.y0 + W.vy * tt, r: W.r, k: S.rainNow };
+}
+function weatherStep(S) {
+  if (!S.wx) S.wx = planRain(S, 0, 0);
+  let W = S.wx;
+  while (S.time > W.start + W.dur) W = S.wx = planRain(S, W.k + 1, W.start + W.dur);
+  S.rainNow = 0;
+  if (S.time < W.start) return;
+  const q = (S.time - W.start) / W.dur, env = smoothstep(0, 0.18, q) * (1 - smoothstep(0.82, 1, q));
+  if (env <= 0) return;
+  S.rainNow = env;
+  if (S.P.rain > 0) return; // a Shower is already pouring: the cloud adds nothing
+  const { N, h, d } = S, tt = S.time - W.start, cx = (W.x0 + W.vx * tt) * N, cy = (W.y0 + W.vy * tt) * N, R = W.r * N, R2 = R * R, H = N * 0.27;
+  const amt = W.amp * env * S.P.dt;
+  for (let y = Math.max(0, Math.floor(cy - R)); y <= Math.min(N - 1, Math.ceil(cy + R)); y++) for (let x = Math.max(0, Math.floor(cx - R)); x <= Math.min(N - 1, Math.ceil(cx + R)); x++) {
+    const r2 = (x - cx) * (x - cx) + (y - cy) * (y - cy); if (r2 >= R2) continue;
+    let w = 1 - r2 / R2; w *= w; const i = y * N + x;
+    d[i] += amt * w * (0.5 + Math.min(1.2, h[i] / H));
+  }
+}
+
 function step(S, nSteps) {
   nSteps = nSteps || 1;
   for (let k = 0; k < nSteps; k++) stepOnce(S);
@@ -550,6 +600,7 @@ function stepOnce(S) {
   // 1. sources
   if (P.rain > 0) { const r = P.rain * dt; for (let i = 0; i < n; i++) d[i] += r; }
   for (const sp of S.springs) addKernel(S, d, sp.x * N, sp.y * N, 2.2, P.springRate * sp.rate * dt * 0.5);
+  if (P.weather) weatherStep(S); else S.rainNow = 0;
   // 2. outflow flux (virtual pipes, cross-section/length = 1)
   for (let y = 0; y < N; y++) {
     const row = y * N;
@@ -693,13 +744,13 @@ function resample(S, N2) {
     T.wet[i] = lerp(S.wet, px, py); T.dep[i] = lerp(S.dep, px, py) * hs; T.h0[i] = lerp(S.h0, px, py) * hs;
     T.veg[i] = lerp(S.veg, px, py); T.tree[i] = lerp(S.tree, px, py); T.moist[i] = lerp(S.moist, px, py); T.fert[i] = lerp(S.fert, px, py); T.flood[i] = lerp(S.flood, px, py); T.rush[i] = lerp(S.rush, px, py); T.bloom[i] = lerp(S.bloom, px, py); T.field[i] = lerp(S.field, px, py); T.ripe[i] = lerp(S.ripe, px, py); T.path[i] = lerp(S.path, px, py);
   }
-  T.springs = S.springs.map(sp => Object.assign({}, sp)); T.cottages = S.cottages.map(c => Object.assign({}, c, c.wheel ? { wheel: Object.assign({}, c.wheel) } : {})); T.grown = S.grown; T.vtick = S.vtick; T.steps = S.steps; T.time = S.time;
+  T.springs = S.springs.map(sp => Object.assign({}, sp)); T.cottages = S.cottages.map(c => Object.assign({}, c, c.wheel ? { wheel: Object.assign({}, c.wheel) } : {})); T.grown = S.grown; T.vtick = S.vtick; T.steps = S.steps; T.time = S.time; T.wx = S.wx ? Object.assign({}, S.wx) : null; T.rainNow = S.rainNow || 0;
   return T;
 }
 
 function hasNaN(S) { for (const k of ['h', 'd', 's', 'u', 'v', 'fL', 'fR', 'fT', 'fB', 'veg', 'tree', 'moist', 'flood', 'rush', 'bloom', 'field', 'ripe', 'path']) { const a = S[k]; for (let i = 0; i < a.length; i++) if (!Number.isFinite(a[i])) return k; } return false; }
 
-const API = { mulberry32, hashStr, makeNoise, randomSeedName, generateTerrain, create, seedLife, step, applyTool, totalWater, totalTerrain, resample, lifeStep, countTrees, countLife, leafy, treeHappy, cottageMood, cottageCell, countVillage, waterNear, wellYield, WELL_MIN, WELL_HIGH, MILL_T, MILL_RIPEN, FLOOD_RUIN, GROW_MAX, KIDS_MAX, GROW_T, plotSize, plotOf, plotCrop, hasNaN, DEFAULTS };
+const API = { clockHour, dayFrac, planRain, rainCell, weatherStep, mulberry32, hashStr, makeNoise, randomSeedName, generateTerrain, create, seedLife, step, applyTool, totalWater, totalTerrain, resample, lifeStep, countTrees, countLife, leafy, treeHappy, cottageMood, cottageCell, countVillage, waterNear, wellYield, WELL_MIN, WELL_HIGH, MILL_T, MILL_RIPEN, FLOOD_RUIN, GROW_MAX, KIDS_MAX, GROW_T, plotSize, plotOf, plotCrop, hasNaN, DEFAULTS };
 if (typeof module !== 'undefined' && module.exports) module.exports = API; else root.LV = API;
 })(typeof window !== 'undefined' ? window : globalThis);
 </script>
@@ -798,9 +849,9 @@ setTimeout(() => $('hint').classList.remove('show'), 4000);
 // ---------- world ----------
 function newWorld(seed) {
   const N = NLEVELS[nIndex];
-  st.S = LV.create(N, seed); LV.seedLife(st.S, 3); st.wake = 2.5; st.N = N;
+  st.S = LV.create(N, seed, { weather: st.weather !== false }); LV.seedLife(st.S, 3); st.wake = 2.5; st.N = N;
   if (st.shower > 0) { st.shower = 0; updUI(); } // a new world starts with clear skies
-  $('seedName').textContent = seed; allocRender(); hint('Welcome to ' + seed + '!');
+  $('seedName').textContent = seed; skyPrev = null; allocRender(); hint('Welcome to ' + seed + '!');
   try { history.replaceState(null, '', '#' + encodeURIComponent(seed)); } catch (e) { }
 }
 function changeN(i) {
@@ -850,8 +901,10 @@ function computeColours(t) {
   if (!(st.frames % 15) || !leafK) updLeafy();
   const H = N * 0.27, ex = 1.6, tiltView = st.view === 'tilt';
   // sun: from the west, a little from the viewer side in 3D view
-  let Lx = -0.62, Ly = tiltView ? 0.28 : -0.42, Lz = 0.72; const Ll = Math.hypot(Lx, Ly, Lz); Lx /= Ll; Ly /= Ll; Lz /= Ll;
+  let Lx = LT.Lx, Ly = tiltView ? 0.28 : -0.42, Lz = LT.Lz; const Ll = Math.hypot(Lx, Ly, Lz); Lx /= Ll; Ly /= Ll; Lz /= Ll;
   const cOff = t * 0.6, snowBase = 0.68;
+  // the natural rain cloud darkens the ground under it
+  const RC = LV.rainCell(S), rcx = RC ? RC.x * N : 0, rcy = RC ? RC.y * N : 0, rcR2 = RC ? (RC.r * N * 1.1) ** 2 : 0, rcK = RC ? 0.38 * RC.k : 0;
   for (let y = 0; y < N; y++) {
     const ym = y > 0 ? -N : 0, yp = y < N - 1 ? N : 0;
     for (let x = 0; x < N; x++) {
@@ -907,6 +960,7 @@ function computeColours(t) {
       // drifting cloud shadows
       const cl = cloudAt(x * 0.22 + cOff, y * 0.22 + cOff * 0.35);
       sh *= 1 - 0.2 * cl;
+      if (rcK) { const r2 = (x - rcx) * (x - rcx) + (y - rcy) * (y - rcy); if (r2 < rcR2) { const w = 1 - r2 / rcR2; sh *= 1 - rcK * w * (2 - w); } }
       r *= sh; g *= sh; b *= sh;
       // water
       const di = d[i];
@@ -937,6 +991,41 @@ function computeColours(t) {
       colR[i] = r; colG[i] = g; colB[i] = b;
     }
   }
+}
+
+// ---------- time of day and weather light (v4) ----------
+// LT is updated once per frame from the sim clock (LV.clockHour) and the natural rain (S.rainNow).
+// The valley is never darker than a soft moonlit blue (night tint at most NIGHT_A), so it stays readable.
+const NIGHT_A = 0.46, NIGHT_C = [16, 26, 72], WARM_C = [255, 140, 60];
+const LT = { h: 8, elev: 0.5, s: 0.14, night: 0, warm: 0, glow: 0, rain: 0, Lx: -0.62, Lz: 0.72, na: 0, wa: 0, ra: 0 };
+function bump(h, c, w) { return Math.max(0, 1 - Math.abs(h - c) / w); }
+function updLight() {
+  const S = st.S, h = st.fixedHour != null ? st.fixedHour : LV.clockHour(S); LT.h = h;
+  const sunUp = h > 6 && h < 20, s = sunUp ? (h - 6) / 14 : h >= 20 ? 1 : 0;
+  LT.s = s; LT.elev = sunUp ? Math.sin(Math.PI * s) : 0;
+  LT.night = h >= 22 || h < 4 ? 1 : h >= 19.4 ? smooth(19.4, 21.7, h) : h < 6.5 ? 1 - smooth(4, 6.4, h) : 0;
+  LT.warm = Math.max(bump(h, 19.5, 1.6), bump(h, 6.2, 1.3) * 0.8) * (1 - LT.night * 0.7);
+  LT.glow = h >= 18.6 || h < 6.6 ? Math.max(smooth(18.6, 20.2, h), h < 6.6 ? 1 - smooth(5.2, 6.6, h) : 0) : 0;
+  LT.rain = Math.max(S.rainNow || 0, st.shower > 0 ? Math.min(1, st.shower / 2) : 0);
+  // sun light direction: from the left in the morning, from above at noon, from the right in the evening; a soft moon at night
+  const dx = -Math.cos(Math.PI * s) * 0.8, dz = 0.28 + 0.62 * LT.elev;
+  LT.Lx = dx + (0.35 - dx) * LT.night; LT.Lz = dz + (0.75 - dz) * LT.night;
+  LT.na = NIGHT_A * LT.night; LT.wa = 0.17 * LT.warm; LT.ra = 0.16 * LT.rain;
+}
+// a colour under the current light (warm evening, moonlit night, rainy grey) as a CSS string
+function litC(r, g, b, a) {
+  r += (WARM_C[0] - r) * LT.wa; g += (WARM_C[1] - g) * LT.wa; b += (WARM_C[2] - b) * LT.wa;
+  r += (NIGHT_C[0] - r) * LT.na; g += (NIGHT_C[1] - g) * LT.na; b += (NIGHT_C[2] - b) * LT.na;
+  const k = 1 - LT.ra * 0.6; r = r * k + 40 * LT.ra; g = g * k + 44 * LT.ra; b = b * k + 52 * LT.ra;
+  return a == null ? `rgb(${r | 0},${g | 0},${b | 0})` : `rgba(${r | 0},${g | 0},${b | 0},${a})`;
+}
+// tint an already drawn picture (only where it is opaque): warm light, then the night blue, then rain grey
+function tintOver(g, x, y, w, h, op) {
+  g.save(); g.globalCompositeOperation = op;
+  if (LT.wa > 0.005) { g.fillStyle = `rgba(${WARM_C},${LT.wa})`; g.fillRect(x, y, w, h); }
+  if (LT.na > 0.005) { g.fillStyle = `rgba(${NIGHT_C},${LT.na})`; g.fillRect(x, y, w, h); }
+  if (LT.ra > 0.005) { g.fillStyle = `rgba(60,68,82,${LT.ra})`; g.fillRect(x, y, w, h); }
+  g.restore();
 }
 
 // ---------- layout ----------
@@ -1050,6 +1139,7 @@ function renderTilt(t) {
   if (st.trees !== false) { const t0 = performance.now(); rasterTrees(T, data); st.treeMs = (st.treeMs || 0) * 0.9 + (performance.now() - t0) * 0.1; }
   rasterCottages(T, data);
   T.ctx.putImageData(T.img, 0, 0);
+  tintOver(T.ctx, 0, 0, ow, oh, 'source-atop');
   // place on screen
   const s = T.wCss / ow;
   T.sx = area.x + (area.w - T.wCss) / 2; T.sy = area.y + Math.max(0, (area.h - oh * s) / 2); T.s = s;
@@ -1058,6 +1148,7 @@ function renderTilt(t) {
   cx.save(); cx.fillStyle = 'rgba(40,90,60,.22)'; cx.beginPath(); cx.ellipse(T.sx + T.wCss / 2, by + 4, T.wCss * 0.52, 14, 0, 0, 7); cx.fill(); cx.restore();
   cx.imageSmoothingEnabled = true; cx.imageSmoothingQuality = 'high';
   cx.drawImage(T.canvas, T.sx, T.sy, T.wCss, oh * s);
+  drawWindowGlow(t);
   // mist where the river falls off the front edge
   let fx0 = -1, fx1 = -1; const fr = (N - 1) * N;
   for (let x = 0; x < N; x++) if (d[fr + x] > 0.14) { if (fx0 < 0) fx0 = x; fx1 = x; }
@@ -1137,7 +1228,7 @@ function rasterTrees(T, data) {
 // the cottage is happy. Flooded cottages get blue water up the walls, ruins are low broken walls.
 function rasterCottages(T, data) {
   const S = st.S, N = S.N, ow = T.ow, oh = T.oh, pick = T.pick, cp = T.cp; let n = 0;
-  const list = S.cottages.map(c => [c, LV.cottageCell(S, c)]).sort((a, b) => a[1] - b[1]); st.wellsDrawn = 0;
+  const list = S.cottages.map(c => [c, LV.cottageCell(S, c)]).sort((a, b) => a[1] - b[1]); st.wellsDrawn = 0; st.wins = [];
   const put = (px, py, r, g, b) => { if (px < 0 || py < 0 || px >= ow || py >= oh) return; const q = (py * ow + px) * 4; data[q] = r; data[q + 1] = g; data[q + 2] = b; data[q + 3] = 255; };
   for (const [c, i] of list) {
     const x = i % N, y = (i / N) | 0, sc = persp(y, N), hz = 0.22 * (1 - y / N) * (1 - y / N);
@@ -1167,6 +1258,7 @@ function rasterCottages(T, data) {
     const wsz = Math.max(1, Math.round(u * 0.32)), wy = by - Math.round(wh * 0.7), wx = bx - Math.round(hw * 0.6);
     const lit = mood === 'happy' ? [255, 214, 90] : [92, 104, 120];
     for (let py = wy; py < wy + wsz; py++) for (let px = wx; px < wx + wsz; px++) put(px, py, lit[0], lit[1], lit[2]);
+    if (mood === 'happy') st.wins.push([wx + wsz / 2, wy + wsz / 2, u, c.x]);
     // gable roof with a little overhang, chimney on the east side
     const top = by - wh - rh;
     for (let py = top; py <= by - wh; py++) { const f = (py - top) / Math.max(1, rh), w = Math.round((hw + 1.5) * f); for (let px = bx - w; px <= bx + w; px++) put(px, py, px <= bx ? rr : rs, px <= bx ? rg : rgs, px <= bx ? rb : rbs); }
@@ -1286,7 +1378,7 @@ function renderTop(t) {
   st.topRect = { x, y, sz };
   cx.save(); cx.shadowColor = 'rgba(30,70,100,.35)'; cx.shadowBlur = 18; cx.shadowOffsetY = 6; cx.fillStyle = '#7a5a3a';
   roundRect(x - 5, y - 5, sz + 10, sz + 10, 14); cx.fill(); cx.restore();
-  cx.save(); roundRect(x, y, sz, sz, 10); cx.clip(); cx.imageSmoothingEnabled = true; cx.imageSmoothingQuality = 'high'; cx.drawImage(topCanvas, x, y, sz, sz); cx.restore();
+  cx.save(); roundRect(x, y, sz, sz, 10); cx.clip(); cx.imageSmoothingEnabled = true; cx.imageSmoothingQuality = 'high'; cx.drawImage(topCanvas, x, y, sz, sz); tintOver(cx, x, y, sz, sz, 'source-over'); cx.restore();
 }
 function roundRect(x, y, w, h, r) { cx.beginPath(); cx.moveTo(x + r, y); cx.arcTo(x + w, y, x + w, y + h, r); cx.arcTo(x + w, y + h, x, y + h, r); cx.arcTo(x, y + h, x, y, r); cx.arcTo(x, y, x + w, y, r); cx.closePath(); }
 function proj(gx, gy) {
@@ -1311,46 +1403,65 @@ function unproj(px, py) {
 const skyN = LV.makeNoise(LV.mulberry32(42));
 const clouds = Array.from({ length: 7 }, (_, i) => ({ x: Math.random(), y: 0.05 + Math.random() * 0.25, s: 0.6 + Math.random() * 0.8, v: 0.004 + Math.random() * 0.006, seed: i * 13.7 }));
 const birds = Array.from({ length: 4 }, (_, i) => ({ x: Math.random(), y: 0.12 + Math.random() * 0.18, v: 0.012 + Math.random() * 0.01, p: Math.random() * 6 }));
+// sky colours [top, middle, bottom] for day, golden evening and night
+const SKY_DAY = [[95, 183, 238], [191, 230, 251], [233, 248, 232]], SKY_WARM = [[92, 118, 186], [246, 172, 128], [255, 214, 150]], SKY_NIGHT = [[14, 24, 60], [38, 56, 104], [70, 88, 128]];
+const stars = Array.from({ length: 70 }, (_, i) => { const r = LV.mulberry32(1000 + i); return { x: r(), y: r() * 0.5, s: 0.6 + r() * 1.3, p: r() * 6.3 }; });
+function skyCol(k) { const a = SKY_DAY[k], w = SKY_WARM[k], n = SKY_NIGHT[k], c = [0, 1, 2].map(j => { let v = a[j] + (w[j] - a[j]) * LT.warm; v += (n[j] - v) * LT.night; return v + ((128 + 6 * j) - v) * LT.rain * 0.35 * (1 - LT.night * 0.6); }); return `rgb(${c[0] | 0},${c[1] | 0},${c[2] | 0})`; }
 function drawSky(t, dt) {
   const g = cx.createLinearGradient(0, 0, 0, vh);
-  const dim = st.shower > 0 ? Math.min(1, st.shower / 2) * 0.25 : 0;
-  g.addColorStop(0, mix('#5fb7ee', '#8aa7bd', dim)); g.addColorStop(0.55, mix('#bfe6fb', '#c8d6e0', dim)); g.addColorStop(1, mix('#e9f8e8', '#dfe8e4', dim));
+  g.addColorStop(0, skyCol(0)); g.addColorStop(0.55, skyCol(1)); g.addColorStop(1, skyCol(2));
   cx.fillStyle = g; cx.fillRect(0, 0, vw, vh);
-  // sun
-  const sx = vw * 0.84, sy = vh * 0.14, sr = Math.max(26, Math.min(vw, vh) * 0.05);
-  const sg = cx.createRadialGradient(sx, sy, sr * 0.6, sx, sy, sr * 4.5); sg.addColorStop(0, 'rgba(255,240,170,.75)'); sg.addColorStop(1, 'rgba(255,240,170,0)');
-  cx.fillStyle = sg; cx.fillRect(sx - sr * 5, sy - sr * 5, sr * 10, sr * 10);
-  cx.fillStyle = '#fff3b0'; cx.beginPath(); cx.arc(sx, sy, sr, 0, 7); cx.fill();
-  cx.strokeStyle = 'rgba(255,225,120,.55)'; cx.lineWidth = 3; cx.lineCap = 'round';
-  for (let i = 0; i < 12; i++) { const a = i / 12 * 6.283 + t * 0.15, r0 = sr * 1.35, r1 = sr * (1.75 + 0.15 * Math.sin(t * 2 + i)); cx.beginPath(); cx.moveTo(sx + Math.cos(a) * r0, sy + Math.sin(a) * r0); cx.lineTo(sx + Math.cos(a) * r1, sy + Math.sin(a) * r1); cx.stroke(); }
+  // stars and the moon at night (the moon crosses the sky during the short night)
+  if (LT.night > 0.02) {
+    const a0 = LT.night * (1 - LT.rain * 0.8);
+    for (const sr of stars) { const a = a0 * (0.55 + 0.45 * Math.sin(t * 1.7 + sr.p)); cx.fillStyle = `rgba(255,250,225,${a.toFixed(3)})`; cx.fillRect(sr.x * vw, sr.y * vh, sr.s, sr.s); }
+    const h = LT.h, m = h >= 19 ? (h - 19) / 11 : (h + 5) / 11, mx = vw * (0.1 + 0.8 * m), my = vh * (0.3 - 0.2 * Math.sin(Math.PI * m)), mr = Math.max(14, Math.min(vw, vh) * 0.03);
+    const mg = cx.createRadialGradient(mx, my, mr * 0.5, mx, my, mr * 4); mg.addColorStop(0, `rgba(220,230,255,${0.35 * a0})`); mg.addColorStop(1, 'rgba(220,230,255,0)');
+    cx.fillStyle = mg; cx.fillRect(mx - mr * 4, my - mr * 4, mr * 8, mr * 8);
+    cx.fillStyle = `rgba(246,244,226,${a0})`; cx.beginPath(); cx.arc(mx, my, mr, 0, 7); cx.fill();
+    cx.fillStyle = `rgba(214,214,196,${a0 * 0.6})`; cx.beginPath(); cx.arc(mx - mr * 0.3, my - mr * 0.2, mr * 0.22, 0, 7); cx.arc(mx + mr * 0.35, my + mr * 0.25, mr * 0.16, 0, 7); cx.fill();
+  }
+  // sun on its arc: rises on the left, high at noon, sets on the right (behind the far mountains)
+  if (LT.elev > 0 || (LT.h > 5.6 && LT.h < 20.4)) {
+    const sx = vw * (0.06 + 0.88 * LT.s), sy = vh * (0.34 - 0.24 * LT.elev), sr = Math.max(26, Math.min(vw, vh) * 0.05), wk = 1 - LT.elev;
+    const sa = 1 - LT.rain * 0.75, cr = 255, cg = Math.round(243 - 90 * wk * wk), cb = Math.round(176 - 120 * wk);
+    const sg = cx.createRadialGradient(sx, sy, sr * 0.6, sx, sy, sr * 4.5); sg.addColorStop(0, `rgba(${cr},${cg + 0},${cb},${0.75 * sa})`); sg.addColorStop(1, `rgba(${cr},${cg},${cb},0)`);
+    cx.fillStyle = sg; cx.fillRect(sx - sr * 5, sy - sr * 5, sr * 10, sr * 10);
+    cx.fillStyle = `rgba(${cr},${cg},${cb},${sa})`; cx.beginPath(); cx.arc(sx, sy, sr, 0, 7); cx.fill();
+    cx.strokeStyle = `rgba(255,225,120,${0.55 * sa * (0.3 + 0.7 * LT.elev)})`; cx.lineWidth = 3; cx.lineCap = 'round';
+    for (let i = 0; i < 12; i++) { const a = i / 12 * 6.283 + t * 0.15, r0 = sr * 1.35, r1 = sr * (1.75 + 0.15 * Math.sin(t * 2 + i)); cx.beginPath(); cx.moveTo(sx + Math.cos(a) * r0, sy + Math.sin(a) * r0); cx.lineTo(sx + Math.cos(a) * r1, sy + Math.sin(a) * r1); cx.stroke(); }
+  }
   // far mountains (two hazy layers)
   if (st.view === 'tilt' && tilt && tilt.s != null) {
     const hy = tilt.sy + tilt.top * tilt.s + 10;
     for (let layer = 0; layer < 2; layer++) {
-      cx.fillStyle = layer ? 'rgba(150,186,222,.75)' : 'rgba(186,212,238,.8)';
+      cx.fillStyle = layer ? litC(150, 186, 222, 0.75) : litC(186, 212, 238, 0.8);
       cx.beginPath(); cx.moveTo(0, vh);
       for (let x = 0; x <= vw; x += 8) { const u = x / vw; let e = 0, a = 1, f = 3 + layer * 2; for (let o = 0; o < 4; o++) { e += a * Math.abs(skyN(u * f + layer * 9, 3.3 + layer)); a *= 0.5; f *= 2; } cx.lineTo(x, hy - (layer ? 0.11 : 0.19) * vh * e * 1.6 + (layer ? 0.03 * vh : 0)); }
       cx.lineTo(vw, vh); cx.closePath(); cx.fill();
     }
-    const mg = cx.createLinearGradient(0, hy, 0, vh); mg.addColorStop(0, '#c9e3d6'); mg.addColorStop(0.25, '#bfe2b4'); mg.addColorStop(1, '#a3d493');
+    const mg = cx.createLinearGradient(0, hy, 0, vh); mg.addColorStop(0, litC(201, 227, 214)); mg.addColorStop(0.25, litC(191, 226, 180)); mg.addColorStop(1, litC(163, 212, 147));
     cx.fillStyle = mg; cx.fillRect(0, hy + 0.03 * vh, vw, vh);
   }
-  // clouds
+  // clouds (greyer and faster when it rains, moonlit at night)
+  const wet = LT.rain;
   for (const c of clouds) {
-    c.x += c.v * dt * (st.shower > 0 ? 3 : 1); if (c.x > 1.25) c.x = -0.25;
-    drawCloud(c.x * vw, c.y * vh, c.s * Math.min(90, vw * 0.09), st.shower > 0 ? 0.92 : 0.85, c.seed);
+    c.x += c.v * dt * (1 + 2 * wet); if (c.x > 1.25) c.x = -0.25;
+    drawCloud(c.x * vw, c.y * vh, c.s * Math.min(90, vw * 0.09) * (1 + 0.25 * wet), 0.85 + 0.1 * wet, c.seed);
   }
-  // birds
-  cx.strokeStyle = 'rgba(50,70,90,.7)'; cx.lineWidth = 1.8;
-  for (const b of birds) {
-    b.x += b.v * dt; if (b.x > 1.1) { b.x = -0.1; b.y = 0.08 + Math.random() * 0.2; }
-    const x = b.x * vw, y = b.y * vh + Math.sin(t * 0.8 + b.p) * 6, w = 7, f = Math.sin(t * 7 + b.p) * 4;
-    cx.beginPath(); cx.moveTo(x - w, y - f); cx.quadraticCurveTo(x - w / 2, y - 3, x, y); cx.quadraticCurveTo(x + w / 2, y - 3, x + w, y - f); cx.stroke();
+  // birds by day
+  if (LT.night < 0.6 && wet < 0.5) {
+    cx.strokeStyle = `rgba(50,70,90,${0.7 * (1 - LT.night)})`; cx.lineWidth = 1.8;
+    for (const b of birds) {
+      b.x += b.v * dt; if (b.x > 1.1) { b.x = -0.1; b.y = 0.08 + Math.random() * 0.2; }
+      const x = b.x * vw, y = b.y * vh + Math.sin(t * 0.8 + b.p) * 6, w = 7, f = Math.sin(t * 7 + b.p) * 4;
+      cx.beginPath(); cx.moveTo(x - w, y - f); cx.quadraticCurveTo(x - w / 2, y - 3, x, y); cx.quadraticCurveTo(x + w / 2, y - 3, x + w, y - f); cx.stroke();
+    }
   }
 }
-function drawCloud(x, y, s, a, seed) {
-  cx.fillStyle = `rgba(150,180,210,${a * 0.3})`;
-  blob(x + 2, y + 4, s, seed); cx.fillStyle = `rgba(255,255,255,${a})`; blob(x, y, s, seed);
+function drawCloud(x, y, s, a, seed, grey) {
+  cx.fillStyle = litC(150, 180, 210, a * 0.3);
+  blob(x + 2, y + 4, s, seed); const k = 1 - (grey || LT.rain * 0.45); cx.fillStyle = litC(255 * k + 30 * (1 - k), 255 * k + 36 * (1 - k), 255 * k + 48 * (1 - k), a); blob(x, y, s, seed);
 }
 function blob(x, y, s, seed) {
   cx.beginPath();
@@ -1394,6 +1505,56 @@ function drawRainCloud(g, rad, t) {
   cx.restore();
   drawCloud(c[0], cy, w, 0.95, 3);
 }
+// evening and night: happy cottages light their windows (a warm glow added on top of the tinted valley)
+function drawWindowGlow(t) {
+  const T = tilt, W = st.wins; st.glowDrawn = 0; if (LT.glow < 0.02 || !W || !W.length || !T) return;
+  cx.save(); cx.globalCompositeOperation = 'lighter';
+  for (const [wx, wy, u, seed] of W) {
+    const x = T.sx + wx * T.s, y = T.sy + wy * T.s, r = Math.max(5, u * T.s * 2.6), fl = 0.88 + 0.12 * Math.sin(t * 9 + seed * 50) * Math.sin(t * 5.3 + seed * 31);
+    const a = LT.glow * fl, g = cx.createRadialGradient(x, y, 0, x, y, r);
+    g.addColorStop(0, `rgba(255,210,110,${0.85 * a})`); g.addColorStop(0.25, `rgba(255,170,60,${0.4 * a})`); g.addColorStop(1, 'rgba(255,150,40,0)');
+    cx.fillStyle = g; cx.fillRect(x - r, y - r, r * 2, r * 2);
+    cx.fillStyle = `rgba(255,236,160,${a})`; const q = Math.max(1.2, u * T.s * 0.32); cx.fillRect(x - q / 2, y - q / 2, q, q);
+    st.glowDrawn++;
+  }
+  cx.restore();
+}
+// map view: a warm dot of light by each happy cottage at night
+function drawWindowGlowTop(t) {
+  const S = st.S, N = S.N, R = st.topRect; if (!R || LT.glow < 0.02) return;
+  cx.save(); cx.globalCompositeOperation = 'lighter'; let n = 0;
+  for (const c of S.cottages) { if ((c.mood || LV.cottageMood(S, c)) !== 'happy') continue; const p = proj(c.x * N, c.y * N); if (!p) continue;
+    const r = Math.max(8, R.sz / N * 5), a = LT.glow * (0.9 + 0.1 * Math.sin(t * 7 + c.x * 40)), g = cx.createRadialGradient(p[0], p[1], 0, p[0], p[1], r);
+    g.addColorStop(0, `rgba(255,200,100,${0.6 * a})`); g.addColorStop(1, 'rgba(255,150,40,0)'); cx.fillStyle = g; cx.fillRect(p[0] - r, p[1] - r, r * 2, r * 2); n++; }
+  cx.restore(); st.glowDrawn = n;
+}
+// the natural rain: a soft grey cloud drifting over the valley with rain falling under it
+function drawNaturalRain(t) {
+  const S = st.S, N = S.N, RC = LV.rainCell(S); st.rainDrawn = 0; if (!RC) return;
+  const c = proj(RC.x * N, RC.y * N); if (!c) return;
+  const tiltV = st.view === 'tilt' && tilt, scl = tiltV ? tilt.s * tilt.cp : st.topRect ? st.topRect.sz / N : 3;
+  const R = RC.r * N * scl, k = RC.k;
+  if (!tiltV) { // map: a grey cloud disc with short slanted drops
+    cx.save(); cx.fillStyle = `rgba(90,100,120,${0.2 * k})`; cx.beginPath(); cx.arc(c[0], c[1], R, 0, 7); cx.fill();
+    cx.strokeStyle = `rgba(230,240,255,${0.6 * k})`; cx.lineWidth = 1.5; cx.lineCap = 'round';
+    for (let i = 0; i < 60 * k; i++) { const a = i * 2.39996, rr = Math.sqrt((i + 0.5) / 60) * R * 0.95, ph = (t * 1.8 + i * 0.37) % 1, x = c[0] + Math.cos(a) * rr - ph * 4, y = c[1] + Math.sin(a) * rr + ph * 8; cx.beginPath(); cx.moveTo(x, y); cx.lineTo(x - 2, y + 5); cx.stroke(); st.rainDrawn++; }
+    cx.restore(); return;
+  }
+  const top = c[1] - Math.max(70, R * 0.75), base = c[1] + R * 0.15;
+  cx.save();
+  // a soft grey curtain of rain from the cloud down to the ground
+  const cg = cx.createLinearGradient(0, top, 0, base); cg.addColorStop(0, `rgba(120,135,160,${0.32 * k})`); cg.addColorStop(1, `rgba(120,135,160,${0.05 * k})`);
+  cx.fillStyle = cg; cx.beginPath(); cx.moveTo(c[0] - R * 0.75, top); cx.lineTo(c[0] + R * 0.75, top); cx.lineTo(c[0] + R * 0.85 - 10, base); cx.lineTo(c[0] - R * 0.85 - 10, base); cx.closePath(); cx.fill();
+  cx.strokeStyle = `rgba(225,236,252,${0.7 * k})`; cx.lineWidth = Math.max(1.3, Math.min(2, R / 90)); cx.lineCap = 'round';
+  const n = Math.round(90 * k * Math.min(1.6, R / 140 + 0.5));
+  for (let i = 0; i < n; i++) {
+    const hx = ((i * 97.13) % 100) / 100, hy = ((i * 61.7) % 100) / 100, ph = (t * 1.5 + hx * 3.1 + hy) % 1;
+    const yb = base - hy * R * 0.4, y = top + 8 + ph * (yb - top - 8), x = c[0] + (hx - 0.5) * 1.5 * R - (y - top) * 0.12;
+    cx.beginPath(); cx.moveTo(x, y); cx.lineTo(x - 2, y + 13); cx.stroke(); st.rainDrawn++;
+  }
+  cx.restore();
+  for (let j = 0; j < 4; j++) drawCloud(c[0] + (j - 1.5) * R * 0.45, top + (j === 1 || j === 2 ? -10 : 2), Math.max(34, R * (j === 1 || j === 2 ? 0.5 : 0.4)), 0.95 * Math.min(1, k * 1.5), 5 + j * 3, 0.45);
+}
 function drawShower(t) {
   if (st.shower <= 0) return;
   const a = Math.min(1, st.shower / 2, (14 - st.shower) / 1.5 + 0.2);
@@ -1427,6 +1588,19 @@ document.addEventListener('keydown', e => {
   if (map[k]) setTool(map[k]); else if (k === ' ') { e.preventDefault(); bPlay.click(); } else if (k === 'v') bView.click(); else if (k === 'n') $('c-new').click(); else if (k === 'r') $('c-reset').click(); else if (k === 's') bShower.click(); else if (k === 'b') bSize.click(); else if (k === 'f') bSpeed.click();
 });
 
+// ---------- clock and weather hints ----------
+function clockText() { const h = LT.h, hh = Math.floor(h), mm = Math.floor((h - hh) * 6) * 10; return (LT.rain > 0.1 ? '🌧 ' : LT.night > 0.5 ? '🌙 ' : LT.glow > 0.3 && LT.h > 12 ? '🌇 ' : '☀️ ') + String(hh).padStart(2, '0') + ':' + String(mm).padStart(2, '0'); }
+let skyPrev = null;
+function skyHints() {
+  const S = st.S, now = { rain: (S.rainNow || 0) > 0.05, eve: LT.glow > 0.5 && LT.h > 12, morn: LT.h >= 6.5 && LT.h < 12 };
+  if (skyPrev && st.wake <= 0) {
+    if (now.rain && !skyPrev.rain && S.wx) hint('A gentle rain drifts in from the ' + (S.wx.vx > 0 ? 'west' : 'east') + ', feeding the streams');
+    else if (now.eve && !skyPrev.eve) hint(st.S.cottages.length ? 'Evening: the cottage windows light up' : 'Evening falls over the valley');
+    else if (now.morn && !skyPrev.morn) hint('Good morning, valley!');
+  }
+  skyPrev = now;
+}
+
 // ---------- main loop ----------
 let last = performance.now(), fpsAcc = 0, fpsN = 0, statT = 0;
 function frame(now) {
@@ -1451,12 +1625,13 @@ function frame(now) {
     st.stepsLast = n;
   }
   if (st.wake > 0) st.wake -= dtReal;
+  updLight(); skyHints();
   const tc0 = performance.now(); computeColours(st.time); st.colMs = (st.colMs || 0) * 0.9 + (performance.now() - tc0) * 0.1;
   cx.setTransform(dpr, 0, 0, dpr, 0, 0);
   if (st.view === 'tilt') { tiltGeom(); drawSky(st.time, dtReal); renderTilt(st.time); }
-  else { drawSky(st.time, dtReal); renderTop(st.time); drawCottagesTop(); }
+  else { drawSky(st.time, dtReal); renderTop(st.time); drawCottagesTop(); drawWindowGlowTop(st.time); }
   drawCottageBadges(st.time);
-  drawOverlays(st.time); drawShower(st.time);
+  drawNaturalRain(st.time); drawOverlays(st.time); drawShower(st.time);
   const work = performance.now() - t0;
   st.work = st.work * 0.9 + work * 0.1;
   fpsAcc += dtReal; fpsN++; st.frames++;
@@ -1468,6 +1643,7 @@ function frame(now) {
     const fl = V.fields ? ` · ${V.fields} field${V.fields > 1 ? 's' : ''}` : '';
     const ru = V.ruins ? ` · ${V.ruins} ruin${V.ruins > 1 ? 's' : ''}` : '';
     const mi = V.mills ? ` · ${V.mills} mill${V.mills > 1 ? 's' : ''}` : '';
+    $('clock').textContent = clockText();
     $('stats').textContent = (vw < 600 ? `${tt} trees · ${hp}% happy · ${ff} 🌼 · 🏠 ${V.cottages} (${V.happy} 😊)${V.mills ? ' ⚙' + V.mills : ''}${V.ruins ? ' · ' + V.ruins + ' ruin' : ''}`
       : vw < 1000 ? `${tt} trees (${hp}% happy) · ${ff} flowers · 🏠 ${V.cottages} (${V.happy} happy)${V.mills ? ' · ⚙ ' + V.mills : ''}${ru}`
       : `${S.N}² · ${Math.round(st.fps)} fps · ${tt} trees (${hp}% happy) · ${ff} flowers · ${V.cottages} cottage${V.cottages === 1 ? '' : 's'} (${V.happy} happy)${fl}${mi}${ru}`) + (st.paused ? ' · paused' : ''); }
@@ -1484,7 +1660,7 @@ function adapt(dt) {
   }
 }
 
-window.__lv = { st, LV, wheelAng, get col() { return [colR, colG, colB]; }, get tilt() { return tilt; }, get area() { return area; }, setTool, newWorld, unproj, proj, get S() { return st.S; } };
+window.__lv = { st, LV, LT, clockText, wheelAng, get col() { return [colR, colG, colB]; }, get tilt() { return tilt; }, get area() { return area; }, setTool, newWorld, unproj, proj, get S() { return st.S; } };
 updUI();
 const fromHash = decodeURIComponent((location.hash || '').slice(1));
 newWorld(fromHash || LV.randomSeedName());

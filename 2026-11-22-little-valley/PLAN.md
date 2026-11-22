@@ -50,7 +50,8 @@ every feature must be visible on screen (no hidden numbers); stays at 30+ fps at
 - [x] Mill wheels (part 3, 2026-11-22): a cottage within N·0.03 of a fast river cell (deeper than 0.25, faster than 1: a normal valley river, not a still lake) that keeps running for 30 sim s (`c.riverT`, which does not count while it rains, so a Shower's runoff never builds wheels, and forgets 2 s per s without the river) builds a wooden water wheel in the nearest such cell. The wheel turns with the flow at its spot (`c.turn`, while faster than 0.8; drawn as a spoked wheel seen at an angle with paddles and foam, angle advances with flow speed and game speed) and stops when the river dries up (it stays, still); a flood that ruins the cottage takes the wheel. A turning mill grinds: its cottage's fields ripen 1.5x faster (`MILL_RIPEN`). Stats pill: phone "🏠 5 (5 😊) ⚙2", landscape "· ⚙ 2", desktop "· 2 mills". Map: a little turning wheel in the river
 
 ### v4: time and weather
-- [ ] Day/night cycle (lighting, stars, glowing windows)
+- [x] Day/night cycle (part 1, 2026-11-22): a sim clock (`LV.clockHour`, from `S.time`, so deterministic and faster at higher speeds), one day = `P.dayLen` 720 sim s (~100 s at 1x), starts at 8:00. The sunlit day (6–20 h) takes 70% of it, evening 10%, the **night only 10%** and dawn 10%. The sun crosses the sky on an arc (rises left, sets right) and the terrain light direction follows it (low warm light at the ends of the day). Golden evening and dawn tint, sky gradient day → warm → night, stars and a moon, far mountains, clouds and birds follow the light (birds go home at night). Night is a moonlit blue at most 46% over the valley (test: night luma 62% of noon, bluer), so it stays readable and playable. Happy cottages light their windows from about 18:40 to 6:30 (flickering warm glow added on top; on the map a warm dot). The tint is two `source-atop` fills on the offscreen 3D buffer, so it costs almost nothing. Clock in the title pill ("☀️ 14:20", 🌇, 🌙, 🌧); hints "Evening: the cottage windows light up" and "Good morning, valley!"
+- [x] Natural rain (part 1, 2026-11-22), `P.weather` (on in the app, off by default in the sim so old tests stay exact): rain cloud k is planned from the seed (`LV.planRain`: gap 90–210 s before the first, then 220–520 s; 90–170 s long; wind mostly from the west, sometimes from the east; track, radius 0.26–0.38 of the map, strength), so the weather is deterministic per seed. The cloud drifts across the valley and rains under it (soft disc, more on the mountains), about half a Shower's rate at its heart and only there. It swells the rivers (test: flow x1.5 during a rain, +616 water vs a Shower's 59985 over the same time) and the forest is fine. No extra rain while a Shower pours. Drawn as a grey cloud bank with a rain curtain and falling drops, darker ground in its shadow, a greyer sky and faster clouds; on the map a grey disc with drops. Hint "A gentle rain drifts in from the west, feeding the streams". The weather plan and the clock survive a grid resample
 - [ ] Seasons: snow on high ground in winter, snowmelt floods in spring, dry summer
 - [ ] Weather events: storms, drought
 
@@ -60,11 +61,12 @@ every feature must be visible on screen (no hidden numbers); stays at 30+ fps at
 - [ ] Save/share a valley (compressed state in localStorage, seed + edits string)
 
 ## Next steps
-1. v3 is done. Next: v4 day/night cycle (lighting, stars, glowing windows; the mill wheels and wells are ready to look nice at dusk).
-2. Ideas for mills and wells: flour sacks or a little millstone sprite by a turning mill, a well bucket animation, a mill race (a short dug channel) so a cottage can bring the river to its wheel.
-3. Ideas for the village: haystacks or sheaves as little 3D sprites on ripe fields, paths that bend around slopes (cheap A* every few seconds), a harvest counter in the pill.
-4. A short GIF for the arcade card (time-lapse of a river carving, about 1 MB or less).
-5. Note: the Shower itself is a deluge (about 5 height units of rain at 1x; most of the valley gets runoff 0.3–4 deep). The life rules now tolerate it; a gentler Shower could come with weather in v4.
+1. v4 part 1 (day/night and natural rain) is done. Next: v4 part 2, seasons: a year of a few days, autumn colours for the leafy trees, snow creeping down in winter, snowmelt swelling the rivers in spring (a real snow layer in the sim that melts into water), a drier summer (fewer rains). Then storms (a darker, bigger rain cloud, rare) and droughts.
+2. Small ideas for day/night: lanterns at mills and wells at night, fireflies over meadows at dusk, smoke lit by the sunset, an optional "always day" toggle if someone prefers it, rainbows after a rain when the sun is out.
+3. Ideas for mills and wells: flour sacks or a little millstone sprite by a turning mill, a well bucket animation, a mill race (a short dug channel) so a cottage can bring the river to its wheel.
+4. Ideas for the village: haystacks or sheaves as little 3D sprites on ripe fields, paths that bend around slopes (cheap A* every few seconds), a harvest counter in the pill.
+5. A short GIF for the arcade card (time-lapse of a river carving, about 1 MB or less).
+6. Note: the Shower stays a deluge on purpose (about 5 height units of rain at 1x); the gentle natural rain is the everyday weather now.
 
 ## Checklist (every step)
 - [ ] `node tools/build.js` then `node tools/test.js` (all pass)

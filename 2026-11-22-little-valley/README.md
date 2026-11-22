@@ -35,6 +35,18 @@ find its way: lakes fill, rivers spill over ridges, carve gullies and drop sand.
 - **Shower** rains on the whole valley, **Map** switches to a top view, **New** makes a new
   named world, **Reset** restarts the same one. Keys 1–9 pick tools, Space pauses.
 
+## Day, night and weather
+The valley has its own clock (in the title pill, e.g. "☀️ 14:20"). One day lasts about 100 s at
+1x and runs faster with the game speed. The sun rises on the left, stands high at noon and sets on
+the right, and the light on the hills follows it. Evenings glow gold and the windows of happy
+cottages light up; the night is short (about a tenth of the day) and only moonlit blue, with stars
+and a moon, so you can keep building. Now and then a **gentle rain** drifts across the valley on
+the wind by itself: a grey cloud with rain under it, darker ground in its shadow, more rain on the
+mountains than in the lowland, and the rivers swell for a while (in a test about 1.5x the flow).
+It is far gentler than the Shower button, and the weather is planned from the seed, so the same
+valley gets the same rain.
+(`screenshot-dusk.png`: evening with lit windows; `screenshot-rain.png`: a rain cloud over the valley.)
+
 Worlds are seeded by name in the URL hash, e.g. `index.html#Daisy%20Glacier%205`.
 
 ## Life
@@ -55,4 +67,4 @@ Heightmap terrain from seeded noise, shallow water with the virtual-pipes method
 conserving), sediment erosion and deposition with semi-Lagrangian transport, and thermal
 slumping of steep slopes. Rendering is a software-drawn tilted 3D view on a 2D canvas.
 
-See `PLAN.md` for where it is going (a growing village, seasons, sound, goals).
+See `PLAN.md` for where it is going (seasons, storms, sound, goals).
