@@ -1278,6 +1278,8 @@ function renderTilt(t) {
   cx.imageSmoothingEnabled = true; cx.imageSmoothingQuality = 'high';
   cx.drawImage(T.canvas, T.sx, T.sy, T.wCss, oh * s);
   drawWindowGlow(t);
+  drawLanterns(t);
+  drawFireflies(t);
   // mist where the river falls off the front edge
   let fx0 = -1, fx1 = -1; const fr = (N - 1) * N;
   for (let x = 0; x < N; x++) if (d[fr + x] > 0.14) { if (fx0 < 0) fx0 = x; fx1 = x; }
@@ -1393,7 +1395,7 @@ function rasterSkaters(T, data) {
 // the cottage is happy. Flooded cottages get blue water up the walls, ruins are low broken walls.
 function rasterCottages(T, data) {
   const S = st.S, N = S.N, ow = T.ow, oh = T.oh, pick = T.pick, cp = T.cp; let n = 0;
-  const list = S.cottages.map(c => [c, LV.cottageCell(S, c)]).sort((a, b) => a[1] - b[1]); st.wellsDrawn = 0; st.wins = [];
+  const list = S.cottages.map(c => [c, LV.cottageCell(S, c)]).sort((a, b) => a[1] - b[1]); st.wellsDrawn = 0; st.wins = []; st.lamps = [];
   const put = (px, py, r, g, b) => { if (px < 0 || py < 0 || px >= ow || py >= oh) return; const q = (py * ow + px) * 4; data[q] = r; data[q + 1] = g; data[q + 2] = b; data[q + 3] = 255; };
   for (const [c, i] of list) {
     const x = i % N, y = (i / N) | 0, sc = persp(y, N), hz = 0.22 * (1 - y / N) * (1 - y / N);
@@ -1440,6 +1442,8 @@ function rasterCottages(T, data) {
       put(wcx, postT + 2, 120, 120, 120); put(wcx, postT + 3, 104, 72, 46);
       const rH = Math.max(2, Math.round(u * 0.6));
       for (let py = postT - rH; py <= postT; py++) { const w = Math.round((wr0 + 1) * (py - postT + rH) / rH); for (let px = wcx - w; px <= wcx + w; px++) put(px, py, px <= wcx ? rr : rs, px <= wcx ? rg : rgs, px <= wcx ? rb : rbs); }
+      // a little lantern hanging from the crank beam (lit from the evening on)
+      lantern(put, wcx + wr0, postT + 2, u, c.x * 7.3 + c.y);
       st.wellsDrawn++;
     }
     if (fl) { const lv = Math.round(wh * 0.45); for (let py = by - lv; py <= by + 1; py++) for (let px = bx - hw - 1; px <= bx + hw + 1; px++) { const q = (py * ow + px) * 4; if (px < 0 || py < 0 || px >= ow || py >= oh) continue; data[q] = data[q] * 0.4 + 40; data[q + 1] = data[q + 1] * 0.4 + 120; data[q + 2] = data[q + 2] * 0.4 + 170; } }
@@ -1470,10 +1474,19 @@ function rasterWheels(T, data, put) {
       const rim = r > R - 1.2, spoke = r < R - 1.2 && Math.abs(Math.sin(sect - 0.0)) * r < 0.75, paddle = r > R - 0.2 && sect < 0.35, hub = r < 1.3;
       if (rim || paddle || hub) put(px, py, r2, g2, b2); else if (spoke) put(px, py, r1, g1, b1);
     }
+    // a lantern on a post at the bank beside the wheel
+    const lx = Math.round(bx + R * EW + 2), lt = Math.round(cyw - R * 0.9); for (let py = lt; py <= Math.round(cyw + R * 0.6); py++) put(lx, py, 92, 64, 40);
+    lantern(put, lx, lt, Math.max(3, cp * sc * 1.7), c.wheel.x * 11 + c.wheel.y * 3);
     if (wet) for (let k = -2; k <= 2; k++) { const px = bx + Math.round(k * R * 0.25), py = Math.round(cyw + R * 0.85); if (px >= 0 && py >= 0 && px < ow && py < oh) { const q = (py * ow + px) * 4; data[q] = 235; data[q + 1] = 245; data[q + 2] = 250; } } // foam where the paddles dip
     n++;
   }
   st.wheelsDrawn = n;
+}
+// a small lantern (dark frame, glass that glows from the evening on); its glow is added later in drawLanterns
+function lantern(put, x, y, u, seed) {
+  const g = Math.min(1, LT.glow * 1.2), r = 70 + 185 * g, gg = 74 + 150 * g, b = 80 - 10 * g, s = Math.max(1, Math.round(u * 0.22));
+  put(x, y - 1, 60, 46, 34); for (let py = y; py <= y + s; py++) for (let px = x - (s >> 1); px <= x - (s >> 1) + s; px++) put(px, py, r, gg, b);
+  put(x, y + s + 1, 60, 46, 34); st.lamps.push([x, y + s / 2, u, seed]);
 }
 // mood badges above the cottages (screen space, both views): a heart when happy, a thirsty drop
 // when dry and far from water, blue waves when flooded; a puff of smoke from happy chimneys
@@ -1694,6 +1707,47 @@ function drawWindowGlow(t) {
   }
   cx.restore();
 }
+// lanterns at wells and mills: a warm, flickering glow at night (bigger and softer than a window)
+function drawLanterns(t) {
+  const T = tilt, L = st.lamps; st.lampsDrawn = 0; if (LT.glow < 0.02 || !L || !L.length || !T) return;
+  cx.save(); cx.globalCompositeOperation = 'lighter';
+  for (const [lx, ly, u, seed] of L) {
+    const x = T.sx + lx * T.s, y = T.sy + ly * T.s, r = Math.max(7, u * T.s * 3.4), fl = 0.82 + 0.18 * Math.sin(t * 11 + seed * 37) * Math.sin(t * 6.7 + seed * 13);
+    const a = LT.glow * fl, g = cx.createRadialGradient(x, y, 0, x, y, r);
+    g.addColorStop(0, `rgba(255,224,130,${0.9 * a})`); g.addColorStop(0.2, `rgba(255,180,70,${0.45 * a})`); g.addColorStop(1, 'rgba(255,140,40,0)');
+    cx.fillStyle = g; cx.fillRect(x - r, y - r, r * 2, r * 2); st.lampsDrawn++;
+  }
+  cx.restore();
+}
+// fireflies: on spring and summer evenings, little green-gold sparks blink and drift over the meadows
+// (dry, open grass below the alp, not under trees, snow or water). Spots are picked every 3 s.
+function fireflyA() {
+  const h = LT.h, sea = LV.season(st.S); if (st.S.P.seasons && sea !== 'summer' && sea !== 'spring') return 0;
+  return h >= 19 ? smooth(19.3, 20.4, h) * (1 - smooth(22.6, 23.6, h)) * (1 - LT.rain) : 0;
+}
+function drawFireflies(t) {
+  const S = st.S, N = S.N, T = tilt; st.firefliesDrawn = 0; const A = fireflyA(); if (A < 0.02 || !T || !T.pick) { st.ffSpots = null; return; }
+  if (!st.ffSpots || st.time - (st.ffT || 0) > 3) {
+    st.ffT = st.time; const H = N * 0.27, sp = [], n = N * N, stepI = 7919 % n || 1; let i = (Math.floor(st.time / 3) * 104729) % n;
+    for (let k = 0; k < n && sp.length < 70; k++, i = (i + stepI) % n) {
+      const x = i % N, y = (i / N) | 0; if (x < 3 || y < 3 || x >= N - 3 || y >= N - 3) continue;
+      if (S.veg[i] > 0.45 && S.tree[i] < 0.35 && S.d[i] < 0.02 && S.snow[i] < 0.02 && S.h[i] / H < 0.45) sp.push(i);
+    }
+    st.ffSpots = sp;
+  }
+  cx.save(); cx.globalCompositeOperation = 'lighter';
+  st.ffSpots.forEach((i0, k) => {
+    const gx = (i0 % N) + Math.sin(t * 0.37 + k * 1.7) * 1.4, gy = ((i0 / N) | 0) + Math.sin(t * 0.29 + k * 2.3) * 1.0;
+    const blink = Math.max(0, Math.sin(t * (1.3 + (k % 5) * 0.21) + k * 2.9)); if (blink < 0.15) return;
+    const xi = Math.round(gx), yi = Math.round(gy), sc = persp(gy, N), ox = (gx + 0.5 - N / 2) * T.cp * sc + T.ow / 2, oy = baseY(T, gy, N) - surf[yi * N + xi] * T.cp * T.hEx * sc;
+    const bx = ox | 0, by = (oy | 0) + 1; if (bx < 0 || by < 0 || bx >= T.ow || by >= T.oh) return;
+    const pc = T.pick[by * T.ow + bx]; if (pc < 0 || Math.abs(pc % N - xi) > 3 || Math.abs(((pc / N) | 0) - yi) > 4) return; // hidden behind a ridge
+    const lift = T.cp * sc * (1.2 + 0.8 * Math.sin(t * 0.8 + k)), x = T.sx + ox * T.s, y = T.sy + (oy - lift) * T.s, a = A * blink, r = Math.max(4, T.cp * sc * T.s * 1.5);
+    const g = cx.createRadialGradient(x, y, 0, x, y, r); g.addColorStop(0, `rgba(220,255,120,${0.9 * a})`); g.addColorStop(0.3, `rgba(170,240,80,${0.35 * a})`); g.addColorStop(1, 'rgba(120,200,40,0)');
+    cx.fillStyle = g; cx.fillRect(x - r, y - r, r * 2, r * 2); cx.fillStyle = `rgba(250,255,200,${a})`; cx.fillRect(x - 1, y - 1, 2, 2); st.firefliesDrawn++;
+  });
+  cx.restore();
+}
 // map view: a warm dot of light by each happy cottage at night
 function drawWindowGlowTop(t) {
   const S = st.S, N = S.N, R = st.topRect; if (!R || LT.glow < 0.02) return;
@@ -1701,7 +1755,10 @@ function drawWindowGlowTop(t) {
   for (const c of S.cottages) { if ((c.mood || LV.cottageMood(S, c)) !== 'happy') continue; const p = proj(c.x * N, c.y * N); if (!p) continue;
     const r = Math.max(8, R.sz / N * 5), a = LT.glow * (0.9 + 0.1 * Math.sin(t * 7 + c.x * 40)), g = cx.createRadialGradient(p[0], p[1], 0, p[0], p[1], r);
     g.addColorStop(0, `rgba(255,200,100,${0.6 * a})`); g.addColorStop(1, 'rgba(255,150,40,0)'); cx.fillStyle = g; cx.fillRect(p[0] - r, p[1] - r, r * 2, r * 2); n++; }
-  cx.restore(); st.glowDrawn = n;
+  let m = 0; const s = Math.max(11, R.sz / N * 4); // lanterns at wells and mill wheels
+  for (const c of S.cottages) { if (c.ruin || c.mood === 'ruin') continue; const pts = []; if (c.well) { const p = proj(c.x * N, c.y * N); if (p) pts.push([p[0] - s * 0.75, p[1] + s * 0.45]); } if (c.wheel) { const p = proj(c.wheel.x * N, c.wheel.y * N); if (p) pts.push([p[0] + s * 0.45, p[1] - s * 0.3]); }
+    for (const [x, y] of pts) { const r = Math.max(6, s * 0.6), a = LT.glow * (0.85 + 0.15 * Math.sin(t * 10 + x)), g = cx.createRadialGradient(x, y, 0, x, y, r); g.addColorStop(0, `rgba(255,226,140,${0.85 * a})`); g.addColorStop(1, 'rgba(255,150,40,0)'); cx.fillStyle = g; cx.fillRect(x - r, y - r, r * 2, r * 2); m++; } }
+  cx.restore(); st.glowDrawn = n; st.lampsTop = m;
 }
 // the natural rain: a soft grey cloud drifting over the valley with rain falling under it
 function drawNaturalRain(t) {

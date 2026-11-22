@@ -61,6 +61,10 @@ rivers keep flowing). Ice holds the water: a frozen lake doesn't drain or evapor
 its level until the spring thaw, and on sunny winter days little skaters glide in loops on the ice
 near the village. (`screenshot-ice.png`.)
 
+**Fireflies and lanterns**: wells and mill wheels carry little lanterns that glow and flicker
+through the night, and on spring and summer evenings fireflies blink over the meadows.
+(`screenshot-fireflies.png`.)
+
 **Weather events**: now and then a rain is a **storm**: a dark, bigger, faster cloud with
 slanting rain and lightning (⛈ in the clock) that pours almost three times as hard, so low cottages
 by the river can flood. In about every other summer a **drought** comes (🌵): no rain for a while,
