@@ -289,6 +289,24 @@ body.ts1 .card .art{height:56px}body.ts1 .card .tx{height:82px;padding:2px 6px}b
 /* v7 part 5: keyboard focus outline (only for keyboard focus) */
 .btn:focus-visible,.node:focus-visible,.card:focus-visible,.charmCard:focus-visible,.keeperCard:focus-visible,.vial:focus-visible,.kb:focus-visible{outline:3px solid #ffd27a;outline-offset:3px}
 :focus:not(:focus-visible){outline:none}
+/* v7 part 6: keyboard ring on every keyboard-selected element, screen-reader-only text, tutorial bubbles */
+.kb{outline:3px solid #ffd27a!important;outline-offset:3px}
+input:focus-visible{outline:3px solid #ffd27a;outline-offset:3px}
+.srOnly{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
+#bTut.fresh{border-color:rgba(255,210,120,.85);box-shadow:0 0 16px rgba(255,200,110,.55)}
+#tutBubble{position:absolute;z-index:19;display:none;width:360px;padding:14px 16px 12px;border-radius:16px;background:rgba(28,30,70,.97);border:2px solid rgba(255,214,130,.85);box-shadow:0 0 28px rgba(255,200,110,.45);font-size:calc(17px*var(--tsk));line-height:1.45;text-align:left}
+#tutBubble.on{display:block;animation:tutIn .25s ease-out}
+#tutBubble p{margin:0 0 10px}
+#tutBubble .row{justify-content:flex-end}
+#tutBubble .btn.small,#tutBubble .btn.tiny{min-height:44px;min-width:96px}
+#tutBubble::after{content:'';position:absolute;left:var(--ax,50%);width:18px;height:18px;background:rgba(28,30,70,.97);border:2px solid rgba(255,214,130,.85);transform:translateX(-50%) rotate(45deg)}
+#tutBubble.below::after{top:-11px;border-right:0;border-bottom:0}
+#tutBubble.above::after{bottom:-11px;border-left:0;border-top:0}
+#tutBubble.side::after{display:none}
+.tutFocus{animation:tutPulse 1.2s ease-in-out infinite;outline:3px dashed rgba(255,214,130,.9);outline-offset:6px;border-radius:14px}
+@keyframes tutPulse{50%{outline-color:rgba(255,214,130,.25)}}
+@keyframes tutIn{0%{opacity:0;transform:translateY(8px)}100%{opacity:1}}
+body.reduce #tutBubble.on,body.reduce .tutFocus{animation:none}
 
 </style>
 </head>
@@ -307,7 +325,7 @@ body.ts1 .card .art{height:56px}body.ts1 .card .tx{height:82px;padding:2px 6px}b
       <div class="row seedrow"><input id="seedIn" maxlength="24" placeholder="seed" spellcheck="false" autocomplete="off"><button class="btn small" id="bSeed">Play seed</button></div>
       <div class="row" id="emberRow"><span class="dim">Ember level</span><button class="btn tiny" id="bEmberDn">&minus;</button><b id="emberV">0</b><button class="btn tiny" id="bEmberUp">+</button><span class="dim" id="emberTxt"></span></div>
       <div id="emberMods" class="small"></div>
-      <div class="row"><button class="btn small" id="bHow">How to play</button><button class="btn small" id="bOpt">Options</button></div>
+      <div class="row"><button class="btn small" id="bHow">How to play</button><button class="btn small" id="bTut">Tutorial fight</button><button class="btn small" id="bOpt">Options</button></div>
     </div>
     <div id="meta" class="dim"></div>
     <div id="moonRow" class="small"></div>
@@ -357,7 +375,7 @@ body.ts1 .card .art{height:56px}body.ts1 .card .tx{height:82px;padding:2px 6px}b
     <div id="drawPile" class="pile" data-tip="Draw pile. When empty, your discard pile is shuffled back in."><i></i><b id="drawN">0</b><small>draw</small></div>
     <div id="discPile" class="pile" data-tip="Discard pile."><i></i><b id="discN">0</b><small>discard</small></div>
     <div id="exhN" class="dim small"></div>
-    <button class="btn" id="bEnd">End turn <small>(E)</small></button>
+    <button class="btn kbable" id="bEnd">End turn <small>(E)</small></button>
     <div id="hand"></div>
     <div id="turnBanner"></div>
     <div id="hint" class="dim small"></div>
@@ -396,6 +414,7 @@ body.ts1 .card .art{height:56px}body.ts1 .card .tx{height:82px;padding:2px 6px}b
     <label class="optRow"><span>Effects</span><input type="range" id="volSfx" min="0" max="100" step="5"><b id="volSfxV"></b></label>
     <div class="optRow"><span>Motion</span><button class="btn small" id="bMotion">Full motion</button></div>
     <div class="optRow"><span>Text size</span><button class="btn small" id="bText" aria-label="Text size">Text: Normal</button></div>
+    <div class="optRow"><span>Tutorial</span><button class="btn small" id="bTutOpt">Play the tutorial fight</button></div>
     <p class="dim small">Reduced motion turns off shaking, flashes, card flights and most particles. Text size enlarges tooltips, event and card text. The music is generated live: each act has its own mode and tempo, and bosses bring a drum pulse.</p>
     <button class="btn" id="bOptClose">Close</button></div></section>
   <div id="bossCard"><div class="bcLine"></div><div class="bcName"></div><div class="bcSub"></div><div class="bcLine"></div></div>
@@ -413,7 +432,7 @@ body.ts1 .card .art{height:56px}body.ts1 .card .tx{height:82px;padding:2px 6px}b
       <li>Keys: <b>Z X C</b> use a vial, <b>1-9</b> pick a card, <b>&larr; &rarr;</b> + <b>Enter</b> choose target, <b>E</b> end turn, <b>D</b> deck, <b>M</b> mute, <b>Esc</b> cancel/menu.</li>
       <li>Touch: tap a card, then tap an enemy (or tap the card again).</li>
     </ul>
-    <button class="btn" id="bHowOk">Got it</button></div></section>
+    <div class="row"><button class="btn" id="bHowOk">Got it</button><button class="btn" id="bHowTut">Play the tutorial fight</button></div></div></section>
   <section id="sCodex" class="scr ov top"><div class="panel full">
     <h2>Codex <small class="dim" id="cxCount"></small></h2>
     <div class="row tabs" id="cxTabs"><button class="btn small" data-tab="cards">Cards</button><button class="btn small" data-tab="charms">Charms</button><button class="btn small" data-tab="vials">Dew vials</button><button class="btn small" data-tab="enemies">Creatures</button><button class="btn small" data-tab="acts">Journey</button></div>
@@ -431,10 +450,17 @@ body.ts1 .card .art{height:56px}body.ts1 .card .tx{height:82px;padding:2px 6px}b
     <h3 class="shH">Keeper mastery</h3>
     <div id="shMastery"></div>
     <button class="btn" id="bShClose">Close</button></div></section>
+  <section id="sTutEnd" class="scr ov"><div class="panel">
+    <h2>Tutorial complete</h2>
+    <p>You know the basics: spend <b>energy</b> on cards, read the <b>intents</b>, hide behind <b>Glow</b> and <b>end your turn</b>. In a real run you pick a path up the map, add cards after fights and face a boss at the end of each act.</p>
+    <div class="row"><button class="btn big kbable" id="bTutRun">Start a real run</button><button class="btn kbable" id="bTutTitle">Title</button></div></div></section>
   <section id="sEnd" class="scr ov"><div class="panel">
     <canvas id="endCan" width="520" height="170"></canvas>
     <h2 id="endTitle"></h2><p id="endText"></p><div id="endStats" class="stats"></div>
     <div class="row"><button class="btn big" id="bEndNew">New run</button><button class="btn" id="bEndTitle">Title</button></div></div></section>
+  <div id="tutBubble" role="dialog" aria-label="Tutorial"><p id="tutText"></p><div class="row"><button class="btn small" id="tutNext">Next</button><button class="btn tiny" id="tutSkip">Skip tutorial</button></div></div>
+  <div id="srLive" class="srOnly" role="status" aria-live="polite" aria-atomic="true"></div>
+  <div id="srAlert" class="srOnly" role="alert" aria-live="assertive" aria-atomic="true"></div>
   <div id="tip"></div>
   <div id="popLayer"></div>
 </div>
@@ -536,7 +562,7 @@ card('wick', 'Trim the Wick', 'skill', 'uncommon', 0, 'none', [3, 2], [2, 2], 'L
 card('starfall', 'Starfall', 'attack', 'rare', 3, 'all', [15], [20], 'Deal {D0} damage to ALL enemies.', (R, t, v) => { for (const e of alive(R)) hit(R, P(R), e, v[0]); }, { tier: 8 });
 card('moonwell', 'Moonwell', 'power', 'rare', 3, 'none', [1], [1], 'Gain 1 extra energy at the start of each turn.', (R) => addSt(R, P(R), 'moonwell', 1, 1), { costUp: 2, tier: 9 });
 card('fireheart', 'Fireheart', 'power', 'rare', 1, 'none', [1], [2], 'Each of your attack hits applies {0} Kindled.', (R, t, v) => addSt(R, P(R), 'fireheart', v[0], 1), { tier: 8 });
-card('great', 'Great Lantern', 'attack', 'rare', 2, 'enemy', [12], [16], 'Deal {D0} damage. Gain Glow equal to the unblocked damage.', (R, t, v) => { const n = hit(R, P(R), t, v[0]); if (n > 0) gainBlock(R, P(R), n); }, { tier: 8 });
+card('great', 'Great Lantern', 'attack', 'rare', 2, 'enemy', [11], [16], 'Deal {D0} damage. Gain Glow equal to the unblocked damage.', (R, t, v) => { const n = hit(R, P(R), t, v[0]); if (n > 0) gainBlock(R, P(R), n); }, { tier: 8 });
 card('aurora', 'Aurora', 'skill', 'rare', 1, 'none', [2, 1], [3, 3], 'Gain {0} Blaze and {1} Lumen. Exhaust.', (R, t, v) => { addSt(R, P(R), 'blaze', v[0], 1); addSt(R, P(R), 'lumen', v[1], 1); }, { exhaust: 1, tier: 9 });
 card('lastlight', 'Last Light', 'skill', 'rare', 2, 'none', [20], [20], 'Gain {B0} Glow. Exhaust.', (R, t, v) => glow(R, v[0]), { exhaust: 1, costUp: 1, tier: 7 });
 card('pyre', 'Pyre', 'attack', 'rare', 2, 'enemy', [4, 2], [6, 3], 'Deal {D0} damage, plus {1} for each Kindled on the target.', (R, t, v) => hit(R, P(R), t, v[0] + v[1] * (t.st.kindled || 0)), { tier: 7 });
@@ -1249,6 +1275,20 @@ E.newRun = function (seed, opts) {
   if (emb(R, 8)) addCard(R, 'gloom');
   if (hasMod(R, 'starlit')) addCard(R, pickR(R, 'misc', poolFor(R, 'rare')));
   R.map = genAct(R, 1);
+  return R;
+};
+
+// Tutorial fight: a Lantern Keeper run with one fixed, gentle fight. The opening hand, the next draw and the moth's first
+// intent are scripted so the guided steps (energy, play a card, intents, Glow, end turn) always work. Never saved or counted.
+E.newTutorial = function () {
+  const R = E.newRun('TUTORIAL', { keeper: 'lantern' });
+  R.tutorial = true; R.charms = []; R.floor = 1;
+  startCombat(R, ['moth'], 'fight');
+  const c = R.combat, e = c.enemies[0], mk = (id, i) => ({ id, up: false, uid: 't' + i });
+  e.hp = e.maxHp = 16; e.dm = 1; e.intent = 'flutter'; e.hist = ['flutter'];
+  c.hand = ['spark', 'shield', 'spark', 'shield', 'spark'].map(mk);
+  c.draw = ['shield', 'swing', 'spark', 'shield', 'spark'].map((id, i) => mk(id, 5 + i));
+  c.discard = []; FX = [];
   return R;
 };
 
@@ -2300,7 +2340,7 @@ const enemyEls = new Map();
 function metaDefaults() { return { light: 0, badges: {}, emberWon: {}, best: null, wins: 0, runs: 0, emberMax: 0, ember: 0, daily: {}, mute: false, vMus: 50, vSfx: 70, textSize: 0, reduce: !!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches), seen: false, keeper: 'lantern', unlocked: {}, trueEnds: {}, history: [], codex: { cards: {}, charms: {}, vials: {}, enemies: {} } }; }
 function loadMeta() { try { const m = Object.assign(metaDefaults(), JSON.parse(localStorage.getItem(META) || '{}')); m.codex = Object.assign(metaDefaults().codex, m.codex); if (m.wins > 0) { m.unlocked.moth = true; m.unlocked.moon = true; } m.trueEnds = m.trueEnds || {}; if (m.wins > 0 || (m.history || []).some(h => h.win || h.act >= 3)) m.unlocked.wick = true; return E.migrateMeta(m); } catch (e) { return metaDefaults(); } }
 function saveMeta() { try { localStorage.setItem(META, JSON.stringify(meta)); } catch (e) { } }
-function saveRun() { try { if (run && !run.result) localStorage.setItem(SAVE, JSON.stringify(run)); else localStorage.removeItem(SAVE); } catch (e) { } }
+function saveRun() { try { if (run && run.tutorial) return; if (run && !run.result) localStorage.setItem(SAVE, JSON.stringify(run)); else localStorage.removeItem(SAVE); } catch (e) { } }
 function loadRun() { try { const r = E.migrate(JSON.parse(localStorage.getItem(SAVE) || 'null')); return r && r.v === E.VERSION && !r.result ? r : null; } catch (e) { return null; } }
 
 /* ---------- layout ---------- */
@@ -2314,7 +2354,7 @@ addEventListener('resize', resize);
 function rectOf(el) { const r = el.getBoundingClientRect(); return { wx: r.left + r.width / 2, wy: r.top + r.height / 2, x: (r.left + r.width / 2 - offX) / scale, y: (r.top + r.height / 2 - offY) / scale, w: r.width / scale, h: r.height / scale, top: (r.top - offY) / scale, left: (r.left - offX) / scale }; }
 
 /* ---------- screens ---------- */
-const OVERLAYS = ['sCross', 'sReward', 'sCharm', 'sRest', 'sShop', 'sEvent', 'sPick', 'sEnd'];
+const OVERLAYS = ['sCross', 'sReward', 'sCharm', 'sRest', 'sShop', 'sEvent', 'sPick', 'sEnd', 'sTutEnd'];
 let lastBase = null;
 const TOPS = ['sDeck', 'sHow', 'sCodex', 'sHist', 'sOpt'];
 function show(base, ov) {
@@ -2327,11 +2367,13 @@ function show(base, ov) {
 }
 function render() {
   hideTip();
-  if (!run) { mode = 'title'; renderTitle(); show('sTitle'); SFX.music('title'); return; }
+  if (!run) { mode = 'title'; renderTitle(); show('sTitle'); SFX.music('title'); tutRender(); return; }
   const s = run.screen; mode = s;
+  if (run.tutorial && s !== 'combat') { mode = 'tutend'; renderTop(); renderCombat(run.combat, false); show('sCombat', 'sTutEnd'); tutDone(); tutRender(); SFX.music(moodKey()); return; }
+  if (s === 'combat' && s !== lastScreen) srIntent = '';
   if (s !== lastScreen) { if (s === 'combat' && run.combat.kind === 'boss' && run.combat.turn === 1) bossIntro(run.combat.enemies[0].name, 'Act ' + run.act + ' \u00b7 ' + ACTS[run.act][0]); if (s === 'combat' && run.combat.turn === 1) deal = true; lastScreen = s; }
   if (s !== 'combat') vsel = -1;
-  noteSeen();
+  if (!run.tutorial) noteSeen();
   renderTop();
   if (s === 'combat') { show('sCombat'); renderCombat(run.combat, true); }
   else if (s === 'map') { show('sMap'); renderMap(); }
@@ -2343,6 +2385,8 @@ function render() {
     ({ crossroad: renderCross, reward: renderReward, charm: renderCharm, rest: renderRest, shop: renderShop, event: renderEvent, pick: renderPick, victory: renderEnd, defeat: renderEnd })[s]();
   }
   SFX.music(moodKey()); SFX.tense((run.screen === 'combat' && run.combat ? run.combat.p.hp : run.hp) <= run.maxHp * 0.3);
+  if (s === 'combat') srIntents();
+  tutRender();
 }
 
 /* ---------- title ---------- */
@@ -2364,6 +2408,7 @@ function renderTitle() {
   const b = meta.best;
   $('meta').innerHTML = 'Runs ' + meta.runs + ' &middot; Wins ' + meta.wins + (b ? ' &middot; Best: ' + (b.win ? 'victory' : 'act ' + b.act + ', floor ' + b.floor) + ' (score ' + b.score + ')' : '') + (meta.emberMax ? ' &middot; Ember ' + cap + ' unlocked' : ' &middot; Win a run to unlock Ember levels');
   $('bMute2').textContent = 'Sound: ' + (meta.mute ? 'off' : 'on');
+  $('bTut').classList.toggle('fresh', !meta.tutorial); $('bTut').innerHTML = 'Tutorial fight' + (meta.tutorial ? '' : ' <small>(new)</small>');
   const te = Object.keys(meta.trueEnds).filter(k => meta.trueEnds[k] && E.KEEPERS[k]);
   $('moonRow').innerHTML = meta.unlocked.moon ? '&#9790; <b>Act 4: The Hollow Moon</b> is open. After the Moon-Eater, follow the moon for the true ending.' + (te.length ? ' <span class="dim">True endings: ' + te.map(k => E.KEEPERS[k].short).join(', ') + '</span>' : '') : '&#128274; Win a run to open <b>Act 4: The Hollow Moon</b> and its true ending.';
   $('moonRow').classList.toggle('open', !!meta.unlocked.moon);
@@ -2382,6 +2427,7 @@ function renderKeeperPick() {
     const K = E.KEEPERS[k], ok = unlocked(k), d = document.createElement('div');
     d.className = 'keeperCard kbable' + (meta.keeper === k ? ' on' : '') + (ok ? '' : ' locked'); d.dataset.k = k;
     d.innerHTML = '<canvas width="132" height="168"></canvas><div><b>' + K.n + '</b><span>' + (ok ? K.d + '<br>' + (K.hp + (E.TUNE.hp[k] || 0)) + ' HP &middot; ' + E.CHARMS[K.charm].n + (emberCap(k) > 5 ? ' &middot; <span style="color:var(--ember)">Ember ' + emberCap(k) + '</span>' : '') : '&#128274; ' + K.unlock + '.') + '</span>' + (ok ? badgesHtml(k) : '') + '</div>' + (ok ? '' : '<div class="lock">&#128274;</div>');
+    d.setAttribute('role', 'button'); d.setAttribute('aria-pressed', meta.keeper === k ? 'true' : 'false'); d.setAttribute('aria-label', K.n + (ok ? '. ' + K.d + ' ' + (K.hp + (E.TUNE.hp[k] || 0)) + ' HP.' + (meta.keeper === k ? ' Selected.' : '') : '. Locked: ' + K.unlock + '.')); if (!ok) d.setAttribute('aria-disabled', 'true');
     d.onclick = () => { if (!ok) { SFX.play('debuff'); return; } SFX.unlock(); SFX.play('click'); meta.keeper = k; saveMeta(); renderTitle(); };
     box.appendChild(d);
   }
@@ -2415,6 +2461,7 @@ function renderVials() {
     d.className = 'vial ' + (id ? 'full' : 'empty') + (vsel === s ? ' sel' : '');
     d.style.backgroundImage = 'url("' + ART.vialSvg(id ? E.VIALS[id].col : '#000', !id) + '")';
     d.dataset.tip = id ? vialTip(id, inCombat ? 'Click to drink (free). Key ' + 'ZXC'[s] : 'Usable in combat. Click twice to toss it.') : 'Empty vial slot';
+    d.setAttribute('role', 'button'); d.setAttribute('aria-label', id ? 'Dew vial ' + (s + 1) + ': ' + E.VIALS[id].n + '. ' + E.VIALS[id].d + (inCombat ? ' Key ' + 'ZXC'[s] + '.' : '') : 'Empty vial slot ' + (s + 1));
     d.onclick = ev => { ev.stopPropagation(); onVialClick(s); };
     box.appendChild(d);
   });
@@ -2464,7 +2511,8 @@ function renderMap() {
     b.style.left = p.x + 'px'; b.style.top = p.y + 'px'; b.dataset.id = n.id;
     b.innerHTML = ART.ICON[n.type];
     const label = { fight: 'Fight', elite: 'Elite fight: tough, but drops a charm', rest: 'Campfire: heal or upgrade a card', shop: 'Moth Trader: buy cards and charms, remove a card', event: 'Mystery: something happens', boss: n.type === 'boss' ? 'Boss: ' + E.ENEMIES[n.enc[0]].name : '' }[n.type];
-    b.dataset.tip = label; b.setAttribute('aria-label', label + (av.indexOf(n.id) >= 0 ? ' (available)' : n.id === m.cur ? ' (you are here)' : ''));
+    const where = n.id === 'boss' ? 'top of the map' : 'row ' + (n.row + 1) + ' of ' + E.rowsFor(run.act), state = av.indexOf(n.id) >= 0 ? 'reachable' : n.id === m.cur ? 'you are here' : path.has(n.id) ? 'visited' : 'not reachable';
+    b.dataset.tip = label; b.setAttribute('aria-label', label + ', ' + where + ', ' + state);
     if (av.indexOf(n.id) < 0) { b.tabIndex = -1; b.setAttribute('aria-disabled', 'true'); }
     b.onclick = () => { if (av.indexOf(n.id) >= 0) { SFX.play('step'); doAct({ t: 'go', id: n.id }); } };
     box.appendChild(b);
@@ -2653,6 +2701,115 @@ function ghostCard(id, from) {
 }
 function banner(t, ms) { const b = $('turnBanner'); b.textContent = t; b.classList.add('on'); clearTimeout(banner.t); banner.t = setTimeout(() => b.classList.remove('on'), ms || 800); }
 
+/* ---------- screen-reader announcements (aria-live, one message per action) ---------- */
+let srQ = [], srT = 0, srIntent = '', srFlip = false;
+const srLog = [];
+function say(msg, loud) {
+  if (!msg) return;
+  srQ.push({ msg, loud }); clearTimeout(srT);
+  srT = setTimeout(() => {
+    const t = srQ.map(x => x.msg).join(' '), el = $(srQ.some(x => x.loud) ? 'srAlert' : 'srLive'); srQ = [];
+    srFlip = !srFlip; el.textContent = t + (srFlip ? '' : '\u00a0'); srLog.push(t); if (srLog.length > 80) srLog.shift();
+  }, 150);
+}
+function enemyName(uid) { const e = run && run.combat && run.combat.enemies.find(x => x.uid === uid); return e ? e.name : 'an enemy'; }
+function srCombat(a, fx) {
+  const dealt = {}, kills = [], out = [];
+  let taken = 0, blocked = 0, glow = 0, turn = null, what = null, win = null, lost = false;
+  for (const f of fx) {
+    if (f.k === 'hit') { if (f.who === 'p') { taken += f.n; blocked += f.b || 0; } else dealt[f.who] = (dealt[f.who] || 0) + f.n; }
+    else if (f.k === 'block' && f.who === 'p') glow += f.n;
+    else if (f.k === 'die') kills.push(enemyName(f.who));
+    else if (f.k === 'turn') turn = f.n;
+    else if (f.k === 'play' && !what) what = E.CARDS[f.id].name;
+    else if (f.k === 'usevial') what = E.VIALS[f.id].n;
+    else if (f.k === 'win') win = f.gold;
+    else if (f.k === 'defeat') lost = true;
+  }
+  const dmg = Object.keys(dealt).filter(u => dealt[u] > 0).map(u => dealt[u] + ' damage to ' + enemyName(+u));
+  if (a.t === 'end') {
+    const parts = [];
+    if (dmg.length) parts.push('your burns and moths dealt ' + dmg.join(', '));
+    parts.push(taken ? 'you took ' + taken + ' damage' : 'you took no damage');
+    if (blocked) parts.push('Glow blocked ' + blocked);
+    out.push('Enemy turn: ' + parts.join(', ') + '.');
+  } else {
+    const parts = dmg.slice();
+    if (glow) parts.push('+' + glow + ' Glow');
+    if (taken) parts.push('you took ' + taken + ' damage');
+    out.push((what ? what + ': ' : '') + (parts.length ? parts.join(', ') : 'played') + '.');
+  }
+  if (kills.length) out.push(kills.join(' and ') + (kills.length > 1 ? ' are' : ' is') + ' defeated.');
+  if (turn && run.screen === 'combat') { const c = run.combat; out.push('Your turn ' + turn + '. ' + c.energy + ' energy, ' + c.p.hp + ' of ' + run.maxHp + ' HP' + (c.p.block ? ', ' + c.p.block + ' Glow' : '') + '.'); }
+  say(out.join(' '));
+  if (lost) say('Defeat. Your lantern goes out' + (run.result && run.result.killer ? ', defeated by ' + run.result.killer : '') + '.', true);
+  else if (win != null) say('Victory! +' + win + ' gold.' + (run.screen === 'reward' && !run.tutorial ? ' Choose a card: keys 1 to ' + run.reward.cards.length + ', S to skip.' : ''), true);
+}
+function srIntents() {
+  const c = run.combat; if (!c || c.over || c.phase !== 'player') return;
+  const t = c.enemies.filter(e => !e.dead).map(e => e.name + ': ' + E.intentInfo(run, e).desc).join(' ');
+  if (t && t !== srIntent) { srIntent = t; say('Enemy intents. ' + t); }
+}
+
+/* ---------- tutorial fight (optional, replayable from the title, How to play and Options) ---------- */
+let tut = null;
+const TUT_STEPS = {
+  energy: { at: () => $('energy'), next: 'Next', t: 'This orb is your <b>energy</b>. You get 3 every turn. Each card costs energy: the number in its top-left corner.' },
+  intent: { at: () => document.querySelector('.enemy:not(.dead) .intent'), next: 'Next', t: 'Enemies show their <b>intent</b> above their heads. This moth will <b>attack for 5</b> when your turn ends. Plan around it!' },
+  play: { at: () => $('hand'), pos: { x: 440, y: 74 }, t: 'Play an attack: tap <b>Spark</b> (or press <b>1</b>). With one enemy it strikes at once. With several, tap the enemy (or use \u2190 \u2192 and Enter).' },
+  glow: { at: () => $('hand'), pos: { x: 440, y: 74 }, t: '<b>Glow</b> blocks damage until your next turn. Play <b>Glow Shield</b> now to soak up the moth\'s attack.' },
+  end: { at: () => $('bEnd'), t: 'Done for this turn? Press <b>End turn</b> (key <b>E</b>). Unplayed cards are discarded and the enemy acts.' },
+  blocked: { at: () => $('player'), pos: { x: 440, y: 74 }, next: 'Got it', t: () => !tut.took ? 'Your Glow blocked the hit! Glow fades when your next turn starts, so play it when an attack is coming. Now finish the moth.' : 'The moth hit you for ' + tut.took + '. Next time play <b>Glow Shield</b> before ending your turn: Glow blocks damage until your next turn. Now finish the moth.' },
+};
+function startTutorial() {
+  SFX.unlock(); SFX.play('click');
+  if (run && !run.tutorial) saveRun();
+  for (const id of TOPS.concat(['sShrine'])) $(id).classList.remove('on');
+  run = E.newTutorial(); tut = { step: 'energy', atk: false, glow: false, done: false }; sel = -1; vsel = -1; lastScreen = null;
+  say('Tutorial fight against a Dusk Moth. Follow the hints, or press Skip tutorial at any time.');
+  render();
+}
+function tutAfter(a, cd, fx) {
+  if (!tut) return;
+  const c = run.combat;
+  if (a.t === 'play' && cd) { if (E.CARDS[cd.id].type === 'attack') tut.atk = true; if (E.CARDS[cd.id].type === 'skill') tut.glow = true; }
+  if (a.t === 'end') { if (tut.step !== 'free') { tut.step = 'blocked'; tut.took = fx.filter(f => f.k === 'hit' && f.who === 'p').reduce((t, f) => t + f.n, 0); } return; }
+  if (a.t === 'play' && tut.step !== 'blocked' && tut.step !== 'free' && run.screen === 'combat') {
+    const canPlay = c.hand.some(x => E.cardCost(x) <= c.energy);
+    tut.step = !canPlay ? 'end' : !tut.atk ? 'play' : !tut.glow && c.hand.some(x => x.id === 'shield') ? 'glow' : 'end';
+  }
+}
+function tutNextStep() { if (!tut) return; SFX.play('click'); tut.step = { energy: 'intent', intent: 'play', blocked: 'free' }[tut.step] || tut.step; kbIdx = -1; clearKb(); tutRender(); }
+function tutDone() { if (!tut || tut.done) return; tut.done = true; meta.tutorial = 'done'; saveMeta(); say('Tutorial complete. Start a real run, or go back to the title.', true); }
+function endTutorial() { if (!meta.tutorial) { meta.tutorial = 'skipped'; saveMeta(); } tut = null; run = null; sel = -1; vsel = -1; lastScreen = null; render(); }
+function tutRender() {
+  const b = $('tutBubble');
+  for (const el of document.querySelectorAll('.tutFocus')) el.classList.remove('tutFocus');
+  const st = run && run.tutorial && mode === 'combat' && tut && !busy ? TUT_STEPS[tut.step] : null;
+  if (!st) { b.classList.remove('on'); b.dataset.step = ''; return; }
+  const fresh = b.dataset.step !== tut.step || !b.classList.contains('on');
+  $('tutText').innerHTML = typeof st.t === 'function' ? st.t() : st.t; $('tutNext').style.display = st.next ? '' : 'none'; $('tutNext').textContent = st.next || 'Next';
+  b.dataset.step = tut.step; b.classList.add('on');
+  const tgt = st.at();
+  if (tgt) tgt.classList.add('tutFocus');
+  const w = b.offsetWidth, h = b.offsetHeight;
+  let x, y, cls = 'side';
+  if (st.pos || !tgt) { x = st.pos ? st.pos.x : 460; y = st.pos ? st.pos.y : 74; }
+  else {
+    const r = rectOf(tgt);
+    x = Math.max(10, Math.min(1270 - w, r.x - w / 2));
+    if (r.top - h - 18 >= 56) { y = r.top - h - 18; cls = 'above'; } else { y = r.top + r.h + 18; cls = 'below'; }
+    if (y + h > 792) { y = 792 - h; cls = 'side'; }
+    b.style.setProperty('--ax', Math.max(22, Math.min(w - 22, r.x - x)) + 'px');
+  }
+  b.classList.remove('above', 'below', 'side'); b.classList.add(cls);
+  b.style.left = x + 'px'; b.style.top = y + 'px';
+  if (fresh) {
+    say('Tutorial: ' + $('tutText').textContent);
+    if (st.next) { const items = kbItems(), i = items.indexOf($('tutNext')); if (i >= 0) setKb(items, i); }
+  }
+}
+
 /* ---------- acting + animation ---------- */
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 function entEl(who) { return who === 'p' ? $('player') : enemyEls.get(who); }
@@ -2707,11 +2864,14 @@ async function doAct(a) {
   const wasCombat = run.screen === 'combat';
   const before = wasCombat ? E.clone(run.combat) : null;
   let fx;
+  const tutCard = run.tutorial && a.t === 'play' && run.combat ? run.combat.hand[a.i] : null;
   try { fx = E.act(run, a); } catch (e) { console.warn(e.message); return false; }
+  if (run.tutorial) tutAfter(a, tutCard, fx);
   saveRun();
   if (run.result) finishRun();
   if (wasCombat && a.t === 'end') {
     busy = true; $('bEnd').disabled = true; sel = -1;
+    tutRender();
     before.hand = []; before.phase = 'enemy';
     renderCombat(before, false); renderHand(before, false);
     banner('Enemy turn', 700); await sleep(450);
@@ -2723,22 +2883,25 @@ async function doAct(a) {
       if (f.k === 'hit' || f.k === 'block' || f.k === 'heal' || f.k === 'st') { const el = entEl(f.who); const o = f.who === 'p' ? before.p : before.enemies.find(e => e.uid === f.who); if (el && o) renderEntityBars(el, o); }
       if (f.k === 'hit' || f.k === 'st' || f.k === 'block') await sleep(110);
     }
+    srCombat(a, fx);
     if (run.screen === 'combat') { busy = false; banner('Your turn', 700); SFX.play('turn'); deal = true; render(); }
     else { renderCombat(run.combat, false); await sleep(700); busy = false; render(); }
     return true;
   }
   if (wasCombat) {
+    srCombat(a, fx);
     fx.forEach((f, i) => setTimeout(() => fxOne(f, null), i * 40));
     if (run.screen !== 'combat') { busy = true; renderCombat(run.combat, false); renderTop(); await sleep(900); busy = false; render(); return true; }
     render(); return true;
   }
   fx.forEach(f => fxOne(f, null));
+  if (a.t === 'go' && run.screen === 'combat') { const c = run.combat; say((c.kind === 'boss' ? 'Boss fight: ' : c.kind === 'elite' ? 'Elite fight: ' : 'Fight: ') + c.enemies.map(e => e.name).join(', ') + '. Your turn 1, ' + c.energy + ' energy, ' + c.hand.length + ' cards in hand.'); }
   render();
   if (a.t === 'go' && run.screen === 'combat' && run.combat.kind !== 'boss') banner(run.combat.kind === 'elite' ? 'Elite!' : 'Your turn', 800);
   return true;
 }
 function finishRun() {
-  if (run._counted) return; run._counted = true;
+  if (run._counted || run.tutorial) return; run._counted = true;
   const r = run.result, score = E.score(run);
   r.score = score;
   meta.history.unshift({ seed: run.seed, daily: run.daily, keeper: run.keeper, ember: run.ember, win: r.win, trueEnd: !!r.trueEnd, act: r.act, floor: r.floor, score, killer: r.killer || null, deck: run.deck.length, date: new Date().toISOString().slice(0, 16).replace('T', ' ') });
@@ -2940,14 +3103,32 @@ stage.addEventListener('touchstart', e => { const el = e.target.closest('.st,.in
 
 /* ---------- keyboard ---------- */
 function kbItems() {
-  const ov = document.querySelector('.ov.on.top') || document.querySelector('.ov.on');
+  const top = document.querySelector('.ov.on.top'), ov = top || document.querySelector('.ov.on');
   const root = ov || (mode === 'title' ? $('sTitle') : mode === 'map' ? $('sMap') : mode === 'combat' ? $('sCombat') : stage);
-  return Array.from(root.querySelectorAll(mode === 'title' && !ov ? '.btn, .keeperCard' : '.kbable, .ov.on .btn')).filter(el => el.offsetParent !== null && !el.disabled);
+  let list = Array.from(root.querySelectorAll(mode === 'title' && !ov ? '.btn, .keeperCard, #seedIn' : '.kbable, .ov.on .btn, .ov.on input'));
+  // map and combat: the top bar (deck, sound, options, menu) comes after the screen's own items
+  if (!ov && run && mode !== 'title') list = list.concat(Array.from(document.querySelectorAll('#topbar .btn')));
+  if (!top && $('tutBubble').classList.contains('on')) list = Array.from($('tutBubble').querySelectorAll('.btn')).concat(list);
+  return list.filter(el => el.offsetParent !== null && !el.disabled && el.getAttribute('aria-disabled') !== 'true');
+}
+function kbNav(e, k) {
+  const items = kbItems(); if (!items.length) return false;
+  const ai = items.indexOf(document.activeElement); if (ai >= 0) kbIdx = ai;
+  if (k === 'Tab' && e.shiftKey) { e.preventDefault(); setKb(items, kbIdx < 0 ? items.length - 1 : kbIdx - 1); }
+  else if (k === 'ArrowRight' || k === 'ArrowDown' || k === 'Tab') { e.preventDefault(); setKb(items, kbIdx < 0 ? 0 : kbIdx + 1); }
+  else if (k === 'ArrowLeft' || k === 'ArrowUp') { e.preventDefault(); setKb(items, kbIdx < 0 ? items.length - 1 : kbIdx - 1); }
+  else if ((k === 'Enter' || k === ' ') && kbIdx >= 0 && items[kbIdx]) { e.preventDefault(); items[kbIdx].click(); }
+  else return false;
+  return true;
 }
 function clearKb() { for (const el of document.querySelectorAll('.kb')) el.classList.remove('kb'); }
 function setKb(items, i) { clearKb(); kbIdx = (i + items.length) % items.length; const el = items[kbIdx]; el.classList.add('kb'); if (el.scrollIntoView && el.closest('.grid')) el.scrollIntoView({ block: 'nearest' }); if (el.dataset.tip) showTip(el); if (el.tabIndex < 0 && !el.hasAttribute('tabindex')) el.tabIndex = -1; if (el.focus) el.focus({ preventScroll: true }); }
 addEventListener('keydown', e => {
-  if (e.target.tagName === 'INPUT') { if (e.key === 'Enter') $('bSeed').click(); return; }
+  if (e.target.tagName === 'INPUT') {
+    if (e.key === 'Enter' && e.target.id === 'seedIn') { $('bSeed').click(); return; }
+    if (e.key === 'Tab') { kbNav(e, 'Tab'); return; }
+    if (e.key !== 'Escape') return;
+  }
   const k = e.key;
   if (k === 'm' || k === 'M') { toggleMute(); return; }
   const topOv = document.querySelector('.ov.on.top');
@@ -2966,6 +3147,7 @@ addEventListener('keydown', e => {
   if (busy) return;
   if (mode === 'combat' && !topOv) {
     const c = run.combat;
+    if (k === 'Enter' && sel < 0 && vsel < 0 && kbIdx < 0 && $('tutBubble').classList.contains('on') && $('tutNext').style.display !== 'none') { e.preventDefault(); tutNextStep(); return; }
     if (/^[0-9]$/.test(k)) { const i = k === '0' ? 9 : +k - 1; if (i < c.hand.length) onCardClick(i); return; }
     const vk = 'zxc'.indexOf(k.toLowerCase()); if (vk >= 0 && k.length === 1) { onVialClick(vk); return; }
     if (vsel >= 0) {
@@ -2990,11 +3172,7 @@ addEventListener('keydown', e => {
     if (mode === 'shop' && (k === 'l' || k === 'L')) { doAct({ t: 'leave' }); return; }
     if (mode === 'crossroad' && (k === '1' || k === '2')) { doAct({ t: 'moon', o: k === '1' ? 'go' : 'dawn' }); return; }
   }
-  const items = kbItems(); if (!items.length) return;
-  if (k === 'Tab' && e.shiftKey) { e.preventDefault(); setKb(items, kbIdx < 0 ? items.length - 1 : kbIdx - 1); }
-  else if (k === 'ArrowRight' || k === 'ArrowDown' || k === 'Tab') { e.preventDefault(); setKb(items, kbIdx < 0 ? 0 : kbIdx + 1); }
-  else if (k === 'ArrowLeft' || k === 'ArrowUp') { e.preventDefault(); setKb(items, kbIdx < 0 ? items.length - 1 : kbIdx - 1); }
-  else if ((k === 'Enter' || k === ' ') && kbIdx >= 0 && items[kbIdx]) { e.preventDefault(); items[kbIdx].click(); }
+  kbNav(e, k);
 });
 
 /* ---------- buttons ---------- */
@@ -3007,7 +3185,7 @@ function applyOpts() {
 }
 function openOpt() { applyOpts(); $('sOpt').classList.add('on'); kbIdx = -1; SFX.unlock(); }
 function toggleMute() { meta.mute = !meta.mute; SFX.setMuted(meta.mute); saveMeta(); $('bMute').innerHTML = meta.mute ? '&#10005;' : '&#9835;'; $('bMute2').textContent = 'Sound: ' + (meta.mute ? 'off' : 'on'); if (!meta.mute) { SFX.unlock(); SFX.play('click'); } }
-function goTitle() { saveRun(); run = null; sel = -1; lastScreen = null; render(); }
+function goTitle() { if (run && run.tutorial) { endTutorial(); return; } saveRun(); run = null; sel = -1; lastScreen = null; render(); }
 function openDeck() { renderDeck(); $('sDeck').classList.add('on'); kbIdx = -1; }
 $('bNew').onclick = () => startRun(E.randomSeed(), false);
 $('bDaily').onclick = () => startRun(E.dailySeed(), true);
@@ -3019,6 +3197,11 @@ $('bShrine').onclick = () => openShrine();
 $('bShClose').onclick = () => $('sShrine').classList.remove('on');
 $('bHow').onclick = () => $('sHow').classList.add('on');
 $('bHowOk').onclick = () => $('sHow').classList.remove('on');
+$('bTut').onclick = $('bTutOpt').onclick = $('bHowTut').onclick = () => startTutorial();
+$('tutNext').onclick = tutNextStep;
+$('tutSkip').onclick = () => { SFX.play('click'); endTutorial(); };
+$('bTutRun').onclick = () => { tut = null; run = null; startRun(E.randomSeed(), false); };
+$('bTutTitle').onclick = () => { tut = null; run = null; lastScreen = null; render(); };
 $('bMute').onclick = $('bMute2').onclick = toggleMute;
 $('bOpt').onclick = $('bOpt2').onclick = openOpt;
 $('bOptClose').onclick = () => $('sOpt').classList.remove('on');
@@ -3076,7 +3259,7 @@ render();
 requestAnimationFrame(frame);
 window.LK = {
   E, get run() { return run; }, mode: () => mode, busy: () => busy, sel: () => sel, meta: () => meta,
-  act: doAct, startRun, openOpt, tense: () => SFX.isTense, music: () => SFX.mood, moodKey, goTitle, render, openCodex, openHist, openShrine, saveMeta, vsel: () => vsel,
+  act: doAct, startRun, startTutorial, tut: () => tut, srLog: () => srLog.slice(), openOpt, tense: () => SFX.isTense, music: () => SFX.mood, moodKey, goTitle, render, openCodex, openHist, openShrine, saveMeta, vsel: () => vsel,
   handEl: i => $('hand').children[i], enemyEl: uid => enemyEls.get(uid), nodeEl: id => document.querySelector('.node[data-id="' + id + '"]'),
 };
 })();

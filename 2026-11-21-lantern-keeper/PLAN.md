@@ -12,6 +12,7 @@ A deep, polished roguelite deckbuilder set in the night forest that keeps growin
 
 ## Rules for every run
 - Run `node tools/test.js` and `node tools/browser-test.js` before finishing, with every test passing and 0 console errors.
+- After UI changes also run `node tools/kb-check.js`, `node tools/tutorial-check.js`, `node tools/fit-check.js` and `node tools/v6-check.js`.
 - Re-run `node tools/sim.js 600 --bots=heuristic` after any balance-relevant change. Keep each keeper at roughly 30–40%.
 - Rebuild with `node tools/build.js`. Update the README, this checklist and the Playbot log.
 
@@ -22,7 +23,7 @@ A deep, polished roguelite deckbuilder set in the night forest that keeps growin
 - **v4: Act 4 and the true ending** (done 2026-11-21). A short 4th act (The Hollow Moon) unlocked by winning, a final boss with phases, 2 new elites, 4–6 new creatures, 6+ new events (with choices that use keeper mechanics), and an epilogue screen per keeper.
 - **v5: meta-progression and ascension depth** (done 2026-11-21). Ember 6–10 with named modifiers (elites gain a power, less healing, curses in the deck), a "Lantern Shrine" unlock track (new cards and charms added to pools over time, never raw stats), per-keeper mastery badges, and daily-run modifiers.
 - **v6: polish, audio, music and animation** (done 2026-11-21). Generative background music per act (reusing ideas from Night Forest Radio), card draw/play/exhaust animations, enemy attack animations, boss intros, screen transitions, reduced-motion option, better reward and shop layouts.
-- **v7: balance and accessibility.** A sim report per card (pick rate, win rate when picked), tune outliers, colour-blind-safe intent icons, font-size setting, full keyboard-only and screen-reader labels, and a tutorial fight.
+- **v7: balance and accessibility** (done 2026-11-22, **Lantern Keeper 1.0**). A sim report per card (pick rate, win rate when picked), tune outliers, colour-blind-safe intent icons, font-size setting, full keyboard-only and screen-reader labels, and a tutorial fight.
 - **Later ideas:** a fourth keeper (an owl or frog themed "Debuff/Curse" keeper?), card transforms, seeded challenge links, a stats page, localization.
 
 ## Checklist
@@ -83,12 +84,28 @@ A deep, polished roguelite deckbuilder set in the night forest that keeps growin
 
 ### v7: balance and accessibility
 - [x] Per-card sim report: `node tools/sim.js N --cards` → `tools/card_report.txt` (2026-11-21)
-- [ ] Outlier tuning from the card report (part 2 2026-11-21: Aurora base Lumen 2→1; Tangle sources checked, intended. Part 4 2026-11-21: bot pick values via `BOT_TIER`. Still open: Great Lantern, Singe, unpicked shared cards)
+- [x] Outlier tuning from the card report (part 2 2026-11-21: Aurora base Lumen 2→1; Tangle sources checked, intended. Part 4: bot pick values via `BOT_TIER`. 2026-11-22: Great Lantern 12→11 damage; Singe left alone, Wick is in band)
 - [x] Card texts fit their box at every text size (part 4 2026-11-21: shorter Melt Down/Snuff Out/Patient Flame wording, `.tx.long` tighter font, `node tools/fit-check.js`)
 - [x] Colour-blind-safe intents, font-size setting (part 3 2026-11-21: Options "Text size" Normal/Large/Larger saved in meta; intent icons are distinct shapes (sword, ring, diamond with down chevron, up arrow, twin circles with +) with aria-labels; cards have role=button + aria-label)
-- [ ] Keyboard-only and screen-reader pass (started: intent/card aria-labels); tutorial fight
+- [x] Keyboard-only and screen-reader pass (2026-11-22): focus ring on every keyboard-selected element, Tab/arrows/Enter on every screen (incl. top bar, End turn, seed box, Options sliders), map node labels (type, row, reachable), keeper/vial labels, polite + assertive live regions for the fight (one message per action). `node tools/kb-check.js` 36 checks
+- [x] Tutorial fight (2026-11-22): optional scripted fight vs one Dusk Moth with callout bubbles (energy, intent, play, Glow, end turn), offered on the title and in How to play, replayable from Options, skippable, saved in meta as done/skipped, touch and reduced-motion friendly. `node tools/tutorial-check.js` 34 checks, engine test group 47
+- Sim after v7 (Ember 0, 600 runs, Lantern/Moth/Wick): 38.0 / 34.3 / 35.0% (1000 runs: 41.4 / 33.7 / 33.9%)
 
-## Next steps (for the next run)
+## Status: Lantern Keeper 1.0 is finished (2026-11-22)
+All seven milestones are done. The game is complete and playable start to finish with mouse, touch or keyboard alone. Future runs only need to keep it working (run the tests) unless Playbot picks one of the later ideas below.
+
+### Small later ideas (optional, not planned)
+- Lantern sits at 41% over 1000 runs (38% over 600): if it drifts up after any change, try Great Lantern+ 16→15 or Aurora+ +3/+2.
+- Wick starter Singe rel -22 pp: a cheap buff (6→7 damage) if the Wick ever falls below 30%.
+- Shared cards Chirp / Dart / Gather / Dewdrop are rarely picked (1–2%): small buff or drop from the reward pool.
+- Tutorial: an optional second lesson for Swarm and Wax when the Moth Whisperer or Ember Wick unlocks.
+- Daily "Fog" modifier (hidden map nodes), a personal daily leaderboard, a stats page, seeded challenge links.
+- A fourth keeper (owl or frog, Debuff/Curse), card transforms, localization (German first).
+- Melt text highlighted when you have enough Wax; live "kept N" damage on Slow Burn; rare Wick stall vs the Hollow Moon.
+
+## Archived next steps (before 1.0)
+Kept for history; everything still relevant is in "Small later ideas" above.
+
 0. **Accessibility follow-ups:** card text overflow is fixed (part 4; re-run `node tools/fit-check.js` after adding or rewording cards). Next: the keyboard-only/screen-reader pass (focus outlines, aria-live for combat log, map node labels) and the tutorial fight.
 1. **Bot pick fix done (part 4):** `BOT_TIER` overrides in `src/engine.js` (bot-only; card stats unchanged): Wildfire 8→6.5, Fan the Flames 7→5.5, Moonwell 9→7.5, Moth Dance 7→5.5, Moth Swarm 5→6.5 (Wick stays 5), Wing Wall 5→7, Flicker 5→7, Silk Snare 6→7 for the Wick. Ember 0, 600 runs: Lantern 35.2→**39.2%** (A4 17.8→25.0%), Moth 32.7→34.3%, Wick 31.8→35.0%. All still in 30–40%, but **Lantern is now at the top edge (39.2%)**: watch it; if it passes 40% after the next change, Great Lantern 12→11 damage is the first candidate. Card report not regenerated yet: next run, rerun `--cards` and re-check Aurora, Great Lantern and the pick rates of the adjusted cards before touching any card stats.
 2. **v7 outlier tuning** (report: `node tools/sim.js 1000 --bots=heuristic --cards --quiet`, 1000 runs/keeper, ~75 s; read the `rel` column, which compares with the average reward-picked card and removes the "long runs pick more cards" bias). Outliers from the first report (Ember 0, all shrine gifts):
