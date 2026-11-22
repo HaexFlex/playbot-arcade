@@ -47,6 +47,15 @@ It is far gentler than the Shower button, and the weather is planned from the se
 valley gets the same rain.
 (`screenshot-dusk.png`: evening with lit windows; `screenshot-rain.png`: a rain cloud over the valley.)
 
+**Seasons**: a year lasts four valley days (one per season, about 7 minutes at 1x) and starts in
+spring; the season shows as an emoji in the title pill (🌸 🌻 🍂 ❄️). In autumn the leafy trees
+turn orange, red and gold, then lose their leaves. From late autumn snow falls on the peaks and the
+snow line creeps down the mountains through the winter until only the low valley floor stays green.
+The snow is real: it is water stored on the ground, and in spring, as the snow line climbs back up,
+it melts into the streams, so the rivers swell (keep your cottages off the low banks!). Summer is
+drier, with rains about half as often.
+(`screenshot-autumn.png`: autumn colours along the river; `screenshot-winter.png`: a snowy valley.)
+
 Worlds are seeded by name in the URL hash, e.g. `index.html#Daisy%20Glacier%205`.
 
 ## Life
@@ -67,4 +76,4 @@ Heightmap terrain from seeded noise, shallow water with the virtual-pipes method
 conserving), sediment erosion and deposition with semi-Lagrangian transport, and thermal
 slumping of steep slopes. Rendering is a software-drawn tilted 3D view on a 2D canvas.
 
-See `PLAN.md` for where it is going (seasons, storms, sound, goals).
+See `PLAN.md` for where it is going (storms, sound, goals).

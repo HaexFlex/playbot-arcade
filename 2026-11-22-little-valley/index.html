@@ -39,7 +39,7 @@ button.on{background:#ffe680;box-shadow:0 2px 0 #e0b93a,0 0 0 3px #ffd23f,0 4px 
 }
 /* landscape phones: tools on the left, controls on the right */
 @media (orientation:landscape) and (max-height:520px){
-  #top{padding:6px calc(env(safe-area-inset-right) + 66px) 0 calc(env(safe-area-inset-left) + 74px)}.pill{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:70vw;padding:5px 11px}#title b{font-size:15px}
+  #top{padding:6px calc(env(safe-area-inset-right) + 66px) 0 calc(env(safe-area-inset-left) + 74px)}.pill{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:70vw;padding:5px 11px}#title b{font-size:15px}#title b{margin-right:5px}#seedName{font-size:11.5px}#clock{font-size:11.5px;margin-left:5px}#stats{font-size:11px}
   #tools{left:calc(env(safe-area-inset-left) + 6px);top:50%;bottom:auto;transform:translateY(-50%);flex-direction:column;gap:4px;padding:5px}
   #tools button{width:58px;height:calc((100vh - 74px) / 9);max-height:56px;min-height:34px}
   #tools button svg{width:28px;height:28px}
@@ -101,6 +101,8 @@ const DEFAULTS = {
   growMax: 24, // cottages the village may build by itself (GROW_MAX)
   weather: false, // natural rain that comes and goes by itself (the app turns it on; tests opt in)
   dayLen: 720, // sim seconds per day (about 100 s at 1x)
+  seasons: false, // a year of P.yearDays days: snow in winter, melt in spring, a drier summer (the app turns it on; tests opt in)
+  yearDays: 4, // days per year (one day per season)
   boost: 1 // time-lapse: erosion and plant growth run this many times faster
 };
 
@@ -142,7 +144,7 @@ function create(N, seed, opts) {
   const P = Object.assign({}, DEFAULTS, opts || {});
   const n = N * N, F = () => new Float32Array(n);
   const T = generateTerrain(N, seed);
-  const S = { N, seed: String(seed), P, h: T.h, d: F(), s: F(), fL: F(), fR: F(), fT: F(), fB: F(), u: F(), v: F(), tmp: F(), tmp2: F(), ero: F(), wet: F(), dep: F(), veg: F(), tree: F(), bloom: F(), moist: F(), fert: F(), flood: F(), rush: F(), field: F(), ripe: F(), path: F(), tend: new Uint8Array(n), h0: null, springs: [], cottages: [], grown: 0, vtick: 0, steps: 0, time: 0, wx: null, rainNow: 0 };
+  const S = { N, seed: String(seed), P, h: T.h, d: F(), s: F(), fL: F(), fR: F(), fT: F(), fB: F(), u: F(), v: F(), tmp: F(), tmp2: F(), ero: F(), wet: F(), dep: F(), veg: F(), tree: F(), bloom: F(), moist: F(), fert: F(), flood: F(), rush: F(), field: F(), ripe: F(), path: F(), tend: new Uint8Array(n), h0: null, springs: [], cottages: [], grown: 0, vtick: 0, steps: 0, time: 0, wx: null, rainNow: 0, snow: F(), yearOff: 0 };
   S.h0 = new Float32Array(S.h);
   initLife(S);
   return S;
@@ -563,7 +565,9 @@ function planRain(S, k, after) {
   const gap = (k === 0 ? 90 + r() * 120 : 220 + r() * 300), dur = 90 + r() * 80;
   const a = (r() - 0.5) * 1.2, dir = r() < 0.75 ? 1 : -1; // mostly from the west, sometimes from the east
   const ux = Math.cos(a) * dir, uy = Math.sin(a), off = (r() - 0.5) * 0.5, len = 1.6;
-  return { k, start: after + gap, dur, x0: 0.5 - ux * len / 2 - uy * off, y0: 0.45 - uy * len / 2 + ux * off, vx: ux * len / dur, vy: uy * len / dur, r: 0.26 + r() * 0.12, amp: 0.018 + r() * 0.01 };
+  let start = after + gap, ampK = 1;
+  if (S.P.seasons && isSummer(yearFracAt(S, start))) { start = after + gap * SUMMER_GAP; ampK = 0.8; } // a drier summer: rains come less often and softer
+  return { k, start, dur, x0: 0.5 - ux * len / 2 - uy * off, y0: 0.45 - uy * len / 2 + ux * off, vx: ux * len / dur, vy: uy * len / dur, r: 0.26 + r() * 0.12, amp: (0.018 + r() * 0.01) * ampK };
 }
 function rainCell(S) { // the current rain cloud {x, y, r} in 0..1 map units and its strength k (0..1), or null
   const W = S.wx; if (!W || !S.rainNow) return null; const tt = S.time - W.start;
@@ -580,13 +584,55 @@ function weatherStep(S) {
   S.rainNow = env;
   if (S.P.rain > 0) return; // a Shower is already pouring: the cloud adds nothing
   const { N, h, d } = S, tt = S.time - W.start, cx = (W.x0 + W.vx * tt) * N, cy = (W.y0 + W.vy * tt) * N, R = W.r * N, R2 = R * R, H = N * 0.27;
-  const amt = W.amp * env * S.P.dt;
+  const amt = W.amp * env * S.P.dt, sn = S.P.seasons ? snowFalling(S) : null, snow = S.snow;
   for (let y = Math.max(0, Math.floor(cy - R)); y <= Math.min(N - 1, Math.ceil(cy + R)); y++) for (let x = Math.max(0, Math.floor(cx - R)); x <= Math.min(N - 1, Math.ceil(cx + R)); x++) {
     const r2 = (x - cx) * (x - cx) + (y - cy) * (y - cy); if (r2 >= R2) continue;
     let w = 1 - r2 / R2; w *= w; const i = y * N + x;
-    d[i] += amt * w * (0.5 + Math.min(1.2, h[i] / H));
+    const a = amt * w * (0.5 + Math.min(1.2, h[i] / H));
+    if (sn && h[i] / H > sn.line && d[i] < 0.05) snow[i] += a; else d[i] += a; // in the cold months it snows above the snow line
   }
 }
+
+// ---------- seasons (v4 part 2) ----------
+// A year is P.yearDays days (default 4: one day per season, ~400 s at 1x). It starts in spring.
+// yearFrac: spring 0–0.25, summer 0.25–0.5, autumn 0.5–0.75, winter 0.75–1. S.yearOff shifts the season.
+// The snow line (height share h/H above which snow lies and falls) creeps down in late autumn and
+// winter and climbs back up in spring. Snow is a real layer (S.snow, in water height units): it
+// falls above the line in the cold months (and natural rain falls as snow there), and below the line
+// it melts into water, so the spring melt swells the rivers. In summer the high snow slowly melts too,
+// and natural rains come about half as often.
+const YEAR_START = 0.06, SEASONS = ['spring', 'summer', 'autumn', 'winter'];
+const SNOW_EVERY = 6, SNOW_FALL = 0.0006, SNOW_MELT = 0.006, SNOW_GLACIER = 0.0004, SNOW_MAX = 0.8, SUMMER_GAP = 2.2, LINE_HIGH = 0.64, LINE_LOW = 0.14;
+function yearLen(S) { return (S.P.dayLen || 720) * (S.P.yearDays || 4); }
+function yearFracAt(S, t) { const f = t / yearLen(S) + YEAR_START + (S.yearOff || 0); return f - Math.floor(f); }
+function yearFrac(S) { return yearFracAt(S, S.time); }
+function season(S) { return SEASONS[Math.min(3, Math.floor(yearFrac(S) * 4))]; }
+function isSummer(y) { return y >= 0.2 && y < 0.6; }
+function snowLine(y) {
+  if (y < 0.2) return LINE_LOW + (LINE_HIGH - LINE_LOW) * smoothstep(0, 0.2, y); // spring: the snow line climbs, the snow melts
+  if (y < 0.6) return LINE_HIGH;
+  if (y < 0.75) return LINE_HIGH + (0.4 - LINE_HIGH) * smoothstep(0.6, 0.75, y); // late autumn: first snow on the peaks
+  if (y < 0.92) return 0.4 + (LINE_LOW - 0.4) * smoothstep(0.75, 0.92, y); // winter: it creeps down into the valley
+  return LINE_LOW;
+}
+function snowFalling(S) { const y = yearFrac(S); return y >= 0.6 && y < 0.97 ? { y, line: snowLine(y) } : null; }
+// Leaf state of the leafy trees for drawing: autumn colour 0..1 and bare 0..1 (winter, early spring).
+function leafState(S) { const y = yearFrac(S); return { autumn: smoothstep(0.5, 0.62, y) * (1 - smoothstep(0.74, 0.8, y)), bare: y >= 0.5 ? smoothstep(0.74, 0.8, y) : 1 - smoothstep(0.03, 0.12, y) }; }
+function snowStep(S, tl) {
+  const { N, h, d, snow } = S, H = N * 0.27, y = yearFrac(S), line = snowLine(y);
+  const fall = y >= 0.6 && y < 0.97 ? SNOW_FALL * tl : 0, glacier = isSummer(y) ? SNOW_GLACIER * tl : 0, melt = SNOW_MELT * tl;
+  for (let i = 0; i < snow.length; i++) {
+    const hn = h[i] / H, sw = snow[i];
+    if (hn > line && d[i] < 0.05) {
+      if (fall) { const a = fall * Math.min(1, 0.3 + (hn - line) * 8); snow[i] = sw + a > SNOW_MAX ? Math.max(sw, SNOW_MAX) : sw + a; }
+      else if (glacier && sw > 0) { const m = sw < glacier ? sw : glacier; snow[i] = sw - m; d[i] += m; }
+    } else if (sw > 0) { // below the line (or under water): it melts into water
+      let m = melt * (d[i] >= 0.05 ? 1 : 0.4 + Math.min(1, (line - hn) * 10)); if (m > sw) m = sw;
+      snow[i] = sw - m; d[i] += m;
+    }
+  }
+}
+function totalSnow(S) { let t = 0; const a = S.snow; for (let i = 0; i < a.length; i++) t += a[i]; return t; }
 
 function step(S, nSteps) {
   nSteps = nSteps || 1;
@@ -601,6 +647,7 @@ function stepOnce(S) {
   if (P.rain > 0) { const r = P.rain * dt; for (let i = 0; i < n; i++) d[i] += r; }
   for (const sp of S.springs) addKernel(S, d, sp.x * N, sp.y * N, 2.2, P.springRate * sp.rate * dt * 0.5);
   if (P.weather) weatherStep(S); else S.rainNow = 0;
+  if (P.seasons && (S.steps % SNOW_EVERY) === 0) snowStep(S, SNOW_EVERY * dt);
   // 2. outflow flux (virtual pipes, cross-section/length = 1)
   for (let y = 0; y < N; y++) {
     const row = y * N;
@@ -742,15 +789,15 @@ function resample(S, N2) {
     const i = y * N2 + x, px = x * sc, py = y * sc;
     T.h[i] = lerp(S.h, px, py) * hs; T.d[i] = lerp(S.d, px, py) * hs; T.s[i] = lerp(S.s, px, py) * hs;
     T.wet[i] = lerp(S.wet, px, py); T.dep[i] = lerp(S.dep, px, py) * hs; T.h0[i] = lerp(S.h0, px, py) * hs;
-    T.veg[i] = lerp(S.veg, px, py); T.tree[i] = lerp(S.tree, px, py); T.moist[i] = lerp(S.moist, px, py); T.fert[i] = lerp(S.fert, px, py); T.flood[i] = lerp(S.flood, px, py); T.rush[i] = lerp(S.rush, px, py); T.bloom[i] = lerp(S.bloom, px, py); T.field[i] = lerp(S.field, px, py); T.ripe[i] = lerp(S.ripe, px, py); T.path[i] = lerp(S.path, px, py);
+    T.veg[i] = lerp(S.veg, px, py); T.tree[i] = lerp(S.tree, px, py); T.moist[i] = lerp(S.moist, px, py); T.fert[i] = lerp(S.fert, px, py); T.flood[i] = lerp(S.flood, px, py); T.rush[i] = lerp(S.rush, px, py); T.bloom[i] = lerp(S.bloom, px, py); T.field[i] = lerp(S.field, px, py); T.ripe[i] = lerp(S.ripe, px, py); T.path[i] = lerp(S.path, px, py); T.snow[i] = lerp(S.snow, px, py) * hs;
   }
-  T.springs = S.springs.map(sp => Object.assign({}, sp)); T.cottages = S.cottages.map(c => Object.assign({}, c, c.wheel ? { wheel: Object.assign({}, c.wheel) } : {})); T.grown = S.grown; T.vtick = S.vtick; T.steps = S.steps; T.time = S.time; T.wx = S.wx ? Object.assign({}, S.wx) : null; T.rainNow = S.rainNow || 0;
+  T.springs = S.springs.map(sp => Object.assign({}, sp)); T.cottages = S.cottages.map(c => Object.assign({}, c, c.wheel ? { wheel: Object.assign({}, c.wheel) } : {})); T.grown = S.grown; T.vtick = S.vtick; T.steps = S.steps; T.time = S.time; T.wx = S.wx ? Object.assign({}, S.wx) : null; T.rainNow = S.rainNow || 0; T.yearOff = S.yearOff || 0;
   return T;
 }
 
-function hasNaN(S) { for (const k of ['h', 'd', 's', 'u', 'v', 'fL', 'fR', 'fT', 'fB', 'veg', 'tree', 'moist', 'flood', 'rush', 'bloom', 'field', 'ripe', 'path']) { const a = S[k]; for (let i = 0; i < a.length; i++) if (!Number.isFinite(a[i])) return k; } return false; }
+function hasNaN(S) { for (const k of ['h', 'd', 's', 'u', 'v', 'fL', 'fR', 'fT', 'fB', 'veg', 'tree', 'moist', 'flood', 'rush', 'bloom', 'field', 'ripe', 'path', 'snow']) { const a = S[k]; for (let i = 0; i < a.length; i++) if (!Number.isFinite(a[i])) return k; } return false; }
 
-const API = { clockHour, dayFrac, planRain, rainCell, weatherStep, mulberry32, hashStr, makeNoise, randomSeedName, generateTerrain, create, seedLife, step, applyTool, totalWater, totalTerrain, resample, lifeStep, countTrees, countLife, leafy, treeHappy, cottageMood, cottageCell, countVillage, waterNear, wellYield, WELL_MIN, WELL_HIGH, MILL_T, MILL_RIPEN, FLOOD_RUIN, GROW_MAX, KIDS_MAX, GROW_T, plotSize, plotOf, plotCrop, hasNaN, DEFAULTS };
+const API = { yearFrac, yearFracAt, yearLen, season, snowLine, snowFalling, leafState, snowStep, totalSnow, SEASONS, clockHour, dayFrac, planRain, rainCell, weatherStep, mulberry32, hashStr, makeNoise, randomSeedName, generateTerrain, create, seedLife, step, applyTool, totalWater, totalTerrain, resample, lifeStep, countTrees, countLife, leafy, treeHappy, cottageMood, cottageCell, countVillage, waterNear, wellYield, WELL_MIN, WELL_HIGH, MILL_T, MILL_RIPEN, FLOOD_RUIN, GROW_MAX, KIDS_MAX, GROW_T, plotSize, plotOf, plotCrop, hasNaN, DEFAULTS };
 if (typeof module !== 'undefined' && module.exports) module.exports = API; else root.LV = API;
 })(typeof window !== 'undefined' ? window : globalThis);
 </script>
@@ -849,7 +896,7 @@ setTimeout(() => $('hint').classList.remove('show'), 4000);
 // ---------- world ----------
 function newWorld(seed) {
   const N = NLEVELS[nIndex];
-  st.S = LV.create(N, seed, { weather: st.weather !== false }); LV.seedLife(st.S, 3); st.wake = 2.5; st.N = N;
+  st.S = LV.create(N, seed, { weather: st.weather !== false, seasons: st.seasons !== false }); LV.seedLife(st.S, 3); st.wake = 2.5; st.N = N;
   if (st.shower > 0) { st.shower = 0; updUI(); } // a new world starts with clear skies
   $('seedName').textContent = seed; skyPrev = null; allocRender(); hint('Welcome to ' + seed + '!');
   try { history.replaceState(null, '', '#' + encodeURIComponent(seed)); } catch (e) { }
@@ -896,13 +943,17 @@ const RAMP = [[0, [124, 190, 78]], [0.22, [104, 174, 68]], [0.42, [126, 162, 72]
 function ramp(t, out) { let i = 0; while (i < RAMP.length - 2 && t > RAMP[i + 1][0]) i++; const a = RAMP[i], b = RAMP[i + 1]; const k = Math.max(0, Math.min(1, (t - a[0]) / (b[0] - a[0]))); out[0] = a[1][0] + (b[1][0] - a[1][0]) * k; out[1] = a[1][1] + (b[1][1] - a[1][1]) * k; out[2] = a[1][2] + (b[1][2] - a[1][2]) * k; }
 
 const tmpc = [0, 0, 0];
+const LS = { autumn: 0, bare: 0 }; // leaf state of the leafy trees this frame (seasons)
+const AUTUMN = [[232, 150, 44], [206, 76, 42], [236, 198, 64]]; // orange, red, gold
+function autumnC(i) { const g = grain[i + 3] || 0; return AUTUMN[Math.abs(Math.floor(g * 97)) % 3]; }
 function computeColours(t) {
   const S = st.S, N = S.N, h = S.h, d = S.d, s = S.s, u = S.u, v = S.v, wet = S.wet, dep = S.dep, veg = S.veg, tree = S.tree, bloom = S.bloom, field = S.field, ripe = S.ripe, path = S.path, tend = S.tend, noVil = !!st.noVillage;
   if (!(st.frames % 15) || !leafK) updLeafy();
   const H = N * 0.27, ex = 1.6, tiltView = st.view === 'tilt';
   // sun: from the west, a little from the viewer side in 3D view
   let Lx = LT.Lx, Ly = tiltView ? 0.28 : -0.42, Lz = LT.Lz; const Ll = Math.hypot(Lx, Ly, Lz); Lx /= Ll; Ly /= Ll; Lz /= Ll;
-  const cOff = t * 0.6, snowBase = 0.68;
+  const cOff = t * 0.6, snowBase = 0.68, snowL = S.snow;
+  const ls = S.P.seasons ? LV.leafState(S) : { autumn: 0, bare: 0 }; LS.autumn = ls.autumn; LS.bare = ls.bare; const lsA = ls.autumn, lsB = ls.bare;
   // the natural rain cloud darkens the ground under it
   const RC = LV.rainCell(S), rcx = RC ? RC.x * N : 0, rcy = RC ? RC.y * N : 0, rcR2 = RC ? (RC.r * N * 1.1) ** 2 : 0, rcK = RC ? 0.38 * RC.k : 0;
   for (let y = 0; y < N; y++) {
@@ -930,7 +981,9 @@ function computeColours(t) {
       if (bare > 0.02) { const k = bare * 0.75; r += (184 - r) * k; g += (160 - g) * k; b += (102 - b) * k; }
       // forest canopy: dark pine green with a little texture
       const tr = tree[i];
-      if (tr > 0.05) { const k = Math.min(1, tr * 1.2) * 0.8, gr = 1 + grain[i] * 0.5, lf = leafK[i]; r += ((46 + 30 * lf) * gr - r) * k; g += ((98 + 44 * lf) * gr - g) * k; b += ((52 - 6 * lf) * gr - b) * k; }
+      if (tr > 0.05) { const k = Math.min(1, tr * 1.2) * 0.8, gr = 1 + grain[i] * 0.5, lf = leafK[i]; let tr0 = 46 + 30 * lf, tg0 = 98 + 44 * lf, tb0 = 52 - 6 * lf;
+        if (lf > 0.3 && (lsA || lsB)) { const A = autumnC(i), qa = lsA * lf, qb = lsB * lf; tr0 += (A[0] * 0.8 - tr0) * qa; tg0 += (A[1] * 0.8 - tg0) * qa; tb0 += (A[2] * 0.8 - tb0) * qa; tr0 += (124 - tr0) * qb; tg0 += (104 - tg0) * qb; tb0 += (84 - tb0) * qb; }
+        r += (tr0 * gr - r) * k; g += (tg0 * gr - g) * k; b += (tb0 * gr - b) * k; }
       // flowers: speckles of colour in rich meadows
       const fb = bloom[i];
       if (fb > 0.3 && flowerH[i] < (fb - 0.3) * 0.9) { const c = FLOWERS[flowerC[i]], k = 0.55; r += (c[0] - r) * k; g += (c[1] - g) * k; b += (c[2] - b) * k; }
@@ -954,7 +1007,8 @@ function computeColours(t) {
       const pa = noVil ? 0 : path[i];
       if (pa > 0.1) { const k = smooth(0.1, 0.7, pa) * 0.78; r += (206 - r) * k; g += (182 - g) * k; b += (134 - b) * k; }
       // snow
-      const sn = smooth(snowBase - 0.03, snowBase + 0.05, hn + grain[i] * 0.06 + 0.04 * cloudAt(x * 0.2 + 17, y * 0.2)) * (1 - smooth(1.4, 2.4, slope));
+      let sn = smooth(snowBase - 0.03, snowBase + 0.05, hn + grain[i] * 0.06 + 0.04 * cloudAt(x * 0.2 + 17, y * 0.2)) * (1 - smooth(1.4, 2.4, slope));
+      const sl = snowL[i]; if (sl > 0.006) { const k = smooth(0.006, 0.06, sl + grain[i] * 0.01) * (1 - 0.45 * smooth(1.6, 2.8, slope)); if (k > sn) sn = k; } // the seasonal snow layer
       if (sn > 0) { r += (246 - r) * sn; g += (250 - g) * sn; b += (255 - b) * sn; }
       let sh = (0.5 + 0.72 * dif) * ao * (1 + grain[i] * 0.05);
       // drifting cloud shadows
@@ -1168,7 +1222,7 @@ function rasterTrees(T, data) {
   if (cp >= 1.6) {
     const dots = cp >= 4 ? 3 : cp >= 2.6 ? 2 : 1, big = cp >= 5 ? 1 : 0;
     for (let y = 1; y < N - 1; y++) for (let x = 1; x < N - 1; x++) {
-      const i = y * N + x, fb = bloom[i]; if (fb < 0.35 || S.d[i] > 0.03 || tree[i] > 0.35 || flowerH[i] > fb * 0.9) continue;
+      const i = y * N + x, fb = bloom[i]; if (fb < 0.35 || S.d[i] > 0.03 || S.snow[i] > 0.02 || tree[i] > 0.35 || flowerH[i] > fb * 0.9) continue;
       const sc = persp(y, N), hz = 0.22 * (1 - y / N) * (1 - y / N), c = FLOWERS[flowerC[i]];
       const cr = c[0] + (215 - c[0]) * hz, cg = c[1] + (232 - c[1]) * hz, cb = c[2] + (245 - c[2]) * hz;
       const nd = Math.min(dots, 1 + ((fb - 0.35) * 4 * dots) | 0);
@@ -1199,18 +1253,22 @@ function rasterTrees(T, data) {
     if (leafK && leafK[i] > 0.5) {
       // leafy lowland tree: a round, light crown on a short trunk
       const hgt = cp * sc * (1.3 + 1.2 * tv) * (0.85 + grain[i + N] * 0.4), rad = hgt * 0.42, ccx = ox, ccy = oy - hgt + rad;
-      const v = grain[i + 2] * 0.25, lr = 104 + 110 * hz + 96 * sad, lg = 168 + 70 * hz + 20 * v - 14 * sad, lb = 70 + 170 * hz - 20 * sad, dr = 52 + 150 * hz + 90 * sad, dg = 112 + 120 * hz + 15 * v - 10 * sad, db = 44 + 190 * hz - 10 * sad;
+      const v = grain[i + 2] * 0.25; let lr = 104 + 110 * hz + 96 * sad, lg = 168 + 70 * hz + 20 * v - 14 * sad, lb = 70 + 170 * hz - 20 * sad, dr = 52 + 150 * hz + 90 * sad, dg = 112 + 120 * hz + 15 * v - 10 * sad, db = 44 + 190 * hz - 10 * sad;
+      const qa = LS.autumn, qb = LS.bare, twig = qb > 0.5; // autumn: orange, red or gold crowns; winter: bare twigs
+      if (qa > 0.02) { const A = autumnC(i); lr += (A[0] + 60 * hz - lr) * qa; lg += (A[1] + 50 * hz - lg) * qa; lb += (A[2] + 120 * hz - lb) * qa; dr += (A[0] * 0.72 + 60 * hz - dr) * qa; dg += (A[1] * 0.68 + 50 * hz - dg) * qa; db += (A[2] * 0.7 + 120 * hz - db) * qa; }
+      if (twig) { lr = 150 + 70 * hz; lg = 124 + 80 * hz; lb = 100 + 120 * hz; dr = 108 + 80 * hz; dg = 86 + 90 * hz; db = 70 + 130 * hz; }
       for (let py = Math.round(ccy + rad * 0.5); py <= Math.round(oy) && py < oh; py++) { if (py < 0) continue; const q = (py * ow + Math.round(ox)) * 4; data[q] = 96; data[q + 1] = 70; data[q + 2] = 46; data[q + 3] = 255; }
       const r2 = rad * rad;
       for (let py = Math.max(0, Math.round(ccy - rad)); py <= Math.round(ccy + rad * 0.85) && py < oh; py++) {
         const dy = py - ccy, hw = Math.sqrt(Math.max(0, r2 - dy * dy)), row = py * ow;
         const x0 = Math.max(0, Math.round(ox - hw)), x1 = Math.min(ow - 1, Math.round(ox + hw));
-        for (let px = x0; px <= x1; px++) { const q = (row + px) * 4, dx = px - ox, lit = (-dx * 0.6 - dy * 0.8) / rad; if (lit > 0.05) { data[q] = lr; data[q + 1] = lg; data[q + 2] = lb; } else { data[q] = dr; data[q + 1] = dg; data[q + 2] = db; } data[q + 3] = 255; }
+        for (let px = x0; px <= x1; px++) { if (twig && ((px + py) & 1)) continue; const q = (row + px) * 4, dx = px - ox, lit = (-dx * 0.6 - dy * 0.8) / rad; if (lit > 0.05) { data[q] = lr; data[q + 1] = lg; data[q + 2] = lb; } else { data[q] = dr; data[q + 1] = dg; data[q + 2] = db; } data[q + 3] = 255; }
       }
       nl++;
     } else {
       const hgt = cp * sc * (1.5 + 1.5 * tv) * (0.85 + grain[i + N] * 0.5), w = hgt * 0.36;
-      const lr = 52 + 150 * hz + 110 * sad, lg = 112 + 110 * hz + 10 * sad, lb = 62 + 180 * hz - 20 * sad, dr = 30 + 170 * hz + 90 * sad, dg = 76 + 150 * hz + 10 * sad, db = 46 + 200 * hz - 16 * sad;
+      let lr = 52 + 150 * hz + 110 * sad, lg = 112 + 110 * hz + 10 * sad, lb = 62 + 180 * hz - 20 * sad, dr = 30 + 170 * hz + 90 * sad, dg = 76 + 150 * hz + 10 * sad, db = 46 + 200 * hz - 16 * sad;
+      const sw = S.snow[i]; if (sw > 0.03) { const k = Math.min(0.75, sw * 6); lr += (240 - lr) * k; lg += (246 - lg) * k; lb += (252 - lb) * k; dr += (190 - dr) * k * 0.7; dg += (204 - dg) * k * 0.7; db += (222 - db) * k * 0.7; } // snow on the branches
       const top = Math.round(oy - hgt), bot = Math.round(oy - hgt * 0.12);
       for (let py = Math.max(0, top); py <= bot && py < oh; py++) {
         const f = (py - top) / (bot - top + 1e-6), hw = w * (0.25 + 0.75 * f) * (0.85 + 0.15 * Math.sin(f * 18)), row = py * ow;
@@ -1589,12 +1647,16 @@ document.addEventListener('keydown', e => {
 });
 
 // ---------- clock and weather hints ----------
-function clockText() { const h = LT.h, hh = Math.floor(h), mm = Math.floor((h - hh) * 6) * 10; return (LT.rain > 0.1 ? '🌧 ' : LT.night > 0.5 ? '🌙 ' : LT.glow > 0.3 && LT.h > 12 ? '🌇 ' : '☀️ ') + String(hh).padStart(2, '0') + ':' + String(mm).padStart(2, '0'); }
+const SEASON_ICON = { spring: '🌸', summer: '🌻', autumn: '🍂', winter: '❄️' };
+function seasonIcon() { const S = st.S; return S.P.seasons ? SEASON_ICON[LV.season(S)] + ' ' : ''; }
+function clockText() { const h = LT.h, hh = Math.floor(h), mm = Math.floor((h - hh) * 6) * 10; return seasonIcon() + (LT.rain > 0.1 ? '🌧 ' : LT.night > 0.5 ? '🌙 ' : LT.glow > 0.3 && LT.h > 12 ? '🌇 ' : '☀️ ') + String(hh).padStart(2, '0') + ':' + String(mm).padStart(2, '0'); }
 let skyPrev = null;
+const SEASON_HINT = { spring: 'Spring: the snow melts and the rivers swell', summer: 'Summer: long days, fewer rains', autumn: 'Autumn: the leafy trees turn gold and red', winter: 'Winter: snow creeps down the mountains' };
 function skyHints() {
-  const S = st.S, now = { rain: (S.rainNow || 0) > 0.05, eve: LT.glow > 0.5 && LT.h > 12, morn: LT.h >= 6.5 && LT.h < 12 };
+  const S = st.S, now = { rain: (S.rainNow || 0) > 0.05, eve: LT.glow > 0.5 && LT.h > 12, morn: LT.h >= 6.5 && LT.h < 12, sea: S.P.seasons ? LV.season(S) : '' };
   if (skyPrev && st.wake <= 0) {
-    if (now.rain && !skyPrev.rain && S.wx) hint('A gentle rain drifts in from the ' + (S.wx.vx > 0 ? 'west' : 'east') + ', feeding the streams');
+    if (now.sea !== skyPrev.sea && now.sea) { st.seasonHint = SEASON_HINT[now.sea]; hint(st.seasonHint); } else
+    if (now.rain && !skyPrev.rain && S.wx) hint(st.rainHint = 'A gentle rain drifts in from the ' + (S.wx.vx > 0 ? 'west' : 'east') + ', feeding the streams');
     else if (now.eve && !skyPrev.eve) hint(st.S.cottages.length ? 'Evening: the cottage windows light up' : 'Evening falls over the valley');
     else if (now.morn && !skyPrev.morn) hint('Good morning, valley!');
   }
@@ -1660,7 +1722,7 @@ function adapt(dt) {
   }
 }
 
-window.__lv = { st, LV, LT, clockText, wheelAng, get col() { return [colR, colG, colB]; }, get tilt() { return tilt; }, get area() { return area; }, setTool, newWorld, unproj, proj, get S() { return st.S; } };
+window.__lv = { st, LV, LT, leaf: LS, clockText, wheelAng, get col() { return [colR, colG, colB]; }, get tilt() { return tilt; }, get area() { return area; }, setTool, newWorld, unproj, proj, get S() { return st.S; } };
 updUI();
 const fromHash = decodeURIComponent((location.hash || '').slice(1));
 newWorld(fromHash || LV.randomSeedName());
