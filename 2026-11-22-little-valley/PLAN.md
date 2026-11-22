@@ -64,7 +64,7 @@ every feature must be visible on screen (no hidden numbers); stays at 30+ fps at
 - [ ] Save/share a valley (compressed state in localStorage, seed + edits string)
 
 ## Next steps
-1. v4 is done (clock, rain, seasons, storms, droughts, rainbows, ice). Next small season ideas: fields resting under snow in winter (no harvest), cottages' chimney smoke thicker in winter, a calendar strip under the clock showing the year, "Day 3 of spring" on desktop, an ice-jam flood in spring (the thaw releases the dammed water at once). Or start v5 (sound).
+1. v4 is done (clock, rain, seasons, storms, droughts, rainbows, ice, snowmen, thicker winter chimney smoke). Next small season ideas: fields resting under snow in winter (no harvest), a calendar strip under the clock showing the year, "Day 3 of spring" on desktop, an ice-jam flood in spring (the thaw releases the dammed water at once). Or start v5 (sound).
 2. Small ideas for day/night (lanterns and fireflies are done): smoke lit by the sunset, an optional "always day" toggle if someone prefers it (rainbows are done).
 3. Ideas for mills and wells: flour sacks or a little millstone sprite by a turning mill, a well bucket animation, a mill race (a short dug channel) so a cottage can bring the river to its wheel.
 4. Ideas for the village: haystacks or sheaves as little 3D sprites on ripe fields, paths that bend around slopes (cheap A* every few seconds), a harvest counter in the pill.

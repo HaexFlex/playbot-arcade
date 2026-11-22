@@ -66,6 +66,7 @@ through the night, and on spring and summer evenings fireflies blink over the me
 (`screenshot-fireflies.png`.)
 
 **Snowmen**: when the snow reaches the village, little snowmen with red scarves and dark hats
+**Winter smoke**: in late autumn and winter every lived-in cottage heats, so its chimney puffs thicker, slower, greyer smoke.
 appear in the cottage gardens, and they melt with the snow in spring.
 
 **Weather events**: now and then a rain is a **storm**: a dark, bigger, faster cloud with

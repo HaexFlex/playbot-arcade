@@ -1510,6 +1510,8 @@ function lantern(put, x, y, u, seed) {
 function drawCottageBadges(t) {
   const S = st.S, N = S.N; if (!S.cottages.length) return;
   const scl = st.view === 'tilt' && tilt ? tilt.s * tilt.cp : st.topRect ? st.topRect.sz / N : 3;
+  // cold season (late autumn, winter): every lived-in cottage heats, so more, bigger, slower, greyer smoke
+  const yf = S.P.seasons ? LV.yearFrac(S) : 0.3, cold = S.P.seasons && (yf > 0.62 || yf < 0.05); st.smokeK = cold ? 4 : 2; st.smokeN = 0;
   let nb = 0;
   for (const c of S.cottages) {
     const gx = c.x * N, gy = c.y * N, p = st.view === 'tilt' ? projGround(gx, gy) : proj(gx, gy); if (!p) continue;
@@ -1522,7 +1524,7 @@ function drawCottageBadges(t) {
     else if (mood === 'flooded') { cx.strokeStyle = '#2a83c4'; cx.lineWidth = 1.6; for (const dy of [-1.8, 1.8]) { cx.beginPath(); cx.moveTo(-4.5, dy); cx.quadraticCurveTo(-2.2, dy - 2, 0, dy); cx.quadraticCurveTo(2.2, dy + 2, 4.5, dy); cx.stroke(); } }
     else { cx.strokeStyle = '#b08040'; cx.lineWidth = 1.5; cx.beginPath(); cx.moveTo(0, -4.5); cx.bezierCurveTo(3.5, -0.5, 3.5, 3.5, 0, 3.5); cx.bezierCurveTo(-3.5, 3.5, -3.5, -0.5, 0, -4.5); cx.stroke(); cx.beginPath(); cx.moveTo(-3.5, 4); cx.lineTo(3.5, -3.5); cx.stroke(); }
     cx.restore(); nb++;
-    if (mood === 'happy' && st.view === 'tilt') { for (let k = 0; k < 2; k++) { const ph = (t * 0.5 + k * 0.5 + c.x * 7) % 1; cx.fillStyle = `rgba(235,240,245,${0.55 * (1 - ph)})`; cx.beginPath(); cx.arc(p[0] + u * 1.0 + ph * 6, p[1] - u * 4.4 - ph * 12, 1.5 + ph * 3, 0, 7); cx.fill(); } }
+    if ((mood === 'happy' || (cold && mood === 'sad')) && st.view === 'tilt') { const K = st.smokeK, sp = cold ? 0.32 : 0.5, rise = cold ? 20 : 12, grow = cold ? 5 : 3, a0 = cold ? 0.68 : 0.55, col = cold ? '214,220,228' : '235,240,245'; for (let k = 0; k < K; k++) { const ph = (t * sp + k / K + c.x * 7) % 1; cx.fillStyle = `rgba(${col},${a0 * (1 - ph)})`; cx.beginPath(); cx.arc(p[0] + u * 1.0 + ph * 6 + (cold ? Math.sin(ph * 5 + c.y * 9) * 2 : 0), p[1] - u * 4.4 - ph * rise, 1.5 + ph * grow, 0, 7); cx.fill(); st.smokeN++; } }
   }
   st.badgesDrawn = nb;
 }
