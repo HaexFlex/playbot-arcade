@@ -40,21 +40,21 @@ button.on{background:#ffe680;box-shadow:0 2px 0 #e0b93a,0 0 0 3px #ffd23f,0 4px 
 @media (orientation:landscape) and (max-height:520px){
   #top{padding:6px calc(env(safe-area-inset-right) + 66px) 0 calc(env(safe-area-inset-left) + 74px)}.pill{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:70vw;padding:5px 11px}#title b{font-size:15px}
   #tools{left:calc(env(safe-area-inset-left) + 6px);top:50%;bottom:auto;transform:translateY(-50%);flex-direction:column;gap:4px;padding:5px}
-  #tools button{width:58px;height:calc((100vh - 70px) / 7);max-height:56px;min-height:38px}
+  #tools button{width:58px;height:calc((100vh - 70px) / 8);max-height:56px;min-height:38px}
   #tools button svg{width:28px;height:28px}
   #ctl{right:calc(env(safe-area-inset-right) + 6px);top:50%;transform:translateY(-50%);gap:4px;padding:5px}
   #ctl button{width:50px;height:calc((100vh - 76px) / 7);max-height:50px;min-height:36px}
   #ctl button svg{width:22px;height:22px}#ctl button span{font-size:10px}
   #hint{top:40px;font-size:14px}
 }
-@media (max-width:430px){#title b{font-size:16px}#seedName{font-size:12px}}
+@media (max-width:430px){#title b{font-size:16px}#seedName{font-size:12px}#tools button span{font-size:10.5px;letter-spacing:-.01em}}
 /* narrow portrait phones: the stats pill (trees, happy share, flowers) gets its own row under the title */
 @media (orientation:portrait) and (max-width:600px){#top{flex-wrap:wrap;row-gap:6px}#top .pill{max-width:calc(100vw - 20px)}#stats{margin-left:auto}#hint{top:calc(env(safe-area-inset-top) + 92px)}}
 </style></head><body>
 <canvas id="view" aria-label="Little Valley: draw on the valley to shape it"></canvas>
 <div id="top">
   <div class="pill" id="title"><b>Little Valley</b><span id="seedName"></span></div>
-  <div class="pill" id="stats" title="Trees (happy = moist ground, below the snow, not flooded) and flower patches">–</div>
+  <div class="pill" id="stats" title="Trees (happy = moist ground, below the snow, not flooded), flower patches and cottages (happy = water nearby and dry feet)">–</div>
 </div>
 <div id="hint" class="show">Draw on the valley with your finger!</div>
 <nav id="tools" aria-label="Tools"></nav>
@@ -138,7 +138,7 @@ function create(N, seed, opts) {
   const P = Object.assign({}, DEFAULTS, opts || {});
   const n = N * N, F = () => new Float32Array(n);
   const T = generateTerrain(N, seed);
-  const S = { N, seed: String(seed), P, h: T.h, d: F(), s: F(), fL: F(), fR: F(), fT: F(), fB: F(), u: F(), v: F(), tmp: F(), tmp2: F(), ero: F(), wet: F(), dep: F(), veg: F(), tree: F(), bloom: F(), moist: F(), fert: F(), flood: F(), h0: null, springs: [], steps: 0, time: 0 };
+  const S = { N, seed: String(seed), P, h: T.h, d: F(), s: F(), fL: F(), fR: F(), fT: F(), fB: F(), u: F(), v: F(), tmp: F(), tmp2: F(), ero: F(), wet: F(), dep: F(), veg: F(), tree: F(), bloom: F(), moist: F(), fert: F(), flood: F(), rush: F(), h0: null, springs: [], cottages: [], steps: 0, time: 0 };
   S.h0 = new Float32Array(S.h);
   initLife(S);
   return S;
@@ -174,7 +174,7 @@ function treeHappy(S, i) {
   const N = S.N, h = S.h, hn = h[i] / (N * 0.27);
   const x = i % N, y = (i / N) | 0; if (x < 1 || y < 1 || x > N - 2 || y > N - 2) return 0;
   const gx = 0.5 * (h[i + 1] - h[i - 1]), gy = 0.5 * (h[i + N] - h[i - N]), sl = Math.sqrt(gx * gx + gy * gy);
-  if (S.flood[i] > 1 || (S.d[i] > 0.6 && Math.hypot(S.u[i], S.v[i]) > 3.5)) return 0;
+  if (S.flood[i] > FLOOD_TREE || S.rush[i] > RUSH_SCOUR) return 0; // a lake that stays, a river that stays
   return S.moist[i] + 0.35 * S.fert[i] < 0.2 || hn >= 0.6 || sl > 1.5 || S.dep[i] > 1.5 ? 0 : 1;
 }
 // broadleaf share of a forest cell: leafy trees in the warm moist lowlands, pines above
@@ -182,11 +182,70 @@ function leafy(S, i) {
   const hn = S.h[i] / (S.N * 0.27) + 0.07 * S.fert[i] - 0.05 * S.moist[i];
   return 1 - smoothstep(0.12, 0.22, hn);
 }
+// Water memory, in seconds of simulated time (1x play runs about 7 sim seconds per real second).
+// flood: how long water has been STANDING here (deep and slow). Runoff that flows past does not count,
+// and it fades quickly once the ground is dry, so the puddles of a shower are harmless.
+// rush: how long a fast, deep river has been running here. Only a river that keeps running scours
+// its bed; the brief sheet runoff of a shower does not.
+const FLOOD_MEADOW = 30, FLOOD_TREE = 60, RUSH_SCOUR = 60, FLOOD_RUIN = 20;
+
+// ---------- the little village: cottages ----------
+// A cottage sits on one cell ({x, y} as fractions of the map, like springs, so it survives a resample).
+// Mood: 'flooded' while water STANDS on it (deep and slow; after FLOOD_RUIN sim seconds it becomes a ruin),
+// 'happy' on dry ground with open water nearby (a lake or stream within a short walk), otherwise 'sad'
+// (dry and far from water, or soggy with runoff). A ruin is rebuilt by placing a cottage on it again.
+const COTTAGE_MAX = 80;
+function cottageCell(S, c) { const N = S.N; return Math.max(1, Math.min(N - 2, Math.round(c.y * N))) * N + Math.max(1, Math.min(N - 2, Math.round(c.x * N))); }
+function waterNear(S, i) { // open-water cells within a short walk (radius scales with the grid, so it is the same distance on every size)
+  const N = S.N, d = S.d, R = Math.max(4, N * 0.045), R2 = R * R, x = i % N, y = (i / N) | 0; let n = 0;
+  for (let yy = Math.max(0, Math.floor(y - R)); yy <= Math.min(N - 1, Math.ceil(y + R)); yy++) for (let xx = Math.max(0, Math.floor(x - R)); xx <= Math.min(N - 1, Math.ceil(x + R)); xx++) {
+    const r2 = (xx - x) * (xx - x) + (yy - y) * (yy - y); if (r2 > R2 || r2 < 2.5) continue;
+    if (d[yy * N + xx] > 0.15) n++;
+  }
+  return n;
+}
+function cottageStanding(S, i) { return S.d[i] > 0.25 && Math.hypot(S.u[i], S.v[i]) < 1.5; }
+function cottageMood(S, c) {
+  if (c.ruin) return 'ruin';
+  const i = cottageCell(S, c);
+  if (cottageStanding(S, i)) return 'flooded';
+  return S.d[i] < 0.05 && waterNear(S, i) >= 3 ? 'happy' : 'sad';
+}
+function villageStep(S, tl) {
+  const tree = S.tree, N = S.N;
+  for (const c of S.cottages) {
+    if (c.ruin) continue;
+    const i = cottageCell(S, c);
+    c.flood = cottageStanding(S, i) ? (c.flood || 0) + tl : (c.flood || 0) * 0.85;
+    if (c.flood > FLOOD_RUIN) { c.ruin = true; c.flood = 0; c.mood = 'ruin'; continue; }
+    c.mood = cottageMood(S, c);
+    tree[i] = 0; tree[i - 1] *= 0.5; tree[i + 1] *= 0.5; tree[i - N] *= 0.5; tree[i + N] *= 0.5; // the garden stays open
+  }
+}
+function countVillage(S) { let cottages = 0, happy = 0, sad = 0, flooded = 0, ruins = 0; for (const c of S.cottages) { if (c.ruin) { ruins++; continue; } cottages++; const m = c.mood || cottageMood(S, c); if (m === 'happy') happy++; else if (m === 'flooded') flooded++; else sad++; } return { cottages, happy, sad, flooded, ruins }; }
+function placeCottage(S, gx, gy) {
+  const N = S.N, h = S.h, H = N * 0.27, x = Math.round(gx), y = Math.round(gy);
+  if (x < 2 || y < 2 || x > N - 3 || y > N - 3) return 'edge';
+  const i = y * N + x;
+  if (S.d[i] > 0.1) return 'water';
+  const sgx = 0.5 * (h[i + 1] - h[i - 1]), sgy = 0.5 * (h[i + N] - h[i - N]);
+  if (Math.sqrt(sgx * sgx + sgy * sgy) > 1.3) return 'steep';
+  if (h[i] / H > 0.62) return 'snow';
+  const near = (c, r) => Math.hypot(c.x * N - x, c.y * N - y) < r;
+  const ruin = S.cottages.find(c => c.ruin && near(c, 2.5));
+  if (ruin) { ruin.ruin = false; ruin.flood = 0; ruin.x = x / N; ruin.y = y / N; ruin.mood = cottageMood(S, ruin); return 'rebuilt'; }
+  if (S.cottages.some(c => near(c, Math.max(2.5, N * 0.018)))) return 'taken';
+  if (S.cottages.length >= COTTAGE_MAX) return 'full';
+  const c = { x: x / N, y: y / N, ruin: false, flood: 0 };
+  for (let yy = y - 1; yy <= y + 1; yy++) for (let xx = x - 1; xx <= x + 1; xx++) S.tree[yy * N + xx] *= (xx === x && yy === y) ? 0 : 0.3; // clear a little garden
+  c.mood = cottageMood(S, c); S.cottages.push(c); return 'built';
+}
 function smoothstep(a, b, x) { const t = Math.max(0, Math.min(1, (x - a) / (b - a))); return t * t * (3 - 2 * t); }
 function groundWater(hn) { return 0.32 * (1 - smoothstep(0.12, 0.6, hn)); }
 
 function lifeStep(S) {
-  const { N, h, d, u, v, veg, tree, moist, dep, fert, flood, bloom } = S, H = N * 0.27, m2 = S.tmp;
+  const { N, h, d, u, v, veg, tree, moist, dep, fert, flood, rush, bloom } = S, H = N * 0.27, m2 = S.tmp;
+  const ev = Math.max(1, Math.round(S.P.lifeEvery / (S.P.boost > 1 ? Math.min(S.P.boost, 3) : 1))), tl = ev * S.P.dt; // sim seconds since the last life step
   const rainK = S.P.rain > 0 ? Math.min(0.5, S.P.rain * 20) : 0, k0 = S.steps;
   // moisture: open water = 1, spreads a few cells onto the banks, otherwise relaxes to groundwater
   for (let y = 1; y < N - 1; y++) for (let x = 1; x < N - 1; x++) {
@@ -203,11 +262,14 @@ function lifeStep(S) {
     const di = d[i], hn = h[i] / H;
     const gx = 0.5 * (h[i + 1] - h[i - 1]), gy = 0.5 * (h[i + N] - h[i - N]), sl = Math.sqrt(gx * gx + gy * gy);
     const sp = Math.sqrt(u[i] * u[i] + v[i] * v[i]);
-    // flood memory: plants survive a shower, but not a lake that stays (about 15 s of play)
-    let fl = flood[i]; fl = di > 0.3 ? fl + 0.01 : fl * 0.97; flood[i] = fl;
+    // water memory (see FLOOD_TREE): standing water counts up, flowing water holds, dry ground forgets fast
+    let fl = flood[i];
+    if (di > 0.3) { if (sp < 1.5) fl += tl; } else fl = di > 0.1 ? fl * 0.98 : fl * 0.85;
+    flood[i] = fl;
+    let ru = rush[i]; ru = di > 0.6 && sp > 3.5 ? ru + tl : ru * (di > 0.1 ? 0.98 : 0.9); rush[i] = ru;
     let g = veg[i], t = tree[i], fb = bloom[i];
-    if (sp > 3.5 && di > 0.6) { g -= 0.05; t -= 0.015; fb -= 0.08; }     // a real river scours its bed
-    else if (fl > 0.5) { g -= 0.02; fb -= 0.04; if (fl > 1) t -= 0.006; } // drowning in standing water
+    if (ru > RUSH_SCOUR && sp > 3.5 && di > 0.6) { g -= 0.05; t -= 0.015; fb -= 0.08; } // a lasting river scours its bed
+    else if (fl > FLOOD_MEADOW) { g -= 0.02; fb -= 0.04; if (fl > FLOOD_TREE) t -= 0.006; } // drowning in a lake that stays
     else if (di > 0.1) { /* wet for now: no growth, no harm */ }
     else {
       const m = moist[i], alpine = 1 - smoothstep(0.55, 0.75, hn), rock = 1 - smoothstep(1.1, 1.8, sl);
@@ -228,6 +290,7 @@ function lifeStep(S) {
     }
     veg[i] = g < 0 ? 0 : g > 1 ? 1 : g; tree[i] = t < 0 ? 0 : t > 1 ? 1 : t; bloom[i] = fb < 0 ? 0 : fb > 1 ? 1 : fb;
   }
+  if (S.cottages.length) villageStep(S, tl);
 }
 function countTrees(S) { let n = 0; const t = S.tree; for (let i = 0; i < t.length; i++) if (t[i] > 0.35) n++; return n; }
 function countLife(S) { // trees (pines / leafy) and flower cells, for the stats pill and tests
@@ -265,7 +328,7 @@ function addKernel(S, arr, gx, gy, rad, amount) {
   }
 }
 
-// tool: 'raise' | 'lower' | 'smooth' | 'rain' | 'spring' | 'drain' | 'plant'
+// tool: 'raise' | 'lower' | 'smooth' | 'rain' | 'spring' | 'drain' | 'plant' | 'cottage'
 // gx, gy in cell coordinates; rad in cells; dtReal seconds of holding
 function applyTool(S, tool, gx, gy, rad, dtReal, strength) {
   const N = S.N, h = S.h, d = S.d, s = S.s; strength = strength == null ? 1 : strength;
@@ -316,6 +379,8 @@ function applyTool(S, tool, gx, gy, rad, dtReal, strength) {
       S.veg[i] += (1 - S.veg[i]) * a * 0.5; n++;
     }
     return n;
+  } else if (tool === 'cottage') {
+    return placeCottage(S, gx, gy); // 'built' | 'rebuilt' | 'taken' | 'water' | 'steep' | 'snow' | 'edge' | 'full'
   } else if (tool === 'spring') {
     // toggle: remove a nearby spring or add one
     const near = S.springs.findIndex(sp => Math.hypot(sp.x * N - gx, sp.y * N - gy) < Math.max(4, N * 0.03));
@@ -479,15 +544,15 @@ function resample(S, N2) {
     const i = y * N2 + x, px = x * sc, py = y * sc;
     T.h[i] = lerp(S.h, px, py) * hs; T.d[i] = lerp(S.d, px, py) * hs; T.s[i] = lerp(S.s, px, py) * hs;
     T.wet[i] = lerp(S.wet, px, py); T.dep[i] = lerp(S.dep, px, py) * hs; T.h0[i] = lerp(S.h0, px, py) * hs;
-    T.veg[i] = lerp(S.veg, px, py); T.tree[i] = lerp(S.tree, px, py); T.moist[i] = lerp(S.moist, px, py); T.fert[i] = lerp(S.fert, px, py); T.flood[i] = lerp(S.flood, px, py); T.bloom[i] = lerp(S.bloom, px, py);
+    T.veg[i] = lerp(S.veg, px, py); T.tree[i] = lerp(S.tree, px, py); T.moist[i] = lerp(S.moist, px, py); T.fert[i] = lerp(S.fert, px, py); T.flood[i] = lerp(S.flood, px, py); T.rush[i] = lerp(S.rush, px, py); T.bloom[i] = lerp(S.bloom, px, py);
   }
-  T.springs = S.springs.map(sp => Object.assign({}, sp)); T.steps = S.steps; T.time = S.time;
+  T.springs = S.springs.map(sp => Object.assign({}, sp)); T.cottages = S.cottages.map(c => Object.assign({}, c)); T.steps = S.steps; T.time = S.time;
   return T;
 }
 
-function hasNaN(S) { for (const k of ['h', 'd', 's', 'u', 'v', 'fL', 'fR', 'fT', 'fB', 'veg', 'tree', 'moist', 'flood', 'bloom']) { const a = S[k]; for (let i = 0; i < a.length; i++) if (!Number.isFinite(a[i])) return k; } return false; }
+function hasNaN(S) { for (const k of ['h', 'd', 's', 'u', 'v', 'fL', 'fR', 'fT', 'fB', 'veg', 'tree', 'moist', 'flood', 'rush', 'bloom']) { const a = S[k]; for (let i = 0; i < a.length; i++) if (!Number.isFinite(a[i])) return k; } return false; }
 
-const API = { mulberry32, hashStr, makeNoise, randomSeedName, generateTerrain, create, seedLife, step, applyTool, totalWater, totalTerrain, resample, lifeStep, countTrees, countLife, leafy, treeHappy, hasNaN, DEFAULTS };
+const API = { mulberry32, hashStr, makeNoise, randomSeedName, generateTerrain, create, seedLife, step, applyTool, totalWater, totalTerrain, resample, lifeStep, countTrees, countLife, leafy, treeHappy, cottageMood, cottageCell, countVillage, waterNear, FLOOD_RUIN, hasNaN, DEFAULTS };
 if (typeof module !== 'undefined' && module.exports) module.exports = API; else root.LV = API;
 })(typeof window !== 'undefined' ? window : globalThis);
 </script>
@@ -507,6 +572,7 @@ const IC = {
   spring: '<path d="M6 30c3-4 19-4 22 0z" fill="#8a6a48"/><path d="M17 28c-6 0-8-5-8-9 0-6 8-15 8-15s8 9 8 15c0 4-2 9-8 9z" fill="#4fb6ee" stroke="#2a83c4" stroke-width="1.6"/><path d="M13 18c0 3 1 5 3 6" stroke="#fff" stroke-width="2" fill="none" stroke-linecap="round"/><path d="M28 6v5M25.5 8.5h5" stroke="#ffc533" stroke-width="2" stroke-linecap="round"/>',
   drain: '<rect x="5" y="9" width="24" height="17" rx="5" fill="#ffd84a" stroke="#d6a91f" stroke-width="1.8"/><circle cx="12" cy="15" r="2" fill="#e3b52c"/><circle cx="20" cy="19" r="2.4" fill="#e3b52c"/><circle cx="24" cy="13" r="1.6" fill="#e3b52c"/><circle cx="11" cy="21.5" r="1.4" fill="#e3b52c"/><path d="M9 30l1-2M17 31l1-3M25 30l1-2" stroke="#3a9be0" stroke-width="2" stroke-linecap="round"/>',
   plant: '<path d="M5 30c4-3 20-3 24 0z" fill="#8a6a48"/><path d="M17 29V17" stroke="#7a5233" stroke-width="2.6" stroke-linecap="round"/><circle cx="17" cy="12" r="8" fill="#6cc04a" stroke="#3f8f34" stroke-width="1.6"/><circle cx="14" cy="10" r="2.6" fill="#a6e07a"/><path d="M28 4v5M25.5 6.5h5" stroke="#ffc533" stroke-width="2" stroke-linecap="round"/><path d="M6 20c0-4 3-6 6-6 0 4-3 6-6 6z" fill="#5fb548"/>',
+  cottage: '<path d="M4 30c4-2 22-2 26 0z" fill="#6cc04a"/><rect x="8" y="16" width="18" height="13" fill="#f4e6c4" stroke="#b39463" stroke-width="1.4"/><path d="M5 17.5 17 7l12 10.5z" fill="#c8513a" stroke="#8e3424" stroke-width="1.4" stroke-linejoin="round"/><rect x="22" y="7" width="3.4" height="6" fill="#8e3424"/><rect x="11" y="19" width="5" height="4.6" fill="#ffd45a" stroke="#b39463" stroke-width="1"/><rect x="19" y="21" width="4.4" height="8" fill="#7a5233"/><path d="M26 3c2 0 2 2 4 2" stroke="#c9d6e2" stroke-width="1.8" fill="none" stroke-linecap="round"/>',
   play: '<path d="M9 5l18 11L9 27z" fill="#3fae5a"/>', pause: '<rect x="7" y="5" width="6" height="22" rx="2" fill="#e8792b"/><rect x="19" y="5" width="6" height="22" rx="2" fill="#e8792b"/>',
   speed: '<path d="M4 7l11 9-11 9zM16 7l11 9-11 9z" fill="#3a9be0"/>',
   lapse: '<path d="M8 4h18M8 30h18" stroke="#8a5a30" stroke-width="3" stroke-linecap="round"/><path d="M10 5c0 7 7 8 7 12s-7 5-7 12h14c0-7-7-8-7-12s7-5 7-12z" fill="#e9f6ff" stroke="#3a9be0" stroke-width="1.8" stroke-linejoin="round"/><path d="M13 27c1-3 3-4 4-4s3 1 4 4z" fill="#e3b52c"/><path d="M14 9h6l-3 4z" fill="#e3b52c"/>',
@@ -526,7 +592,8 @@ const TOOLS = [
   ['rain', 'Rain', 'Hold to make it rain right there'],
   ['spring', 'Spring', 'Tap to place a spring (tap it again to remove)'],
   ['drain', 'Sponge', 'Wipe to soak up water and springs'],
-  ['plant', 'Plant', 'Hold to plant trees: they love moist ground below the snow']
+  ['plant', 'Plant', 'Hold to plant trees: they love moist ground below the snow'],
+  ['cottage', 'Cottage', 'Tap on land to build a cottage: it loves water nearby and dry feet']
 ];
 const SIZES = [['S', 0.03], ['M', 0.055], ['L', 0.095]];
 // [label, sim steps per frame, erosion/growth boost]; 8x is the time-lapse: as many steps as 4x
@@ -557,6 +624,13 @@ const bView = mk('c-view', 'top', 'Map', () => { st.view = st.view === 'tilt' ? 
 const bShower = mk('c-shower', 'shower', 'Shower', () => { st.shower = 14; updUI(); hint('A big rain shower over the whole valley!'); });
 mk('c-new', 'dice', 'New', () => newWorld(LV.randomSeedName()));
 mk('c-reset', 'reset', 'Reset', () => newWorld(st.S.seed));
+const COTTAGE_MSG = { built: 'A new cottage! It wants water nearby and dry feet', rebuilt: 'The ruin is a cottage again!', taken: 'There is already a cottage here', water: 'Too wet to build here: wait for the water to go', steep: 'Too steep for a cottage', snow: 'Too cold up here for a cottage', edge: 'Too close to the edge of the valley', full: 'The valley is full of cottages' };
+function buildCottage(g) {
+  const res = LV.applyTool(st.S, 'cottage', g[0], g[1], 0, 0); st.lastCottage = res;
+  let m = COTTAGE_MSG[res] || res;
+  if (res === 'built' || res === 'rebuilt') { const c = st.S.cottages.find(c => Math.hypot(c.x * st.S.N - g[0], c.y * st.S.N - g[1]) < 2); if (c && c.mood === 'sad' && res === 'built') m = 'A new cottage, but it is thirsty: bring water close'; else if (c && c.mood === 'happy') m = res === 'rebuilt' ? 'Rebuilt, and happy by the water!' : 'A happy cottage by the water!'; }
+  hint(m); statT = 0;
+}
 function setTool(id) { st.tool = id; updUI(); hint(TOOLS.find(t => t[0] === id)[2]); }
 function updUI() {
   for (const [id] of TOOLS) $('t-' + id).classList.toggle('on', st.tool === id);
@@ -806,6 +880,7 @@ function renderTilt(t) {
     }
   }
   if (st.trees !== false) { const t0 = performance.now(); rasterTrees(T, data); st.treeMs = (st.treeMs || 0) * 0.9 + (performance.now() - t0) * 0.1; }
+  rasterCottages(T, data);
   T.ctx.putImageData(T.img, 0, 0);
   // place on screen
   const s = T.wCss / ow;
@@ -888,6 +963,95 @@ function rasterTrees(T, data) {
     n++;
   }
   st.treesDrawn = n; st.leafyDrawn = nl;
+}
+// little cottages, rasterised into the tilt buffer back to front (after the trees, so they stand
+// in their cleared gardens): cream walls, a sun-lit gable roof, a door and a window that glows when
+// the cottage is happy. Flooded cottages get blue water up the walls, ruins are low broken walls.
+function rasterCottages(T, data) {
+  const S = st.S, N = S.N, ow = T.ow, oh = T.oh, pick = T.pick, cp = T.cp; let n = 0;
+  const list = S.cottages.map(c => [c, LV.cottageCell(S, c)]).sort((a, b) => a[1] - b[1]);
+  const put = (px, py, r, g, b) => { if (px < 0 || py < 0 || px >= ow || py >= oh) return; const q = (py * ow + px) * 4; data[q] = r; data[q + 1] = g; data[q + 2] = b; data[q + 3] = 255; };
+  for (const [c, i] of list) {
+    const x = i % N, y = (i / N) | 0, sc = persp(y, N), hz = 0.22 * (1 - y / N) * (1 - y / N);
+    const ox = (x + 0.5 - N / 2) * cp * sc + ow / 2, oy = baseY(T, y, N) - S.h[i] * cp * T.hEx * sc;
+    const bx = Math.round(ox), by = Math.round(oy); if (bx < 3 || by < 3 || bx >= ow - 3 || by >= oh) continue;
+    const pc = pick[Math.min(oh - 1, by + 1) * ow + bx], pc2 = pick[Math.max(0, by - 2) * ow + bx];
+    const vis = q => q >= 0 && Math.abs(q % N - x) <= 3 && Math.abs(((q / N) | 0) - y) <= 4;
+    if (!vis(pc) && !vis(pc2)) continue;
+    const u = Math.max(3.2, cp * sc * 1.7), hw = Math.round(u * 1.15), wh = Math.round(u * 1.25), rh = Math.round(u * 1.15);
+    const mood = c.mood || LV.cottageMood(S, c), H = (r, g, b) => [r + (215 - r) * hz, g + (232 - g) * hz, b + (245 - b) * hz];
+    if (mood === 'ruin') {
+      const [sr, sg, sb] = H(150, 138, 124), [dr, dg, db] = H(104, 94, 86);
+      for (let py = by - Math.round(wh * 0.55); py <= by; py++) for (let px = bx - hw; px <= bx + hw; px++) {
+        const broken = (px - bx + hw) % 3 === 1 && py < by - wh * 0.25; if (broken) continue;
+        if (px > bx - hw + 1 && px < bx + hw - 1 && py > by - wh * 0.35 && py < by) put(px, py, 82, 72, 60); else put(px, py, px < bx ? sr : dr, px < bx ? sg : dg, px < bx ? sb : db);
+      }
+      n++; continue;
+    }
+    const sad = mood === 'sad', fl = mood === 'flooded';
+    const [wr, wg, wb] = H(sad ? 222 : 246, sad ? 206 : 232, sad ? 180 : 200), [ws, wgs, wbs] = H(sad ? 180 : 206, sad ? 166 : 188, sad ? 146 : 156);
+    const [rr, rg, rb] = H(sad ? 150 : 200, sad ? 104 : 78, sad ? 88 : 56), [rs, rgs, rbs] = H(sad ? 112 : 150, sad ? 78 : 52, sad ? 66 : 38);
+    // walls (west half in the sun)
+    for (let py = by - wh; py <= by; py++) for (let px = bx - hw; px <= bx + hw; px++) put(px, py, px <= bx ? wr : ws, px <= bx ? wg : wgs, px <= bx ? wb : wbs);
+    // door and window
+    const dw = Math.max(1, Math.round(u * 0.3)), dh = Math.max(2, Math.round(wh * 0.6));
+    for (let py = by - dh; py <= by; py++) for (let px = bx + 1; px <= bx + dw; px++) put(px, py, 110, 76, 48);
+    const wsz = Math.max(1, Math.round(u * 0.32)), wy = by - Math.round(wh * 0.7), wx = bx - Math.round(hw * 0.6);
+    const lit = mood === 'happy' ? [255, 214, 90] : [92, 104, 120];
+    for (let py = wy; py < wy + wsz; py++) for (let px = wx; px < wx + wsz; px++) put(px, py, lit[0], lit[1], lit[2]);
+    // gable roof with a little overhang, chimney on the east side
+    const top = by - wh - rh;
+    for (let py = top; py <= by - wh; py++) { const f = (py - top) / Math.max(1, rh), w = Math.round((hw + 1.5) * f); for (let px = bx - w; px <= bx + w; px++) put(px, py, px <= bx ? rr : rs, px <= bx ? rg : rgs, px <= bx ? rb : rbs); }
+    const chx = bx + Math.round(hw * 0.5), cw = Math.max(1, Math.round(u * 0.25));
+    for (let py = top + Math.round(rh * 0.2); py <= top + Math.round(rh * 0.6); py++) for (let px = chx; px < chx + cw; px++) put(px, py, rs * 0.8, rgs * 0.8, rbs * 0.8);
+    if (fl) { const lv = Math.round(wh * 0.45); for (let py = by - lv; py <= by + 1; py++) for (let px = bx - hw - 1; px <= bx + hw + 1; px++) { const q = (py * ow + px) * 4; if (px < 0 || py < 0 || px >= ow || py >= oh) continue; data[q] = data[q] * 0.4 + 40; data[q + 1] = data[q + 1] * 0.4 + 120; data[q + 2] = data[q + 2] * 0.4 + 170; } }
+    n++;
+  }
+  st.cottagesDrawn = n;
+}
+// mood badges above the cottages (screen space, both views): a heart when happy, a thirsty drop
+// when dry and far from water, blue waves when flooded; a puff of smoke from happy chimneys
+function drawCottageBadges(t) {
+  const S = st.S, N = S.N; if (!S.cottages.length) return;
+  const scl = st.view === 'tilt' && tilt ? tilt.s * tilt.cp : st.topRect ? st.topRect.sz / N : 3;
+  let nb = 0;
+  for (const c of S.cottages) {
+    const gx = c.x * N, gy = c.y * N, p = st.view === 'tilt' ? projGround(gx, gy) : proj(gx, gy); if (!p) continue;
+    const mood = c.mood || LV.cottageMood(S, c); if (mood === 'ruin') continue;
+    const u = Math.max(2.4, scl * (st.view === "tilt" ? persp(gy, N) : 1)), lift = st.view === "tilt" ? u * 5.6 + 8 : Math.max(11, scl * 4) * 0.7 + 8;
+    const x = p[0], y = p[1] - lift + Math.sin(t * 2 + c.x * 40) * 1.2;
+    cx.save(); cx.translate(x, y);
+    cx.fillStyle = 'rgba(255,255,255,.9)'; cx.beginPath(); cx.arc(0, 0, 6.5, 0, 7); cx.fill();
+    if (mood === 'happy') { cx.fillStyle = '#e8485a'; cx.beginPath(); cx.moveTo(0, 3.6); cx.bezierCurveTo(-6, -1, -3, -6, 0, -2.6); cx.bezierCurveTo(3, -6, 6, -1, 0, 3.6); cx.fill(); }
+    else if (mood === 'flooded') { cx.strokeStyle = '#2a83c4'; cx.lineWidth = 1.6; for (const dy of [-1.8, 1.8]) { cx.beginPath(); cx.moveTo(-4.5, dy); cx.quadraticCurveTo(-2.2, dy - 2, 0, dy); cx.quadraticCurveTo(2.2, dy + 2, 4.5, dy); cx.stroke(); } }
+    else { cx.strokeStyle = '#b08040'; cx.lineWidth = 1.5; cx.beginPath(); cx.moveTo(0, -4.5); cx.bezierCurveTo(3.5, -0.5, 3.5, 3.5, 0, 3.5); cx.bezierCurveTo(-3.5, 3.5, -3.5, -0.5, 0, -4.5); cx.stroke(); cx.beginPath(); cx.moveTo(-3.5, 4); cx.lineTo(3.5, -3.5); cx.stroke(); }
+    cx.restore(); nb++;
+    if (mood === 'happy' && st.view === 'tilt') { for (let k = 0; k < 2; k++) { const ph = (t * 0.5 + k * 0.5 + c.x * 7) % 1; cx.fillStyle = `rgba(235,240,245,${0.55 * (1 - ph)})`; cx.beginPath(); cx.arc(p[0] + u * 1.0 + ph * 6, p[1] - u * 4.4 - ph * 12, 1.5 + ph * 3, 0, 7); cx.fill(); } }
+  }
+  st.badgesDrawn = nb;
+}
+// map view: tiny house icons (roof colour by mood, grey for ruins)
+function drawCottagesTop() {
+  const S = st.S, N = S.N, R = st.topRect; if (!R || !S.cottages.length) return;
+  const s = Math.max(11, R.sz / N * 4); let n = 0;
+  cx.save();
+  for (const c of S.cottages) {
+    const p = proj(c.x * N, c.y * N); if (!p) continue; const mood = c.mood || LV.cottageMood(S, c), x = p[0], y = p[1];
+    cx.fillStyle = 'rgba(40,50,40,.25)'; cx.fillRect(x - s * 0.45 + 1.5, y - s * 0.2 + 1.5, s * 0.9, s * 0.7);
+    if (mood === 'ruin') { cx.fillStyle = '#9a8c7e'; cx.fillRect(x - s * 0.45, y - s * 0.2, s * 0.9, s * 0.7); cx.fillStyle = '#5e544a'; cx.fillRect(x - s * 0.25, y, s * 0.5, s * 0.35); n++; continue; }
+    cx.fillStyle = mood === 'sad' ? '#e2d2b4' : '#f6e8c8'; cx.fillRect(x - s * 0.45, y - s * 0.2, s * 0.9, s * 0.7);
+    cx.fillStyle = mood === 'happy' ? '#c8513a' : mood === 'flooded' ? '#4f86b8' : '#9a7464';
+    cx.beginPath(); cx.moveTo(x - s * 0.6, y - s * 0.15); cx.lineTo(x, y - s * 0.7); cx.lineTo(x + s * 0.6, y - s * 0.15); cx.closePath(); cx.fill();
+    n++;
+  }
+  cx.restore(); st.cottagesTop = n;
+}
+// grid -> screen on the ground (not the water surface), tilt view
+function projGround(gx, gy) {
+  const S = st.S, N = S.N, T = tilt; if (!T || T.s == null) return null;
+  const xi = Math.max(0, Math.min(N - 1, Math.round(gx))), yi = Math.max(0, Math.min(N - 1, Math.round(gy))), sc = persp(yi, N);
+  const ox = (xi + 0.5 - N / 2) * T.cp * sc + T.ow / 2, oy = baseY(T, yi, N) - S.h[yi * N + xi] * T.cp * T.hEx * sc;
+  return [T.sx + ox * T.s, T.sy + oy * T.s];
 }
 // grid -> screen (css px) in tilt view
 function projTilt(gx, gy) {
@@ -995,7 +1159,7 @@ function drawOverlays(t) {
   const g = P.g || unproj(P.x, P.y); if (!g) return;
   const rad = SIZES[st.size][1] * N;
   if (st.tool === 'rain' && P.down) { drawRainCloud(g, rad, t); return; }
-  if (st.tool === 'spring') return;
+  if (st.tool === 'spring' || st.tool === 'cottage') return;
   const col = { raise: '#ff9f43', lower: '#8a5a30', smooth: '#ffffff', drain: '#ffd84a', rain: '#3a9be0', plant: '#3fae5a' }[st.tool];
   cx.save(); cx.strokeStyle = col; cx.lineWidth = P.down ? 3 : 2; cx.setLineDash(P.down ? [] : [6, 5]); cx.globalAlpha = 0.9;
   cx.beginPath();
@@ -1028,6 +1192,7 @@ cv.addEventListener('pointerdown', e => {
   st.ptr = { id: e.pointerId, x: e.clientX, y: e.clientY, down: true, type: e.pointerType };
   const g = unproj(e.clientX, e.clientY); st.ptr.g = g;
   if (g && st.tool === 'spring') { const res = LV.applyTool(st.S, 'spring', g[0], g[1], 0, 0); hint(res === 'added' ? 'A new spring bubbles up!' : 'Spring removed'); }
+  if (g && st.tool === 'cottage') buildCottage(g);
   e.preventDefault();
 });
 cv.addEventListener('pointermove', e => {
@@ -1040,7 +1205,7 @@ cv.addEventListener('pointerup', up); cv.addEventListener('pointercancel', up);
 cv.addEventListener('pointerleave', e => { if (st.ptr && !st.ptr.down) st.ptr = null; });
 document.addEventListener('gesturestart', e => e.preventDefault());
 document.addEventListener('keydown', e => {
-  const k = e.key.toLowerCase(); const map = { '1': 'raise', '2': 'lower', '3': 'smooth', '4': 'rain', '5': 'spring', '6': 'drain', '7': 'plant' };
+  const k = e.key.toLowerCase(); const map = { '1': 'raise', '2': 'lower', '3': 'smooth', '4': 'rain', '5': 'spring', '6': 'drain', '7': 'plant', '8': 'cottage' };
   if (map[k]) setTool(map[k]); else if (k === ' ') { e.preventDefault(); bPlay.click(); } else if (k === 'v') bView.click(); else if (k === 'n') $('c-new').click(); else if (k === 'r') $('c-reset').click(); else if (k === 's') bShower.click(); else if (k === 'b') bSize.click(); else if (k === 'f') bSpeed.click();
 });
 
@@ -1052,7 +1217,7 @@ function frame(now) {
   const S = st.S;
   // tools
   const P = st.ptr;
-  if (P && P.down && st.tool !== 'spring') {
+  if (P && P.down && st.tool !== 'spring' && st.tool !== 'cottage') {
     const g = unproj(P.x, P.y); P.g = g;
     if (g) LV.applyTool(S, st.tool, g[0], g[1], SIZES[st.size][1] * S.N, dtReal);
   }
@@ -1071,14 +1236,20 @@ function frame(now) {
   computeColours(st.time);
   cx.setTransform(dpr, 0, 0, dpr, 0, 0);
   if (st.view === 'tilt') { tiltGeom(); drawSky(st.time, dtReal); renderTilt(st.time); }
-  else { drawSky(st.time, dtReal); renderTop(st.time); }
+  else { drawSky(st.time, dtReal); renderTop(st.time); drawCottagesTop(); }
+  drawCottageBadges(st.time);
   drawOverlays(st.time); drawShower(st.time);
   const work = performance.now() - t0;
   st.work = st.work * 0.9 + work * 0.1;
   fpsAcc += dtReal; fpsN++; st.frames++;
   if (fpsAcc > 0.5) { st.fps = fpsN / fpsAcc; fpsAcc = 0; fpsN = 0; }
   adapt(dtReal);
-  statT -= dtReal; if (statT <= 0) { statT = 0.5; const L = LV.countLife(S), nt = L.trees, k = v => v >= 1000 ? (v / 1000).toFixed(1) + 'k' : v, tt = k(nt), ff = k(L.flowers); st.life = L; const hp = nt ? Math.round(L.happy / nt * 100) : 100; $('stats').textContent = (vw < 600 ? `${tt} trees · ${hp}% happy · ${ff} 🌼` : `${S.N}² · ${Math.round(st.fps)} fps · ${tt} trees (${hp}% happy) · ${ff} flowers`) + (st.paused ? ' · paused' : ''); }
+  statT -= dtReal; if (statT <= 0) { statT = 0.5; const L = LV.countLife(S), V = LV.countVillage(S), nt = L.trees, k = v => v >= 1000 ? (v / 1000).toFixed(1) + 'k' : v, tt = k(nt), ff = k(L.flowers); st.life = L; st.village = V; const hp = nt ? Math.round(L.happy / nt * 100) : 100;
+    // cottages: count and happy count (ruins only when there are some)
+    const ru = V.ruins ? ` · ${V.ruins} ruin${V.ruins > 1 ? 's' : ''}` : '';
+    $('stats').textContent = (vw < 600 ? `${tt} trees · ${hp}% happy · ${ff} 🌼 · 🏠 ${V.cottages} (${V.happy} 😊)${V.ruins ? ' · ' + V.ruins + ' ruin' : ''}`
+      : vw < 1000 ? `${tt} trees (${hp}% happy) · ${ff} flowers · 🏠 ${V.cottages} (${V.happy} happy)${ru}`
+      : `${S.N}² · ${Math.round(st.fps)} fps · ${tt} trees (${hp}% happy) · ${ff} flowers · ${V.cottages} cottage${V.cottages === 1 ? '' : 's'} (${V.happy} happy)${ru}`) + (st.paused ? ' · paused' : ''); }
   requestAnimationFrame(frame);
 }
 // auto quality: lower render scale first, then the grid (not in time-lapse, which fills spare time on purpose)

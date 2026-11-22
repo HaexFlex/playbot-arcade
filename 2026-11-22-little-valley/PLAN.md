@@ -41,10 +41,12 @@ every feature must be visible on screen (no hidden numbers); stays at 30+ fps at
 - [x] A Plant tool (sow a forest) and a gentle counter of "happy trees": Plant (key 7, mouse and touch) sows saplings under the brush (not into water, a few gaps so it looks sown); the valley decides if they thrive (moist lowland yes, dry alp or a lake no). `LV.treeHappy` uses the same rules that make `lifeStep` wither a tree, unhappy crowns turn yellow-brown, and the stats pill shows "… trees (…% happy)" (on narrow phones the pill gets its own row under the title so nothing is cut off) (`screenshot-plant.png`)
 
 ### v3: the little village
-- [ ] Place cottages (new tool); a cottage is happy with water nearby, sad when flooded or dry
+- [x] Shower fix (part 1, 2026-11-22): a 14 s Shower on a fresh world no longer wipes out the forest (before: 3929 → 745 trees on "Sunny Larch 37" at 160²; now 4356 → 4488). Water memory in sim seconds: `flood` counts only **standing** water (deep and slow), holds while water flows past and fades fast on dry ground (meadows drown after 30 s, trees after 60 s of standing water); new `rush` field counts a fast deep river, which scours only after 60 s. A lasting lake still drowns (tests). Side effect: the fresh world itself no longer loses ~10% of its trees to the start-up wetting
+- [x] Place cottages (part 1, 2026-11-22): Cottage tool (key 8, tap on land; not into water, on steep rock, up in the snow or at the edge; no stacking). Mood: happy with open water within a short walk and dry ground, sad when dry and far from water (or soggy with runoff), flooded while water stands on it. Drawn as tiny houses in 3D (cream walls, sun-lit gable roof, chimney, window that glows when happy, blue water up the walls when flooded) with mood badges (heart / thirsty drop / waves) and chimney smoke, and as house icons on the map. Stats pill: cottage count and happy count, plus ruins (fits on phones: "🏠 3 (2 😊)")
+- [x] Floods knock out cottages: a cottage under standing water for 20 sim seconds becomes a ruin (low broken walls); placing a cottage on the ruin rebuilds it (`screenshot-village.png`)
 - [ ] Fields and paths appear around happy cottages; the village grows by itself
-- [ ] Floods knock out cottages (they come back as ruins you can rebuild)
 - [ ] Mill wheels on fast rivers
+- [ ] Wells: a cottage far from water is happy with a well (tool or automatic)
 
 ### v4: time and weather
 - [ ] Day/night cycle (lighting, stars, glowing windows)
@@ -57,12 +59,14 @@ every feature must be visible on screen (no hidden numbers); stays at 30+ fps at
 - [ ] Save/share a valley (compressed state in localStorage, seed + edits string)
 
 ## Next steps
-1. v3: the little village: a Cottage tool; a cottage is happy with water nearby, sad when flooded or dry (reuse the happy-tree idea and the flood memory).
-2. A short GIF for the arcade card (time-lapse of a river carving, about 1 MB or less).
-3. Tuning note: a full 14 s Shower on a fresh world still drowns or scours a good part of the forest (runoff sheets count as a river, puddles that stay drown); look at this together with the village floods.
+1. v3 part 2: fields and paths around happy cottages, and the village grows by itself (new cottages appear next to happy ones).
+2. v3 part 3: mill wheels on fast rivers, wells for dry cottages.
+3. A short GIF for the arcade card (time-lapse of a river carving, about 1 MB or less).
+4. Note: the Shower itself is a deluge (about 5 height units of rain at 1x; most of the valley gets runoff 0.3–4 deep). The life rules now tolerate it; a gentler Shower could come with weather in v4.
 
 ## Checklist (every step)
 - [ ] `node tools/build.js` then `node tools/test.js` (all pass)
 - [ ] `node tools/browser-test.js` (all checks, 0 console errors) and save its output to `tools/browser_test_output.txt`
 - [ ] Look at a fresh screenshot (`node tools/shot.js`)
+- [ ] Compress screenshots (`python3 tools/compress-shots.py`), keep the PNGs under ~1.3 MB (drop ones the hub/README don't use)
 - [ ] Update this PLAN, README and `/home/box/playbot/log.md`; publish with `/home/box/playbot/tools/publish.sh`
