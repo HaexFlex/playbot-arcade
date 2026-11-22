@@ -40,7 +40,7 @@ button.on{background:#ffe680;box-shadow:0 2px 0 #e0b93a,0 0 0 3px #ffd23f,0 4px 
 @media (orientation:landscape) and (max-height:520px){
   #top{padding:6px calc(env(safe-area-inset-right) + 66px) 0 calc(env(safe-area-inset-left) + 74px)}.pill{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:70vw;padding:5px 11px}#title b{font-size:15px}
   #tools{left:calc(env(safe-area-inset-left) + 6px);top:50%;bottom:auto;transform:translateY(-50%);flex-direction:column;gap:4px;padding:5px}
-  #tools button{width:58px;height:calc((100vh - 70px) / 8);max-height:56px;min-height:38px}
+  #tools button{width:58px;height:calc((100vh - 74px) / 9);max-height:56px;min-height:34px}
   #tools button svg{width:28px;height:28px}
   #ctl{right:calc(env(safe-area-inset-right) + 6px);top:50%;transform:translateY(-50%);gap:4px;padding:5px}
   #ctl button{width:50px;height:calc((100vh - 76px) / 7);max-height:50px;min-height:36px}
@@ -210,14 +210,57 @@ function cottageMood(S, c) {
   if (c.ruin) return 'ruin';
   const i = cottageCell(S, c);
   if (cottageStanding(S, i)) return 'flooded';
-  return S.d[i] < 0.05 && waterNear(S, i) >= 3 ? 'happy' : 'sad';
+  if (S.d[i] >= 0.05) return 'sad'; // soggy with runoff
+  if (waterNear(S, i) >= 3) return 'happy';
+  return c.well && wellYield(S, i) >= WELL_MIN ? 'happy' : 'sad'; // a well that still finds groundwater
+}
+// ---------- wells and mill wheels ----------
+// A well reaches groundwater: plenty in the lowland, little up the slopes, none on the high rock and snow
+// (hn > WELL_HIGH). Ground that water soaked recently (moist) helps too. A cottage with a working well is
+// happy even far from a lake or stream, tends fields, and its village can grow (new cottages dig their own well).
+const WELL_MIN = 0.12, WELL_HIGH = 0.5, MILL_D = 0.25, MILL_SP = 1, MILL_T = 30;
+function wellYield(S, i) { const hn = S.h[i] / (S.N * 0.27); return hn > WELL_HIGH ? 0 : Math.max(groundWater(hn), S.moist[i]); }
+function digWell(S, gx, gy) {
+  const N = S.N; let best = null, bd = Math.max(3, N * 0.03);
+  for (const c of S.cottages) { if (c.ruin) continue; const dd = Math.hypot(c.x * N - gx, c.y * N - gy); if (dd < bd) { bd = dd; best = c; } }
+  if (!best) return 'nohouse';
+  if (best.well) return 'has';
+  const i = cottageCell(S, best);
+  if (wellYield(S, i) < WELL_MIN) return S.h[i] / (N * 0.27) > WELL_HIGH ? 'rock' : 'dry';
+  best.well = true; best.mood = cottageMood(S, best); return 'dug';
+}
+// A mill wheel: a cottage next to a river that keeps running fast (water > MILL_D deep, faster than MILL_SP)
+// builds a water wheel in it once the river has run there for MILL_T sim seconds (c.riverT; the miller
+// does not count while it rains, so the sheet runoff of a Shower never builds wheels). The wheel turns
+// while water flows at its spot (c.turn = flow speed) and stops when the river dries up. A turning mill
+// grinds: the fields of its cottage ripen MILL_RIPEN times faster.
+function fastCell(S, j) { return S.d[j] > MILL_D && Math.hypot(S.u[j], S.v[j]) > MILL_SP; }
+function millStep(S, c, i, tl) {
+  const N = S.N, d = S.d, u = S.u, v = S.v, x = i % N, y = (i / N) | 0;
+  if (!c.wheel) {
+    const R = Math.max(3, N * 0.03), R2 = R * R; let bj = -1, bd = 1e9;
+    for (let yy = Math.max(1, Math.floor(y - R)); yy <= Math.min(N - 2, Math.ceil(y + R)); yy++) for (let xx = Math.max(1, Math.floor(x - R)); xx <= Math.min(N - 2, Math.ceil(x + R)); xx++) {
+      const r2 = (xx - x) * (xx - x) + (yy - y) * (yy - y); if (r2 > R2 || r2 < 2) continue;
+      const j = yy * N + xx; if (!fastCell(S, j)) continue;
+      if (r2 < bd) { bd = r2; bj = j; }
+    }
+    c.turn = 0;
+    if (bj < 0) { c.riverT = Math.max(0, (c.riverT || 0) - tl * 2); return; } // forgets a river that stopped (2 s per s)
+    if (S.P.rain > 0) return; // wait for the rain to stop
+    c.riverT = (c.riverT || 0) + tl; if (c.riverT < MILL_T) return;
+    c.wheel = { x: (bj % N) / N, y: ((bj / N) | 0) / N };
+  }
+  const wx = Math.max(1, Math.min(N - 2, Math.round(c.wheel.x * N))), wy = Math.max(1, Math.min(N - 2, Math.round(c.wheel.y * N)));
+  let sp = 0; // the best flow right at the wheel (its paddles span a cell around it)
+  for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) { const j = (wy + dy) * N + wx + dx; if (d[j] > 0.2) sp = Math.max(sp, Math.hypot(u[j], v[j])); }
+  c.turn = sp > 0.8 ? Math.round(sp * 100) / 100 : 0;
 }
 // ---------- the village grows: fields, footpaths and new cottages ----------
 // field: crop cover 0..1 (> 0.3 shows a field), ripe: 0..1.3 (green → golden, harvested at 1.3, then sown again),
 // path: footpath wear 0..1, tend: 1 where a happy cottage tends the field this step (else the field lies fallow).
 // Fields sit in small square plots (plotSize cells) so they look like a patchwork; each plot has a crop
 // (wheat, barley, rapeseed, cabbage) and a row direction, all from the plot coordinates (deterministic).
-const FIELD_GROW = 20, FIELD_FALLOW = 90, FIELD_RIPEN = 120, FLOOD_FIELD = 3, GROW_T = 200, GROW_MAX = 24, KIDS_MAX = 2;
+const MILL_RIPEN = 1.5, FIELD_GROW = 20, FIELD_FALLOW = 90, FIELD_RIPEN = 120, FLOOD_FIELD = 3, GROW_T = 200, GROW_MAX = 24, KIDS_MAX = 2;
 function plotSize(N) { return Math.max(2, Math.round(N / 56)); }
 function plotOf(N, i) { const P = plotSize(N), x = i % N, y = (i / N) | 0; return ((y / P) | 0) * 4096 + ((x / P) | 0); }
 function plotCrop(N, i) { return Math.floor(cellRand(plotOf(N, i), 41) * 4); } // 0 wheat, 1 barley, 2 rapeseed, 3 cabbage
@@ -258,10 +301,12 @@ function growVillage(S, ci) {
     const t = (c.tries - 1) * 16 + k, a = cellRand(base, t) * Math.PI * 2, r = r0 + (r1 - r0) * cellRand(base, 100000 + t);
     const gx = Math.round(x + Math.cos(a) * r), gy = Math.round(y + Math.sin(a) * r);
     if (gx < 3 || gy < 3 || gx > N - 4 || gy > N - 4) continue;
-    const i = gy * N + gx; if (S.d[i] > 0.03 || waterNear(S, i) < 3) continue;
+    const i = gy * N + gx; if (S.d[i] > 0.03) continue;
+    const wet = waterNear(S, i) >= 3; if (!wet && !(c.well && wellYield(S, i) >= WELL_MIN)) continue; // a well village grows where its neighbours can dig a well too
     if (S.cottages.some(o => Math.hypot(o.x * N - gx, o.y * N - gy) < Math.max(3.5, N * 0.025))) continue;
     if (placeCottage(S, gx, gy) !== 'built') continue;
     const nc = S.cottages[S.cottages.length - 1]; nc.grown = true; nc.gen = (c.gen || 0) + 1; nc.happyT = 0;
+    if (!wet) { nc.well = true; nc.mood = cottageMood(S, nc); }
     c.kids = (c.kids || 0) + 1; S.grown++; return true;
   }
   return false;
@@ -277,14 +322,14 @@ function villageStep(S, tl) {
     if (c.ruin) continue;
     const i = cottageCell(S, c);
     c.flood = cottageStanding(S, i) ? (c.flood || 0) + tl : (c.flood || 0) * 0.85;
-    if (c.flood > FLOOD_RUIN) { c.ruin = true; c.flood = 0; c.mood = 'ruin'; c.happyT = 0; continue; }
-    c.mood = cottageMood(S, c);
+    if (c.flood > FLOOD_RUIN) { c.ruin = true; c.flood = 0; c.mood = 'ruin'; c.happyT = 0; c.wheel = null; c.turn = 0; continue; } // the flood takes the wheel; the stone well stays
+    c.mood = cottageMood(S, c); millStep(S, c, i, tl);
     tree[i] = 0; tree[i - 1] *= 0.5; tree[i + 1] *= 0.5; tree[i - N] *= 0.5; tree[i + N] *= 0.5; // the garden stays open
-    const x = i % N, y = (i / N) | 0, happy = c.mood === 'happy';
+    const x = i % N, y = (i / N) | 0, happy = c.mood === 'happy', tmark = c.turn > 0 ? 2 : 1; // 2: a turning mill grinds, its fields ripen faster
     if (happy) { // tend the fields within a short walk
       for (let yy = Math.max(2, Math.floor(y - RF)); yy <= Math.min(N - 3, Math.ceil(y + RF)); yy++) for (let xx = Math.max(2, Math.floor(x - RF)); xx <= Math.min(N - 3, Math.ceil(x + RF)); xx++) {
         const r2 = (xx - x) * (xx - x) + (yy - y) * (yy - y); if (r2 > RF2 || r2 < 2.5) continue;
-        const j = yy * N + xx; if (tend[j] || !fieldOk(S, j, H)) continue; tend[j] = 1;
+        const j = yy * N + xx; if (tend[j] >= tmark || !fieldOk(S, j, H)) continue; tend[j] = tmark;
       }
       c.happyT = (c.happyT || 0) + tg;
     } else c.happyT = Math.max(0, (c.happyT || 0) - tg * 2);
@@ -309,7 +354,7 @@ function villageStep(S, tl) {
     if (flood[i] > FLOOD_FIELD || d[i] > 0.3 || S.rush[i] > 5) { f -= tl / 4; ripe[i] = 0; } // a flood drowns the crop
     else if (tend[i]) {
       if (f === 0) ripe[i] = cellRand(plotOf(N, i), 47) * 0.6; // a new plot starts at its own point in the season
-      f += tg / FIELD_GROW * (1 - 0.7 * tree[i]); let r = ripe[i] + tg / FIELD_RIPEN; if (r > 1.3) r = 0; ripe[i] = r; // harvest, sow again
+      f += tg / FIELD_GROW * (1 - 0.7 * tree[i]); let r = ripe[i] + tg / FIELD_RIPEN * (tend[i] === 2 ? MILL_RIPEN : 1); if (r > 1.3) r = 0; ripe[i] = r; // harvest, sow again
     } else { f -= tg / FIELD_FALLOW; ripe[i] = Math.max(0, ripe[i] - tg / FIELD_RIPEN); }
     f = f < 0 ? 0 : f > 1 ? 1 : f; field[i] = f;
     if (f > 0.02 && tend[i]) { tree[i] *= 0.93; bloom[i] *= 0.9; } // clearing the plot
@@ -317,11 +362,11 @@ function villageStep(S, tl) {
   for (const c of S.cottages) { const i = cottageCell(S, c); field[i] = 0; }
 }
 function countVillage(S) {
-  let cottages = 0, happy = 0, sad = 0, flooded = 0, ruins = 0, grown = 0; for (const c of S.cottages) { if (c.ruin) { ruins++; continue; } cottages++; if (c.grown) grown++; const m = c.mood || cottageMood(S, c); if (m === 'happy') happy++; else if (m === 'flooded') flooded++; else sad++; }
+  let cottages = 0, happy = 0, sad = 0, flooded = 0, ruins = 0, grown = 0, wells = 0, mills = 0, wheels = 0; for (const c of S.cottages) { if (c.ruin) { ruins++; continue; } cottages++; if (c.grown) grown++; if (c.well) wells++; if (c.wheel) { wheels++; if (c.turn > 0) mills++; } const m = c.mood || cottageMood(S, c); if (m === 'happy') happy++; else if (m === 'flooded') flooded++; else sad++; }
   // fields: plots with a grown crop; ripe share; path cells
   const N = S.N, seen = new Set(); let ripeN = 0, cells = 0, paths = 0;
   for (let i = 0; i < S.field.length; i++) { if (S.path[i] > 0.3) paths++; if (S.field[i] > 0.5) { cells++; seen.add(plotOf(N, i)); if (S.ripe[i] > 0.75) ripeN++; } }
-  return { cottages, happy, sad, flooded, ruins, grown, fields: seen.size, fieldCells: cells, ripe: cells ? ripeN / cells : 0, paths };
+  return { cottages, happy, sad, flooded, ruins, grown, wells, mills, wheels, fields: seen.size, fieldCells: cells, ripe: cells ? ripeN / cells : 0, paths };
 }
 function placeCottage(S, gx, gy) {
   const N = S.N, h = S.h, H = N * 0.27, x = Math.round(gx), y = Math.round(gy);
@@ -428,7 +473,7 @@ function addKernel(S, arr, gx, gy, rad, amount) {
   }
 }
 
-// tool: 'raise' | 'lower' | 'smooth' | 'rain' | 'spring' | 'drain' | 'plant' | 'cottage'
+// tool: 'raise' | 'lower' | 'smooth' | 'rain' | 'spring' | 'drain' | 'plant' | 'cottage' | 'well'
 // gx, gy in cell coordinates; rad in cells; dtReal seconds of holding
 function applyTool(S, tool, gx, gy, rad, dtReal, strength) {
   const N = S.N, h = S.h, d = S.d, s = S.s; strength = strength == null ? 1 : strength;
@@ -479,6 +524,8 @@ function applyTool(S, tool, gx, gy, rad, dtReal, strength) {
       S.veg[i] += (1 - S.veg[i]) * a * 0.5; n++;
     }
     return n;
+  } else if (tool === 'well') {
+    return digWell(S, gx, gy); // 'dug' | 'has' | 'dry' | 'rock' | 'nohouse'
   } else if (tool === 'cottage') {
     return placeCottage(S, gx, gy); // 'built' | 'rebuilt' | 'taken' | 'water' | 'steep' | 'snow' | 'edge' | 'full'
   } else if (tool === 'spring') {
@@ -646,13 +693,13 @@ function resample(S, N2) {
     T.wet[i] = lerp(S.wet, px, py); T.dep[i] = lerp(S.dep, px, py) * hs; T.h0[i] = lerp(S.h0, px, py) * hs;
     T.veg[i] = lerp(S.veg, px, py); T.tree[i] = lerp(S.tree, px, py); T.moist[i] = lerp(S.moist, px, py); T.fert[i] = lerp(S.fert, px, py); T.flood[i] = lerp(S.flood, px, py); T.rush[i] = lerp(S.rush, px, py); T.bloom[i] = lerp(S.bloom, px, py); T.field[i] = lerp(S.field, px, py); T.ripe[i] = lerp(S.ripe, px, py); T.path[i] = lerp(S.path, px, py);
   }
-  T.springs = S.springs.map(sp => Object.assign({}, sp)); T.cottages = S.cottages.map(c => Object.assign({}, c)); T.grown = S.grown; T.vtick = S.vtick; T.steps = S.steps; T.time = S.time;
+  T.springs = S.springs.map(sp => Object.assign({}, sp)); T.cottages = S.cottages.map(c => Object.assign({}, c, c.wheel ? { wheel: Object.assign({}, c.wheel) } : {})); T.grown = S.grown; T.vtick = S.vtick; T.steps = S.steps; T.time = S.time;
   return T;
 }
 
 function hasNaN(S) { for (const k of ['h', 'd', 's', 'u', 'v', 'fL', 'fR', 'fT', 'fB', 'veg', 'tree', 'moist', 'flood', 'rush', 'bloom', 'field', 'ripe', 'path']) { const a = S[k]; for (let i = 0; i < a.length; i++) if (!Number.isFinite(a[i])) return k; } return false; }
 
-const API = { mulberry32, hashStr, makeNoise, randomSeedName, generateTerrain, create, seedLife, step, applyTool, totalWater, totalTerrain, resample, lifeStep, countTrees, countLife, leafy, treeHappy, cottageMood, cottageCell, countVillage, waterNear, FLOOD_RUIN, GROW_MAX, KIDS_MAX, GROW_T, plotSize, plotOf, plotCrop, hasNaN, DEFAULTS };
+const API = { mulberry32, hashStr, makeNoise, randomSeedName, generateTerrain, create, seedLife, step, applyTool, totalWater, totalTerrain, resample, lifeStep, countTrees, countLife, leafy, treeHappy, cottageMood, cottageCell, countVillage, waterNear, wellYield, WELL_MIN, WELL_HIGH, MILL_T, MILL_RIPEN, FLOOD_RUIN, GROW_MAX, KIDS_MAX, GROW_T, plotSize, plotOf, plotCrop, hasNaN, DEFAULTS };
 if (typeof module !== 'undefined' && module.exports) module.exports = API; else root.LV = API;
 })(typeof window !== 'undefined' ? window : globalThis);
 </script>
@@ -673,6 +720,7 @@ const IC = {
   drain: '<rect x="5" y="9" width="24" height="17" rx="5" fill="#ffd84a" stroke="#d6a91f" stroke-width="1.8"/><circle cx="12" cy="15" r="2" fill="#e3b52c"/><circle cx="20" cy="19" r="2.4" fill="#e3b52c"/><circle cx="24" cy="13" r="1.6" fill="#e3b52c"/><circle cx="11" cy="21.5" r="1.4" fill="#e3b52c"/><path d="M9 30l1-2M17 31l1-3M25 30l1-2" stroke="#3a9be0" stroke-width="2" stroke-linecap="round"/>',
   plant: '<path d="M5 30c4-3 20-3 24 0z" fill="#8a6a48"/><path d="M17 29V17" stroke="#7a5233" stroke-width="2.6" stroke-linecap="round"/><circle cx="17" cy="12" r="8" fill="#6cc04a" stroke="#3f8f34" stroke-width="1.6"/><circle cx="14" cy="10" r="2.6" fill="#a6e07a"/><path d="M28 4v5M25.5 6.5h5" stroke="#ffc533" stroke-width="2" stroke-linecap="round"/><path d="M6 20c0-4 3-6 6-6 0 4-3 6-6 6z" fill="#5fb548"/>',
   cottage: '<path d="M4 30c4-2 22-2 26 0z" fill="#6cc04a"/><rect x="8" y="16" width="18" height="13" fill="#f4e6c4" stroke="#b39463" stroke-width="1.4"/><path d="M5 17.5 17 7l12 10.5z" fill="#c8513a" stroke="#8e3424" stroke-width="1.4" stroke-linejoin="round"/><rect x="22" y="7" width="3.4" height="6" fill="#8e3424"/><rect x="11" y="19" width="5" height="4.6" fill="#ffd45a" stroke="#b39463" stroke-width="1"/><rect x="19" y="21" width="4.4" height="8" fill="#7a5233"/><path d="M26 3c2 0 2 2 4 2" stroke="#c9d6e2" stroke-width="1.8" fill="none" stroke-linecap="round"/>',
+  well: '<path d="M4 30c4-2 22-2 26 0z" fill="#6cc04a"/><path d="M9 7 17 3l8 4z" fill="#c8513a" stroke="#8e3424" stroke-width="1.3" stroke-linejoin="round"/><path d="M11 7v12M23 7v12" stroke="#7a5233" stroke-width="2.2"/><path d="M11 11h12" stroke="#7a5233" stroke-width="1.4"/><path d="M17 11v4" stroke="#8a8a8a" stroke-width="1"/><rect x="15.5" y="15" width="3" height="3" fill="#7a5233"/><rect x="8" y="19" width="18" height="10" rx="2" fill="#b9b2a6" stroke="#77706a" stroke-width="1.4"/><path d="M8 23h18M13 19v4M21 19v4M10 23v6M17 23v6M24 23v6" stroke="#8d867c" stroke-width="1"/><ellipse cx="17" cy="19.5" rx="7" ry="1.6" fill="#3a9be0"/>',
   play: '<path d="M9 5l18 11L9 27z" fill="#3fae5a"/>', pause: '<rect x="7" y="5" width="6" height="22" rx="2" fill="#e8792b"/><rect x="19" y="5" width="6" height="22" rx="2" fill="#e8792b"/>',
   speed: '<path d="M4 7l11 9-11 9zM16 7l11 9-11 9z" fill="#3a9be0"/>',
   lapse: '<path d="M8 4h18M8 30h18" stroke="#8a5a30" stroke-width="3" stroke-linecap="round"/><path d="M10 5c0 7 7 8 7 12s-7 5-7 12h14c0-7-7-8-7-12s7-5 7-12z" fill="#e9f6ff" stroke="#3a9be0" stroke-width="1.8" stroke-linejoin="round"/><path d="M13 27c1-3 3-4 4-4s3 1 4 4z" fill="#e3b52c"/><path d="M14 9h6l-3 4z" fill="#e3b52c"/>',
@@ -693,7 +741,8 @@ const TOOLS = [
   ['spring', 'Spring', 'Tap to place a spring (tap it again to remove)'],
   ['drain', 'Sponge', 'Wipe to soak up water and springs'],
   ['plant', 'Plant', 'Hold to plant trees: they love moist ground below the snow'],
-  ['cottage', 'Cottage', 'Tap on land to build a cottage: it loves water nearby and dry feet']
+  ['cottage', 'Cottage', 'Tap on land to build a cottage: it loves water nearby and dry feet'],
+  ['well', 'Well', 'Tap a thirsty cottage to dig a well (lowland groundwater, not on the rock)']
 ];
 const SIZES = [['S', 0.03], ['M', 0.055], ['L', 0.095]];
 // [label, sim steps per frame, erosion/growth boost]; 8x is the time-lapse: as many steps as 4x
@@ -731,6 +780,8 @@ function buildCottage(g) {
   if (res === 'built' || res === 'rebuilt') { const c = st.S.cottages.find(c => Math.hypot(c.x * st.S.N - g[0], c.y * st.S.N - g[1]) < 2); if (c && c.mood === 'sad' && res === 'built') m = 'A new cottage, but it is thirsty: bring water close'; else if (c && c.mood === 'happy') m = res === 'rebuilt' ? 'Rebuilt, and happy by the water!' : 'A happy cottage by the water!'; }
   hint(m); statT = 0;
 }
+const WELL_MSG = { dug: 'A well! Fresh groundwater makes the cottage happy', has: 'This cottage already has a well', dry: 'The well stays dry here: too little groundwater', rock: 'Solid rock up here: no groundwater for a well', nohouse: 'Tap a cottage to dig its well' };
+function digWell(g) { const res = LV.applyTool(st.S, 'well', g[0], g[1], 0, 0); st.lastWell = res; hint(WELL_MSG[res] || res); statT = 0; }
 function setTool(id) { st.tool = id; updUI(); hint(TOOLS.find(t => t[0] === id)[2]); }
 function updUI() {
   for (const [id] of TOOLS) $('t-' + id).classList.toggle('on', st.tool === id);
@@ -1086,7 +1137,7 @@ function rasterTrees(T, data) {
 // the cottage is happy. Flooded cottages get blue water up the walls, ruins are low broken walls.
 function rasterCottages(T, data) {
   const S = st.S, N = S.N, ow = T.ow, oh = T.oh, pick = T.pick, cp = T.cp; let n = 0;
-  const list = S.cottages.map(c => [c, LV.cottageCell(S, c)]).sort((a, b) => a[1] - b[1]);
+  const list = S.cottages.map(c => [c, LV.cottageCell(S, c)]).sort((a, b) => a[1] - b[1]); st.wellsDrawn = 0;
   const put = (px, py, r, g, b) => { if (px < 0 || py < 0 || px >= ow || py >= oh) return; const q = (py * ow + px) * 4; data[q] = r; data[q + 1] = g; data[q + 2] = b; data[q + 3] = 255; };
   for (const [c, i] of list) {
     const x = i % N, y = (i / N) | 0, sc = persp(y, N), hz = 0.22 * (1 - y / N) * (1 - y / N);
@@ -1121,10 +1172,51 @@ function rasterCottages(T, data) {
     for (let py = top; py <= by - wh; py++) { const f = (py - top) / Math.max(1, rh), w = Math.round((hw + 1.5) * f); for (let px = bx - w; px <= bx + w; px++) put(px, py, px <= bx ? rr : rs, px <= bx ? rg : rgs, px <= bx ? rb : rbs); }
     const chx = bx + Math.round(hw * 0.5), cw = Math.max(1, Math.round(u * 0.25));
     for (let py = top + Math.round(rh * 0.2); py <= top + Math.round(rh * 0.6); py++) for (let px = chx; px < chx + cw; px++) put(px, py, rs * 0.8, rgs * 0.8, rbs * 0.8);
+    if (c.well) { // a little stone well beside the house (south-west, in front): stone ring, water, two posts and a roof
+      const wr0 = Math.max(2, Math.round(u * 0.55)), wcx = bx - hw - wr0 - 1, wby = by + Math.max(1, Math.round(u * 0.35)), rimH = Math.max(2, Math.round(u * 0.5)), dryW = mood !== 'happy';
+      const [sr, sg, sb] = H(178, 170, 158), [sd, sgd, sbd] = H(128, 120, 110);
+      for (let py = wby - rimH; py <= wby; py++) for (let px = wcx - wr0; px <= wcx + wr0; px++) { const brick = ((px + (((py - wby) >> 1) & 1) * 2) % 4 === 0) || ((wby - py) % 2 === 1 && (px & 1)); put(px, py, brick ? sd : px <= wcx ? sr : sd * 1.1, brick ? sgd : px <= wcx ? sg : sgd * 1.1, brick ? sbd : px <= wcx ? sb : sbd * 1.1); }
+      for (let px = wcx - wr0 + 1; px <= wcx + wr0 - 1; px++) put(px, wby - rimH, dryW ? 96 : 58, dryW ? 84 : 140, dryW ? 70 : 210); // the water inside (brown when dry)
+      const postT = wby - rimH - Math.round(u * 1.1);
+      for (let py = postT; py < wby - rimH; py++) { put(wcx - wr0, py, 110, 76, 48); put(wcx + wr0, py, 110, 76, 48); }
+      for (let px = wcx - wr0; px <= wcx + wr0; px++) put(px, postT + 1, 122, 86, 56); // the crank beam
+      put(wcx, postT + 2, 120, 120, 120); put(wcx, postT + 3, 104, 72, 46);
+      const rH = Math.max(2, Math.round(u * 0.6));
+      for (let py = postT - rH; py <= postT; py++) { const w = Math.round((wr0 + 1) * (py - postT + rH) / rH); for (let px = wcx - w; px <= wcx + w; px++) put(px, py, px <= wcx ? rr : rs, px <= wcx ? rg : rgs, px <= wcx ? rb : rbs); }
+      st.wellsDrawn++;
+    }
     if (fl) { const lv = Math.round(wh * 0.45); for (let py = by - lv; py <= by + 1; py++) for (let px = bx - hw - 1; px <= bx + hw + 1; px++) { const q = (py * ow + px) * 4; if (px < 0 || py < 0 || px >= ow || py >= oh) continue; data[q] = data[q] * 0.4 + 40; data[q + 1] = data[q + 1] * 0.4 + 120; data[q + 2] = data[q + 2] * 0.4 + 170; } }
     n++;
   }
   st.cottagesDrawn = n;
+  rasterWheels(T, data, put);
+}
+// mill wheels: a wooden wheel standing in the stream next to its cottage, turning with the flow
+// (angle advances by the flow speed every frame), still when the river is dry
+const wheelAng = new WeakMap();
+function rasterWheels(T, data, put) {
+  const S = st.S, N = S.N, ow = T.ow, oh = T.oh, cp = T.cp, pick = T.pick; let n = 0;
+  for (const c of S.cottages) {
+    if (!c.wheel || c.ruin) continue;
+    const a = (wheelAng.get(c) || 0) + (st.paused ? 0 : (c.turn || 0) * 0.02 * SPEEDS[st.speed][0]); wheelAng.set(c, a); // turns even while hidden behind a ridge
+    const x = Math.max(1, Math.min(N - 2, Math.round(c.wheel.x * N))), y = Math.max(1, Math.min(N - 2, Math.round(c.wheel.y * N))), i = y * N + x;
+    const sc = persp(y, N), hz = 0.22 * (1 - y / N) * (1 - y / N);
+    const ox = (x + 0.5 - N / 2) * cp * sc + ow / 2, oy = baseY(T, y, N) - (S.h[i] + S.d[i]) * cp * T.hEx * sc;
+    const bx = Math.round(ox), by = Math.round(oy); if (bx < 4 || by < 4 || bx >= ow - 4 || by >= oh) continue;
+    const pc = pick[Math.min(oh - 1, by + 1) * ow + bx]; if (pc >= 0 && (Math.abs(pc % N - x) > 4 || Math.abs(((pc / N) | 0) - y) > 5)) continue;
+    const R = Math.max(4, cp * sc * 2.4), EW = 0.72, cyw = by - R * 0.4, H = (r, g, b) => [r + (215 - r) * hz, g + (232 - g) * hz, b + (245 - b) * hz];
+    const [r1, g1, b1] = H(196, 146, 88), [r2, g2, b2] = H(112, 70, 36), wet = c.turn > 0;
+    for (let py = Math.floor(cyw - R - 1); py <= Math.ceil(cyw + R + 1); py++) for (let px = Math.floor(bx - R * EW - 1); px <= Math.ceil(bx + R * EW + 1); px++) {
+      // the wheel is seen at an angle: an ellipse 0.55 wide
+      const dx = (px - bx) / EW, dy = py - cyw, r = Math.hypot(dx, dy); if (r > R + 0.9) continue;
+      const ang = Math.atan2(dy, dx) - a, sect = ((ang % (Math.PI / 4)) + Math.PI / 4) % (Math.PI / 4);
+      const rim = r > R - 1.2, spoke = r < R - 1.2 && Math.abs(Math.sin(sect - 0.0)) * r < 0.75, paddle = r > R - 0.2 && sect < 0.35, hub = r < 1.3;
+      if (rim || paddle || hub) put(px, py, r2, g2, b2); else if (spoke) put(px, py, r1, g1, b1);
+    }
+    if (wet) for (let k = -2; k <= 2; k++) { const px = bx + Math.round(k * R * 0.25), py = Math.round(cyw + R * 0.85); if (px >= 0 && py >= 0 && px < ow && py < oh) { const q = (py * ow + px) * 4; data[q] = 235; data[q + 1] = 245; data[q + 2] = 250; } } // foam where the paddles dip
+    n++;
+  }
+  st.wheelsDrawn = n;
 }
 // mood badges above the cottages (screen space, both views): a heart when happy, a thirsty drop
 // when dry and far from water, blue waves when flooded; a puff of smoke from happy chimneys
@@ -1150,7 +1242,7 @@ function drawCottageBadges(t) {
 // map view: tiny house icons (roof colour by mood, grey for ruins)
 function drawCottagesTop() {
   const S = st.S, N = S.N, R = st.topRect; if (!R || !S.cottages.length) return;
-  const s = Math.max(11, R.sz / N * 4); let n = 0;
+  const s = Math.max(11, R.sz / N * 4); let n = 0; st.wellsTop = 0; st.wheelsTop = 0;
   cx.save();
   for (const c of S.cottages) {
     const p = proj(c.x * N, c.y * N); if (!p) continue; const mood = c.mood || LV.cottageMood(S, c), x = p[0], y = p[1];
@@ -1159,7 +1251,15 @@ function drawCottagesTop() {
     cx.fillStyle = mood === 'sad' ? '#e2d2b4' : '#f6e8c8'; cx.fillRect(x - s * 0.45, y - s * 0.2, s * 0.9, s * 0.7);
     cx.fillStyle = mood === 'happy' ? '#c8513a' : mood === 'flooded' ? '#4f86b8' : '#9a7464';
     cx.beginPath(); cx.moveTo(x - s * 0.6, y - s * 0.15); cx.lineTo(x, y - s * 0.7); cx.lineTo(x + s * 0.6, y - s * 0.15); cx.closePath(); cx.fill();
+    if (c.well) { const wx = x - s * 0.75, wy = y + s * 0.45, r = Math.max(2.5, s * 0.22); cx.fillStyle = '#a8a094'; cx.beginPath(); cx.arc(wx, wy, r, 0, 7); cx.fill(); cx.fillStyle = mood === 'happy' ? '#3a9be0' : '#7a6650'; cx.beginPath(); cx.arc(wx, wy, r * 0.55, 0, 7); cx.fill(); st.wellsTop++; }
     n++;
+  }
+  // mill wheels on the map: a little spoked wheel in the river, turning while the water runs
+  for (const c of S.cottages) {
+    if (!c.wheel || c.ruin) continue; const p = proj(c.wheel.x * N, c.wheel.y * N); if (!p) continue;
+    const r = Math.max(4, s * 0.38), a = wheelAng.get(c) || 0; if (!st.paused) wheelAng.set(c, a + (c.turn || 0) * 0.02 * SPEEDS[st.speed][0]);
+    cx.save(); cx.translate(p[0], p[1]); cx.rotate(a); cx.strokeStyle = '#5a3a1e'; cx.lineWidth = 2; cx.beginPath(); cx.arc(0, 0, r, 0, 7); cx.stroke();
+    cx.lineWidth = 1.3; cx.beginPath(); for (let k = 0; k < 4; k++) { const q = k * Math.PI / 4; cx.moveTo(-Math.cos(q) * r, -Math.sin(q) * r); cx.lineTo(Math.cos(q) * r, Math.sin(q) * r); } cx.stroke(); cx.restore(); st.wheelsTop++;
   }
   cx.restore(); st.cottagesTop = n;
 }
@@ -1276,7 +1376,7 @@ function drawOverlays(t) {
   const g = P.g || unproj(P.x, P.y); if (!g) return;
   const rad = SIZES[st.size][1] * N;
   if (st.tool === 'rain' && P.down) { drawRainCloud(g, rad, t); return; }
-  if (st.tool === 'spring' || st.tool === 'cottage') return;
+  if (st.tool === 'spring' || st.tool === 'cottage' || st.tool === 'well') return;
   const col = { raise: '#ff9f43', lower: '#8a5a30', smooth: '#ffffff', drain: '#ffd84a', rain: '#3a9be0', plant: '#3fae5a' }[st.tool];
   cx.save(); cx.strokeStyle = col; cx.lineWidth = P.down ? 3 : 2; cx.setLineDash(P.down ? [] : [6, 5]); cx.globalAlpha = 0.9;
   cx.beginPath();
@@ -1310,6 +1410,7 @@ cv.addEventListener('pointerdown', e => {
   const g = unproj(e.clientX, e.clientY); st.ptr.g = g;
   if (g && st.tool === 'spring') { const res = LV.applyTool(st.S, 'spring', g[0], g[1], 0, 0); hint(res === 'added' ? 'A new spring bubbles up!' : 'Spring removed'); }
   if (g && st.tool === 'cottage') buildCottage(g);
+  if (g && st.tool === 'well') digWell(g);
   e.preventDefault();
 });
 cv.addEventListener('pointermove', e => {
@@ -1322,7 +1423,7 @@ cv.addEventListener('pointerup', up); cv.addEventListener('pointercancel', up);
 cv.addEventListener('pointerleave', e => { if (st.ptr && !st.ptr.down) st.ptr = null; });
 document.addEventListener('gesturestart', e => e.preventDefault());
 document.addEventListener('keydown', e => {
-  const k = e.key.toLowerCase(); const map = { '1': 'raise', '2': 'lower', '3': 'smooth', '4': 'rain', '5': 'spring', '6': 'drain', '7': 'plant', '8': 'cottage' };
+  const k = e.key.toLowerCase(); const map = { '1': 'raise', '2': 'lower', '3': 'smooth', '4': 'rain', '5': 'spring', '6': 'drain', '7': 'plant', '8': 'cottage', '9': 'well' };
   if (map[k]) setTool(map[k]); else if (k === ' ') { e.preventDefault(); bPlay.click(); } else if (k === 'v') bView.click(); else if (k === 'n') $('c-new').click(); else if (k === 'r') $('c-reset').click(); else if (k === 's') bShower.click(); else if (k === 'b') bSize.click(); else if (k === 'f') bSpeed.click();
 });
 
@@ -1334,7 +1435,7 @@ function frame(now) {
   const S = st.S;
   // tools
   const P = st.ptr;
-  if (P && P.down && st.tool !== 'spring' && st.tool !== 'cottage') {
+  if (P && P.down && st.tool !== 'spring' && st.tool !== 'cottage' && st.tool !== 'well') {
     const g = unproj(P.x, P.y); P.g = g;
     if (g) LV.applyTool(S, st.tool, g[0], g[1], SIZES[st.size][1] * S.N, dtReal);
   }
@@ -1366,9 +1467,10 @@ function frame(now) {
     if (S.grown > (st.grownSeen || 0)) hint('The village grows: a new cottage by the water!'); st.grownSeen = S.grown;
     const fl = V.fields ? ` · ${V.fields} field${V.fields > 1 ? 's' : ''}` : '';
     const ru = V.ruins ? ` · ${V.ruins} ruin${V.ruins > 1 ? 's' : ''}` : '';
-    $('stats').textContent = (vw < 600 ? `${tt} trees · ${hp}% happy · ${ff} 🌼 · 🏠 ${V.cottages} (${V.happy} 😊)${V.ruins ? ' · ' + V.ruins + ' ruin' : ''}`
-      : vw < 1000 ? `${tt} trees (${hp}% happy) · ${ff} flowers · 🏠 ${V.cottages} (${V.happy} happy)${ru}`
-      : `${S.N}² · ${Math.round(st.fps)} fps · ${tt} trees (${hp}% happy) · ${ff} flowers · ${V.cottages} cottage${V.cottages === 1 ? '' : 's'} (${V.happy} happy)${fl}${ru}`) + (st.paused ? ' · paused' : ''); }
+    const mi = V.mills ? ` · ${V.mills} mill${V.mills > 1 ? 's' : ''}` : '';
+    $('stats').textContent = (vw < 600 ? `${tt} trees · ${hp}% happy · ${ff} 🌼 · 🏠 ${V.cottages} (${V.happy} 😊)${V.mills ? ' ⚙' + V.mills : ''}${V.ruins ? ' · ' + V.ruins + ' ruin' : ''}`
+      : vw < 1000 ? `${tt} trees (${hp}% happy) · ${ff} flowers · 🏠 ${V.cottages} (${V.happy} happy)${V.mills ? ' · ⚙ ' + V.mills : ''}${ru}`
+      : `${S.N}² · ${Math.round(st.fps)} fps · ${tt} trees (${hp}% happy) · ${ff} flowers · ${V.cottages} cottage${V.cottages === 1 ? '' : 's'} (${V.happy} happy)${fl}${mi}${ru}`) + (st.paused ? ' · paused' : ''); }
   requestAnimationFrame(frame);
 }
 // auto quality: lower render scale first, then the grid (not in time-lapse, which fills spare time on purpose)
@@ -1382,7 +1484,7 @@ function adapt(dt) {
   }
 }
 
-window.__lv = { st, LV, get col() { return [colR, colG, colB]; }, get tilt() { return tilt; }, get area() { return area; }, setTool, newWorld, unproj, proj, get S() { return st.S; } };
+window.__lv = { st, LV, wheelAng, get col() { return [colR, colG, colB]; }, get tilt() { return tilt; }, get area() { return area; }, setTool, newWorld, unproj, proj, get S() { return st.S; } };
 updUI();
 const fromHash = decodeURIComponent((location.hash || '').slice(1));
 newWorld(fromHash || LV.randomSeedName());
