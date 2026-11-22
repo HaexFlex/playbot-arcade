@@ -65,6 +65,9 @@ near the village. (`screenshot-ice.png`.)
 through the night, and on spring and summer evenings fireflies blink over the meadows.
 (`screenshot-fireflies.png`.)
 
+**Snowmen**: when the snow reaches the village, little snowmen with red scarves and dark hats
+appear in the cottage gardens, and they melt with the snow in spring.
+
 **Weather events**: now and then a rain is a **storm**: a dark, bigger, faster cloud with
 slanting rain and lightning (⛈ in the clock) that pours almost three times as hard, so low cottages
 by the river can flood. In about every other summer a **drought** comes (🌵): no rain for a while,

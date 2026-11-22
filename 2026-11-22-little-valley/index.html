@@ -1395,7 +1395,7 @@ function rasterSkaters(T, data) {
 // the cottage is happy. Flooded cottages get blue water up the walls, ruins are low broken walls.
 function rasterCottages(T, data) {
   const S = st.S, N = S.N, ow = T.ow, oh = T.oh, pick = T.pick, cp = T.cp; let n = 0;
-  const list = S.cottages.map(c => [c, LV.cottageCell(S, c)]).sort((a, b) => a[1] - b[1]); st.wellsDrawn = 0; st.wins = []; st.lamps = [];
+  const list = S.cottages.map(c => [c, LV.cottageCell(S, c)]).sort((a, b) => a[1] - b[1]); st.wellsDrawn = 0; st.wins = []; st.lamps = []; st.snowmenDrawn = 0;
   const put = (px, py, r, g, b) => { if (px < 0 || py < 0 || px >= ow || py >= oh) return; const q = (py * ow + px) * 4; data[q] = r; data[q + 1] = g; data[q + 2] = b; data[q + 3] = 255; };
   for (const [c, i] of list) {
     const x = i % N, y = (i / N) | 0, sc = persp(y, N), hz = 0.22 * (1 - y / N) * (1 - y / N);
@@ -1413,6 +1413,23 @@ function rasterCottages(T, data) {
         if (px > bx - hw + 1 && px < bx + hw - 1 && py > by - wh * 0.35 && py < by) put(px, py, 82, 72, 60); else put(px, py, px < bx ? sr : dr, px < bx ? sg : dg, px < bx ? sb : db);
       }
       n++; continue;
+    }
+    // a snowman in the garden when snow lies around the cottage (about 3 cottages in 5, picked by place)
+    if (S.snow && Math.abs(Math.sin(c.x * 127.1 + c.y * 311.7) * 43758.5) % 1 < 0.6) {
+      let sn = 0; for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) { const j = i + dy * N + dx; if (j >= 0 && j < S.snow.length) sn = Math.max(sn, S.snow[j]); }
+      if (sn > 0.04) {
+        const rb = Math.max(1.5, u * 0.5), rh2 = Math.max(1, rb * 0.62), sx = bx - hw - Math.round(u * 1.3), sy = by + Math.round(u * 0.35);
+        const ball = (cx, cy, r) => { for (let py = Math.floor(cy - r); py <= Math.ceil(cy + r); py++) for (let px = Math.floor(cx - r); px <= Math.ceil(cx + r); px++) { const dx = px - cx, dy = py - cy; if (dx * dx + dy * dy <= r * r + 0.3) { const lt = dx < r * 0.25; put(px, py, lt ? 250 : 206, lt ? 252 : 218, lt ? 255 : 236); } } };
+        const bcy = sy - rb, hcy = sy - 2 * rb - rh2 + 1;
+        for (let k = 1; k <= Math.round(u * 0.8); k++) { put(sx - Math.round(rb) - k, Math.round(bcy - rb * 0.6) - (k >> 1), 104, 72, 44); put(sx + Math.round(rb) + k, Math.round(bcy - rb * 0.6) - (k >> 1), 104, 72, 44); }
+        ball(sx, bcy, rb); ball(sx, hcy, rh2);
+        put(Math.round(sx - rh2 * 0.4), Math.round(hcy - rh2 * 0.25), 30, 30, 36); put(Math.round(sx + rh2 * 0.3), Math.round(hcy - rh2 * 0.25), 30, 30, 36);
+        put(Math.round(sx + rh2 * 0.6), Math.round(hcy + rh2 * 0.2), 240, 128, 40); put(Math.round(sx + rh2 * 0.6) + 1, Math.round(hcy + rh2 * 0.2), 240, 128, 40);
+        for (let px = Math.round(sx - rh2); px <= Math.round(sx + rh2); px++) put(px, Math.round(hcy + rh2) + 1, 190, 40, 40); // a red scarf
+        const ht = Math.round(hcy - rh2) - 1; for (let py = ht - Math.max(1, Math.round(rh2 * 0.9)); py <= ht; py++) for (let px = Math.round(sx - rh2 * 0.6); px <= Math.round(sx + rh2 * 0.6); px++) put(px, py, 38, 34, 40); // a dark hat, so it reads on white snow
+        for (let px = Math.round(sx - rh2 - 1); px <= Math.round(sx + rh2 + 1); px++) put(px, ht, 38, 34, 40);
+        st.snowmenDrawn++;
+      }
     }
     const sad = mood === 'sad', fl = mood === 'flooded';
     const [wr, wg, wb] = H(sad ? 222 : 246, sad ? 206 : 232, sad ? 180 : 200), [ws, wgs, wbs] = H(sad ? 180 : 206, sad ? 166 : 188, sad ? 146 : 156);
