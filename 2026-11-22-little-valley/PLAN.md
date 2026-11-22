@@ -29,7 +29,7 @@ every feature must be visible on screen (no hidden numbers); stays at 30+ fps at
 - [x] Touch/mobile friendly, auto quality (grid 128–192, render scale)
 - [x] `tools/test.js` (sim) and `tools/browser-test.js` (desktop, phone, landscape)
 
-### v2: life follows water (parts 1–2 done, Plant tool next, 2026-11-22)
+### v2: life follows water (done, 2026-11-22)
 - [x] Vegetation layer in the sim (`lifeStep`, every 6 steps): ground moisture spreads from water onto the banks, meadow and forest grow on moist ground below the treeline, wither when dry, drown when a lake stays (flood memory, a shower is fine), get scoured by a fast deep river, die when buried by sand; seeded forest patches at the start; trees spread from neighbours
 - [x] Draw it: straw-coloured dry ground, dark forest canopy in the colour map, pine sprites rasterised into the 3D buffer (hidden behind ridges via the pick buffer, hazed at the back, 0.7 ms per frame); tree count in the stats pill
 - [x] Tests: forests grow along a stream and not on dry high ground; a lasting pond drowns plants while the dry forest survives; life fields deterministic and resampled
@@ -38,7 +38,7 @@ every feature must be visible on screen (no hidden numbers); stays at 30+ fps at
 - [ ] Autumn colours for the leafy trees (with seasons, v4)
 - [x] Rivers visibly carve over time: speed 8x is a Time-lapse (hourglass icon): as many steps as 4x plus `P.boost = 4` (erosion pick-up, deposition and the erosion cap 4x, plant growth 3x, thermal slumping every step); auto quality does not shrink the grid in time-lapse. In about 30 s a river cuts a gorge, can drain a lake through its outlet, and the forest follows the new banks (`screenshot-timelapse.png`)
 - [x] Meadows stay green on lowland groundwater (meadow target retuned), so flowers last instead of fading after a minute
-- [ ] A Plant tool (sow a forest) and a gentle counter of "happy trees"
+- [x] A Plant tool (sow a forest) and a gentle counter of "happy trees": Plant (key 7, mouse and touch) sows saplings under the brush (not into water, a few gaps so it looks sown); the valley decides if they thrive (moist lowland yes, dry alp or a lake no). `LV.treeHappy` uses the same rules that make `lifeStep` wither a tree, unhappy crowns turn yellow-brown, and the stats pill shows "… trees (…% happy)" (on narrow phones the pill gets its own row under the title so nothing is cut off) (`screenshot-plant.png`)
 
 ### v3: the little village
 - [ ] Place cottages (new tool); a cottage is happy with water nearby, sad when flooded or dry
@@ -57,9 +57,9 @@ every feature must be visible on screen (no hidden numbers); stays at 30+ fps at
 - [ ] Save/share a valley (compressed state in localStorage, seed + edits string)
 
 ## Next steps
-1. A Plant tool (sow trees and flowers with your finger) and a gentle "happy trees" counter.
+1. v3: the little village: a Cottage tool; a cottage is happy with water nearby, sad when flooded or dry (reuse the happy-tree idea and the flood memory).
 2. A short GIF for the arcade card (time-lapse of a river carving, about 1 MB or less).
-3. v3: the little village (cottages that want water nearby but hate floods).
+3. Tuning note: a full 14 s Shower on a fresh world still drowns or scours a good part of the forest (runoff sheets count as a river, puddles that stay drown); look at this together with the village floods.
 
 ## Checklist (every step)
 - [ ] `node tools/build.js` then `node tools/test.js` (all pass)
