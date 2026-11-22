@@ -10,6 +10,8 @@ find its way: lakes fill, rivers spill over ridges, carve gullies and drop sand.
 - **Rain**: a little cloud follows your finger
 - **Spring**: place a spring that keeps flowing (Sponge removes it)
 - **Sponge**: soak up water
+- **Speed** cycles 1x, 2x, 4x and **8x Time-lapse** (hourglass): erosion and growth run four
+  times faster, so you can watch a river carve its gorge and the forest follow the new banks.
 - **Shower** rains on the whole valley, **Map** switches to a top view, **New** makes a new
   named world, **Reset** restarts the same one. Keys 1–6 pick tools, Space pauses.
 
