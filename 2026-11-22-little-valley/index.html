@@ -134,7 +134,7 @@ function create(N, seed, opts) {
   const P = Object.assign({}, DEFAULTS, opts || {});
   const n = N * N, F = () => new Float32Array(n);
   const T = generateTerrain(N, seed);
-  const S = { N, seed: String(seed), P, h: T.h, d: F(), s: F(), fL: F(), fR: F(), fT: F(), fB: F(), u: F(), v: F(), tmp: F(), tmp2: F(), ero: F(), wet: F(), dep: F(), veg: F(), tree: F(), moist: F(), fert: F(), flood: F(), h0: null, springs: [], steps: 0, time: 0 };
+  const S = { N, seed: String(seed), P, h: T.h, d: F(), s: F(), fL: F(), fR: F(), fT: F(), fB: F(), u: F(), v: F(), tmp: F(), tmp2: F(), ero: F(), wet: F(), dep: F(), veg: F(), tree: F(), bloom: F(), moist: F(), fert: F(), flood: F(), h0: null, springs: [], steps: 0, time: 0 };
   S.h0 = new Float32Array(S.h);
   initLife(S);
   return S;
@@ -157,13 +157,23 @@ function initLife(S) {
     fert[i] = f;
     const ok = hn > 0.1 && hn < 0.55 && sl < 1.2;
     tree[i] = ok && base + 0.35 * f > 0.31 ? Math.min(1, (base + 0.35 * f - 0.31) * 10) : 0;
+    S.bloom[i] = bloomTarget(veg[i], tree[i], base, hn, f) * 0.6;
   }
+}
+// flowers: rich meadow, not under the forest, not soggy, not up on the alp; patchy by fertility
+function bloomTarget(g, t, m, hn, f) {
+  return smoothstep(0.5, 0.85, g) * (1 - smoothstep(0.25, 0.55, t)) * smoothstep(0.1, 0.24, m) * (1 - smoothstep(0.8, 0.98, m)) * (1 - smoothstep(0.42, 0.56, hn)) * smoothstep(-0.25, 0.15, f);
+}
+// broadleaf share of a forest cell: leafy trees in the warm moist lowlands, pines above
+function leafy(S, i) {
+  const hn = S.h[i] / (S.N * 0.27) + 0.07 * S.fert[i] - 0.05 * S.moist[i];
+  return 1 - smoothstep(0.12, 0.22, hn);
 }
 function smoothstep(a, b, x) { const t = Math.max(0, Math.min(1, (x - a) / (b - a))); return t * t * (3 - 2 * t); }
 function groundWater(hn) { return 0.32 * (1 - smoothstep(0.12, 0.6, hn)); }
 
 function lifeStep(S) {
-  const { N, h, d, u, v, veg, tree, moist, dep, fert, flood } = S, H = N * 0.27, m2 = S.tmp;
+  const { N, h, d, u, v, veg, tree, moist, dep, fert, flood, bloom } = S, H = N * 0.27, m2 = S.tmp;
   const rainK = S.P.rain > 0 ? Math.min(0.5, S.P.rain * 20) : 0, k0 = S.steps;
   // moisture: open water = 1, spreads a few cells onto the banks, otherwise relaxes to groundwater
   for (let y = 1; y < N - 1; y++) for (let x = 1; x < N - 1; x++) {
@@ -182,9 +192,9 @@ function lifeStep(S) {
     const sp = Math.sqrt(u[i] * u[i] + v[i] * v[i]);
     // flood memory: plants survive a shower, but not a lake that stays (about 15 s of play)
     let fl = flood[i]; fl = di > 0.3 ? fl + 0.01 : fl * 0.97; flood[i] = fl;
-    let g = veg[i], t = tree[i];
-    if (sp > 3.5 && di > 0.6) { g -= 0.05; t -= 0.015; }                 // a real river scours its bed
-    else if (fl > 0.5) { g -= 0.02; if (fl > 1) t -= 0.006; }           // drowning in standing water
+    let g = veg[i], t = tree[i], fb = bloom[i];
+    if (sp > 3.5 && di > 0.6) { g -= 0.05; t -= 0.015; fb -= 0.08; }     // a real river scours its bed
+    else if (fl > 0.5) { g -= 0.02; fb -= 0.04; if (fl > 1) t -= 0.006; } // drowning in standing water
     else if (di > 0.1) { /* wet for now: no growth, no harm */ }
     else {
       const m = moist[i], alpine = 1 - smoothstep(0.55, 0.75, hn), rock = 1 - smoothstep(1.1, 1.8, sl);
@@ -200,11 +210,18 @@ function lifeStep(S) {
         }
       } else if (m + 0.35 * fert[i] < 0.2 || hn >= 0.6 || sl > 1.5) t -= 0.004;
       if (dep[i] > 1.5) t -= 0.003; // buried by sand
+      const bt = bloomTarget(g, t, m, hn, fert[i]) * (dep[i] > 0.8 ? 0.3 : 1);
+      fb += (bt - fb) * (bt > fb ? 0.012 : 0.02);
     }
-    veg[i] = g < 0 ? 0 : g > 1 ? 1 : g; tree[i] = t < 0 ? 0 : t > 1 ? 1 : t;
+    veg[i] = g < 0 ? 0 : g > 1 ? 1 : g; tree[i] = t < 0 ? 0 : t > 1 ? 1 : t; bloom[i] = fb < 0 ? 0 : fb > 1 ? 1 : fb;
   }
 }
 function countTrees(S) { let n = 0; const t = S.tree; for (let i = 0; i < t.length; i++) if (t[i] > 0.35) n++; return n; }
+function countLife(S) { // trees (pines / leafy) and flower cells, for the stats pill and tests
+  let pine = 0, leaf = 0, fl = 0; const t = S.tree, b = S.bloom;
+  for (let i = 0; i < t.length; i++) { if (t[i] > 0.35) { if (leafy(S, i) > 0.5) leaf++; else pine++; } if (b[i] > 0.4) fl++; }
+  return { trees: pine + leaf, pine, leaf, flowers: fl };
+}
 
 // Default friendly start: a few springs high up plus a first shower.
 function seedLife(S, count) {
@@ -434,15 +451,15 @@ function resample(S, N2) {
     const i = y * N2 + x, px = x * sc, py = y * sc;
     T.h[i] = lerp(S.h, px, py) * hs; T.d[i] = lerp(S.d, px, py) * hs; T.s[i] = lerp(S.s, px, py) * hs;
     T.wet[i] = lerp(S.wet, px, py); T.dep[i] = lerp(S.dep, px, py) * hs; T.h0[i] = lerp(S.h0, px, py) * hs;
-    T.veg[i] = lerp(S.veg, px, py); T.tree[i] = lerp(S.tree, px, py); T.moist[i] = lerp(S.moist, px, py); T.fert[i] = lerp(S.fert, px, py); T.flood[i] = lerp(S.flood, px, py);
+    T.veg[i] = lerp(S.veg, px, py); T.tree[i] = lerp(S.tree, px, py); T.moist[i] = lerp(S.moist, px, py); T.fert[i] = lerp(S.fert, px, py); T.flood[i] = lerp(S.flood, px, py); T.bloom[i] = lerp(S.bloom, px, py);
   }
   T.springs = S.springs.map(sp => Object.assign({}, sp)); T.steps = S.steps; T.time = S.time;
   return T;
 }
 
-function hasNaN(S) { for (const k of ['h', 'd', 's', 'u', 'v', 'fL', 'fR', 'fT', 'fB', 'veg', 'tree', 'moist', 'flood']) { const a = S[k]; for (let i = 0; i < a.length; i++) if (!Number.isFinite(a[i])) return k; } return false; }
+function hasNaN(S) { for (const k of ['h', 'd', 's', 'u', 'v', 'fL', 'fR', 'fT', 'fB', 'veg', 'tree', 'moist', 'flood', 'bloom']) { const a = S[k]; for (let i = 0; i < a.length; i++) if (!Number.isFinite(a[i])) return k; } return false; }
 
-const API = { mulberry32, hashStr, makeNoise, randomSeedName, generateTerrain, create, seedLife, step, applyTool, totalWater, totalTerrain, resample, lifeStep, countTrees, hasNaN, DEFAULTS };
+const API = { mulberry32, hashStr, makeNoise, randomSeedName, generateTerrain, create, seedLife, step, applyTool, totalWater, totalTerrain, resample, lifeStep, countTrees, countLife, leafy, hasNaN, DEFAULTS };
 if (typeof module !== 'undefined' && module.exports) module.exports = API; else root.LV = API;
 })(typeof window !== 'undefined' ? window : globalThis);
 </script>
@@ -532,12 +549,18 @@ function changeN(i) {
 }
 
 // ---------- rendering buffers ----------
-let colR, colG, colB, surf, grain, patch, topImg, topCanvas, topCtx, tilt = null;
+let colR, colG, colB, surf, grain, patch, topImg, topCanvas, topCtx, tilt = null, leafK = null, flowerH, flowerC;
+// meadow flowers: buttercup, daisy, clover pink, gentian blue, poppy red
+const FLOWERS = [[255, 214, 60], [252, 250, 240], [238, 120, 172], [84, 120, 236], [232, 72, 58]];
+function updLeafy() { const S = st.S, n = S.N * S.N; if (!leafK || leafK.length !== n) leafK = new Float32Array(n); for (let i = 0; i < n; i++) leafK[i] = S.tree[i] > 0.05 ? LV.leafy(S, i) : 0; }
 function allocRender() {
   const N = st.S.N, n = N * N;
   colR = new Float32Array(n); colG = new Float32Array(n); colB = new Float32Array(n); surf = new Float32Array(n);
   grain = new Float32Array(n); const r = LV.mulberry32(99); for (let i = 0; i < n; i++) grain[i] = (r() - 0.5);
   patch = new Float32Array(n); const pn = LV.makeNoise(LV.mulberry32(5)); for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) { const u = x / N * 7, v = y / N * 7; const f = pn(u, v) + 0.5 * pn(u * 2.3 + 9, v * 2.3); patch[y * N + x] = Math.max(-0.28, Math.min(0.3, f * 0.55)); }
+  flowerH = new Float32Array(n); flowerC = new Uint8Array(n); const fr = LV.mulberry32(31); const fz = LV.makeNoise(LV.mulberry32(77));
+  for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) { const i = y * N + x; flowerH[i] = fr(); const z = fz(x / N * 5, y / N * 5) * 2.6 + (fr() - 0.5) * 0.35; flowerC[i] = Math.max(0, Math.min(4, Math.floor((z + 0.9) * 2.6))); }
+  leafK = null;
   topCanvas = document.createElement('canvas'); topCanvas.width = N; topCanvas.height = N; topCtx = topCanvas.getContext('2d'); topImg = topCtx.createImageData(N, N);
   tilt = null; layout();
 }
@@ -557,7 +580,8 @@ function ramp(t, out) { let i = 0; while (i < RAMP.length - 2 && t > RAMP[i + 1]
 
 const tmpc = [0, 0, 0];
 function computeColours(t) {
-  const S = st.S, N = S.N, h = S.h, d = S.d, s = S.s, u = S.u, v = S.v, wet = S.wet, dep = S.dep, veg = S.veg, tree = S.tree;
+  const S = st.S, N = S.N, h = S.h, d = S.d, s = S.s, u = S.u, v = S.v, wet = S.wet, dep = S.dep, veg = S.veg, tree = S.tree, bloom = S.bloom;
+  if (!(st.frames % 15) || !leafK) updLeafy();
   const H = N * 0.27, ex = 1.6, tiltView = st.view === 'tilt';
   // sun: from the west, a little from the viewer side in 3D view
   let Lx = -0.62, Ly = tiltView ? 0.28 : -0.42, Lz = 0.72; const Ll = Math.hypot(Lx, Ly, Lz); Lx /= Ll; Ly /= Ll; Lz /= Ll;
@@ -587,7 +611,10 @@ function computeColours(t) {
       if (bare > 0.02) { const k = bare * 0.75; r += (184 - r) * k; g += (160 - g) * k; b += (102 - b) * k; }
       // forest canopy: dark pine green with a little texture
       const tr = tree[i];
-      if (tr > 0.05) { const k = Math.min(1, tr * 1.2) * 0.8, gr = 1 + grain[i] * 0.5; r += (46 * gr - r) * k; g += (98 * gr - g) * k; b += (52 * gr - b) * k; }
+      if (tr > 0.05) { const k = Math.min(1, tr * 1.2) * 0.8, gr = 1 + grain[i] * 0.5, lf = leafK[i]; r += ((46 + 30 * lf) * gr - r) * k; g += ((98 + 44 * lf) * gr - g) * k; b += ((52 - 6 * lf) * gr - b) * k; }
+      // flowers: speckles of colour in rich meadows
+      const fb = bloom[i];
+      if (fb > 0.3 && flowerH[i] < (fb - 0.3) * 0.9) { const c = FLOWERS[flowerC[i]], k = 0.55; r += (c[0] - r) * k; g += (c[1] - g) * k; b += (c[2] - b) * k; }
       // steep = rock
       const rk = smooth(0.9, 1.9, slope);
       if (rk > 0) { const rr = 148 + grain[i] * 14; r += (rr - r) * rk; g += (rr * 0.93 - g) * rk; b += (rr * 0.84 - b) * rk; }
@@ -765,10 +792,31 @@ function renderTilt(t) {
 // little pine trees on forest cells, rasterised straight into the tilt buffer (back to front),
 // only where the cell itself is visible (pick buffer), so ridges hide the trees behind them
 function rasterTrees(T, data) {
-  const S = st.S, N = S.N, tree = S.tree, ow = T.ow, oh = T.oh, pick = T.pick, cp = T.cp;
+  const S = st.S, N = S.N, tree = S.tree, bloom = S.bloom, ow = T.ow, oh = T.oh, pick = T.pick, cp = T.cp;
+  // flowers first (trees are drawn over them): a few bright dots per blooming cell
+  let nf = 0;
+  if (cp >= 1.6) {
+    const dots = cp >= 4 ? 3 : cp >= 2.6 ? 2 : 1, big = cp >= 5 ? 1 : 0;
+    for (let y = 1; y < N - 1; y++) for (let x = 1; x < N - 1; x++) {
+      const i = y * N + x, fb = bloom[i]; if (fb < 0.35 || S.d[i] > 0.03 || tree[i] > 0.35 || flowerH[i] > fb * 0.9) continue;
+      const sc = persp(y, N), hz = 0.22 * (1 - y / N) * (1 - y / N), c = FLOWERS[flowerC[i]];
+      const cr = c[0] + (215 - c[0]) * hz, cg = c[1] + (232 - c[1]) * hz, cb = c[2] + (245 - c[2]) * hz;
+      const nd = Math.min(dots, 1 + ((fb - 0.35) * 4 * dots) | 0);
+      for (let k = 0; k < nd; k++) {
+        const jx = x + flowerH[(i + k * 7919) % (N * N)] - 0.5, jy = y + grain[(i + k * 104729) % (N * N)];
+        const ox = (jx + 0.5 - N / 2) * cp * sc + ow / 2, oy = baseY(T, jy, N) - surf[i] * cp * T.hEx * sc;
+        const bx = ox | 0, by = oy | 0; if (bx < 1 || by < 1 || bx >= ow - 2 || by >= oh - 2) continue;
+        const pc = pick[(by + 1) * ow + bx]; if (pc < 0 || Math.abs(pc % N - x) > 2 || Math.abs(((pc / N) | 0) - y) > 2) continue;
+        let q = (by * ow + bx) * 4; data[q] = cr; data[q + 1] = cg; data[q + 2] = cb;
+        if (big) { q += 4; data[q] = cr; data[q + 1] = cg; data[q + 2] = cb; q += ow * 4 - 4; data[q] = cr * 0.8; data[q + 1] = cg * 0.8; data[q + 2] = cb * 0.8; }
+        nf++;
+      }
+    }
+  }
+  st.flowersDrawn = nf;
   const stride = N > 120 ? 2 : 1;
   if (cp * stride < 1.5) return;
-  let n = 0;
+  let n = 0, nl = 0;
   for (let y = 1; y < N - 1; y += stride) for (let x = 1; x < N - 1; x += stride) {
     const i = y * N + x, tv = tree[i]; if (tv < 0.35 || S.d[i] > 0.08) continue;
     const jx = x + (grain[i] + 0.5) * stride * 0.8 - 0.2, jy = y + (grain[i + 1] + 0.5) * stride * 0.8 - 0.2;
@@ -777,18 +825,33 @@ function rasterTrees(T, data) {
     const bx = ox | 0, by = (oy | 0) + 1; if (bx < 1 || by < 1 || bx >= ow - 1 || by >= oh) continue;
     const c = pick[by * ow + bx]; if (c < 0) continue;
     if (Math.abs(c % N - x) > 2.5 || Math.abs(((c / N) | 0) - y) > 3) continue;
-    const hgt = cp * sc * (1.5 + 1.5 * tv) * (0.85 + grain[i + N] * 0.5), w = hgt * 0.36;
-    const hz = 0.22 * (1 - jy / N) * (1 - jy / N), lr = 52 + 150 * hz, lg = 112 + 110 * hz, lb = 62 + 180 * hz, dr = 30 + 170 * hz, dg = 76 + 150 * hz, db = 46 + 200 * hz;
-    const top = Math.round(oy - hgt), bot = Math.round(oy - hgt * 0.12);
-    for (let py = Math.max(0, top); py <= bot && py < oh; py++) {
-      const f = (py - top) / (bot - top + 1e-6), hw = w * (0.25 + 0.75 * f) * (0.85 + 0.15 * Math.sin(f * 18)), row = py * ow;
-      const x0 = Math.max(0, Math.round(ox - hw)), x1 = Math.min(ow - 1, Math.round(ox + hw)), xm = Math.round(ox);
-      for (let px = x0; px <= x1; px++) { const q = (row + px) * 4; if (px < xm) { data[q] = lr; data[q + 1] = lg; data[q + 2] = lb; } else { data[q] = dr; data[q + 1] = dg; data[q + 2] = db; } data[q + 3] = 255; }
+    const hz = 0.22 * (1 - jy / N) * (1 - jy / N);
+    if (leafK && leafK[i] > 0.5) {
+      // leafy lowland tree: a round, light crown on a short trunk
+      const hgt = cp * sc * (1.3 + 1.2 * tv) * (0.85 + grain[i + N] * 0.4), rad = hgt * 0.42, ccx = ox, ccy = oy - hgt + rad;
+      const v = grain[i + 2] * 0.25, lr = 104 + 110 * hz, lg = 168 + 70 * hz + 20 * v, lb = 70 + 170 * hz, dr = 52 + 150 * hz, dg = 112 + 120 * hz + 15 * v, db = 44 + 190 * hz;
+      for (let py = Math.round(ccy + rad * 0.5); py <= Math.round(oy) && py < oh; py++) { if (py < 0) continue; const q = (py * ow + Math.round(ox)) * 4; data[q] = 96; data[q + 1] = 70; data[q + 2] = 46; data[q + 3] = 255; }
+      const r2 = rad * rad;
+      for (let py = Math.max(0, Math.round(ccy - rad)); py <= Math.round(ccy + rad * 0.85) && py < oh; py++) {
+        const dy = py - ccy, hw = Math.sqrt(Math.max(0, r2 - dy * dy)), row = py * ow;
+        const x0 = Math.max(0, Math.round(ox - hw)), x1 = Math.min(ow - 1, Math.round(ox + hw));
+        for (let px = x0; px <= x1; px++) { const q = (row + px) * 4, dx = px - ox, lit = (-dx * 0.6 - dy * 0.8) / rad; if (lit > 0.05) { data[q] = lr; data[q + 1] = lg; data[q + 2] = lb; } else { data[q] = dr; data[q + 1] = dg; data[q + 2] = db; } data[q + 3] = 255; }
+      }
+      nl++;
+    } else {
+      const hgt = cp * sc * (1.5 + 1.5 * tv) * (0.85 + grain[i + N] * 0.5), w = hgt * 0.36;
+      const lr = 52 + 150 * hz, lg = 112 + 110 * hz, lb = 62 + 180 * hz, dr = 30 + 170 * hz, dg = 76 + 150 * hz, db = 46 + 200 * hz;
+      const top = Math.round(oy - hgt), bot = Math.round(oy - hgt * 0.12);
+      for (let py = Math.max(0, top); py <= bot && py < oh; py++) {
+        const f = (py - top) / (bot - top + 1e-6), hw = w * (0.25 + 0.75 * f) * (0.85 + 0.15 * Math.sin(f * 18)), row = py * ow;
+        const x0 = Math.max(0, Math.round(ox - hw)), x1 = Math.min(ow - 1, Math.round(ox + hw)), xm = Math.round(ox);
+        for (let px = x0; px <= x1; px++) { const q = (row + px) * 4; if (px < xm) { data[q] = lr; data[q + 1] = lg; data[q + 2] = lb; } else { data[q] = dr; data[q + 1] = dg; data[q + 2] = db; } data[q + 3] = 255; }
+      }
+      for (let py = bot + 1; py <= Math.round(oy) && py < oh; py++) { const q = (py * ow + Math.round(ox)) * 4; data[q] = 90; data[q + 1] = 63; data[q + 2] = 40; data[q + 3] = 255; }
     }
-    for (let py = bot + 1; py <= Math.round(oy) && py < oh; py++) { const q = (py * ow + Math.round(ox)) * 4; data[q] = 90; data[q + 1] = 63; data[q + 2] = 40; data[q + 3] = 255; }
     n++;
   }
-  st.treesDrawn = n;
+  st.treesDrawn = n; st.leafyDrawn = nl;
 }
 // grid -> screen (css px) in tilt view
 function projTilt(gx, gy) {
@@ -978,7 +1041,7 @@ function frame(now) {
   fpsAcc += dtReal; fpsN++; st.frames++;
   if (fpsAcc > 0.5) { st.fps = fpsN / fpsAcc; fpsAcc = 0; fpsN = 0; }
   adapt(dtReal);
-  statT -= dtReal; if (statT <= 0) { statT = 0.5; const nt = LV.countTrees(S), tt = nt >= 1000 ? (nt / 1000).toFixed(1) + 'k' : nt; $('stats').textContent = (vw < 600 ? '' : `${S.N}² · `) + `${Math.round(st.fps)} fps · ${tt} trees` + (st.paused ? ' · paused' : ''); }
+  statT -= dtReal; if (statT <= 0) { statT = 0.5; const L = LV.countLife(S), nt = L.trees, k = v => v >= 1000 ? (v / 1000).toFixed(1) + 'k' : v, tt = k(nt), ff = k(L.flowers); st.life = L; $('stats').textContent = (vw < 600 ? `${tt} trees · ${ff} flowers` : `${S.N}² · ${Math.round(st.fps)} fps · ${tt} trees · ${ff} flowers`) + (st.paused ? ' · paused' : ''); }
   requestAnimationFrame(frame);
 }
 // auto quality: lower render scale first, then the grid

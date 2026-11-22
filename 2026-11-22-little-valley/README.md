@@ -18,7 +18,9 @@ Worlds are seeded by name in the URL hash, e.g. `index.html#Daisy%20Glacier%205`
 ## Life
 Meadows and pine forests follow the water: ground near lakes and rivers gets moist, forests
 spread along streams, dry high ground turns to straw, a lake that stays drowns the trees under
-it and a fast river scours its bed. The stats pill counts the trees.
+it and a fast river scours its bed. Leafy trees grow in the warm lowlands and pines on the
+slopes, and rich moist meadows bloom with buttercups, daisies, clover, gentians and poppies.
+The stats pill counts the trees and flower patches.
 
 ## How it works
 Heightmap terrain from seeded noise, shallow water with the virtual-pipes method (mass

@@ -29,11 +29,13 @@ every feature must be visible on screen (no hidden numbers); stays at 30+ fps at
 - [x] Touch/mobile friendly, auto quality (grid 128–192, render scale)
 - [x] `tools/test.js` (sim) and `tools/browser-test.js` (desktop, phone, landscape)
 
-### v2: life follows water (part 1 done, 2026-11-22)
+### v2: life follows water (parts 1–2 in progress, 2026-11-22)
 - [x] Vegetation layer in the sim (`lifeStep`, every 6 steps): ground moisture spreads from water onto the banks, meadow and forest grow on moist ground below the treeline, wither when dry, drown when a lake stays (flood memory, a shower is fine), get scoured by a fast deep river, die when buried by sand; seeded forest patches at the start; trees spread from neighbours
 - [x] Draw it: straw-coloured dry ground, dark forest canopy in the colour map, pine sprites rasterised into the 3D buffer (hidden behind ridges via the pick buffer, hazed at the back, 0.7 ms per frame); tree count in the stats pill
 - [x] Tests: forests grow along a stream and not on dry high ground; a lasting pond drowns plants while the dry forest survives; life fields deterministic and resampled
-- [ ] Flowers in meadows (spring colours), deciduous trees in the lowlands, autumn colours later with seasons
+- [x] Flowers in meadows: a `bloom` field in the sim (rich, moist meadow, not under forest, not on the alp, drowned by a lasting pond, scoured by a river), drawn as colour patches (buttercup, daisy, clover, gentian, poppy) in both views plus flower dots in 3D; stats pill counts flowers
+- [x] Leafy (broadleaf) trees in the warm lowlands with round light crowns, pines on the slopes (`LV.leafy`), tested
+- [ ] Autumn colours for the leafy trees (with seasons, v4)
 - [ ] Rivers visibly carve over time (a "Time-lapse" speed, e.g. 8x with erosion boost)
 - [ ] A Plant tool (sow a forest) and a gentle counter of "happy trees"
 
@@ -54,7 +56,7 @@ every feature must be visible on screen (no hidden numbers); stays at 30+ fps at
 - [ ] Save/share a valley (compressed state in localStorage, seed + edits string)
 
 ## Next steps
-1. v2 part 2: flowers and lowland broadleaf trees, a Time-lapse speed (8x, erosion boost) so you can watch a river carve a valley and the forest follow it.
+1. v2 part 2b: a Time-lapse speed (8x, erosion boost) so you can watch a river carve a valley and the forest follow it (flowers and leafy trees are done).
 2. A Plant tool (sow trees with your finger), then a short GIF for the arcade card.
 3. v3: the little village (cottages that want water nearby but hate floods).
 
