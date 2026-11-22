@@ -1,0 +1,897 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes"><meta name="theme-color" content="#8fd3f5">
+<title>Little Valley</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%238fd3f5'/%3E%3Cpath d='M2 26 11 10l5 7 4-5 10 14z' fill='%234f9d4a'/%3E%3Cpath d='M11 10l2.6 4.6-2.6-1-2 1.7z' fill='%23fff'/%3E%3Cpath d='M2 26c8-3 18-3 28 0v4H2z' fill='%233aa0e0'/%3E%3C/svg%3E">
+<style>*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%;overflow:hidden;background:#9fdaf7;font:600 15px/1.2 ui-rounded,"SF Pro Rounded",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:#24405a;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;overscroll-behavior:none}
+#view{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:none}
+#top{position:fixed;left:0;right:0;top:0;display:flex;justify-content:space-between;align-items:flex-start;gap:8px;padding:calc(env(safe-area-inset-top) + 8px) calc(env(safe-area-inset-right) + 10px) 0 calc(env(safe-area-inset-left) + 10px);pointer-events:none}
+.pill{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:70vw;background:#ffffffd0;border-radius:999px;padding:7px 14px;box-shadow:0 3px 12px #2a5a8030;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
+#title b{font-size:18px;color:#2f7d3a;letter-spacing:.02em;margin-right:8px}
+#seedName{font-weight:500;color:#5a7290;font-size:13px}
+#stats{font-size:12px;font-weight:500;color:#5a7290;font-variant-numeric:tabular-nums}
+#hint{position:fixed;left:50%;top:calc(env(safe-area-inset-top) + 58px);transform:translate(-50%,-8px);background:#fff8d6;color:#6b4a12;border-radius:16px;padding:9px 16px;font-size:16px;box-shadow:0 4px 16px #6b4a1230;opacity:0;transition:opacity .35s,transform .35s;pointer-events:none;white-space:nowrap;max-width:94vw;overflow:hidden;text-overflow:ellipsis}
+#hint.show{opacity:1;transform:translate(-50%,0)}
+nav{position:fixed;display:flex;gap:7px;padding:7px;background:#ffffffb8;border-radius:22px;box-shadow:0 6px 22px #2a5a8035;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+button{appearance:none;border:0;margin:0;font:inherit;color:inherit;background:#fff;border-radius:16px;width:66px;height:66px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;box-shadow:0 2px 0 #c9dbe8,0 3px 8px #2a5a8020;cursor:pointer;touch-action:manipulation;transition:transform .12s,background .15s}
+button svg{width:36px;height:36px;display:block;pointer-events:none}
+button span{font-size:12px;line-height:1;pointer-events:none;white-space:nowrap}
+button:active{transform:scale(.93)}
+button.on{background:#ffe680;box-shadow:0 2px 0 #e0b93a,0 0 0 3px #ffd23f,0 4px 12px #c8900040}
+#ctl button{width:56px;height:56px;border-radius:14px;background:#f4fbff}
+#ctl button svg{width:28px;height:28px}
+#ctl button span{font-size:11px}
+#ctl button.on{background:#d4f2ff;box-shadow:0 2px 0 #9cc9e0,0 0 0 3px #7cc8ee}
+/* default: desktop / wide, tools bottom centre, controls bottom right */
+#tools{left:50%;transform:translateX(-50%);bottom:calc(env(safe-area-inset-bottom) + 12px)}
+#ctl{right:calc(env(safe-area-inset-right) + 12px);top:calc(env(safe-area-inset-top) + 56px);flex-direction:column}
+/* portrait phones: two rows at the bottom */
+@media (orientation:portrait) and (max-width:820px){
+  #tools{left:8px;right:8px;transform:none;justify-content:space-between;bottom:calc(env(safe-area-inset-bottom) + 8px);gap:4px;padding:6px}
+  #tools button{flex:1;width:auto;min-width:0;height:62px}
+  #ctl{left:8px;right:8px;top:auto;bottom:calc(env(safe-area-inset-bottom) + 92px);flex-direction:row;justify-content:space-between;gap:4px;padding:5px}
+  #ctl button{flex:1;width:auto;min-width:0;height:48px}
+  #ctl button svg{width:24px;height:24px}
+}
+/* landscape phones: tools on the left, controls on the right */
+@media (orientation:landscape) and (max-height:520px){
+  #top{padding:6px calc(env(safe-area-inset-right) + 66px) 0 calc(env(safe-area-inset-left) + 74px)}.pill{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:70vw;padding:5px 11px}#title b{font-size:15px}
+  #tools{left:calc(env(safe-area-inset-left) + 6px);top:50%;bottom:auto;transform:translateY(-50%);flex-direction:column;gap:4px;padding:5px}
+  #tools button{width:58px;height:calc((100vh - 70px) / 6);max-height:58px;min-height:40px}
+  #tools button svg{width:28px;height:28px}
+  #ctl{right:calc(env(safe-area-inset-right) + 6px);top:50%;transform:translateY(-50%);gap:4px;padding:5px}
+  #ctl button{width:50px;height:calc((100vh - 76px) / 7);max-height:50px;min-height:36px}
+  #ctl button svg{width:22px;height:22px}#ctl button span{font-size:10px}
+  #hint{top:40px;font-size:14px}
+}
+@media (max-width:430px){#title b{font-size:16px}#seedName{font-size:12px}}
+</style></head><body>
+<canvas id="view" aria-label="Little Valley: draw on the valley to shape it"></canvas>
+<div id="top">
+  <div class="pill" id="title"><b>Little Valley</b><span id="seedName"></span></div>
+  <div class="pill" id="stats" title="Simulation grid and frames per second">–</div>
+</div>
+<div id="hint" class="show">Draw on the valley with your finger!</div>
+<nav id="tools" aria-label="Tools"></nav>
+<nav id="ctl" aria-label="Controls"></nav>
+<script>// Little Valley: pure simulation module (no DOM). Works in the browser (window.LV)
+// and in node (module.exports). Heightmap terrain, virtual-pipes shallow water,
+// sediment erosion/deposition with semi-Lagrangian transport, thermal slumping.
+(function (root) {
+'use strict';
+
+function mulberry32(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+function hashStr(s) { let h = 2166136261; s = String(s); for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; }
+
+const WORDS_A = ['Sunny', 'Mossy', 'Breezy', 'Golden', 'Misty', 'Happy', 'Clover', 'Daisy', 'Pebble', 'Honey', 'Maple', 'Snowy', 'Bubbly', 'Merry', 'Cosy', 'Sparkly'];
+const WORDS_B = ['Larch', 'Meadow', 'Brook', 'Alp', 'Glacier', 'Marmot', 'Edelweiss', 'Gentian', 'Chalet', 'Pine', 'Falls', 'Ridge', 'Cowbell', 'Lake', 'Pasture', 'Summit'];
+function randomSeedName(rnd) { rnd = rnd || Math.random; return WORDS_A[(rnd() * WORDS_A.length) | 0] + ' ' + WORDS_B[(rnd() * WORDS_B.length) | 0] + ' ' + (1 + ((rnd() * 99) | 0)); }
+
+// Seeded 2D gradient noise (Perlin style)
+function makeNoise(rnd) {
+  const p = new Uint8Array(512), g = new Float32Array(512);
+  const perm = []; for (let i = 0; i < 256; i++) perm.push(i);
+  for (let i = 255; i > 0; i--) { const j = (rnd() * (i + 1)) | 0; const t = perm[i]; perm[i] = perm[j]; perm[j] = t; }
+  for (let i = 0; i < 512; i++) p[i] = perm[i & 255];
+  for (let i = 0; i < 256; i++) { const a = rnd() * Math.PI * 2; g[i * 2] = Math.cos(a); g[i * 2 + 1] = Math.sin(a); }
+  const fade = t => t * t * t * (t * (t * 6 - 15) + 10);
+  return function (x, y) {
+    const xi = Math.floor(x), yi = Math.floor(y), xf = x - xi, yf = y - yi;
+    const X = xi & 255, Y = yi & 255;
+    const dot = (hx, hy, dx, dy) => { const k = p[p[hx] + hy] * 2; return g[k] * dx + g[k + 1] * dy; };
+    const n00 = dot(X, Y, xf, yf), n10 = dot(X + 1, Y, xf - 1, yf), n01 = dot(X, Y + 1, xf, yf - 1), n11 = dot(X + 1, Y + 1, xf - 1, yf - 1);
+    const u = fade(xf), v = fade(yf);
+    return (n00 + u * (n10 - n00)) * (1 - v) + (n01 + u * (n11 - n01)) * v; // ~[-0.7,0.7]
+  };
+}
+
+const DEFAULTS = {
+  dt: 0.04, g: 9.81, damp: 0.9985,
+  rain: 0, evap: 0.012, openEdges: true, edgeDrain: 3,
+  Kc: 0.9, Ks: 0.35, Kd: 0.8, depthMax: 0.6, minTilt: 0.04, maxErode: 0.004,
+  talus: 1.6, talusWet: 0.4, thermal: 0.15, thermalEvery: 2,
+  springRate: 3.0, erosion: true
+};
+
+// World size: heights are in "cell" units; mountains ~ 0.27 * N tall.
+function generateTerrain(N, seed) {
+  const rnd = mulberry32(hashStr(seed));
+  const n1 = makeNoise(rnd), n2 = makeNoise(rnd), n3 = makeNoise(rnd);
+  const h = new Float32Array(N * N);
+  const meander = rnd() * 6.28, mAmp = 0.06 + rnd() * 0.07, side = rnd() < 0.5 ? -1 : 1;
+  const lakeY = 0.55 + rnd() * 0.15, lakeX = 0.5 + (rnd() - 0.5) * 0.12, lakeR = 0.07 + rnd() * 0.04;
+  const H = N * 0.27;
+  for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
+    const u = x / N, v = y / N; // v=0 far (north), v=1 near (south)
+    let f = 0, amp = 0.5, fr = 2.2;
+    for (let o = 0; o < 5; o++) { f += amp * n1(u * fr + 11.3, v * fr + 7.1); amp *= 0.5; fr *= 2.05; }
+    let r = 0; amp = 0.55; fr = 2.6; let w = 1;
+    for (let o = 0; o < 5; o++) { let k = 1 - Math.abs(n2(u * fr + 3.7, v * fr + 1.9) * 1.6); k = k * k * w; w = Math.min(1, k * 1.4); r += k * amp; amp *= 0.48; fr *= 2.1; }
+    // valley centreline meanders from north to south
+    const cx = 0.5 + mAmp * Math.sin(v * 5.2 + meander) + 0.03 * side * (v - 0.5) + 0.04 * n3(v * 3 + 5, 0.5);
+    const dx = Math.abs(u - cx);
+    const valleyW = 0.13 + 0.05 * v;
+    const t = Math.min(1, dx / (valleyW * 2.4));
+    const mount = t * t * (3 - 2 * t); // 0 in valley, 1 on flanks
+    const north = 0.55 + 0.6 * (1 - v); // mountains taller at the back
+    let e = 0.07 + 0.22 * (1 - v) * (1 - v) + 0.04 * f;      // valley floor sloping south
+    e += mount * north * (0.42 * r + 0.18 + 0.14 * f);
+    // rim: edges a bit higher except the river outlet in the south
+    const edge = Math.min(u, 1 - u, v);
+    if (edge < 0.08) e += (0.08 - edge) * 2.2 * (v > 0.85 && dx < valleyW * 0.4 ? 0.1 : 1);
+    // gentle basin for a lake
+    const lx = (u - lakeX) / lakeR, ly = (v - lakeY) / (lakeR * 0.8), ld = lx * lx + ly * ly;
+    if (ld < 1) e -= 0.035 * (1 - ld) * (1 - ld) * (1 - mount);
+    h[y * N + x] = Math.max(0, e) * H;
+  }
+  return { h, lake: { x: lakeX, y: lakeY } };
+}
+
+function create(N, seed, opts) {
+  const P = Object.assign({}, DEFAULTS, opts || {});
+  const n = N * N, F = () => new Float32Array(n);
+  const T = generateTerrain(N, seed);
+  const S = { N, seed: String(seed), P, h: T.h, d: F(), s: F(), fL: F(), fR: F(), fT: F(), fB: F(), u: F(), v: F(), tmp: F(), tmp2: F(), ero: F(), wet: F(), dep: F(), h0: null, springs: [], steps: 0, time: 0 };
+  S.h0 = new Float32Array(S.h);
+  return S;
+}
+
+// Default friendly start: a few springs high up plus a first shower.
+function seedLife(S, count) {
+  const { N, h } = S; const rnd = mulberry32(hashStr(S.seed + '#springs'));
+  count = count == null ? 3 : count;
+  let tries = 0;
+  while (S.springs.length < count && tries++ < 400) {
+    const x = 0.12 + rnd() * 0.76, y = 0.08 + rnd() * 0.4;
+    const gx = (x * N) | 0, gy = (y * N) | 0; const hv = h[gy * N + gx];
+    if (hv < N * 0.12 || hv > N * 0.24) continue;
+    if (S.springs.some(s => Math.hypot(s.x - x, s.y - y) < 0.18)) continue;
+    S.springs.push({ x, y, rate: 1 });
+  }
+  for (let i = 0; i < N * N; i++) S.d[i] += 0.25;
+}
+
+function totalWater(S) { let t = 0; const d = S.d; for (let i = 0; i < d.length; i++) t += d[i]; return t; }
+function totalTerrain(S) { let t = 0; const h = S.h; for (let i = 0; i < h.length; i++) t += h[i]; return t; }
+
+function addKernel(S, arr, gx, gy, rad, amount) {
+  // gaussian-ish brush; amount is the total-ish height added at centre
+  const N = S.N, r = Math.max(1, rad), r2 = r * r;
+  const x0 = Math.max(0, Math.floor(gx - r)), x1 = Math.min(N - 1, Math.ceil(gx + r));
+  const y0 = Math.max(0, Math.floor(gy - r)), y1 = Math.min(N - 1, Math.ceil(gy + r));
+  for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) {
+    const dd = ((x - gx) * (x - gx) + (y - gy) * (y - gy)) / r2; if (dd >= 1) continue;
+    const w = (1 - dd) * (1 - dd); arr[y * N + x] += amount * w;
+  }
+}
+
+// tool: 'raise' | 'lower' | 'smooth' | 'rain' | 'spring' | 'drain'
+// gx, gy in cell coordinates; rad in cells; dtReal seconds of holding
+function applyTool(S, tool, gx, gy, rad, dtReal, strength) {
+  const N = S.N, h = S.h, d = S.d, s = S.s; strength = strength == null ? 1 : strength;
+  const k = dtReal * strength;
+  if (tool === 'raise' || tool === 'lower') {
+    const sign = tool === 'raise' ? 1 : -1, r = Math.max(1, rad), r2 = r * r, amt = sign * k * N * 0.06;
+    const x0 = Math.max(0, Math.floor(gx - r)), x1 = Math.min(N - 1, Math.ceil(gx + r));
+    const y0 = Math.max(0, Math.floor(gy - r)), y1 = Math.min(N - 1, Math.ceil(gy + r));
+    const maxH = N * 0.45;
+    for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) {
+      const dd = ((x - gx) * (x - gx) + (y - gy) * (y - gy)) / r2; if (dd >= 1) continue;
+      const w = (1 - dd) * (1 - dd), i = y * N + x;
+      h[i] = Math.min(maxH, Math.max(0, h[i] + amt * w));
+    }
+  } else if (tool === 'smooth') {
+    const r = Math.max(1.5, rad), r2 = r * r, a = Math.min(1, k * 6);
+    const x0 = Math.max(1, Math.floor(gx - r)), x1 = Math.min(N - 2, Math.ceil(gx + r));
+    const y0 = Math.max(1, Math.floor(gy - r)), y1 = Math.min(N - 2, Math.ceil(gy + r));
+    const t = S.tmp;
+    for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) { const i = y * N + x; t[i] = (h[i] * 4 + h[i - 1] + h[i + 1] + h[i - N] + h[i + N] + 0.5 * (h[i - N - 1] + h[i - N + 1] + h[i + N - 1] + h[i + N + 1])) / 10; }
+    for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) {
+      const dd = ((x - gx) * (x - gx) + (y - gy) * (y - gy)) / r2; if (dd >= 1) continue;
+      const w = (1 - dd), i = y * N + x; h[i] += (t[i] - h[i]) * a * w;
+    }
+  } else if (tool === 'rain') {
+    addKernel(S, d, gx, gy, rad * 1.3, k * 2.2);
+  } else if (tool === 'drain') {
+    const r = Math.max(1, rad), r2 = r * r, a = Math.min(1, k * 5);
+    const x0 = Math.max(0, Math.floor(gx - r)), x1 = Math.min(N - 1, Math.ceil(gx + r));
+    const y0 = Math.max(0, Math.floor(gy - r)), y1 = Math.min(N - 1, Math.ceil(gy + r));
+    for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) {
+      const dd = ((x - gx) * (x - gx) + (y - gy) * (y - gy)) / r2; if (dd >= 1) continue;
+      const w = 1 - dd, i = y * N + x; d[i] *= 1 - a * w; s[i] *= 1 - a * w;
+    }
+    S.springs = S.springs.filter(sp => Math.hypot(sp.x * N - gx, sp.y * N - gy) > r);
+  } else if (tool === 'spring') {
+    // toggle: remove a nearby spring or add one
+    const near = S.springs.findIndex(sp => Math.hypot(sp.x * N - gx, sp.y * N - gy) < Math.max(4, N * 0.03));
+    if (near >= 0) { S.springs.splice(near, 1); return 'removed'; }
+    if (S.springs.length >= 12) S.springs.shift();
+    S.springs.push({ x: gx / N, y: gy / N, rate: 1 }); return 'added';
+  }
+  return true;
+}
+
+function step(S, nSteps) {
+  nSteps = nSteps || 1;
+  for (let k = 0; k < nSteps; k++) stepOnce(S);
+}
+
+function stepOnce(S) {
+  const { N, P, h, d, s, fL, fR, fT, fB, u, v, wet, dep } = S;
+  const dt = P.dt, gdt = P.g * dt, damp = P.damp;
+  const n = N * N;
+  // 1. sources
+  if (P.rain > 0) { const r = P.rain * dt; for (let i = 0; i < n; i++) d[i] += r; }
+  for (const sp of S.springs) addKernel(S, d, sp.x * N, sp.y * N, 2.2, P.springRate * sp.rate * dt * 0.5);
+  // 2. outflow flux (virtual pipes, cross-section/length = 1)
+  for (let y = 0; y < N; y++) {
+    const row = y * N;
+    for (let x = 0; x < N; x++) {
+      const i = row + x, Hc = h[i] + d[i];
+      let l = 0, r = 0, t = 0, b = 0;
+      if (x > 0) { l = fL[i] * damp + gdt * (Hc - h[i - 1] - d[i - 1]); if (l < 0) l = 0; }
+      if (x < N - 1) { r = fR[i] * damp + gdt * (Hc - h[i + 1] - d[i + 1]); if (r < 0) r = 0; }
+      if (y > 0) { t = fT[i] * damp + gdt * (Hc - h[i - N] - d[i - N]); if (t < 0) t = 0; }
+      if (y < N - 1) { b = fB[i] * damp + gdt * (Hc - h[i + N] - d[i + N]); if (b < 0) b = 0; }
+      const sum = (l + r + t + b) * dt;
+      if (sum > d[i]) { const K = sum > 0 ? d[i] / sum : 0; l *= K; r *= K; t *= K; b *= K; }
+      fL[i] = l; fR[i] = r; fT[i] = t; fB[i] = b;
+    }
+  }
+  // 3. water depth + velocity field
+  const dOld = S.tmp;
+  for (let y = 0; y < N; y++) {
+    const row = y * N;
+    for (let x = 0; x < N; x++) {
+      const i = row + x;
+      const inL = x > 0 ? fR[i - 1] : 0, inR = x < N - 1 ? fL[i + 1] : 0;
+      const inT = y > 0 ? fB[i - N] : 0, inB = y < N - 1 ? fT[i + N] : 0;
+      const d0 = d[i];
+      let d1 = d0 + dt * (inL + inR + inT + inB - fL[i] - fR[i] - fT[i] - fB[i]);
+      if (d1 < 0) d1 = 0;
+      dOld[i] = d0; d[i] = d1;
+      const dbar = 0.5 * (d0 + d1);
+      if (dbar > 1e-3) {
+        const wx = 0.5 * (inL - fL[i] + fR[i] - inR);
+        const wy = 0.5 * (inT - fT[i] + fB[i] - inB);
+        let uu = wx / dbar, vv = wy / dbar;
+        const sp = Math.sqrt(uu * uu + vv * vv); if (sp > 8) { uu *= 8 / sp; vv *= 8 / sp; }
+        u[i] = uu; v[i] = vv;
+      } else { u[i] = 0; v[i] = 0; }
+    }
+  }
+  // 4. erosion / deposition. The change is computed per cell, then blurred
+  // (mass-conserving 3x3) before it is applied: this kills odd-even "checkerboard" pits.
+  if (P.erosion) {
+    const Kc = P.Kc, Ks = P.Ks * dt, Kd = P.Kd * dt, dm = P.depthMax, mt = P.minTilt, me = P.maxErode;
+    const E = S.ero; E.fill(0);
+    for (let y = 1; y < N - 1; y++) {
+      const row = y * N;
+      for (let x = 1; x < N - 1; x++) {
+        const i = row + x, di = d[i];
+        if (di <= 1e-4 && s[i] <= 0) continue;
+        const gx = 0.5 * (h[i + 1] - h[i - 1]), gy = 0.5 * (h[i + N] - h[i - N]);
+        const g2 = gx * gx + gy * gy;
+        let tilt = Math.sqrt(g2 / (1 + g2)); if (tilt < mt) tilt = mt;
+        const sp = Math.sqrt(u[i] * u[i] + v[i] * v[i]);
+        const lim = di >= dm ? 1 : di / dm;
+        const C = Kc * tilt * sp * lim;
+        let e = C > s[i] ? Ks * (C - s[i]) : -Kd * (s[i] - C);
+        if (e > me) e = me; else if (e < -me * 4) e = -me * 4;
+        E[i] = e;
+      }
+    }
+    for (let y = 1; y < N - 1; y++) {
+      const row = y * N;
+      for (let x = 1; x < N - 1; x++) {
+        const i = row + x;
+        let e = 0.4 * E[i] + 0.1 * (E[i - 1] + E[i + 1] + E[i - N] + E[i + N]) + 0.05 * (E[i - N - 1] + E[i - N + 1] + E[i + N - 1] + E[i + N + 1]);
+        if (e === 0) continue;
+        if (e > h[i]) e = h[i];
+        if (-e > s[i]) e = -s[i];
+        h[i] -= e; s[i] += e; dep[i] -= e;
+      }
+    }
+    // 5. sediment transport (semi-Lagrangian, bilinear)
+    const s2 = S.tmp2;
+    for (let y = 0; y < N; y++) {
+      const row = y * N;
+      for (let x = 0; x < N; x++) {
+        const i = row + x;
+        if (u[i] === 0 && v[i] === 0) { s2[i] = s[i]; continue; }
+        let px = x - u[i] * dt, py = y - v[i] * dt;
+        if (px < 0) px = 0; else if (px > N - 1.001) px = N - 1.001;
+        if (py < 0) py = 0; else if (py > N - 1.001) py = N - 1.001;
+        const x0 = px | 0, y0 = py | 0, fx = px - x0, fy = py - y0, j = y0 * N + x0;
+        s2[i] = (s[j] * (1 - fx) + s[j + 1] * fx) * (1 - fy) + (s[j + N] * (1 - fx) + s[j + N + 1] * fx) * fy;
+      }
+    }
+    S.tmp2 = s; S.s = s2;
+  }
+  const sNow = S.s;
+  // 6. evaporation, edge outlets, wetness memory
+  const ev = 1 - P.evap * dt;
+  const doEvap = P.evap > 0;
+  for (let i = 0; i < n; i++) {
+    if (doEvap) {
+      let di = d[i] * ev;
+      if (di < 2e-4) { if (P.erosion) { h[i] += sNow[i]; sNow[i] = 0; } di = 0; }
+      d[i] = di;
+    }
+    const w = d[i] > 0.02 ? 1 : 0;
+    wet[i] += (w - wet[i]) * (w ? 0.02 : 0.0008);
+  }
+  if (P.openEdges) {
+    const a = Math.max(0, 1 - P.edgeDrain * dt);
+    for (let x = 0; x < N; x++) { d[x] *= a; d[(N - 1) * N + x] *= a; sNow[x] *= a; sNow[(N - 1) * N + x] *= a; }
+    for (let y = 0; y < N; y++) { d[y * N] *= a; d[y * N + N - 1] *= a; sNow[y * N] *= a; sNow[y * N + N - 1] *= a; }
+  }
+  // 7. thermal slumping keeps cliffs from becoming spikes
+  if (P.thermal > 0 && (S.steps % P.thermalEvery) === 0) thermal(S);
+  S.steps++; S.time += dt;
+}
+
+function thermal(S) {
+  const { N, h, P, d } = S; const t = S.tmp; t.fill(0);
+  const talD = P.talus, talW = P.talusWet, k = P.thermal;
+  for (let y = 1; y < N - 1; y++) for (let x = 1; x < N - 1; x++) {
+    const i = y * N + x, hi = h[i], tal = d[i] > 0.05 ? talW : talD;
+    let maxD = 0, tot = 0;
+    const d0 = hi - h[i - 1], d1 = hi - h[i + 1], d2 = hi - h[i - N], d3 = hi - h[i + N];
+    if (d0 > tal) { tot += d0 - tal; if (d0 > maxD) maxD = d0; }
+    if (d1 > tal) { tot += d1 - tal; if (d1 > maxD) maxD = d1; }
+    if (d2 > tal) { tot += d2 - tal; if (d2 > maxD) maxD = d2; }
+    if (d3 > tal) { tot += d3 - tal; if (d3 > maxD) maxD = d3; }
+    if (tot <= 0) continue;
+    const move = k * 0.5 * (maxD - tal);
+    t[i] -= move;
+    if (d0 > tal) t[i - 1] += move * (d0 - tal) / tot;
+    if (d1 > tal) t[i + 1] += move * (d1 - tal) / tot;
+    if (d2 > tal) t[i - N] += move * (d2 - tal) / tot;
+    if (d3 > tal) t[i + N] += move * (d3 - tal) / tot;
+  }
+  for (let i = 0; i < N * N; i++) h[i] += t[i];
+}
+
+// Resample a running world to another grid size (auto quality).
+function resample(S, N2) {
+  const N = S.N; if (N2 === N) return S;
+  const T = create(N2, S.seed, S.P);
+  const sc = (N - 1) / (N2 - 1), hs = N2 / N;
+  const lerp = (a, px, py) => { const x0 = Math.min(N - 2, px | 0), y0 = Math.min(N - 2, py | 0), fx = px - x0, fy = py - y0, j = y0 * N + x0; return (a[j] * (1 - fx) + a[j + 1] * fx) * (1 - fy) + (a[j + N] * (1 - fx) + a[j + N + 1] * fx) * fy; };
+  for (let y = 0; y < N2; y++) for (let x = 0; x < N2; x++) {
+    const i = y * N2 + x, px = x * sc, py = y * sc;
+    T.h[i] = lerp(S.h, px, py) * hs; T.d[i] = lerp(S.d, px, py) * hs; T.s[i] = lerp(S.s, px, py) * hs;
+    T.wet[i] = lerp(S.wet, px, py); T.dep[i] = lerp(S.dep, px, py) * hs; T.h0[i] = lerp(S.h0, px, py) * hs;
+  }
+  T.springs = S.springs.map(sp => Object.assign({}, sp)); T.steps = S.steps; T.time = S.time;
+  return T;
+}
+
+function hasNaN(S) { for (const k of ['h', 'd', 's', 'u', 'v', 'fL', 'fR', 'fT', 'fB']) { const a = S[k]; for (let i = 0; i < a.length; i++) if (!Number.isFinite(a[i])) return k; } return false; }
+
+const API = { mulberry32, hashStr, makeNoise, randomSeedName, generateTerrain, create, seedLife, step, applyTool, totalWater, totalTerrain, resample, hasNaN, DEFAULTS };
+if (typeof module !== 'undefined' && module.exports) module.exports = API; else root.LV = API;
+})(typeof window !== 'undefined' ? window : globalThis);
+</script>
+<script>// Little Valley: rendering, input and UI. Uses window.LV (sim.js).
+(function () {
+'use strict';
+const LV = window.LV;
+const cv = document.getElementById('view'), cx = cv.getContext('2d');
+const $ = id => document.getElementById(id);
+
+// ---------- icons (inline SVG so they look the same everywhere) ----------
+const IC = {
+  raise: '<path d="M3 31 14 13l5 7 4-5 10 16z" fill="#5fb548"/><path d="M14 13l3 5-3-1.3-2.5 2z" fill="#fff"/><path d="M27 3v11M23 7l4-4 4 4" stroke="#e8792b" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/>',
+  lower: '<path d="M4 30c4-6 22-6 26 0" fill="#a9784a"/><path d="M8 29c3-3 15-3 18 0" fill="#7a5233"/><path d="M21 4l-6 14" stroke="#8a5a30" stroke-width="3.2" stroke-linecap="round"/><path d="M11 15l9 4-3 7c-2 3-7 1-8-1z" fill="#9aa7b4" stroke="#5f6b78" stroke-width="1.5" stroke-linejoin="round"/>',
+  smooth: '<path d="M3 13c4-7 7 7 11 0s7 7 11 0 5 2 6 1" stroke="#b9a07a" stroke-width="3" fill="none" stroke-linecap="round"/><path d="M3 25h28" stroke="#5fb548" stroke-width="3.5" stroke-linecap="round"/><path d="M17 16v5M14 18.5l3 3 3-3" stroke="#e8792b" stroke-width="2.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/>',
+  rain: '<path d="M9 19a6 6 0 0 1 1-12 8 8 0 0 1 15 2 5 5 0 0 1 0 10z" fill="#fff" stroke="#8fb3cf" stroke-width="1.8"/><path d="M11 23l-2 5M18 23l-2 5M25 23l-2 5" stroke="#3a9be0" stroke-width="2.6" stroke-linecap="round"/>',
+  spring: '<path d="M6 30c3-4 19-4 22 0z" fill="#8a6a48"/><path d="M17 28c-6 0-8-5-8-9 0-6 8-15 8-15s8 9 8 15c0 4-2 9-8 9z" fill="#4fb6ee" stroke="#2a83c4" stroke-width="1.6"/><path d="M13 18c0 3 1 5 3 6" stroke="#fff" stroke-width="2" fill="none" stroke-linecap="round"/><path d="M28 6v5M25.5 8.5h5" stroke="#ffc533" stroke-width="2" stroke-linecap="round"/>',
+  drain: '<rect x="5" y="9" width="24" height="17" rx="5" fill="#ffd84a" stroke="#d6a91f" stroke-width="1.8"/><circle cx="12" cy="15" r="2" fill="#e3b52c"/><circle cx="20" cy="19" r="2.4" fill="#e3b52c"/><circle cx="24" cy="13" r="1.6" fill="#e3b52c"/><circle cx="11" cy="21.5" r="1.4" fill="#e3b52c"/><path d="M9 30l1-2M17 31l1-3M25 30l1-2" stroke="#3a9be0" stroke-width="2" stroke-linecap="round"/>',
+  play: '<path d="M9 5l18 11L9 27z" fill="#3fae5a"/>', pause: '<rect x="7" y="5" width="6" height="22" rx="2" fill="#e8792b"/><rect x="19" y="5" width="6" height="22" rx="2" fill="#e8792b"/>',
+  speed: '<path d="M4 7l11 9-11 9zM16 7l11 9-11 9z" fill="#3a9be0"/>',
+  size: '<circle cx="8" cy="22" r="3" fill="#7b8fa6"/><circle cx="19" cy="18" r="7" fill="none" stroke="#7b8fa6" stroke-width="2.4" stroke-dasharray="3 2.5"/>',
+  view: '<path d="M3 20l13-7 13 7-13 7z" fill="#5fb548"/><path d="M3 20v4l13 7v-4zM29 20v4l-13 7v-4z" fill="#a9784a"/><path d="M9 17l4-6 3 4 2-2 4 6" fill="#fff" opacity=".85"/>',
+  top: '<rect x="5" y="5" width="22" height="22" rx="3" fill="#5fb548"/><path d="M5 18c6-2 9 4 22 1v5a3 3 0 0 1-3 3H8a3 3 0 0 1-3-3z" fill="#4fb6ee"/><circle cx="12" cy="11" r="3" fill="#fff" opacity=".8"/>',
+  shower: '<circle cx="23" cy="9" r="5" fill="#ffc533"/><path d="M7 21a5 5 0 0 1 1-10 7 7 0 0 1 13 2 4 4 0 0 1 0 8z" fill="#fff" stroke="#8fb3cf" stroke-width="1.6"/><path d="M9 24l-1.5 4M15 24l-1.5 4M21 24l-1.5 4" stroke="#3a9be0" stroke-width="2.2" stroke-linecap="round"/>',
+  dice: '<rect x="5" y="5" width="22" height="22" rx="5" fill="#fff" stroke="#e8792b" stroke-width="2.4"/><circle cx="11" cy="11" r="2.2" fill="#e8792b"/><circle cx="16" cy="16" r="2.2" fill="#e8792b"/><circle cx="21" cy="21" r="2.2" fill="#e8792b"/>',
+  reset: '<path d="M26 16a10 10 0 1 1-4-8" stroke="#7b8fa6" stroke-width="3" fill="none" stroke-linecap="round"/><path d="M23 2l1 7-7 0" stroke="#7b8fa6" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/>'
+};
+const svg = k => `<svg viewBox="0 0 34 34" aria-hidden="true">${IC[k]}</svg>`;
+
+const TOOLS = [
+  ['raise', 'Raise', 'Hold to build hills and mountains'],
+  ['lower', 'Dig', 'Hold to dig valleys and lake beds'],
+  ['smooth', 'Smooth', 'Rub to make the ground smooth'],
+  ['rain', 'Rain', 'Hold to make it rain right there'],
+  ['spring', 'Spring', 'Tap to place a spring (tap it again to remove)'],
+  ['drain', 'Sponge', 'Wipe to soak up water and springs']
+];
+const SIZES = [['S', 0.03], ['M', 0.055], ['L', 0.095]];
+const SPEEDS = [[1, 3], [2, 6], [4, 12]];
+
+const st = {
+  tool: 'raise', size: 1, speed: 0, paused: false, view: 'tilt', shower: 0, hintT: 0,
+  ptr: null, // {id,x,y} in CSS px
+  S: null, frames: 0, fps: 60, work: 10, slowT: 0, quality: 0, renderScale: 1, wake: 0, time: 0,
+  N: 0, lastSpringMsg: ''
+};
+const isPhone = Math.min(innerWidth, innerHeight) < 600 || matchMedia('(pointer:coarse)').matches;
+const NLEVELS = [112, 128, 160, 192, 224];
+let nIndex = isPhone ? 2 : 3;
+
+// ---------- UI ----------
+const toolBox = $('tools'), ctlBox = $('ctl');
+for (const [id, label] of TOOLS) {
+  const b = document.createElement('button'); b.id = 't-' + id; b.innerHTML = svg(id) + `<span>${label}</span>`; b.setAttribute('aria-label', label);
+  b.onclick = () => setTool(id); toolBox.appendChild(b);
+}
+function mk(id, icon, label, fn) { const b = document.createElement('button'); b.id = id; b.innerHTML = svg(icon) + `<span>${label}</span>`; b.setAttribute('aria-label', label); b.onclick = fn; ctlBox.appendChild(b); return b; }
+const bPlay = mk('c-play', 'pause', 'Pause', () => { st.paused = !st.paused; updUI(); hint(st.paused ? 'Paused. You can still draw.' : 'Water is flowing again'); });
+const bSpeed = mk('c-speed', 'speed', '1x', () => { st.speed = (st.speed + 1) % SPEEDS.length; updUI(); hint('Speed ' + SPEEDS[st.speed][0] + 'x'); });
+const bSize = mk('c-size', 'size', 'Size M', () => { st.size = (st.size + 1) % SIZES.length; updUI(); hint('Brush size ' + ['small', 'medium', 'big'][st.size]); });
+const bView = mk('c-view', 'top', 'Map', () => { st.view = st.view === 'tilt' ? 'top' : 'tilt'; updUI(); hint(st.view === 'top' ? 'Map view from above' : '3D view'); });
+const bShower = mk('c-shower', 'shower', 'Shower', () => { st.shower = 14; updUI(); hint('A big rain shower over the whole valley!'); });
+mk('c-new', 'dice', 'New', () => newWorld(LV.randomSeedName()));
+mk('c-reset', 'reset', 'Reset', () => newWorld(st.S.seed));
+function setTool(id) { st.tool = id; updUI(); hint(TOOLS.find(t => t[0] === id)[2]); }
+function updUI() {
+  for (const [id] of TOOLS) $('t-' + id).classList.toggle('on', st.tool === id);
+  bPlay.innerHTML = svg(st.paused ? 'play' : 'pause') + `<span>${st.paused ? 'Play' : 'Pause'}</span>`; bPlay.classList.toggle('on', st.paused);
+  bSpeed.querySelector('span').textContent = SPEEDS[st.speed][0] + 'x'; bSpeed.classList.toggle('on', st.speed > 0);
+  bSize.querySelector('span').textContent = 'Size ' + SIZES[st.size][0];
+  bView.innerHTML = svg(st.view === 'tilt' ? 'top' : 'view') + `<span>${st.view === 'tilt' ? 'Map' : '3D'}</span>`;
+  bShower.classList.toggle('on', st.shower > 0);
+}
+let hintTimer = 0;
+function hint(t) { const h = $('hint'); h.textContent = t; h.classList.add('show'); clearTimeout(hintTimer); hintTimer = setTimeout(() => h.classList.remove('show'), 2600); }
+setTimeout(() => $('hint').classList.remove('show'), 4000);
+
+// ---------- world ----------
+function newWorld(seed) {
+  const N = NLEVELS[nIndex];
+  st.S = LV.create(N, seed); LV.seedLife(st.S, 3); st.wake = 2.5; st.N = N;
+  $('seedName').textContent = seed; allocRender(); hint('Welcome to ' + seed + '!');
+  try { history.replaceState(null, '', '#' + encodeURIComponent(seed)); } catch (e) { }
+}
+function changeN(i) {
+  nIndex = i; const N = NLEVELS[i]; st.S = LV.resample(st.S, N); st.N = N; allocRender();
+}
+
+// ---------- rendering buffers ----------
+let colR, colG, colB, surf, grain, patch, topImg, topCanvas, topCtx, tilt = null;
+function allocRender() {
+  const N = st.S.N, n = N * N;
+  colR = new Float32Array(n); colG = new Float32Array(n); colB = new Float32Array(n); surf = new Float32Array(n);
+  grain = new Float32Array(n); const r = LV.mulberry32(99); for (let i = 0; i < n; i++) grain[i] = (r() - 0.5);
+  patch = new Float32Array(n); const pn = LV.makeNoise(LV.mulberry32(5)); for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) { const u = x / N * 7, v = y / N * 7; const f = pn(u, v) + 0.5 * pn(u * 2.3 + 9, v * 2.3); patch[y * N + x] = Math.max(-0.28, Math.min(0.3, f * 0.55)); }
+  topCanvas = document.createElement('canvas'); topCanvas.width = N; topCanvas.height = N; topCtx = topCanvas.getContext('2d'); topImg = topCtx.createImageData(N, N);
+  tilt = null; layout();
+}
+// cloud-shadow noise texture
+const CS = 64, cloudTex = new Float32Array(CS * CS);
+{ const nz = LV.makeNoise(LV.mulberry32(7)); for (let y = 0; y < CS; y++) for (let x = 0; x < CS; x++) { const u = x / CS, v = y / CS; let f = 0, a = 0.6, fr = 2; for (let o = 0; o < 3; o++) { const p = (fr | 0); f += a * tileNoise(nz, u, v, p); a *= .5; fr *= 2; } cloudTex[y * CS + x] = Math.max(0, Math.min(1, (f + 0.05) * 2.2)); } }
+function tileNoise(nz, u, v, p) { // tileable by blending
+  const a = nz(u * p, v * p), b = nz((u - 1) * p, v * p), c = nz(u * p, (v - 1) * p), d = nz((u - 1) * p, (v - 1) * p);
+  return (a * (1 - u) + b * u) * (1 - v) + (c * (1 - u) + d * u) * v;
+}
+function cloudAt(x, y) { x = ((x % CS) + CS) % CS; y = ((y % CS) + CS) % CS; const x0 = x | 0, y0 = y | 0, fx = x - x0, fy = y - y0, x1 = (x0 + 1) % CS, y1 = (y0 + 1) % CS; return (cloudTex[y0 * CS + x0] * (1 - fx) + cloudTex[y0 * CS + x1] * fx) * (1 - fy) + (cloudTex[y1 * CS + x0] * (1 - fx) + cloudTex[y1 * CS + x1] * fx) * fy; }
+
+const smooth = (a, b, x) => { const t = Math.max(0, Math.min(1, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
+// colour ramp by normalised height
+const RAMP = [[0, [124, 190, 78]], [0.22, [104, 174, 68]], [0.42, [126, 162, 72]], [0.56, [156, 154, 100]], [0.68, [150, 138, 120]], [0.8, [160, 156, 150]], [1.2, [176, 174, 170]]];
+function ramp(t, out) { let i = 0; while (i < RAMP.length - 2 && t > RAMP[i + 1][0]) i++; const a = RAMP[i], b = RAMP[i + 1]; const k = Math.max(0, Math.min(1, (t - a[0]) / (b[0] - a[0]))); out[0] = a[1][0] + (b[1][0] - a[1][0]) * k; out[1] = a[1][1] + (b[1][1] - a[1][1]) * k; out[2] = a[1][2] + (b[1][2] - a[1][2]) * k; }
+
+const tmpc = [0, 0, 0];
+function computeColours(t) {
+  const S = st.S, N = S.N, h = S.h, d = S.d, s = S.s, u = S.u, v = S.v, wet = S.wet, dep = S.dep;
+  const H = N * 0.27, ex = 1.6, tiltView = st.view === 'tilt';
+  // sun: from the west, a little from the viewer side in 3D view
+  let Lx = -0.62, Ly = tiltView ? 0.28 : -0.42, Lz = 0.72; const Ll = Math.hypot(Lx, Ly, Lz); Lx /= Ll; Ly /= Ll; Lz /= Ll;
+  const cOff = t * 0.6, snowBase = 0.68;
+  for (let y = 0; y < N; y++) {
+    const ym = y > 0 ? -N : 0, yp = y < N - 1 ? N : 0;
+    for (let x = 0; x < N; x++) {
+      const i = y * N + x, xm = x > 0 ? -1 : 0, xp = x < N - 1 ? 1 : 0;
+      const hi = h[i];
+      const gx = (h[i + xp] - h[i + xm]) * 0.5, gy = (h[i + yp] - h[i + ym]) * 0.5;
+      const slope = Math.sqrt(gx * gx + gy * gy);
+      let nx = -gx * ex, ny = -gy * ex, nz = 1; const nl = 1 / Math.sqrt(nx * nx + ny * ny + 1); nx *= nl; ny *= nl; nz *= nl;
+      let dif = nx * Lx + ny * Ly + nz * Lz; if (dif < 0) dif = 0;
+      const avg = (h[i + xp] + h[i + xm] + h[i + yp] + h[i + ym]) * 0.25;
+      let ao = 1 + (hi - avg) * 0.22; if (ao < 0.75) ao = 0.75; else if (ao > 1.15) ao = 1.15;
+      const hn = hi / H;
+      ramp(hn + grain[i] * 0.03, tmpc);
+      let r = tmpc[0], g = tmpc[1], b = tmpc[2];
+      // meadow patches: buttercup-yellow and darker clover green
+      const pv = patch[i];
+      if (pv > 0) { r += (182 - r) * pv; g += (196 - g) * pv; b += (86 - b) * pv; } else { r += (64 - r) * -pv; g += (132 - g) * -pv; b += (58 - b) * -pv; }
+      // moist soil near water: lush green in lowlands, darker on rock
+      const w = wet[i];
+      if (w > 0.01) { const k = Math.min(1, w) * 0.55 * (1 - smooth(0.55, 0.8, hn)); r += (70 - r) * k; g += (160 - g) * k; b += (62 - b) * k; }
+      // steep = rock
+      const rk = smooth(0.9, 1.9, slope);
+      if (rk > 0) { const rr = 148 + grain[i] * 14; r += (rr - r) * rk; g += (rr * 0.93 - g) * rk; b += (rr * 0.84 - b) * rk; }
+      // sediment deposits: sandy beds; eroded channels: darker earth
+      const dp = dep[i];
+      if (dp > 0.15) { const k = smooth(0.15, 2.0, dp) * 0.6; r += (222 - r) * k; g += (200 - g) * k; b += (146 - b) * k; }
+      else if (dp < -0.1) { const k = smooth(0.1, 3, -dp) * 0.45; r += (150 - r) * k; g += (112 - g) * k; b += (74 - b) * k; }
+      // snow
+      const sn = smooth(snowBase - 0.03, snowBase + 0.05, hn + grain[i] * 0.06 + 0.04 * cloudAt(x * 0.2 + 17, y * 0.2)) * (1 - smooth(1.4, 2.4, slope));
+      if (sn > 0) { r += (246 - r) * sn; g += (250 - g) * sn; b += (255 - b) * sn; }
+      let sh = (0.5 + 0.72 * dif) * ao * (1 + grain[i] * 0.05);
+      // drifting cloud shadows
+      const cl = cloudAt(x * 0.22 + cOff, y * 0.22 + cOff * 0.35);
+      sh *= 1 - 0.2 * cl;
+      r *= sh; g *= sh; b *= sh;
+      // water
+      const di = d[i];
+      surf[i] = hi;
+      if (di > 0.004) {
+        const a = Math.min(0.97, 1 - Math.exp(-(di - 0.004) * 24));
+        const deep = 1 - Math.exp(-di * 0.55);
+        let wr = 58 + (18 - 58) * deep, wg = 182 + (92 - 182) * deep, wb = 232 + (188 - 232) * deep;
+        const conc = Math.min(0.4, s[i] / (di + 0.2) * 0.5);
+        wr += (196 - wr) * conc; wg += (156 - wg) * conc; wb += (96 - wb) * conc;
+        const sp = Math.sqrt(u[i] * u[i] + v[i] * v[i]);
+        // surface normal of the water for light
+        const sgx = (h[i + xp] + d[i + xp] - h[i + xm] - d[i + xm]) * 0.5, sgy = (h[i + yp] + d[i + yp] - h[i + ym] - d[i + ym]) * 0.5;
+        const sslope = Math.sqrt(sgx * sgx + sgy * sgy);
+        let wsh = 0.82 + 0.22 * dif;
+        wsh *= 1 - 0.12 * cl;
+        wr *= wsh; wg *= wsh; wb *= wsh;
+        // shimmer: moving ripples, stronger in calm deep water
+        const rip = Math.sin(x * 0.47 + t * 1.6 + 1.7 * Math.sin(y * 0.29 + t * 0.7)) * Math.sin(y * 0.41 - t * 1.3 + 1.5 * Math.sin(x * 0.23 - t * 0.5));
+        let spec = rip > 0.35 ? (rip - 0.35) * 1.55 : 0; spec = spec * spec * smooth(0.1, 0.8, di) * 60 + (rip + 1) * 5;
+        // foam on rapids and waterfalls
+        let foam = Math.max(smooth(5.5, 8.5, sp) * smooth(0.15, 0.6, di) * 0.6, smooth(1.1, 2.6, sslope) * smooth(0.1, 0.4, di)) * 0.8;
+        foam *= 0.7 + 0.3 * Math.sin(x * 0.7 + y * 0.9 - t * 5);
+        wr += (215 - wr) * foam; wg += (242 - wg) * foam; wb += (255 - wb) * foam;
+        r += (wr - r) * a + spec; g += (wg - g) * a + spec; b += (wb - b) * a + spec;
+        if (di > 0.03) surf[i] = hi + di;
+      }
+      colR[i] = r; colG[i] = g; colB[i] = b;
+    }
+  }
+}
+
+// ---------- layout ----------
+let vw = 0, vh = 0, dpr = 1, area = { x: 0, y: 0, w: 1, h: 1 };
+function layout() {
+  dpr = Math.min(2, devicePixelRatio || 1); vw = innerWidth; vh = innerHeight;
+  cv.width = Math.round(vw * dpr); cv.height = Math.round(vh * dpr);
+  let L = 0, T = 0, R = vw, B = vh;
+  for (const el of [toolBox, ctlBox, $('top')]) {
+    const r = el.getBoundingClientRect(); if (!r.width) continue;
+    if (el.id === 'top') { T = Math.max(T, Math.min(r.bottom, 60)); continue; }
+    if (r.width >= r.height) { if (r.top + r.height / 2 > vh / 2) B = Math.min(B, r.top - 4); else T = Math.max(T, r.bottom + 4); }
+    else { if (r.left + r.width / 2 < vw / 2) L = Math.max(L, r.right + 4); else R = Math.min(R, r.left - 4); }
+  }
+  area = { x: L, y: T, w: Math.max(50, R - L), h: Math.max(50, B - T) };
+  tilt = null;
+}
+addEventListener('resize', () => setTimeout(layout, 50));
+
+// tilted view geometry (offscreen buffer in "render pixels")
+function tiltGeom() {
+  const S = st.S, N = S.N, rs = st.renderScale;
+  // block size in css px: width fits; total height = depth + peaks + slab
+  const hEx = 0.7, depthK = 0.52, slabK = 0.075, peakK = 0.45 * 0.8 * hEx;
+  const k = depthK + slabK + peakK;
+  let wCss = Math.min(area.w * 0.96, (area.h - 18) / k);
+  let maxW = Math.min(900, N * 3.2);
+  let ow = Math.max(N, Math.round(Math.min(maxW, wCss * dpr * rs)));
+  const cp = ow / N, oh = Math.ceil(ow * k);
+  const key = ow + 'x' + N;
+  if (tilt && tilt.key === key) { tilt.wCss = wCss; return tilt; }
+  const c = document.createElement('canvas'); c.width = ow; c.height = oh;
+  const g = c.getContext('2d');
+  tilt = { key, ow, oh, cp, hEx, depthK, slabK, top: Math.ceil(ow * peakK), canvas: c, ctx: g, img: g.createImageData(ow, oh), pick: new Int32Array(ow * oh), wCss };
+  return tilt;
+}
+function persp(r, N) { return 0.8 + 0.2 * r / (N - 1); }
+function baseY(T, r, N) { const t = r / (N - 1); return T.top + T.ow * T.depthK * (0.84 * t + 0.16 * t * t); }
+
+function renderTilt(t) {
+  const S = st.S, N = S.N, T = tiltGeom(), ow = T.ow, oh = T.oh, cp = T.cp, data = T.img.data, pick = T.pick;
+  data.fill(0); pick.fill(-1);
+  const hpx = cp * T.hEx;
+  const rowSamples = Math.min(N * 2.2, Math.ceil(ow * T.depthK * 1.2));
+  const rstep = (N - 1) / rowSamples;
+  const slabPx = Math.round(ow * T.slabK);
+  const d = S.d;
+  // per-row constants
+  const R = Math.ceil(rowSamples) + 1;
+  const rowR = new Float32Array(R), rowS = new Float32Array(R), rowB = new Float32Array(R);
+  for (let k = 0; k < R; k++) { const r = Math.max(0, N - 1 - k * rstep); rowR[k] = r; rowS[k] = persp(r, N); rowB[k] = baseY(T, r, N); }
+  for (let sx = 0; sx < ow; sx++) {
+    let ymin = oh; let first = true;
+    for (let k = 0; k < R; k++) {
+      const r = rowR[k], sc = rowS[k];
+      const gx = (sx + 0.5 - ow / 2) / (cp * sc) + N / 2 - 0.5;
+      if (gx < 0 || gx > N - 1) { if (first) continue; else continue; }
+      const x0 = Math.min(N - 2, gx | 0), y0 = Math.min(N - 2, r | 0), fx = gx - x0, fy = r - y0, j = y0 * N + x0;
+      const w00 = (1 - fx) * (1 - fy), w10 = fx * (1 - fy), w01 = (1 - fx) * fy, w11 = fx * fy;
+      const hs = surf[j] * w00 + surf[j + 1] * w10 + surf[j + N] * w01 + surf[j + N + 1] * w11;
+      let yy = rowB[k] - hs * hpx * sc;
+      let iy = Math.floor(yy); if (iy < 0) iy = 0;
+      if (first) {
+        // front face of the diorama block
+        first = false;
+        const bottom = Math.min(oh, Math.round(rowB[k] + slabPx));
+        const dw = d[j] * w00 + d[j + 1] * w10 + d[j + N] * w01 + d[j + N + 1] * w11;
+        const ci = j + (fx > 0.5 ? 1 : 0) + (fy > 0.5 ? N : 0);
+        for (let py = iy; py < bottom; py++) {
+          const depth = py - yy, p = (py * ow + sx) * 4;
+          let rr, gg, bb;
+          if (dw > 0.14 && depth < (bottom - yy) - 1) { // little waterfall over the front edge
+            const ph = Math.sin(sx * 12.9898) * 43758.5453, hsh = ph - Math.floor(ph);
+            const fall = (py - yy) / (bottom - yy);
+            const streak = 0.5 + 0.5 * Math.sin(hsh * 30 + (py - t * 110) * (0.035 + hsh * 0.03));
+            let k2 = 0.25 + 0.35 * streak * streak + 0.5 * fall * fall; if (depth < 3) k2 = 0.9;
+            if (k2 > 1) k2 = 1;
+            rr = 70 + 165 * k2; gg = 168 + 80 * k2; bb = 226 + 29 * k2;
+          } else {
+            const band = Math.sin(depth * 0.55 + Math.sin(sx * 0.05) * 2) * 0.5 + 0.5;
+            const f = depth / (bottom - yy + 1);
+            if (depth < 3) { rr = 92; gg = 70; bb = 44; }
+            else { rr = 150 - 40 * f + 14 * band; gg = 112 - 30 * f + 10 * band; bb = 76 - 16 * f + 6 * band; if (f > 0.55) { const s2 = (f - 0.55) * 1.6; rr += (128 - rr) * s2; gg += (122 - gg) * s2; bb += (118 - bb) * s2; } }
+            const shade = 1 - 0.25 * f; rr *= shade; gg *= shade; bb *= shade;
+          }
+          data[p] = rr; data[p + 1] = gg; data[p + 2] = bb; data[p + 3] = 255; pick[py * ow + sx] = ci;
+        }
+        ymin = iy;
+        // top surface pixel of the front row
+        continue;
+      }
+      if (iy < ymin) {
+        let cr = colR[j] * w00 + colR[j + 1] * w10 + colR[j + N] * w01 + colR[j + N + 1] * w11;
+        let cg = colG[j] * w00 + colG[j + 1] * w10 + colG[j + N] * w01 + colG[j + N + 1] * w11;
+        let cb = colB[j] * w00 + colB[j + 1] * w10 + colB[j + N] * w01 + colB[j + N + 1] * w11;
+        const span = ymin - iy;
+        const ci = j + (fx > 0.5 ? 1 : 0) + (fy > 0.5 ? N : 0);
+        // aerial haze toward the back
+        const hz = 0.22 * (1 - r / N) * (1 - r / N);
+        cr += (205 - cr) * hz; cg += (228 - cg) * hz; cb += (245 - cb) * hz;
+        if (span > 2) { // cliff face: a bit darker, water faces become white falls
+          const dw = d[ci];
+          if (dw > 0.05) { cr = cr * 0.4 + 150; cg = cg * 0.4 + 152; cb = cb * 0.4 + 153; }
+          else { cr *= 0.86; cg *= 0.86; cb *= 0.86; }
+        }
+        for (let py = iy; py < ymin; py++) { const p = (py * ow + sx) * 4; data[p] = cr; data[p + 1] = cg; data[p + 2] = cb; data[p + 3] = 255; pick[py * ow + sx] = ci; }
+        ymin = iy;
+      }
+    }
+  }
+  T.ctx.putImageData(T.img, 0, 0);
+  // place on screen
+  const s = T.wCss / ow;
+  T.sx = area.x + (area.w - T.wCss) / 2; T.sy = area.y + Math.max(0, (area.h - oh * s) / 2); T.s = s;
+  // soft shadow under the block
+  const by = T.sy + (baseY(T, N - 1, N) + slabPx) * s;
+  cx.save(); cx.fillStyle = 'rgba(40,90,60,.22)'; cx.beginPath(); cx.ellipse(T.sx + T.wCss / 2, by + 4, T.wCss * 0.52, 14, 0, 0, 7); cx.fill(); cx.restore();
+  cx.imageSmoothingEnabled = true; cx.imageSmoothingQuality = 'high';
+  cx.drawImage(T.canvas, T.sx, T.sy, T.wCss, oh * s);
+  // mist where the river falls off the front edge
+  let fx0 = -1, fx1 = -1; const fr = (N - 1) * N;
+  for (let x = 0; x < N; x++) if (d[fr + x] > 0.14) { if (fx0 < 0) fx0 = x; fx1 = x; }
+  if (fx0 >= 0) {
+    const a = projTilt(fx0, N - 1), b = projTilt(fx1 + 1, N - 1);
+    if (a && b) { const mx = (a[0] + b[0]) / 2, w = Math.max(14, (b[0] - a[0]) * 0.7 + 10);
+      for (let k = 0; k < 6; k++) { const ph = t * 1.3 + k * 1.7, ox = Math.sin(ph) * w * 0.6, oy = -Math.abs(Math.cos(ph * 0.7)) * 10, r = w * (0.16 + 0.07 * Math.sin(ph * 1.9));
+        cx.fillStyle = 'rgba(255,255,255,.22)'; cx.beginPath(); cx.arc(mx + ox, by - 2 + oy, r, 0, 7); cx.fill(); } }
+  }
+}
+// grid -> screen (css px) in tilt view
+function projTilt(gx, gy) {
+  const S = st.S, N = S.N, T = tilt; if (!T || T.s == null) return null;
+  const xi = Math.max(0, Math.min(N - 1, Math.round(gx))), yi = Math.max(0, Math.min(N - 1, Math.round(gy)));
+  const sc = persp(gy, N), hs = surf[yi * N + xi];
+  const ox = (gx + 0.5 - N / 2) * T.cp * sc + T.ow / 2, oy = baseY(T, gy, N) - hs * T.cp * T.hEx * sc;
+  return [T.sx + ox * T.s, T.sy + oy * T.s];
+}
+function renderTop(t) {
+  const S = st.S, N = S.N, data = topImg.data;
+  for (let i = 0, p = 0; i < N * N; i++, p += 4) { data[p] = colR[i]; data[p + 1] = colG[i]; data[p + 2] = colB[i]; data[p + 3] = 255; }
+  topCtx.putImageData(topImg, 0, 0);
+  const sz = Math.min(area.w, area.h) * 0.97, x = area.x + (area.w - sz) / 2, y = area.y + (area.h - sz) / 2;
+  st.topRect = { x, y, sz };
+  cx.save(); cx.shadowColor = 'rgba(30,70,100,.35)'; cx.shadowBlur = 18; cx.shadowOffsetY = 6; cx.fillStyle = '#7a5a3a';
+  roundRect(x - 5, y - 5, sz + 10, sz + 10, 14); cx.fill(); cx.restore();
+  cx.save(); roundRect(x, y, sz, sz, 10); cx.clip(); cx.imageSmoothingEnabled = true; cx.imageSmoothingQuality = 'high'; cx.drawImage(topCanvas, x, y, sz, sz); cx.restore();
+}
+function roundRect(x, y, w, h, r) { cx.beginPath(); cx.moveTo(x + r, y); cx.arcTo(x + w, y, x + w, y + h, r); cx.arcTo(x + w, y + h, x, y + h, r); cx.arcTo(x, y + h, x, y, r); cx.arcTo(x, y, x + w, y, r); cx.closePath(); }
+function proj(gx, gy) {
+  if (st.view === 'tilt') return projTilt(gx, gy);
+  const R = st.topRect; if (!R) return null; const N = st.S.N; return [R.x + (gx + 0.5) / N * R.sz, R.y + (gy + 0.5) / N * R.sz];
+}
+// screen (css px) -> grid
+function unproj(px, py) {
+  const N = st.S.N;
+  if (st.view === 'top') { const R = st.topRect; if (!R) return null; const gx = (px - R.x) / R.sz * N - 0.5, gy = (py - R.y) / R.sz * N - 0.5; if (gx < -1 || gy < -1 || gx > N || gy > N) return null; return [gx, gy]; }
+  const T = tilt; if (!T || T.s == null) return null;
+  const ox = Math.round((px - T.sx) / T.s), oy = Math.round((py - T.sy) / T.s);
+  // search a small neighbourhood (gaps between columns)
+  for (let r = 0; r < 6; r++) for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) {
+    const x = ox + dx, y = oy + dy; if (x < 0 || y < 0 || x >= T.ow || y >= T.oh) continue;
+    const c = T.pick[y * T.ow + x]; if (c >= 0) return [c % N, (c / N) | 0];
+  }
+  return null;
+}
+
+// ---------- sky / background ----------
+const skyN = LV.makeNoise(LV.mulberry32(42));
+const clouds = Array.from({ length: 7 }, (_, i) => ({ x: Math.random(), y: 0.05 + Math.random() * 0.25, s: 0.6 + Math.random() * 0.8, v: 0.004 + Math.random() * 0.006, seed: i * 13.7 }));
+const birds = Array.from({ length: 4 }, (_, i) => ({ x: Math.random(), y: 0.12 + Math.random() * 0.18, v: 0.012 + Math.random() * 0.01, p: Math.random() * 6 }));
+function drawSky(t, dt) {
+  const g = cx.createLinearGradient(0, 0, 0, vh);
+  const dim = st.shower > 0 ? Math.min(1, st.shower / 2) * 0.25 : 0;
+  g.addColorStop(0, mix('#5fb7ee', '#8aa7bd', dim)); g.addColorStop(0.55, mix('#bfe6fb', '#c8d6e0', dim)); g.addColorStop(1, mix('#e9f8e8', '#dfe8e4', dim));
+  cx.fillStyle = g; cx.fillRect(0, 0, vw, vh);
+  // sun
+  const sx = vw * 0.84, sy = vh * 0.14, sr = Math.max(26, Math.min(vw, vh) * 0.05);
+  const sg = cx.createRadialGradient(sx, sy, sr * 0.6, sx, sy, sr * 4.5); sg.addColorStop(0, 'rgba(255,240,170,.75)'); sg.addColorStop(1, 'rgba(255,240,170,0)');
+  cx.fillStyle = sg; cx.fillRect(sx - sr * 5, sy - sr * 5, sr * 10, sr * 10);
+  cx.fillStyle = '#fff3b0'; cx.beginPath(); cx.arc(sx, sy, sr, 0, 7); cx.fill();
+  cx.strokeStyle = 'rgba(255,225,120,.55)'; cx.lineWidth = 3; cx.lineCap = 'round';
+  for (let i = 0; i < 12; i++) { const a = i / 12 * 6.283 + t * 0.15, r0 = sr * 1.35, r1 = sr * (1.75 + 0.15 * Math.sin(t * 2 + i)); cx.beginPath(); cx.moveTo(sx + Math.cos(a) * r0, sy + Math.sin(a) * r0); cx.lineTo(sx + Math.cos(a) * r1, sy + Math.sin(a) * r1); cx.stroke(); }
+  // far mountains (two hazy layers)
+  if (st.view === 'tilt' && tilt && tilt.s != null) {
+    const hy = tilt.sy + tilt.top * tilt.s + 10;
+    for (let layer = 0; layer < 2; layer++) {
+      cx.fillStyle = layer ? 'rgba(150,186,222,.75)' : 'rgba(186,212,238,.8)';
+      cx.beginPath(); cx.moveTo(0, vh);
+      for (let x = 0; x <= vw; x += 8) { const u = x / vw; let e = 0, a = 1, f = 3 + layer * 2; for (let o = 0; o < 4; o++) { e += a * Math.abs(skyN(u * f + layer * 9, 3.3 + layer)); a *= 0.5; f *= 2; } cx.lineTo(x, hy - (layer ? 0.11 : 0.19) * vh * e * 1.6 + (layer ? 0.03 * vh : 0)); }
+      cx.lineTo(vw, vh); cx.closePath(); cx.fill();
+    }
+    const mg = cx.createLinearGradient(0, hy, 0, vh); mg.addColorStop(0, '#c9e3d6'); mg.addColorStop(0.25, '#bfe2b4'); mg.addColorStop(1, '#a3d493');
+    cx.fillStyle = mg; cx.fillRect(0, hy + 0.03 * vh, vw, vh);
+  }
+  // clouds
+  for (const c of clouds) {
+    c.x += c.v * dt * (st.shower > 0 ? 3 : 1); if (c.x > 1.25) c.x = -0.25;
+    drawCloud(c.x * vw, c.y * vh, c.s * Math.min(90, vw * 0.09), st.shower > 0 ? 0.92 : 0.85, c.seed);
+  }
+  // birds
+  cx.strokeStyle = 'rgba(50,70,90,.7)'; cx.lineWidth = 1.8;
+  for (const b of birds) {
+    b.x += b.v * dt; if (b.x > 1.1) { b.x = -0.1; b.y = 0.08 + Math.random() * 0.2; }
+    const x = b.x * vw, y = b.y * vh + Math.sin(t * 0.8 + b.p) * 6, w = 7, f = Math.sin(t * 7 + b.p) * 4;
+    cx.beginPath(); cx.moveTo(x - w, y - f); cx.quadraticCurveTo(x - w / 2, y - 3, x, y); cx.quadraticCurveTo(x + w / 2, y - 3, x + w, y - f); cx.stroke();
+  }
+}
+function drawCloud(x, y, s, a, seed) {
+  cx.fillStyle = `rgba(150,180,210,${a * 0.3})`;
+  blob(x + 2, y + 4, s, seed); cx.fillStyle = `rgba(255,255,255,${a})`; blob(x, y, s, seed);
+}
+function blob(x, y, s, seed) {
+  cx.beginPath();
+  for (let i = 0; i < 5; i++) { const ox = (i - 2) * s * 0.34, r = s * (i === 2 ? 0.46 : i % 2 ? 0.36 : 0.26) * (0.9 + 0.2 * Math.abs(Math.sin(seed * 2 + i))), oy = -r * 0.55; cx.moveTo(x + ox + r, y + oy); cx.arc(x + ox, y + oy, r, 0, 7); }
+  cx.moveTo(x + s * 0.9, y); cx.ellipse(x, y, s * 0.9, s * 0.2, 0, 0, 7); cx.fill();
+}
+function mix(a, b, k) { const pa = parseInt(a.slice(1), 16), pb = parseInt(b.slice(1), 16); const c = i => Math.round(((pa >> i) & 255) * (1 - k) + ((pb >> i) & 255) * k); return `rgb(${c(16)},${c(8)},${c(0)})`; }
+
+// ---------- overlays: springs, brush, rain ----------
+function drawOverlays(t) {
+  const S = st.S, N = S.N;
+  for (const sp of S.springs) {
+    const p = proj(sp.x * N, sp.y * N); if (!p) continue;
+    const bob = Math.sin(t * 4 + sp.x * 20) * 1.5;
+    cx.save(); cx.translate(p[0], p[1] - 4 + bob);
+    cx.fillStyle = 'rgba(255,255,255,.9)'; cx.beginPath(); cx.arc(0, 4 - bob, 6, 0, 7); cx.fill();
+    cx.fillStyle = '#4fb6ee'; cx.strokeStyle = '#1f6fa8'; cx.lineWidth = 1.5;
+    cx.beginPath(); cx.moveTo(0, -12); cx.bezierCurveTo(6, -4, 6, 3, 0, 3); cx.bezierCurveTo(-6, 3, -6, -4, 0, -12); cx.fill(); cx.stroke();
+    for (let k = 0; k < 3; k++) { const a = t * 3 + k * 2.1, rr = 8 + 3 * Math.sin(a * 1.3); cx.fillStyle = `rgba(255,230,120,${0.5 + 0.5 * Math.sin(a * 2)})`; cx.beginPath(); cx.arc(Math.cos(a) * rr, -4 + Math.sin(a) * rr * 0.6, 1.6, 0, 7); cx.fill(); }
+    cx.restore();
+  }
+  const P = st.ptr; if (!P) return;
+  const g = P.g || unproj(P.x, P.y); if (!g) return;
+  const rad = SIZES[st.size][1] * N;
+  if (st.tool === 'rain' && P.down) { drawRainCloud(g, rad, t); return; }
+  if (st.tool === 'spring') return;
+  const col = { raise: '#ff9f43', lower: '#8a5a30', smooth: '#ffffff', drain: '#ffd84a', rain: '#3a9be0' }[st.tool];
+  cx.save(); cx.strokeStyle = col; cx.lineWidth = P.down ? 3 : 2; cx.setLineDash(P.down ? [] : [6, 5]); cx.globalAlpha = 0.9;
+  cx.beginPath();
+  for (let k = 0; k <= 32; k++) { const a = k / 32 * 6.283; const q = proj(Math.max(0, Math.min(N - 1, g[0] + Math.cos(a) * rad)), Math.max(0, Math.min(N - 1, g[1] + Math.sin(a) * rad))); if (!q) continue; k ? cx.lineTo(q[0], q[1]) : cx.moveTo(q[0], q[1]); }
+  cx.stroke();
+  if (st.tool === 'drain' && P.down) { const c = proj(g[0], g[1]); if (c) { cx.setLineDash([]); cx.strokeStyle = '#3a9be0'; for (let k = 0; k < 3; k++) { cx.beginPath(); cx.arc(c[0], c[1], 6 + k * 6, t * 6 + k, t * 6 + k + 3); cx.stroke(); } } }
+  cx.restore();
+}
+function drawRainCloud(g, rad, t) {
+  const c = proj(g[0], g[1]); if (!c) return;
+  const sc = st.view === 'tilt' && tilt ? tilt.s * tilt.cp : (st.topRect.sz / st.S.N);
+  const w = Math.max(30, rad * sc * 1.3), cy = c[1] - Math.max(60, w * 1.3);
+  cx.save(); cx.strokeStyle = 'rgba(70,150,230,.75)'; cx.lineWidth = 2;
+  for (let k = 0; k < 18; k++) { const ph = ((t * 2.2 + k * 0.37) % 1), x = c[0] + (((k * 37) % 17) / 17 - 0.5) * w * 1.6, y = cy + 8 + ph * (c[1] - cy - 4); cx.beginPath(); cx.moveTo(x, y); cx.lineTo(x - 2, y + 9); cx.stroke(); }
+  cx.restore();
+  drawCloud(c[0], cy, w, 0.95, 3);
+}
+function drawShower(t) {
+  if (st.shower <= 0) return;
+  const a = Math.min(1, st.shower / 2, (14 - st.shower) / 1.5 + 0.2);
+  cx.save(); cx.strokeStyle = `rgba(80,150,220,${0.45 * a})`; cx.lineWidth = 1.5;
+  for (let k = 0; k < 140; k++) { const x = ((k * 97.13) % 1000) / 1000 * vw, ph = ((t * 1.4 + k * 0.137) % 1), y = ph * vh; cx.beginPath(); cx.moveTo(x, y); cx.lineTo(x - 3, y + 12); cx.stroke(); }
+  cx.restore();
+}
+
+// ---------- input ----------
+cv.addEventListener('pointerdown', e => {
+  if (st.ptr && st.ptr.down && st.ptr.id !== e.pointerId) return;
+  cv.setPointerCapture && cv.setPointerCapture(e.pointerId);
+  st.ptr = { id: e.pointerId, x: e.clientX, y: e.clientY, down: true, type: e.pointerType };
+  const g = unproj(e.clientX, e.clientY); st.ptr.g = g;
+  if (g && st.tool === 'spring') { const res = LV.applyTool(st.S, 'spring', g[0], g[1], 0, 0); hint(res === 'added' ? 'A new spring bubbles up!' : 'Spring removed'); }
+  e.preventDefault();
+});
+cv.addEventListener('pointermove', e => {
+  if (st.ptr && st.ptr.down && st.ptr.id !== e.pointerId) return;
+  if (!st.ptr) st.ptr = { id: e.pointerId, down: false };
+  st.ptr.x = e.clientX; st.ptr.y = e.clientY; st.ptr.type = e.pointerType; st.ptr.g = null;
+});
+const up = e => { if (!st.ptr || st.ptr.id !== e.pointerId) return; st.ptr.down = false; if (e.pointerType !== 'mouse') st.ptr = null; };
+cv.addEventListener('pointerup', up); cv.addEventListener('pointercancel', up);
+cv.addEventListener('pointerleave', e => { if (st.ptr && !st.ptr.down) st.ptr = null; });
+document.addEventListener('gesturestart', e => e.preventDefault());
+document.addEventListener('keydown', e => {
+  const k = e.key.toLowerCase(); const map = { '1': 'raise', '2': 'lower', '3': 'smooth', '4': 'rain', '5': 'spring', '6': 'drain' };
+  if (map[k]) setTool(map[k]); else if (k === ' ') { e.preventDefault(); bPlay.click(); } else if (k === 'v') bView.click(); else if (k === 'n') $('c-new').click(); else if (k === 'r') $('c-reset').click(); else if (k === 's') bShower.click(); else if (k === 'b') bSize.click(); else if (k === 'f') bSpeed.click();
+});
+
+// ---------- main loop ----------
+let last = performance.now(), fpsAcc = 0, fpsN = 0, statT = 0;
+function frame(now) {
+  const dtReal = Math.min(0.1, (now - last) / 1000); last = now; st.time += dtReal;
+  const t0 = performance.now();
+  const S = st.S;
+  // tools
+  const P = st.ptr;
+  if (P && P.down && st.tool !== 'spring') {
+    const g = unproj(P.x, P.y); P.g = g;
+    if (g) LV.applyTool(S, st.tool, g[0], g[1], SIZES[st.size][1] * S.N, dtReal);
+  }
+  // weather
+  if (st.shower > 0) { st.shower -= dtReal; S.P.rain = 0.05; if (st.shower <= 0) { st.shower = 0; S.P.rain = 0; updUI(); } } else S.P.rain = 0;
+  // simulation, time-capped so the frame stays smooth
+  if (!st.paused) {
+    const want = st.wake > 0 ? 24 : SPEEDS[st.speed][1];
+    const cap = st.wake > 0 ? 22 : 13;
+    const ts = performance.now(); let n = 0;
+    while (n < want) { LV.step(S, 1); n++; if (performance.now() - ts > cap) break; }
+    st.stepsLast = n;
+  }
+  if (st.wake > 0) st.wake -= dtReal;
+  computeColours(st.time);
+  cx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  if (st.view === 'tilt') { tiltGeom(); drawSky(st.time, dtReal); renderTilt(st.time); }
+  else { drawSky(st.time, dtReal); renderTop(st.time); }
+  drawOverlays(st.time); drawShower(st.time);
+  const work = performance.now() - t0;
+  st.work = st.work * 0.9 + work * 0.1;
+  fpsAcc += dtReal; fpsN++; st.frames++;
+  if (fpsAcc > 0.5) { st.fps = fpsN / fpsAcc; fpsAcc = 0; fpsN = 0; }
+  adapt(dtReal);
+  statT -= dtReal; if (statT <= 0) { statT = 0.5; $('stats').textContent = `${S.N}² · ${Math.round(st.fps)} fps` + (st.paused ? ' · paused' : ''); }
+  requestAnimationFrame(frame);
+}
+// auto quality: lower render scale first, then the grid
+function adapt(dt) {
+  if (st.wake > 0) return;
+  if (st.work > 30 || st.fps < 32) st.slowT += dt; else st.slowT = Math.max(0, st.slowT - dt * 0.5);
+  if (st.slowT > 2) {
+    st.slowT = 0; st.work = 15;
+    if (st.renderScale > 0.65) { st.renderScale -= 0.15; tilt = null; }
+    else if (nIndex > 0) { changeN(nIndex - 1); hint('Made the valley a bit smaller so it runs smoothly'); }
+  }
+}
+
+window.__lv = { st, LV, get tilt() { return tilt; }, get area() { return area; }, setTool, newWorld, unproj, proj, get S() { return st.S; } };
+updUI();
+const fromHash = decodeURIComponent((location.hash || '').slice(1));
+newWorld(fromHash || LV.randomSeedName());
+requestAnimationFrame(frame);
+})();
+</script>
+</body></html>
