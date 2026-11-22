@@ -56,6 +56,18 @@ it melts into the streams, so the rivers swell (keep your cottages off the low b
 drier, with rains about half as often.
 (`screenshot-autumn.png`: autumn colours along the river; `screenshot-winter.png`: a snowy valley.)
 
+**Frozen lakes**: from early winter the still lakes freeze over (pale ice with cracks; the fast
+rivers keep flowing). Ice holds the water: a frozen lake doesn't drain or evaporate, so it keeps
+its level until the spring thaw, and on sunny winter days little skaters glide in loops on the ice
+near the village. (`screenshot-ice.png`.)
+
+**Weather events**: now and then a rain is a **storm**: a dark, bigger, faster cloud with
+slanting rain and lightning (⛈ in the clock) that pours almost three times as hard, so low cottages
+by the river can flood. In about every other summer a **drought** comes (🌵): no rain for a while,
+rivers shrink, the meadows turn yellow and cottages without a well grow thirsty (the ones with a
+well stay happy). And when a rain passes while the sun is out, a **rainbow** appears.
+(`screenshot-storm.png`: a storm with lightning.)
+
 Worlds are seeded by name in the URL hash, e.g. `index.html#Daisy%20Glacier%205`.
 
 ## Life
@@ -76,4 +88,4 @@ Heightmap terrain from seeded noise, shallow water with the virtual-pipes method
 conserving), sediment erosion and deposition with semi-Lagrangian transport, and thermal
 slumping of steep slopes. Rendering is a software-drawn tilted 3D view on a 2D canvas.
 
-See `PLAN.md` for where it is going (storms, sound, goals).
+See `PLAN.md` for where it is going (sound, goals).

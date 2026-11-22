@@ -103,6 +103,7 @@ const DEFAULTS = {
   dayLen: 720, // sim seconds per day (about 100 s at 1x)
   seasons: false, // a year of P.yearDays days: snow in winter, melt in spring, a drier summer (the app turns it on; tests opt in)
   yearDays: 4, // days per year (one day per season)
+  events: false, // weather events: rare storms and summer droughts (the app turns it on; tests opt in)
   boost: 1 // time-lapse: erosion and plant growth run this many times faster
 };
 
@@ -144,7 +145,7 @@ function create(N, seed, opts) {
   const P = Object.assign({}, DEFAULTS, opts || {});
   const n = N * N, F = () => new Float32Array(n);
   const T = generateTerrain(N, seed);
-  const S = { N, seed: String(seed), P, h: T.h, d: F(), s: F(), fL: F(), fR: F(), fT: F(), fB: F(), u: F(), v: F(), tmp: F(), tmp2: F(), ero: F(), wet: F(), dep: F(), veg: F(), tree: F(), bloom: F(), moist: F(), fert: F(), flood: F(), rush: F(), field: F(), ripe: F(), path: F(), tend: new Uint8Array(n), h0: null, springs: [], cottages: [], grown: 0, vtick: 0, steps: 0, time: 0, wx: null, rainNow: 0, snow: F(), yearOff: 0 };
+  const S = { N, seed: String(seed), P, h: T.h, d: F(), s: F(), fL: F(), fR: F(), fT: F(), fB: F(), u: F(), v: F(), tmp: F(), tmp2: F(), ero: F(), wet: F(), dep: F(), veg: F(), tree: F(), bloom: F(), moist: F(), fert: F(), flood: F(), rush: F(), field: F(), ripe: F(), path: F(), tend: new Uint8Array(n), h0: null, springs: [], cottages: [], grown: 0, vtick: 0, steps: 0, time: 0, wx: null, rainNow: 0, dryNow: 0, dr: null, snow: F(), ice: F(), yearOff: 0 };
   S.h0 = new Float32Array(S.h);
   initLife(S);
   return S;
@@ -202,11 +203,11 @@ const FLOOD_MEADOW = 30, FLOOD_TREE = 60, RUSH_SCOUR = 60, FLOOD_RUIN = 20;
 // (dry and far from water, or soggy with runoff). A ruin is rebuilt by placing a cottage on it again.
 const COTTAGE_MAX = 80;
 function cottageCell(S, c) { const N = S.N; return Math.max(1, Math.min(N - 2, Math.round(c.y * N))) * N + Math.max(1, Math.min(N - 2, Math.round(c.x * N))); }
-function waterNear(S, i) { // open-water cells within a short walk (radius scales with the grid, so it is the same distance on every size)
+function waterNear(S, i, thr) { // open-water cells within a short walk (radius scales with the grid, so it is the same distance on every size)
   const N = S.N, d = S.d, R = Math.max(4, N * 0.045), R2 = R * R, x = i % N, y = (i / N) | 0; let n = 0;
   for (let yy = Math.max(0, Math.floor(y - R)); yy <= Math.min(N - 1, Math.ceil(y + R)); yy++) for (let xx = Math.max(0, Math.floor(x - R)); xx <= Math.min(N - 1, Math.ceil(x + R)); xx++) {
     const r2 = (xx - x) * (xx - x) + (yy - y) * (yy - y); if (r2 > R2 || r2 < 2.5) continue;
-    if (d[yy * N + xx] > 0.15) n++;
+    if (d[yy * N + xx] > (thr || 0.15)) n++;
   }
   return n;
 }
@@ -216,7 +217,9 @@ function cottageMood(S, c) {
   const i = cottageCell(S, c);
   if (cottageStanding(S, i)) return 'flooded';
   if (S.d[i] >= 0.05) return 'sad'; // soggy with runoff
-  if (waterNear(S, i) >= 3) return 'happy';
+  const D = S.dryNow || 0; // in a drought a shrunken stream is not enough: it needs deeper water close by
+  if (D > 0.3 ? waterNear(S, i, 0.15 + 0.45 * D) >= 3 + 9 * D : waterNear(S, i) >= 3) return 'happy';
+
   return c.well && wellYield(S, i) >= WELL_MIN ? 'happy' : 'sad'; // a well that still finds groundwater
 }
 // ---------- wells and mill wheels ----------
@@ -396,14 +399,15 @@ function groundWater(hn) { return 0.32 * (1 - smoothstep(0.12, 0.6, hn)); }
 function lifeStep(S) {
   const { N, h, d, u, v, veg, tree, moist, dep, fert, flood, rush, bloom } = S, H = N * 0.27, m2 = S.tmp;
   const ev = Math.max(1, Math.round(S.P.lifeEvery / (S.P.boost > 1 ? Math.min(S.P.boost, 3) : 1))), tl = ev * S.P.dt; // sim seconds since the last life step
-  const rainK = S.P.rain > 0 ? Math.min(0.5, S.P.rain * 20) : 0, k0 = S.steps;
+  const rainK = S.P.rain > 0 ? Math.min(0.5, S.P.rain * 20) : 0, k0 = S.steps, D = S.dryNow || 0;
+  const gwK = 1 - 0.75 * D, relax = 0.01 + 0.03 * D, spread = 0.86 - 0.12 * D, treeDry = 0.004 * (1 - 0.95 * D); // a drought dries the ground (trees rest)
   // moisture: open water = 1, spreads a few cells onto the banks, otherwise relaxes to groundwater
   for (let y = 1; y < N - 1; y++) for (let x = 1; x < N - 1; x++) {
     const i = y * N + x;
     if (d[i] > 0.03) { m2[i] = 1; continue; }
-    const nb = Math.max(moist[i - 1], moist[i + 1], moist[i - N], moist[i + N]) * 0.86;
-    const gw = groundWater(h[i] / H) + rainK;
-    let m = moist[i] + (gw - moist[i]) * 0.01;
+    const nb = Math.max(moist[i - 1], moist[i + 1], moist[i - N], moist[i + N]) * spread;
+    const gw = groundWater(h[i] / H) * gwK + rainK;
+    let m = moist[i] + (gw - moist[i]) * relax;
     if (nb > m) m += (nb - m) * 0.5;
     m2[i] = m > 1 ? 1 : m;
   }
@@ -433,7 +437,7 @@ function lifeStep(S) {
           const nt = Math.max(tree[i - 1], tree[i + 1], tree[i - N], tree[i + N]);
           if (nt > 0.5 || cellRand(i, k0 + 1) < 0.01) t = 0.05;
         }
-      } else if (m + 0.35 * fert[i] < 0.2 || hn >= 0.6 || sl > 1.5) t -= 0.004;
+      } else if (m + 0.35 * fert[i] < 0.2 || hn >= 0.6 || sl > 1.5) t -= (hn >= 0.6 || sl > 1.5) ? 0.004 : treeDry;
       if (dep[i] > 1.5) t -= 0.003; // buried by sand
       const bt = bloomTarget(g, t, m, hn, fert[i]) * (dep[i] > 0.8 ? 0.3 : 1);
       fb += (bt - fb) * (bt > fb ? 0.012 : 0.02);
@@ -567,11 +571,49 @@ function planRain(S, k, after) {
   const ux = Math.cos(a) * dir, uy = Math.sin(a), off = (r() - 0.5) * 0.5, len = 1.6;
   let start = after + gap, ampK = 1;
   if (S.P.seasons && isSummer(yearFracAt(S, start))) { start = after + gap * SUMMER_GAP; ampK = 0.8; } // a drier summer: rains come less often and softer
-  return { k, start, dur, x0: 0.5 - ux * len / 2 - uy * off, y0: 0.45 - uy * len / 2 + ux * off, vx: ux * len / dur, vy: uy * len / dur, r: 0.26 + r() * 0.12, amp: (0.018 + r() * 0.01) * ampK };
+  const W = { k, start, dur, x0: 0.5 - ux * len / 2 - uy * off, y0: 0.45 - uy * len / 2 + ux * off, vx: ux * len / dur, vy: uy * len / dur, r: 0.26 + r() * 0.12, amp: (0.018 + r() * 0.01) * ampK };
+  return S.P.events ? eventRain(S, W, gap) : W;
 }
+// ---------- weather events (v4 part 3) ----------
+// Storms: now and then (never the first rain, never in deep winter) a rain is a storm: a darker, bigger,
+// faster cloud that pours about 2.8x as hard, with gusts and lightning (drawn by the app). It can flood
+// low cottages by the river. Droughts: about every other year a long dry spell in summer: no rain comes
+// while it lasts, water evaporates 3x faster so rivers shrink, the ground dries (meadows turn yellow,
+// flowers fade; trees rest and wither only slowly), and cottages without a well grow thirsty while
+// cottages with a well stay happy. Both are planned from the seed with their own random streams, so the
+// normal rains of a seed stay the same and P.events = false keeps every old test exact.
+const STORM_P = 0.22, STORM_AMP = 2.8, STORM_R = 1.3, STORM_FAST = 0.65, DROUGHT_P = 0.6, DROUGHT_EVAP = 3;
+function eventRain(S, W, gap) {
+  const r = mulberry32(hashStr(S.seed + '#storm' + W.k)), y = yearFracAt(S, W.start), p = r();
+  const dr = droughtOf(S, Math.floor(yearIndex(S, W.start)));
+  if (dr && W.start + W.dur > dr.t0 - 10 && W.start < dr.t1) { // no rain in a drought: it comes once the drought breaks
+    W.start = dr.t1 + 15 + gap * 0.2; // the drought breaks with a rain
+  }
+  const winter = S.P.seasons && y >= 0.8 && y < 0.97;
+  if (W.k > 0 && !winter && p < STORM_P * (S.P.seasons && isSummer(y) ? 1.5 : 1)) {
+    const dur = W.dur * STORM_FAST; W.storm = 1; W.dur = dur; W.r = Math.min(0.52, W.r * STORM_R); W.amp *= STORM_AMP;
+    W.vx /= STORM_FAST; W.vy /= STORM_FAST; // the same track, crossed faster: gusty wind
+    W.bolt = mulberry32(hashStr(S.seed + '#bolt' + W.k))() * 1000 | 0;
+  }
+  return W;
+}
+function yearIndex(S, t) { return t / yearLen(S) + YEAR_START + (S.yearOff || 0); }
+function droughtOf(S, Y) { // the drought of year Y {Y, t0, t1} in sim seconds, or null (cached)
+  if (S.drOver && S.drOver.Y === Y) return S.drOver; // a drought set by hand (tests, a future button)
+  if (S.dr && S.dr.Y === Y && S.dr.off === (S.yearOff || 0)) return S.dr.d;
+  const r = mulberry32(hashStr(S.seed + '#drought' + Y)), has = r() < DROUGHT_P, a = 0.27 + r() * 0.08, len = 0.1 + r() * 0.08;
+  const L = yearLen(S), base = (Y - YEAR_START - (S.yearOff || 0)) * L;
+  const d = has ? { Y, t0: base + a * L, t1: base + (a + len) * L } : null;
+  S.dr = { Y, off: S.yearOff || 0, d }; return d;
+}
+function droughtAt(S, t) { // drought strength 0..1 at time t (ramps in and out over 8% of the spell)
+  const d = droughtOf(S, Math.floor(yearIndex(S, t))); if (!d || t <= d.t0 || t >= d.t1) return 0;
+  const q = (t - d.t0) / (d.t1 - d.t0); return smoothstep(0, 0.12, q) * (1 - smoothstep(0.9, 1, q));
+}
+function weatherEvent(S) { return S.dryNow > 0.05 ? 'drought' : S.rainNow > 0.05 && S.wx && S.wx.storm ? 'storm' : ''; }
 function rainCell(S) { // the current rain cloud {x, y, r} in 0..1 map units and its strength k (0..1), or null
   const W = S.wx; if (!W || !S.rainNow) return null; const tt = S.time - W.start;
-  return { x: W.x0 + W.vx * tt, y: W.y0 + W.vy * tt, r: W.r, k: S.rainNow };
+  return { x: W.x0 + W.vx * tt, y: W.y0 + W.vy * tt, r: W.r, k: S.rainNow, storm: !!W.storm };
 }
 function weatherStep(S) {
   if (!S.wx) S.wx = planRain(S, 0, 0);
@@ -631,7 +673,29 @@ function snowStep(S, tl) {
       snow[i] = sw - m; d[i] += m;
     }
   }
+  iceStep(S, tl, y, line);
 }
+// ---------- frozen lakes (v4 part 4) ----------
+// In the cold part of the year (late autumn: up at the snow line; from early winter (y 0.74): the whole
+// valley) still water freezes over: S.ice 0..1. Calm, shallow water freezes first; a fast river stays
+// open (running water does not freeze, and it slowly eats the ice from below). Ice holds the water in place:
+// an iced cell lets almost nothing flow out, and nothing evaporates from it, so a frozen lake keeps its
+// level all winter and thaws back into flowing water in spring. No water is made or lost (the pipes only
+// slow down), and with P.seasons off the ice stays 0 so every older test is exact.
+const ICE_FREEZE = 1 / 90, ICE_THAW = 1 / 60, ICE_CALM = 1.2, ICE_HOLD = 0.99;
+function iceStep(S, tl, y, line) {
+  const { N, h, d, u, v, ice } = S, H = N * 0.27, cold = y >= 0.62 && y < 0.97, fr = ICE_FREEZE * tl, th = ICE_THAW * tl;
+  for (let i = 0; i < ice.length; i++) {
+    const di = d[i], c = ice[i];
+    if (di < 0.02) { if (c > 0) ice[i] = 0; continue; }
+    const hn = h[i] / H, sp = Math.sqrt(u[i] * u[i] + v[i] * v[i]);
+    if (cold && (y >= 0.74 || hn > line - 0.06) && sp < ICE_CALM * (0.5 + 0.5 * c)) { // shallow water freezes faster; ice keeps itself calm
+      const g = fr * (di < 0.4 ? 1.6 - di * 1.5 : 1) * (y >= 0.74 ? 1 : 0.6 + 0.4 * Math.min(1, (hn - line + 0.06) * 6));
+      ice[i] = c + g > 1 ? 1 : c + g;
+    } else if (c > 0) { const m = th * (cold ? 0.4 + sp : 1 + sp); ice[i] = c > m ? c - m : 0; }
+  }
+}
+function totalIce(S) { let n = 0; const a = S.ice, d = S.d; for (let i = 0; i < a.length; i++) if (a[i] > 0.5 && d[i] > 0.02) n++; return n; }
 function totalSnow(S) { let t = 0; const a = S.snow; for (let i = 0; i < a.length; i++) t += a[i]; return t; }
 
 function step(S, nSteps) {
@@ -640,12 +704,13 @@ function step(S, nSteps) {
 }
 
 function stepOnce(S) {
-  const { N, P, h, d, s, fL, fR, fT, fB, u, v, wet, dep } = S;
+  const { N, P, h, d, s, fL, fR, fT, fB, u, v, wet, dep, ice } = S;
   const dt = P.dt, gdt = P.g * dt, damp = P.damp;
   const n = N * N;
   // 1. sources
   if (P.rain > 0) { const r = P.rain * dt; for (let i = 0; i < n; i++) d[i] += r; }
   for (const sp of S.springs) addKernel(S, d, sp.x * N, sp.y * N, 2.2, P.springRate * sp.rate * dt * 0.5);
+  S.dryNow = P.events ? droughtAt(S, S.time) : 0;
   if (P.weather) weatherStep(S); else S.rainNow = 0;
   if (P.seasons && (S.steps % SNOW_EVERY) === 0) snowStep(S, SNOW_EVERY * dt);
   // 2. outflow flux (virtual pipes, cross-section/length = 1)
@@ -658,6 +723,7 @@ function stepOnce(S) {
       if (x < N - 1) { r = fR[i] * damp + gdt * (Hc - h[i + 1] - d[i + 1]); if (r < 0) r = 0; }
       if (y > 0) { t = fT[i] * damp + gdt * (Hc - h[i - N] - d[i - N]); if (t < 0) t = 0; }
       if (y < N - 1) { b = fB[i] * damp + gdt * (Hc - h[i + N] - d[i + N]); if (b < 0) b = 0; }
+      if (ice[i] > 0) { const o = 1 - ICE_HOLD * ice[i]; l *= o; r *= o; t *= o; b *= o; } // ice holds the water in place
       const sum = (l + r + t + b) * dt;
       if (sum > d[i]) { const K = sum > 0 ? d[i] / sum : 0; l *= K; r *= K; t *= K; b *= K; }
       fL[i] = l; fR[i] = r; fT[i] = t; fB[i] = b;
@@ -735,11 +801,11 @@ function stepOnce(S) {
   }
   const sNow = S.s;
   // 6. evaporation, edge outlets, wetness memory
-  const ev = 1 - P.evap * dt;
+  const ev = 1 - P.evap * (S.dryNow > 0 ? 1 + (DROUGHT_EVAP - 1) * S.dryNow : 1) * dt;
   const doEvap = P.evap > 0;
   for (let i = 0; i < n; i++) {
     if (doEvap) {
-      let di = d[i] * ev;
+      let di = ice[i] > 0.5 ? d[i] : d[i] * ev; // no evaporation under the ice
       if (di < 2e-4) { if (P.erosion) { h[i] += sNow[i]; sNow[i] = 0; } di = 0; }
       d[i] = di;
     }
@@ -789,15 +855,15 @@ function resample(S, N2) {
     const i = y * N2 + x, px = x * sc, py = y * sc;
     T.h[i] = lerp(S.h, px, py) * hs; T.d[i] = lerp(S.d, px, py) * hs; T.s[i] = lerp(S.s, px, py) * hs;
     T.wet[i] = lerp(S.wet, px, py); T.dep[i] = lerp(S.dep, px, py) * hs; T.h0[i] = lerp(S.h0, px, py) * hs;
-    T.veg[i] = lerp(S.veg, px, py); T.tree[i] = lerp(S.tree, px, py); T.moist[i] = lerp(S.moist, px, py); T.fert[i] = lerp(S.fert, px, py); T.flood[i] = lerp(S.flood, px, py); T.rush[i] = lerp(S.rush, px, py); T.bloom[i] = lerp(S.bloom, px, py); T.field[i] = lerp(S.field, px, py); T.ripe[i] = lerp(S.ripe, px, py); T.path[i] = lerp(S.path, px, py); T.snow[i] = lerp(S.snow, px, py) * hs;
+    T.veg[i] = lerp(S.veg, px, py); T.tree[i] = lerp(S.tree, px, py); T.moist[i] = lerp(S.moist, px, py); T.fert[i] = lerp(S.fert, px, py); T.flood[i] = lerp(S.flood, px, py); T.rush[i] = lerp(S.rush, px, py); T.bloom[i] = lerp(S.bloom, px, py); T.field[i] = lerp(S.field, px, py); T.ripe[i] = lerp(S.ripe, px, py); T.path[i] = lerp(S.path, px, py); T.snow[i] = lerp(S.snow, px, py) * hs; T.ice[i] = lerp(S.ice, px, py);
   }
-  T.springs = S.springs.map(sp => Object.assign({}, sp)); T.cottages = S.cottages.map(c => Object.assign({}, c, c.wheel ? { wheel: Object.assign({}, c.wheel) } : {})); T.grown = S.grown; T.vtick = S.vtick; T.steps = S.steps; T.time = S.time; T.wx = S.wx ? Object.assign({}, S.wx) : null; T.rainNow = S.rainNow || 0; T.yearOff = S.yearOff || 0;
+  T.springs = S.springs.map(sp => Object.assign({}, sp)); T.cottages = S.cottages.map(c => Object.assign({}, c, c.wheel ? { wheel: Object.assign({}, c.wheel) } : {})); T.grown = S.grown; T.vtick = S.vtick; T.steps = S.steps; T.time = S.time; T.wx = S.wx ? Object.assign({}, S.wx) : null; T.rainNow = S.rainNow || 0; T.yearOff = S.yearOff || 0; T.dryNow = S.dryNow || 0; T.drOver = S.drOver ? Object.assign({}, S.drOver) : null;
   return T;
 }
 
-function hasNaN(S) { for (const k of ['h', 'd', 's', 'u', 'v', 'fL', 'fR', 'fT', 'fB', 'veg', 'tree', 'moist', 'flood', 'rush', 'bloom', 'field', 'ripe', 'path', 'snow']) { const a = S[k]; for (let i = 0; i < a.length; i++) if (!Number.isFinite(a[i])) return k; } return false; }
+function hasNaN(S) { for (const k of ['h', 'd', 's', 'u', 'v', 'fL', 'fR', 'fT', 'fB', 'veg', 'tree', 'moist', 'flood', 'rush', 'bloom', 'field', 'ripe', 'path', 'snow', 'ice']) { const a = S[k]; for (let i = 0; i < a.length; i++) if (!Number.isFinite(a[i])) return k; } return false; }
 
-const API = { yearFrac, yearFracAt, yearLen, season, snowLine, snowFalling, leafState, snowStep, totalSnow, SEASONS, clockHour, dayFrac, planRain, rainCell, weatherStep, mulberry32, hashStr, makeNoise, randomSeedName, generateTerrain, create, seedLife, step, applyTool, totalWater, totalTerrain, resample, lifeStep, countTrees, countLife, leafy, treeHappy, cottageMood, cottageCell, countVillage, waterNear, wellYield, WELL_MIN, WELL_HIGH, MILL_T, MILL_RIPEN, FLOOD_RUIN, GROW_MAX, KIDS_MAX, GROW_T, plotSize, plotOf, plotCrop, hasNaN, DEFAULTS };
+const API = { iceStep, totalIce, ICE_HOLD, eventRain, droughtOf, droughtAt, weatherEvent, STORM_AMP, yearFrac, yearFracAt, yearLen, season, snowLine, snowFalling, leafState, snowStep, totalSnow, SEASONS, clockHour, dayFrac, planRain, rainCell, weatherStep, mulberry32, hashStr, makeNoise, randomSeedName, generateTerrain, create, seedLife, step, applyTool, totalWater, totalTerrain, resample, lifeStep, countTrees, countLife, leafy, treeHappy, cottageMood, cottageCell, countVillage, waterNear, wellYield, WELL_MIN, WELL_HIGH, MILL_T, MILL_RIPEN, FLOOD_RUIN, GROW_MAX, KIDS_MAX, GROW_T, plotSize, plotOf, plotCrop, hasNaN, DEFAULTS };
 if (typeof module !== 'undefined' && module.exports) module.exports = API; else root.LV = API;
 })(typeof window !== 'undefined' ? window : globalThis);
 </script>
@@ -896,7 +962,7 @@ setTimeout(() => $('hint').classList.remove('show'), 4000);
 // ---------- world ----------
 function newWorld(seed) {
   const N = NLEVELS[nIndex];
-  st.S = LV.create(N, seed, { weather: st.weather !== false, seasons: st.seasons !== false }); LV.seedLife(st.S, 3); st.wake = 2.5; st.N = N;
+  st.S = LV.create(N, seed, { weather: st.weather !== false, seasons: st.seasons !== false, events: st.events !== false }); LV.seedLife(st.S, 3); st.wake = 2.5; st.N = N;
   if (st.shower > 0) { st.shower = 0; updUI(); } // a new world starts with clear skies
   $('seedName').textContent = seed; skyPrev = null; allocRender(); hint('Welcome to ' + seed + '!');
   try { history.replaceState(null, '', '#' + encodeURIComponent(seed)); } catch (e) { }
@@ -952,7 +1018,7 @@ function computeColours(t) {
   const H = N * 0.27, ex = 1.6, tiltView = st.view === 'tilt';
   // sun: from the west, a little from the viewer side in 3D view
   let Lx = LT.Lx, Ly = tiltView ? 0.28 : -0.42, Lz = LT.Lz; const Ll = Math.hypot(Lx, Ly, Lz); Lx /= Ll; Ly /= Ll; Lz /= Ll;
-  const cOff = t * 0.6, snowBase = 0.68, snowL = S.snow;
+  const cOff = t * 0.6, snowBase = 0.68, snowL = S.snow, iceL = S.ice;
   const ls = S.P.seasons ? LV.leafState(S) : { autumn: 0, bare: 0 }; LS.autumn = ls.autumn; LS.bare = ls.bare; const lsA = ls.autumn, lsB = ls.bare;
   // the natural rain cloud darkens the ground under it
   const RC = LV.rainCell(S), rcx = RC ? RC.x * N : 0, rcy = RC ? RC.y * N : 0, rcR2 = RC ? (RC.r * N * 1.1) ** 2 : 0, rcK = RC ? 0.38 * RC.k : 0;
@@ -1039,6 +1105,12 @@ function computeColours(t) {
         let foam = Math.max(smooth(5.5, 8.5, sp) * smooth(0.15, 0.6, di) * 0.6, smooth(1.1, 2.6, sslope) * smooth(0.1, 0.4, di)) * 0.8;
         foam *= 0.7 + 0.3 * Math.sin(x * 0.7 + y * 0.9 - t * 5);
         wr += (215 - wr) * foam; wg += (242 - wg) * foam; wb += (255 - wb) * foam;
+        const ik = iceL ? 0.4 * iceL[i] + 0.15 * (iceL[i + xp] + iceL[i + xm] + iceL[i + yp] + iceL[i + ym]) : 0; // a little smoothing: one sheet of ice, not speckles
+        if (ik > 0.05) { // frozen lake: pale blue-white ice with a few dark cracks and powdery patches, no ripples
+          const k = smooth(0.12, 0.5, ik), crack = Math.abs(Math.sin(x * 0.9 + y * 0.35 + 2 * Math.sin(y * 0.21)) * Math.sin(y * 0.8 - x * 0.3)) < 0.05 ? 0.8 : 1, pw = smooth(0.2, 0.6, grain[i] + 0.3) * 0.5;
+          const ir = (196 + 40 * pw) * crack * (0.84 + 0.2 * dif), ig = (222 + 26 * pw) * crack * (0.86 + 0.18 * dif), ib = (240 + 12 * pw) * crack * (0.9 + 0.12 * dif);
+          wr += (ir - wr) * k; wg += (ig - wg) * k; wb += (ib - wb) * k; spec *= 1 - 0.85 * k;
+        }
         r += (wr - r) * a + spec; g += (wg - g) * a + spec; b += (wb - b) * a + spec;
         if (di > 0.03) surf[i] = hi + di;
       }
@@ -1051,7 +1123,7 @@ function computeColours(t) {
 // LT is updated once per frame from the sim clock (LV.clockHour) and the natural rain (S.rainNow).
 // The valley is never darker than a soft moonlit blue (night tint at most NIGHT_A), so it stays readable.
 const NIGHT_A = 0.46, NIGHT_C = [16, 26, 72], WARM_C = [255, 140, 60];
-const LT = { h: 8, elev: 0.5, s: 0.14, night: 0, warm: 0, glow: 0, rain: 0, Lx: -0.62, Lz: 0.72, na: 0, wa: 0, ra: 0 };
+const LT = { dry: 0, storm: 0, flash: 0, h: 8, elev: 0.5, s: 0.14, night: 0, warm: 0, glow: 0, rain: 0, Lx: -0.62, Lz: 0.72, na: 0, wa: 0, ra: 0 };
 function bump(h, c, w) { return Math.max(0, 1 - Math.abs(h - c) / w); }
 function updLight() {
   const S = st.S, h = st.fixedHour != null ? st.fixedHour : LV.clockHour(S); LT.h = h;
@@ -1064,7 +1136,8 @@ function updLight() {
   // sun light direction: from the left in the morning, from above at noon, from the right in the evening; a soft moon at night
   const dx = -Math.cos(Math.PI * s) * 0.8, dz = 0.28 + 0.62 * LT.elev;
   LT.Lx = dx + (0.35 - dx) * LT.night; LT.Lz = dz + (0.75 - dz) * LT.night;
-  LT.na = NIGHT_A * LT.night; LT.wa = 0.17 * LT.warm; LT.ra = 0.16 * LT.rain;
+  LT.storm = S.wx && S.wx.storm ? S.rainNow || 0 : 0; LT.dry = S.dryNow || 0;
+  LT.na = NIGHT_A * LT.night; LT.wa = 0.17 * LT.warm; LT.ra = 0.16 * LT.rain + 0.14 * LT.storm;
 }
 // a colour under the current light (warm evening, moonlit night, rainy grey) as a CSS string
 function litC(r, g, b, a) {
@@ -1079,6 +1152,7 @@ function tintOver(g, x, y, w, h, op) {
   if (LT.wa > 0.005) { g.fillStyle = `rgba(${WARM_C},${LT.wa})`; g.fillRect(x, y, w, h); }
   if (LT.na > 0.005) { g.fillStyle = `rgba(${NIGHT_C},${LT.na})`; g.fillRect(x, y, w, h); }
   if (LT.ra > 0.005) { g.fillStyle = `rgba(60,68,82,${LT.ra})`; g.fillRect(x, y, w, h); }
+  if (LT.dry > 0.01) { g.fillStyle = `rgba(236,196,104,${0.15 * LT.dry * (1 - LT.night)})`; g.fillRect(x, y, w, h); } // a drought: hazy, sun-bleached light
   g.restore();
 }
 
@@ -1192,6 +1266,7 @@ function renderTilt(t) {
   }
   if (st.trees !== false) { const t0 = performance.now(); rasterTrees(T, data); st.treeMs = (st.treeMs || 0) * 0.9 + (performance.now() - t0) * 0.1; }
   rasterCottages(T, data);
+  rasterSkaters(T, data);
   T.ctx.putImageData(T.img, 0, 0);
   tintOver(T.ctx, 0, 0, ow, oh, 'source-atop');
   // place on screen
@@ -1280,6 +1355,38 @@ function rasterTrees(T, data) {
     n++;
   }
   st.treesDrawn = n; st.leafyDrawn = nl;
+}
+// skaters: on a frozen lake near a happy cottage, by day, one or two little figures glide in loops
+// (a red or blue coat, a pale face). The ice spot of each cottage is looked up every couple of seconds.
+const SKATE_C = [[200, 50, 50], [40, 80, 180], [40, 140, 90], [220, 150, 30]];
+function rasterSkaters(T, data) {
+  const S = st.S, N = S.N, ow = T.ow, oh = T.oh, pick = T.pick, cp = T.cp, ice = S.ice; st.skatersDrawn = 0;
+  if (!ice || !(st.iceN > 10) || LT.night > 0.6) { st.skateSpots = null; return; }
+  if (!st.skateSpots || st.time - (st.skateT || 0) > 2) {
+    st.skateT = st.time; const R = Math.max(4, Math.round(N * 0.07)), sp = [];
+    for (const c of S.cottages) {
+      if (c.mood === 'ruin' || sp.length >= 6) continue; const cx = Math.round(c.x * N), cy = Math.round(c.y * N); let best = -1, bd = 1e9;
+      for (let dy = -R; dy <= R; dy++) for (let dx = -R; dx <= R; dx++) { const x = cx + dx, y = cy + dy; if (x < 3 || y < 3 || x >= N - 3 || y >= N - 3) continue; const i = y * N + x; if (ice[i] > 0.85 && ice[i + 1] > 0.85 && ice[i - 1] > 0.85 && ice[i + N] > 0.85 && ice[i - N] > 0.85 && dx * dx + dy * dy < bd) { bd = dx * dx + dy * dy; best = i; } }
+      if (best >= 0 && !sp.some(q => Math.abs(q % N - best % N) + Math.abs(((q / N) | 0) - ((best / N) | 0)) < 4)) sp.push(best);
+    }
+    st.skateSpots = sp;
+  }
+  const t = st.time;
+  st.skateSpots.forEach((i0, k) => {
+    for (let m = 0; m < 2; m++) {
+      const a = t * (0.7 + 0.2 * m) + k * 2.1 + m * 3.1, rr = 1.2 + 0.6 * m, gx = (i0 % N) + Math.cos(a) * rr, gy = ((i0 / N) | 0) + Math.sin(a) * rr * 0.7;
+      const x = Math.round(gx), y = Math.round(gy), i = y * N + x; if (x < 1 || y < 1 || x >= N - 1 || y >= N - 1 || !(ice[i] > 0.6)) continue;
+      const sc = persp(gy, N), ox = Math.round((gx + 0.5 - N / 2) * cp * sc + ow / 2), oy = Math.round(baseY(T, gy, N) - (S.h[i] + S.d[i]) * cp * T.hEx * sc);
+      if (ox < 2 || oy < 4 || ox >= ow - 2 || oy >= oh) continue;
+      const pc = pick[Math.min(oh - 1, oy + 1) * ow + ox]; if (pc < 0 || Math.abs(pc % N - x) > 3 || Math.abs(((pc / N) | 0) - y) > 4) continue;
+      const u = Math.max(2, Math.round(cp * sc * 1.1)), C = SKATE_C[(k * 2 + m) % 4], lean = Math.round(Math.cos(a) * u * 0.5);
+      const put = (px, py, r, g, b) => { if (px < 0 || py < 0 || px >= ow || py >= oh) return; const q = (py * ow + px) * 4; data[q] = r; data[q + 1] = g; data[q + 2] = b; data[q + 3] = 255; };
+      for (let py = oy - 3 * u; py <= oy; py++) for (let px = ox - Math.floor(u / 2); px <= ox + Math.floor((u - 1) / 2); px++) { const f = (oy - py) / (3 * u); put(px + Math.round(lean * f), py, py > oy - u ? 50 : C[0], py > oy - u ? 50 : C[1], py > oy - u ? 70 : C[2]); }
+      for (let py = oy - 4 * u; py < oy - 3 * u; py++) for (let px = ox - Math.floor(u / 2); px <= ox + Math.floor((u - 1) / 2); px++) put(px + lean, py, 246, 214, 186);
+      put(ox - u, oy + 1, 120, 150, 175); put(ox + u, oy + 1, 120, 150, 175); // a little scratch on the ice
+      st.skatersDrawn++;
+    }
+  });
 }
 // little cottages, rasterised into the tilt buffer back to front (after the trees, so they stand
 // in their cleared gardens): cream walls, a sun-lit gable roof, a door and a window that glows when
@@ -1492,6 +1599,7 @@ function drawSky(t, dt) {
   // far mountains (two hazy layers)
   if (st.view === 'tilt' && tilt && tilt.s != null) {
     const hy = tilt.sy + tilt.top * tilt.s + 10;
+    if (st.rainbow > 0) drawRainbow(hy);
     for (let layer = 0; layer < 2; layer++) {
       cx.fillStyle = layer ? litC(150, 186, 222, 0.75) : litC(186, 212, 238, 0.8);
       cx.beginPath(); cx.moveTo(0, vh);
@@ -1516,6 +1624,15 @@ function drawSky(t, dt) {
       cx.beginPath(); cx.moveTo(x - w, y - f); cx.quadraticCurveTo(x - w / 2, y - 3, x, y); cx.quadraticCurveTo(x + w / 2, y - 3, x + w, y - f); cx.stroke();
     }
   }
+}
+// a rainbow after a rain when the sun is out: opposite the sun, its foot behind the far mountains
+const BOW = [[255, 70, 70], [255, 160, 50], [255, 236, 90], [90, 210, 100], [80, 150, 255], [150, 100, 230]];
+function drawRainbow(hy) {
+  const T = st.rainbow, a = Math.min(1, T / 3, (RAINBOW_T - T) / 2.5) * (1 - LT.night) * (1 - LT.rain) * (1 - LT.dry), R = Math.min(vw * 0.42, vh * 0.55), w = Math.max(3, R * 0.022);
+  if (a <= 0.01) return;
+  const x = vw * (0.94 - 0.88 * LT.s), y = hy + vh * 0.06; cx.save(); cx.lineWidth = w; st.rainbowDrawn = 1;
+  BOW.forEach((c, k) => { cx.strokeStyle = `rgba(${c},${0.26 * a})`; cx.beginPath(); cx.arc(x, y, R - k * w, Math.PI * 1.05, Math.PI * 1.95); cx.stroke(); });
+  cx.restore();
 }
 function drawCloud(x, y, s, a, seed, grey) {
   cx.fillStyle = litC(150, 180, 210, a * 0.3);
@@ -1598,20 +1715,31 @@ function drawNaturalRain(t) {
     for (let i = 0; i < 60 * k; i++) { const a = i * 2.39996, rr = Math.sqrt((i + 0.5) / 60) * R * 0.95, ph = (t * 1.8 + i * 0.37) % 1, x = c[0] + Math.cos(a) * rr - ph * 4, y = c[1] + Math.sin(a) * rr + ph * 8; cx.beginPath(); cx.moveTo(x, y); cx.lineTo(x - 2, y + 5); cx.stroke(); st.rainDrawn++; }
     cx.restore(); return;
   }
-  const top = c[1] - Math.max(70, R * 0.75), base = c[1] + R * 0.15;
+  const top = c[1] - Math.max(70, R * 0.75), base = c[1] + R * 0.15, sto = RC.storm ? 1 : 0, gust = sto ? 0.22 + 0.12 * Math.sin(t * 1.3) + 0.06 * Math.sin(t * 3.7) : 0.12;
   cx.save();
-  // a soft grey curtain of rain from the cloud down to the ground
-  const cg = cx.createLinearGradient(0, top, 0, base); cg.addColorStop(0, `rgba(120,135,160,${0.32 * k})`); cg.addColorStop(1, `rgba(120,135,160,${0.05 * k})`);
+  // a soft grey curtain of rain from the cloud down to the ground (a storm: darker and heavier)
+  const cc = sto ? '70,80,100' : '120,135,160', cg = cx.createLinearGradient(0, top, 0, base); cg.addColorStop(0, `rgba(${cc},${(0.32 + 0.22 * sto) * k})`); cg.addColorStop(1, `rgba(${cc},${(0.05 + 0.08 * sto) * k})`);
   cx.fillStyle = cg; cx.beginPath(); cx.moveTo(c[0] - R * 0.75, top); cx.lineTo(c[0] + R * 0.75, top); cx.lineTo(c[0] + R * 0.85 - 10, base); cx.lineTo(c[0] - R * 0.85 - 10, base); cx.closePath(); cx.fill();
   cx.strokeStyle = `rgba(225,236,252,${0.7 * k})`; cx.lineWidth = Math.max(1.3, Math.min(2, R / 90)); cx.lineCap = 'round';
-  const n = Math.round(90 * k * Math.min(1.6, R / 140 + 0.5));
+  const n = Math.round(90 * k * Math.min(1.6, R / 140 + 0.5) * (1 + 1.4 * sto));
   for (let i = 0; i < n; i++) {
     const hx = ((i * 97.13) % 100) / 100, hy = ((i * 61.7) % 100) / 100, ph = (t * 1.5 + hx * 3.1 + hy) % 1;
-    const yb = base - hy * R * 0.4, y = top + 8 + ph * (yb - top - 8), x = c[0] + (hx - 0.5) * 1.5 * R - (y - top) * 0.12;
-    cx.beginPath(); cx.moveTo(x, y); cx.lineTo(x - 2, y + 13); cx.stroke(); st.rainDrawn++;
+    const yb = base - hy * R * 0.4, y = top + 8 + ph * (yb - top - 8), x = c[0] + (hx - 0.5) * 1.5 * R - (y - top) * gust;
+    cx.beginPath(); cx.moveTo(x, y); cx.lineTo(x - 2 - 14 * gust * sto, y + 13 + 4 * sto); cx.stroke(); st.rainDrawn++;
   }
   cx.restore();
-  for (let j = 0; j < 4; j++) drawCloud(c[0] + (j - 1.5) * R * 0.45, top + (j === 1 || j === 2 ? -10 : 2), Math.max(34, R * (j === 1 || j === 2 ? 0.5 : 0.4)), 0.95 * Math.min(1, k * 1.5), 5 + j * 3, 0.45);
+  for (let j = 0; j < 4 + sto * 2; j++) { const jj = sto ? j / 5 * 3 : j; drawCloud(c[0] + (jj - 1.5) * R * 0.45, top + (j === 1 || j === 2 ? -10 : 2), Math.max(34, R * (j === 1 || j === 2 ? 0.5 : 0.4)), 0.95 * Math.min(1, k * 1.5), 5 + j * 3, sto ? 0.72 : 0.45); }
+  if (sto) drawLightning(c[0], top, base, R, k, t);
+}
+// lightning: a quick white flash and a jagged bolt now and then under a storm (cheap: a few lines)
+function drawLightning(x0, top, base, R, k, t) {
+  const slot = Math.floor(st.time * 2.5), r = LV.mulberry32(slot * 7919 + (st.S.wx.bolt || 0));
+  if (slot !== st.boltSlot) { st.boltSlot = slot; if ((k > 0.5 && r() < 0.1 && !st.paused) || st.forceBolt) { st.flash = 1; st.bolts = (st.bolts || 0) + 1; st.boltX = x0 + (r() - 0.5) * R; st.boltSeed = slot; st.forceBolt = false; } }
+  if (!(st.flash > 0)) return;
+  cx.save(); cx.fillStyle = `rgba(235,240,255,${0.28 * st.flash})`; cx.fillRect(0, 0, vw, vh);
+  if (st.flash > 0.45) { const q = LV.mulberry32(st.boltSeed * 31 + 7); let x = st.boltX, y = top + 10; cx.strokeStyle = `rgba(255,255,235,${st.flash})`; cx.lineWidth = 2.2; cx.lineJoin = 'round'; cx.beginPath(); cx.moveTo(x, y);
+    const yb = base - R * 0.1; while (y < yb) { y += 8 + q() * 14; x += (q() - 0.5) * 22; cx.lineTo(x, Math.min(y, yb)); } cx.stroke(); }
+  cx.restore();
 }
 function drawShower(t) {
   if (st.shower <= 0) return;
@@ -1649,24 +1777,33 @@ document.addEventListener('keydown', e => {
 // ---------- clock and weather hints ----------
 const SEASON_ICON = { spring: '🌸', summer: '🌻', autumn: '🍂', winter: '❄️' };
 function seasonIcon() { const S = st.S; return S.P.seasons ? SEASON_ICON[LV.season(S)] + ' ' : ''; }
-function clockText() { const h = LT.h, hh = Math.floor(h), mm = Math.floor((h - hh) * 6) * 10; return seasonIcon() + (LT.rain > 0.1 ? '🌧 ' : LT.night > 0.5 ? '🌙 ' : LT.glow > 0.3 && LT.h > 12 ? '🌇 ' : '☀️ ') + String(hh).padStart(2, '0') + ':' + String(mm).padStart(2, '0'); }
+function clockText() { const h = LT.h, hh = Math.floor(h), mm = Math.floor((h - hh) * 6) * 10; return seasonIcon() + (LT.rain > 0.1 ? (LT.storm > 0.1 ? '⛈ ' : '🌧 ') : LT.night > 0.5 ? '🌙 ' : LT.dry > 0.05 ? '🌵 ' : LT.glow > 0.3 && LT.h > 12 ? '🌇 ' : '☀️ ') + String(hh).padStart(2, '0') + ':' + String(mm).padStart(2, '0'); }
 let skyPrev = null;
 const SEASON_HINT = { spring: 'Spring: the snow melts and the rivers swell', summer: 'Summer: long days, fewer rains', autumn: 'Autumn: the leafy trees turn gold and red', winter: 'Winter: snow creeps down the mountains' };
 function skyHints() {
-  const S = st.S, now = { rain: (S.rainNow || 0) > 0.05, eve: LT.glow > 0.5 && LT.h > 12, morn: LT.h >= 6.5 && LT.h < 12, sea: S.P.seasons ? LV.season(S) : '' };
+  const S = st.S; if (!st.iceT || Math.abs(st.time - st.iceT) > 1) { st.iceT = st.time; st.iceN = S.P.seasons ? LV.totalIce(S) : 0; }
+  const now = { ice: st.iceN > 25, dry: (S.dryNow || 0) > 0.05, storm: LV.weatherEvent(S) === 'storm', rain: (S.rainNow || 0) > 0.05, eve: LT.glow > 0.5 && LT.h > 12, morn: LT.h >= 6.5 && LT.h < 12, sea: S.P.seasons ? LV.season(S) : '' };
   if (skyPrev && st.wake <= 0) {
-    if (now.sea !== skyPrev.sea && now.sea) { st.seasonHint = SEASON_HINT[now.sea]; hint(st.seasonHint); } else
-    if (now.rain && !skyPrev.rain && S.wx) hint(st.rainHint = 'A gentle rain drifts in from the ' + (S.wx.vx > 0 ? 'west' : 'east') + ', feeding the streams');
+    if (now.dry && !skyPrev.dry) hint(st.dryHint = 'Drought: a long dry spell. Rivers shrink; cottages need a well');
+    else if (!now.dry && skyPrev.dry) hint(st.dryHint = 'The drought is over: rain will come again');
+    else if (now.sea !== skyPrev.sea && now.sea) { st.seasonHint = SEASON_HINT[now.sea]; hint(st.seasonHint); }
+    else if (now.ice && !skyPrev.ice) hint(st.iceHint = 'Frost: the still lakes freeze over (the rivers keep flowing)');
+    else if (!now.ice && skyPrev.ice) hint(st.iceHint = 'The ice breaks up: the lakes flow again');
+    else if (now.storm && !skyPrev.storm) hint(st.rainHint = 'A storm rolls in from the ' + (S.wx.vx > 0 ? 'west' : 'east') + '! Heavy rain: low cottages may flood');
+    else if (now.rain && !skyPrev.rain && S.wx) hint(st.rainHint = 'A gentle rain drifts in from the ' + (S.wx.vx > 0 ? 'west' : 'east') + ', feeding the streams');
     else if (now.eve && !skyPrev.eve) hint(st.S.cottages.length ? 'Evening: the cottage windows light up' : 'Evening falls over the valley');
     else if (now.morn && !skyPrev.morn) hint('Good morning, valley!');
   }
+  if (skyPrev && skyPrev.rain && !now.rain && LT.elev > 0.2 && LT.night < 0.1 && st.shower <= 0) { st.rainbow = RAINBOW_T; st.rainbows = (st.rainbows || 0) + 1; if (st.wake <= 0 && !now.dry) hint(st.bowHint = 'A rainbow over the valley!'); }
   skyPrev = now;
 }
+const RAINBOW_T = 16; // real seconds a rainbow stays
 
 // ---------- main loop ----------
 let last = performance.now(), fpsAcc = 0, fpsN = 0, statT = 0;
 function frame(now) {
   const dtReal = Math.min(0.1, (now - last) / 1000); last = now; st.time += dtReal;
+  if (st.flash > 0) st.flash = Math.max(0, st.flash - dtReal * 5); if (st.rainbow > 0) st.rainbow = Math.max(0, st.rainbow - dtReal);
   const t0 = performance.now();
   const S = st.S;
   // tools
@@ -1708,7 +1845,7 @@ function frame(now) {
     $('clock').textContent = clockText();
     $('stats').textContent = (vw < 600 ? `${tt} trees · ${hp}% happy · ${ff} 🌼 · 🏠 ${V.cottages} (${V.happy} 😊)${V.mills ? ' ⚙' + V.mills : ''}${V.ruins ? ' · ' + V.ruins + ' ruin' : ''}`
       : vw < 1000 ? `${tt} trees (${hp}% happy) · ${ff} flowers · 🏠 ${V.cottages} (${V.happy} happy)${V.mills ? ' · ⚙ ' + V.mills : ''}${ru}`
-      : `${S.N}² · ${Math.round(st.fps)} fps · ${tt} trees (${hp}% happy) · ${ff} flowers · ${V.cottages} cottage${V.cottages === 1 ? '' : 's'} (${V.happy} happy)${fl}${mi}${ru}`) + (st.paused ? ' · paused' : ''); }
+      : `${S.N}² · ${Math.round(st.fps)} fps · ${tt} trees (${hp}% happy) · ${ff} flowers · ${V.cottages} cottage${V.cottages === 1 ? '' : 's'} (${V.happy} happy)${fl}${mi}${ru}${S.dryNow > 0.05 ? ' · drought' : LV.weatherEvent(S) === 'storm' ? ' · storm' : ''}`) + (st.paused ? ' · paused' : ''); }
   requestAnimationFrame(frame);
 }
 // auto quality: lower render scale first, then the grid (not in time-lapse, which fills spare time on purpose)
