@@ -92,7 +92,8 @@ const DEFAULTS = {
   rain: 0, evap: 0.012, openEdges: true, edgeDrain: 3,
   Kc: 0.9, Ks: 0.35, Kd: 0.8, depthMax: 0.6, minTilt: 0.04, maxErode: 0.004,
   talus: 1.6, talusWet: 0.4, thermal: 0.15, thermalEvery: 2,
-  springRate: 3.0, erosion: true
+  springRate: 3.0, erosion: true,
+  life: true, lifeEvery: 6
 };
 
 // World size: heights are in "cell" units; mountains ~ 0.27 * N tall.
@@ -133,10 +134,77 @@ function create(N, seed, opts) {
   const P = Object.assign({}, DEFAULTS, opts || {});
   const n = N * N, F = () => new Float32Array(n);
   const T = generateTerrain(N, seed);
-  const S = { N, seed: String(seed), P, h: T.h, d: F(), s: F(), fL: F(), fR: F(), fT: F(), fB: F(), u: F(), v: F(), tmp: F(), tmp2: F(), ero: F(), wet: F(), dep: F(), h0: null, springs: [], steps: 0, time: 0 };
+  const S = { N, seed: String(seed), P, h: T.h, d: F(), s: F(), fL: F(), fR: F(), fT: F(), fB: F(), u: F(), v: F(), tmp: F(), tmp2: F(), ero: F(), wet: F(), dep: F(), veg: F(), tree: F(), moist: F(), fert: F(), flood: F(), h0: null, springs: [], steps: 0, time: 0 };
   S.h0 = new Float32Array(S.h);
+  initLife(S);
   return S;
 }
+
+// ---------- life: meadows and forests that follow the water ----------
+// moist: ground moisture 0..1 (water spreads it to the banks, lowlands have some groundwater)
+// veg: meadow cover 0..1, tree: forest 0..1 (> ~0.35 shows a tree)
+function cellRand(i, k) { let x = (i * 374761393 + k * 668265263) | 0; x = Math.imul(x ^ (x >>> 13), 1274126177); return ((x ^ (x >>> 16)) >>> 0) / 4294967296; }
+function initLife(S) {
+  const { N, h, veg, tree, moist, fert } = S, H = N * 0.27;
+  const nz = makeNoise(mulberry32(hashStr(S.seed + '#forest')));
+  for (let y = 1; y < N - 1; y++) for (let x = 1; x < N - 1; x++) {
+    const i = y * N + x, hn = h[i] / H;
+    const gx = 0.5 * (h[i + 1] - h[i - 1]), gy = 0.5 * (h[i + N] - h[i - N]), sl = Math.sqrt(gx * gx + gy * gy);
+    const base = groundWater(hn);
+    moist[i] = base;
+    veg[i] = Math.max(0, Math.min(1, smoothstep(0.08, 0.42, base) * (1 - smoothstep(0.55, 0.72, hn)) + 0.05));
+    const f = nz(x / N * 6, y / N * 6) + 0.4 * nz(x / N * 15 + 7, y / N * 15);
+    fert[i] = f;
+    const ok = hn > 0.1 && hn < 0.55 && sl < 1.2;
+    tree[i] = ok && base + 0.35 * f > 0.31 ? Math.min(1, (base + 0.35 * f - 0.31) * 10) : 0;
+  }
+}
+function smoothstep(a, b, x) { const t = Math.max(0, Math.min(1, (x - a) / (b - a))); return t * t * (3 - 2 * t); }
+function groundWater(hn) { return 0.32 * (1 - smoothstep(0.12, 0.6, hn)); }
+
+function lifeStep(S) {
+  const { N, h, d, u, v, veg, tree, moist, dep, fert, flood } = S, H = N * 0.27, m2 = S.tmp;
+  const rainK = S.P.rain > 0 ? Math.min(0.5, S.P.rain * 20) : 0, k0 = S.steps;
+  // moisture: open water = 1, spreads a few cells onto the banks, otherwise relaxes to groundwater
+  for (let y = 1; y < N - 1; y++) for (let x = 1; x < N - 1; x++) {
+    const i = y * N + x;
+    if (d[i] > 0.03) { m2[i] = 1; continue; }
+    const nb = Math.max(moist[i - 1], moist[i + 1], moist[i - N], moist[i + N]) * 0.86;
+    const gw = groundWater(h[i] / H) + rainK;
+    let m = moist[i] + (gw - moist[i]) * 0.01;
+    if (nb > m) m += (nb - m) * 0.5;
+    m2[i] = m > 1 ? 1 : m;
+  }
+  for (let y = 1; y < N - 1; y++) for (let x = 1; x < N - 1; x++) {
+    const i = y * N + x; moist[i] = m2[i];
+    const di = d[i], hn = h[i] / H;
+    const gx = 0.5 * (h[i + 1] - h[i - 1]), gy = 0.5 * (h[i + N] - h[i - N]), sl = Math.sqrt(gx * gx + gy * gy);
+    const sp = Math.sqrt(u[i] * u[i] + v[i] * v[i]);
+    // flood memory: plants survive a shower, but not a lake that stays (about 15 s of play)
+    let fl = flood[i]; fl = di > 0.3 ? fl + 0.01 : fl * 0.97; flood[i] = fl;
+    let g = veg[i], t = tree[i];
+    if (sp > 3.5 && di > 0.6) { g -= 0.05; t -= 0.015; }                 // a real river scours its bed
+    else if (fl > 0.5) { g -= 0.02; if (fl > 1) t -= 0.006; }           // drowning in standing water
+    else if (di > 0.1) { /* wet for now: no growth, no harm */ }
+    else {
+      const m = moist[i], alpine = 1 - smoothstep(0.55, 0.75, hn), rock = 1 - smoothstep(1.1, 1.8, sl);
+      const target = smoothstep(0.08, 0.45, m) * alpine * rock;
+      g += (target - g) * (target > g ? 0.03 : 0.008);
+      // trees: need moist (not soggy) ground below the treeline on gentle slopes
+      const good = m + 0.35 * fert[i] > 0.3 && hn > 0.04 && hn < 0.58 && sl < 1.25 && dep[i] < 1.2;
+      if (good) {
+        if (t > 0.02) t += 0.006 * (1 - t);
+        else if (cellRand(i, k0) < 0.004) { // seeding from a grown neighbour
+          const nt = Math.max(tree[i - 1], tree[i + 1], tree[i - N], tree[i + N]);
+          if (nt > 0.5 || cellRand(i, k0 + 1) < 0.01) t = 0.05;
+        }
+      } else if (m + 0.35 * fert[i] < 0.2 || hn >= 0.6 || sl > 1.5) t -= 0.004;
+      if (dep[i] > 1.5) t -= 0.003; // buried by sand
+    }
+    veg[i] = g < 0 ? 0 : g > 1 ? 1 : g; tree[i] = t < 0 ? 0 : t > 1 ? 1 : t;
+  }
+}
+function countTrees(S) { let n = 0; const t = S.tree; for (let i = 0; i < t.length; i++) if (t[i] > 0.35) n++; return n; }
 
 // Default friendly start: a few springs high up plus a first shower.
 function seedLife(S, count) {
@@ -330,6 +398,7 @@ function stepOnce(S) {
   }
   // 7. thermal slumping keeps cliffs from becoming spikes
   if (P.thermal > 0 && (S.steps % P.thermalEvery) === 0) thermal(S);
+  if (P.life && (S.steps % P.lifeEvery) === 0) lifeStep(S);
   S.steps++; S.time += dt;
 }
 
@@ -365,14 +434,15 @@ function resample(S, N2) {
     const i = y * N2 + x, px = x * sc, py = y * sc;
     T.h[i] = lerp(S.h, px, py) * hs; T.d[i] = lerp(S.d, px, py) * hs; T.s[i] = lerp(S.s, px, py) * hs;
     T.wet[i] = lerp(S.wet, px, py); T.dep[i] = lerp(S.dep, px, py) * hs; T.h0[i] = lerp(S.h0, px, py) * hs;
+    T.veg[i] = lerp(S.veg, px, py); T.tree[i] = lerp(S.tree, px, py); T.moist[i] = lerp(S.moist, px, py); T.fert[i] = lerp(S.fert, px, py); T.flood[i] = lerp(S.flood, px, py);
   }
   T.springs = S.springs.map(sp => Object.assign({}, sp)); T.steps = S.steps; T.time = S.time;
   return T;
 }
 
-function hasNaN(S) { for (const k of ['h', 'd', 's', 'u', 'v', 'fL', 'fR', 'fT', 'fB']) { const a = S[k]; for (let i = 0; i < a.length; i++) if (!Number.isFinite(a[i])) return k; } return false; }
+function hasNaN(S) { for (const k of ['h', 'd', 's', 'u', 'v', 'fL', 'fR', 'fT', 'fB', 'veg', 'tree', 'moist', 'flood']) { const a = S[k]; for (let i = 0; i < a.length; i++) if (!Number.isFinite(a[i])) return k; } return false; }
 
-const API = { mulberry32, hashStr, makeNoise, randomSeedName, generateTerrain, create, seedLife, step, applyTool, totalWater, totalTerrain, resample, hasNaN, DEFAULTS };
+const API = { mulberry32, hashStr, makeNoise, randomSeedName, generateTerrain, create, seedLife, step, applyTool, totalWater, totalTerrain, resample, lifeStep, countTrees, hasNaN, DEFAULTS };
 if (typeof module !== 'undefined' && module.exports) module.exports = API; else root.LV = API;
 })(typeof window !== 'undefined' ? window : globalThis);
 </script>
@@ -487,7 +557,7 @@ function ramp(t, out) { let i = 0; while (i < RAMP.length - 2 && t > RAMP[i + 1]
 
 const tmpc = [0, 0, 0];
 function computeColours(t) {
-  const S = st.S, N = S.N, h = S.h, d = S.d, s = S.s, u = S.u, v = S.v, wet = S.wet, dep = S.dep;
+  const S = st.S, N = S.N, h = S.h, d = S.d, s = S.s, u = S.u, v = S.v, wet = S.wet, dep = S.dep, veg = S.veg, tree = S.tree;
   const H = N * 0.27, ex = 1.6, tiltView = st.view === 'tilt';
   // sun: from the west, a little from the viewer side in 3D view
   let Lx = -0.62, Ly = tiltView ? 0.28 : -0.42, Lz = 0.72; const Ll = Math.hypot(Lx, Ly, Lz); Lx /= Ll; Ly /= Ll; Lz /= Ll;
@@ -512,6 +582,12 @@ function computeColours(t) {
       // moist soil near water: lush green in lowlands, darker on rock
       const w = wet[i];
       if (w > 0.01) { const k = Math.min(1, w) * 0.55 * (1 - smooth(0.55, 0.8, hn)); r += (70 - r) * k; g += (160 - g) * k; b += (62 - b) * k; }
+      // dry ground where the meadow is thin (straw and bare soil), lowlands and hills only
+      const bare = (1 - veg[i]) * (1 - smooth(0.5, 0.72, hn));
+      if (bare > 0.02) { const k = bare * 0.75; r += (184 - r) * k; g += (160 - g) * k; b += (102 - b) * k; }
+      // forest canopy: dark pine green with a little texture
+      const tr = tree[i];
+      if (tr > 0.05) { const k = Math.min(1, tr * 1.2) * 0.8, gr = 1 + grain[i] * 0.5; r += (46 * gr - r) * k; g += (98 * gr - g) * k; b += (52 * gr - b) * k; }
       // steep = rock
       const rk = smooth(0.9, 1.9, slope);
       if (rk > 0) { const rr = 148 + grain[i] * 14; r += (rr - r) * rk; g += (rr * 0.93 - g) * rk; b += (rr * 0.84 - b) * rk; }
@@ -666,6 +742,7 @@ function renderTilt(t) {
       }
     }
   }
+  if (st.trees !== false) { const t0 = performance.now(); rasterTrees(T, data); st.treeMs = (st.treeMs || 0) * 0.9 + (performance.now() - t0) * 0.1; }
   T.ctx.putImageData(T.img, 0, 0);
   // place on screen
   const s = T.wCss / ow;
@@ -684,6 +761,34 @@ function renderTilt(t) {
       for (let k = 0; k < 6; k++) { const ph = t * 1.3 + k * 1.7, ox = Math.sin(ph) * w * 0.6, oy = -Math.abs(Math.cos(ph * 0.7)) * 10, r = w * (0.16 + 0.07 * Math.sin(ph * 1.9));
         cx.fillStyle = 'rgba(255,255,255,.22)'; cx.beginPath(); cx.arc(mx + ox, by - 2 + oy, r, 0, 7); cx.fill(); } }
   }
+}
+// little pine trees on forest cells, rasterised straight into the tilt buffer (back to front),
+// only where the cell itself is visible (pick buffer), so ridges hide the trees behind them
+function rasterTrees(T, data) {
+  const S = st.S, N = S.N, tree = S.tree, ow = T.ow, oh = T.oh, pick = T.pick, cp = T.cp;
+  const stride = N > 120 ? 2 : 1;
+  if (cp * stride < 1.5) return;
+  let n = 0;
+  for (let y = 1; y < N - 1; y += stride) for (let x = 1; x < N - 1; x += stride) {
+    const i = y * N + x, tv = tree[i]; if (tv < 0.35 || S.d[i] > 0.08) continue;
+    const jx = x + (grain[i] + 0.5) * stride * 0.8 - 0.2, jy = y + (grain[i + 1] + 0.5) * stride * 0.8 - 0.2;
+    const sc = persp(jy, N);
+    const ox = (jx + 0.5 - N / 2) * cp * sc + ow / 2, oy = baseY(T, jy, N) - surf[i] * cp * T.hEx * sc;
+    const bx = ox | 0, by = (oy | 0) + 1; if (bx < 1 || by < 1 || bx >= ow - 1 || by >= oh) continue;
+    const c = pick[by * ow + bx]; if (c < 0) continue;
+    if (Math.abs(c % N - x) > 2.5 || Math.abs(((c / N) | 0) - y) > 3) continue;
+    const hgt = cp * sc * (1.5 + 1.5 * tv) * (0.85 + grain[i + N] * 0.5), w = hgt * 0.36;
+    const hz = 0.22 * (1 - jy / N) * (1 - jy / N), lr = 52 + 150 * hz, lg = 112 + 110 * hz, lb = 62 + 180 * hz, dr = 30 + 170 * hz, dg = 76 + 150 * hz, db = 46 + 200 * hz;
+    const top = Math.round(oy - hgt), bot = Math.round(oy - hgt * 0.12);
+    for (let py = Math.max(0, top); py <= bot && py < oh; py++) {
+      const f = (py - top) / (bot - top + 1e-6), hw = w * (0.25 + 0.75 * f) * (0.85 + 0.15 * Math.sin(f * 18)), row = py * ow;
+      const x0 = Math.max(0, Math.round(ox - hw)), x1 = Math.min(ow - 1, Math.round(ox + hw)), xm = Math.round(ox);
+      for (let px = x0; px <= x1; px++) { const q = (row + px) * 4; if (px < xm) { data[q] = lr; data[q + 1] = lg; data[q + 2] = lb; } else { data[q] = dr; data[q + 1] = dg; data[q + 2] = db; } data[q + 3] = 255; }
+    }
+    for (let py = bot + 1; py <= Math.round(oy) && py < oh; py++) { const q = (py * ow + Math.round(ox)) * 4; data[q] = 90; data[q + 1] = 63; data[q + 2] = 40; data[q + 3] = 255; }
+    n++;
+  }
+  st.treesDrawn = n;
 }
 // grid -> screen (css px) in tilt view
 function projTilt(gx, gy) {
@@ -873,7 +978,7 @@ function frame(now) {
   fpsAcc += dtReal; fpsN++; st.frames++;
   if (fpsAcc > 0.5) { st.fps = fpsN / fpsAcc; fpsAcc = 0; fpsN = 0; }
   adapt(dtReal);
-  statT -= dtReal; if (statT <= 0) { statT = 0.5; $('stats').textContent = `${S.N}² · ${Math.round(st.fps)} fps` + (st.paused ? ' · paused' : ''); }
+  statT -= dtReal; if (statT <= 0) { statT = 0.5; const nt = LV.countTrees(S), tt = nt >= 1000 ? (nt / 1000).toFixed(1) + 'k' : nt; $('stats').textContent = (vw < 600 ? '' : `${S.N}² · `) + `${Math.round(st.fps)} fps · ${tt} trees` + (st.paused ? ' · paused' : ''); }
   requestAnimationFrame(frame);
 }
 // auto quality: lower render scale first, then the grid

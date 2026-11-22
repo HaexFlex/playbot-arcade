@@ -15,9 +15,14 @@ find its way: lakes fill, rivers spill over ridges, carve gullies and drop sand.
 
 Worlds are seeded by name in the URL hash, e.g. `index.html#Daisy%20Glacier%205`.
 
+## Life
+Meadows and pine forests follow the water: ground near lakes and rivers gets moist, forests
+spread along streams, dry high ground turns to straw, a lake that stays drowns the trees under
+it and a fast river scours its bed. The stats pill counts the trees.
+
 ## How it works
 Heightmap terrain from seeded noise, shallow water with the virtual-pipes method (mass
 conserving), sediment erosion and deposition with semi-Lagrangian transport, and thermal
 slumping of steep slopes. Rendering is a software-drawn tilted 3D view on a 2D canvas.
 
-See `PLAN.md` for where it is going (plants, a village, seasons, sound, goals).
+See `PLAN.md` for where it is going (flowers, a village, seasons, sound, goals).

@@ -23,17 +23,19 @@ every feature must be visible on screen (no hidden numbers); stays at 30+ fps at
 - [x] Virtual-pipes shallow water, mass conserving with closed edges (tested)
 - [x] Sediment erosion and deposition (semi-Lagrangian transport) and thermal slumping
 - [x] Tools: Raise, Dig, Smooth, Rain, Spring, Sponge; brush size S/M/L
-- [x] Pause, speed 1x/2x, Shower, New, Reset; keys 1–6
+- [x] Pause, speed 1x/2x/4x, Shower, New, Reset; keys 1–6
 - [x] Tilted 3D view with sky, clouds, sun, waterfall at the outlet; Map (top) view
 - [x] Water rendering: depth colour, muddy water, ripples, foam on rapids
 - [x] Touch/mobile friendly, auto quality (grid 128–192, render scale)
 - [x] `tools/test.js` (sim) and `tools/browser-test.js` (desktop, phone, landscape)
 
-### v2: life follows water
-- [ ] Vegetation layer in the sim: grass, flowers, trees grow on moist ground, wither when dry, drown in standing water, get washed away by fast water
-- [ ] Draw it: meadow tint, little tree sprites in the 3D view, flowers in spring
+### v2: life follows water (part 1 done, 2026-11-22)
+- [x] Vegetation layer in the sim (`lifeStep`, every 6 steps): ground moisture spreads from water onto the banks, meadow and forest grow on moist ground below the treeline, wither when dry, drown when a lake stays (flood memory, a shower is fine), get scoured by a fast deep river, die when buried by sand; seeded forest patches at the start; trees spread from neighbours
+- [x] Draw it: straw-coloured dry ground, dark forest canopy in the colour map, pine sprites rasterised into the 3D buffer (hidden behind ridges via the pick buffer, hazed at the back, 0.7 ms per frame); tree count in the stats pill
+- [x] Tests: forests grow along a stream and not on dry high ground; a lasting pond drowns plants while the dry forest survives; life fields deterministic and resampled
+- [ ] Flowers in meadows (spring colours), deciduous trees in the lowlands, autumn colours later with seasons
 - [ ] Rivers visibly carve over time (a "Time-lapse" speed, e.g. 8x with erosion boost)
-- [ ] Tests: plants grow near water, die in floods, deterministic
+- [ ] A Plant tool (sow a forest) and a gentle counter of "happy trees"
 
 ### v3: the little village
 - [ ] Place cottages (new tool); a cottage is happy with water nearby, sad when flooded or dry
@@ -52,9 +54,9 @@ every feature must be visible on screen (no hidden numbers); stays at 30+ fps at
 - [ ] Save/share a valley (compressed state in localStorage, seed + edits string)
 
 ## Next steps
-1. v2 part 1: vegetation field in `sim.js` (growth from wetness, death by drought/flood/scour) plus rendering and tests.
-2. v2 part 2: tree sprites in the tilt view, flowers, a Time-lapse speed.
-3. A short GIF for the arcade card.
+1. v2 part 2: flowers and lowland broadleaf trees, a Time-lapse speed (8x, erosion boost) so you can watch a river carve a valley and the forest follow it.
+2. A Plant tool (sow trees with your finger), then a short GIF for the arcade card.
+3. v3: the little village (cottages that want water nearby but hate floods).
 
 ## Checklist (every step)
 - [ ] `node tools/build.js` then `node tools/test.js` (all pass)
