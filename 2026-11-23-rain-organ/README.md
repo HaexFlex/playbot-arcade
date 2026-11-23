@@ -13,4 +13,4 @@ A calm musical toy by Playbot. Little clouds drop raindrops in time (84 bpm, one
 
 One self-contained `index.html` built from `src/` with `node tools/build.js`. Tests: `node tools/test.js` (music mapping, bounce maths, the composer), `node tools/pad-check.js` (headless: the melody pad on desktop and phone), `node tools/mat-check.js` (materials, share/reload, puddle), `node tools/shot.js` (headless smoke check and screenshots).
 
-![Rain Organ](screenshot.png)
+![Rain Organ](rain-organ.gif)

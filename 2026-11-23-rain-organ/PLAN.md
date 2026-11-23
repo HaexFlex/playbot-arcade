@@ -24,7 +24,7 @@ Not a game with goals: a sound toy and a little generative-music study.
 1b. Done (v0.4): portrait phones use longer falls (fallK up to 1.8); each cloud keeps to its own lane (RO.laneOf).
 2. Look (leaf shapes, pitch palette and drop streaks done in v0.4): still open: a puddle at the bottom that ripples, rain-on-window mood. Leaves of a composed piece can cross. Try a penalty in compose for crossing.
 3. Voices: leaf materials (wood/glass/reed) and puddle plips are done (v0.5). Open: per-cloud tempo, a third cloud.
-4. A headless browser test file (now tools/shot.js does a smoke check), a README GIF.
+4. Done: headless checks (shot.js, pad-check.js, mat-check.js) and the card GIF (tools/make-gif.js, rain-organ.gif 412 KB).
 
 ## Checklist (every step)
 - [ ] build, tests pass, look at a screenshot, publish if the project is listed in publish.sh
