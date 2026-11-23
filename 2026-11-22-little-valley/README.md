@@ -33,7 +33,8 @@ find its way: lakes fill, rivers spill over ridges, carve gullies and drop sand.
   waits for a real river.) While the wheel grinds, flour sacks pile up by the miller's door,
   one about every 15 seconds, up to three. When the pile is full the miller loads it onto a
   little handcart and pulls it along a dry road to the nearest cottage, unloads with a puff of
-  flour and walks back with the empty cart.
+  flour and walks back with the empty cart. The cottage bakes: a golden loaf shows on its badge
+  and its chimney puffs warm, thick smoke for a while.
   (`screenshot-mill.png`: a village by the upper river with three turning mill wheels.)
 - **Speed** cycles 1x, 2x, 4x and **8x Time-lapse** (hourglass): erosion and growth run four
   times faster, so you can watch a river carve its gorge and the forest follow the new banks.
@@ -133,13 +134,14 @@ gets three hammer taps and a tiny house-warming bell, and a new well drops its b
 with a splash far below (a dull knock if the ground is dry or rocky).
 
 ## Valley wishes
-Tap the **Wishes** star for a small panel of eleven gentle goals, each with three stars:
+Tap the **Wishes** star for a small panel of twelve gentle goals, each with three stars:
 a lake to row on (one still lake covering 3.5%, 6% or 10% of the valley), a deep green forest
 (32%, 38%, 45% forest), a little village (3, 6, 10 cottages), the mill wheel turns (1, 2, 3 mills
 turning), dry feet in a storm (1, 3, 5 cottages kept dry until a storm has passed), rainbow hunter
 (1, 2, 3 rainbows seen), skaters on the ice (1, 2, 3 skating spots), a golden harvest (20, 80, 240
 field plots brought in by the village), snowmen in the gardens (1, 3, 6 snowmen), a well for a
-thirsty cottage (1, 3, 6 thirsty cottages saved by a well you dug; droughts make more of them) and a
+thirsty cottage (1, 3, 6 thirsty cottages saved by a well you dug; droughts make more of them), fresh
+bread for the village (3, 9, 18 sacks of flour carted from a mill to a cottage) and a
 waterfall (the tallest fall right now, 12, 25 or 45 m: a strong stream pouring over a drop twice as steep as
 wet ground settles; dig a steep pit just below a fast stream, and catch it quickly, because the wet cliff
 slumps within seconds; storms on the steep slopes make wild ones too). Each line shows live

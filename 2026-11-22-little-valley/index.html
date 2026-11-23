@@ -137,7 +137,7 @@ button.on{background:#ffe680;box-shadow:0 2px 0 #e0b93a,0 0 0 3px #ffd23f,0 4px 
 #cal{position:fixed;left:-999px;top:0;display:flex;align-items:center;gap:8px;padding:3px 10px;font-size:12px;font-weight:600;color:#3a6a8a;font-variant-numeric:tabular-nums;background:#ffffffc4;pointer-events:none;max-width:none}
 #cal .cb{position:relative;width:96px;height:8px;border-radius:4px;flex:none;background:linear-gradient(90deg,#9ad889 0 25%,#f5d55c 25% 50%,#ec9a4a 50% 75%,#bcd9ee 75% 100%);box-shadow:inset 0 0 0 1px #2a5a8020}
 #cal .cb i{position:absolute;top:-3px;width:4px;height:14px;margin-left:-2px;border-radius:2px;background:#24405a;box-shadow:0 0 0 1.5px #fff}
-@media (orientation:landscape) and (max-height:520px){#cal{font-size:11px;padding:2px 9px;gap:6px}#cal .cb{width:72px;height:7px}#cal .cb i{height:12px}#hint{top:62px}}
+@media (orientation:landscape) and (max-height:520px){#cal{font-size:11px;padding:2px 9px;gap:6px}#cal .cb{width:72px;height:7px}#cal .cb i{height:12px}#hint{top:66px}}
 @media (orientation:portrait) and (max-width:600px){#cal{font-size:11.5px;padding:3px 9px;gap:6px}#cal .cb{width:64px;height:7px}#cal .cb i{height:12px}#hint{top:calc(env(safe-area-inset-top) + 124px)}}
 </style></head><body>
 <canvas id="view" aria-label="Little Valley: draw on the valley to shape it"></canvas>
@@ -1814,6 +1814,7 @@ function rasterCottages(T, data) {
 // the flour cart: when three sacks wait by a mill's door, the miller loads them onto a little handcart
 // (after the full pile has stood CART_LOAD s of grinding) and pulls it to the nearest dry, standing cottage (a dry road: no water deeper than CART_WET on the way),
 // unloads there with a puff of flour, and walks back with the empty cart. App-side only, not saved.
+const FLOUR = { seed: null, n: 0 }, bakeT = new WeakMap(), BAKE_T = 40; // sacks delivered in this valley (read by the 'bread' wish); a cottage bakes for BAKE_T s after a delivery
 const carts = new Map(), cartTry = new WeakMap(), CART_LOAD = 6, CART_V = 1.6, CART_WET = 0.03, CART_MAX = 42; // cells per second (sim time at 1x), wet limit, longest trip in cells
 function cartTarget(S, m) {
   const N = S.N, mx = m.x * N + 1.2, my = m.y * N; let best = null;
@@ -1826,13 +1827,14 @@ function cartTarget(S, m) {
 }
 function rasterCarts(T, put) {
   const S = st.S, N = S.N, ow = T.ow, oh = T.oh, cp = T.cp, pick = T.pick, dt = st.paused ? 0 : st.bucketDt * SPEEDS[st.speed][0];
-  st.cartsDrawn = 0; st.cartsMoving = 0; st.cartPos = null;
+  st.cartsDrawn = 0; st.cartsMoving = 0; st.cartPos = null; st.baking = 0;
+  for (const c of S.cottages) { const b = bakeT.get(c); if (b > 0) { bakeT.set(c, Math.max(0, b - dt)); st.baking++; } }
   for (const [m, k] of carts) {
     if (!S.cottages.includes(m)) { carts.delete(m); continue; }
     const tc = k.to.c, tm = tc.mood || LV.cottageMood(S, tc); if (!k.back && (!S.cottages.includes(tc) || tm === 'ruin' || tm === 'flooded')) { k.back = true; k.p = 1 - k.p; k.lost = true; } // the way is gone: turn round
     if (k.wait > 0) { k.wait = Math.max(0, k.wait - dt); if (!k.wait) { k.back = true; k.p = 0; } }
     else { const step = dt * CART_V / Math.max(1, k.d); k.p = Math.min(1, k.p + step); k.roll += dt * CART_V; if (dt > 0) st.cartsMoving++;
-      if (k.p >= 1) { if (!k.back) { k.wait = 2.5; k.puff = 1; st.flourDelivered = (st.flourDelivered || 0) + (k.lost ? 0 : SACK_MAX); } else { carts.delete(m); continue; } } }
+      if (k.p >= 1) { if (!k.back) { k.wait = 2.5; k.puff = 1; if (!k.lost) { st.flourDelivered = (st.flourDelivered || 0) + SACK_MAX; if (FLOUR.seed !== S.seed) { FLOUR.seed = S.seed; FLOUR.n = 0; } FLOUR.n += SACK_MAX; bakeT.set(tc, BAKE_T); st.bakes = (st.bakes || 0) + 1; if (FLOUR.n === SACK_MAX) hint('Flour for the baker! The cottage bakes fresh bread 🍞'); } } else { carts.delete(m); continue; } } }
     if (k.puff) k.puff = Math.max(0, k.puff - dt * 0.8);
     const t = k.p * k.p * (3 - 2 * k.p) * 0.15 + k.p * 0.85, f = k.back ? 1 - t : t, gx = k.to.mx + (k.to.tx - k.to.mx) * f, gy = k.to.my + (k.to.ty - k.to.my) * f;
     const x0 = Math.max(0, Math.min(N - 2, Math.floor(gx))), y0 = Math.max(0, Math.min(N - 2, Math.floor(gy))), fx = Math.max(0, Math.min(1, gx - x0)), fy = Math.max(0, Math.min(1, gy - y0)), i0 = y0 * N + x0;
@@ -1902,7 +1904,7 @@ function drawCottageBadges(t) {
   const scl = st.view === 'tilt' && tilt ? tilt.s * tilt.cp : st.topRect ? st.topRect.sz / N : 3;
   // cold season (late autumn, winter): every lived-in cottage heats, so more, bigger, slower, greyer smoke
   const yf = S.P.seasons ? LV.yearFrac(S) : 0.3, cold = S.P.seasons && (yf > 0.62 || yf < 0.05); st.smokeK = cold ? 4 : 2; st.smokeN = 0;
-  let nb = 0;
+  let nb = 0; st.loaves = 0; st.bakeSmoke = 0;
   for (const c of S.cottages) {
     const gx = c.x * N, gy = c.y * N, p = st.view === 'tilt' ? projGround(gx, gy) : proj(gx, gy); if (!p) continue;
     const mood = c.mood || LV.cottageMood(S, c); if (mood === 'ruin') continue;
@@ -1910,11 +1912,14 @@ function drawCottageBadges(t) {
     const x = p[0], y = p[1] - lift + Math.sin(t * 2 + c.x * 40) * 1.2;
     cx.save(); cx.translate(x, y);
     cx.fillStyle = 'rgba(255,255,255,.9)'; cx.beginPath(); cx.arc(0, 0, 6.5, 0, 7); cx.fill();
-    if (mood === 'happy') { cx.fillStyle = '#e8485a'; cx.beginPath(); cx.moveTo(0, 3.6); cx.bezierCurveTo(-6, -1, -3, -6, 0, -2.6); cx.bezierCurveTo(3, -6, 6, -1, 0, 3.6); cx.fill(); }
+    const bake = mood !== 'flooded' && bakeT.get(c) > 0;
+    if (bake) { cx.fillStyle = '#d99a48'; cx.beginPath(); cx.ellipse(0, 0.6, 4.6, 3.1, 0, 0, 7); cx.fill(); cx.fillStyle = '#f2c779'; cx.beginPath(); cx.ellipse(-0.8, -0.2, 3.4, 1.8, 0, 0, 7); cx.fill(); // a golden loaf with three scores
+      cx.strokeStyle = '#a8642a'; cx.lineWidth = 0.9; for (const dx of [-2.2, 0, 2.2]) { cx.beginPath(); cx.moveTo(dx - 0.9, 1.4); cx.lineTo(dx + 0.9, -1.2); cx.stroke(); } st.loaves = (st.loaves || 0) + 1; }
+    else if (mood === 'happy') { cx.fillStyle = '#e8485a'; cx.beginPath(); cx.moveTo(0, 3.6); cx.bezierCurveTo(-6, -1, -3, -6, 0, -2.6); cx.bezierCurveTo(3, -6, 6, -1, 0, 3.6); cx.fill(); }
     else if (mood === 'flooded') { cx.strokeStyle = '#2a83c4'; cx.lineWidth = 1.6; for (const dy of [-1.8, 1.8]) { cx.beginPath(); cx.moveTo(-4.5, dy); cx.quadraticCurveTo(-2.2, dy - 2, 0, dy); cx.quadraticCurveTo(2.2, dy + 2, 4.5, dy); cx.stroke(); } }
     else { cx.strokeStyle = '#b08040'; cx.lineWidth = 1.5; cx.beginPath(); cx.moveTo(0, -4.5); cx.bezierCurveTo(3.5, -0.5, 3.5, 3.5, 0, 3.5); cx.bezierCurveTo(-3.5, 3.5, -3.5, -0.5, 0, -4.5); cx.stroke(); cx.beginPath(); cx.moveTo(-3.5, 4); cx.lineTo(3.5, -3.5); cx.stroke(); }
     cx.restore(); nb++;
-    if ((mood === 'happy' || (cold && mood === 'sad')) && st.view === 'tilt') { const K = st.smokeK, sp = cold ? 0.32 : 0.5, rise = cold ? 20 : 12, grow = cold ? 5 : 3, a0 = cold ? 0.68 : 0.55, col = cold ? '214,220,228' : '235,240,245'; for (let k = 0; k < K; k++) { const ph = (t * sp + k / K + c.x * 7) % 1; cx.fillStyle = `rgba(${col},${a0 * (1 - ph)})`; cx.beginPath(); cx.arc(p[0] + u * 1.0 + ph * 6 + (cold ? Math.sin(ph * 5 + c.y * 9) * 2 : 0), p[1] - u * 4.4 - ph * rise, 1.5 + ph * grow, 0, 7); cx.fill(); st.smokeN++; } }
+    if ((mood === 'happy' || bake || (cold && mood === 'sad')) && st.view === 'tilt') { const K = st.smokeK + (bake ? 3 : 0), sp = cold ? 0.32 : 0.5, rise = (cold ? 20 : 12) + (bake ? 6 : 0), grow = (cold ? 5 : 3) + (bake ? 1.5 : 0), a0 = cold ? 0.68 : bake ? 0.62 : 0.55, col = bake ? '246,236,222' : cold ? '214,220,228' : '235,240,245'; if (bake) st.bakeSmoke += K; for (let k = 0; k < K; k++) { const ph = (t * sp + k / K + c.x * 7) % 1; cx.fillStyle = `rgba(${col},${a0 * (1 - ph)})`; cx.beginPath(); cx.arc(p[0] + u * 1.0 + ph * 6 + (cold ? Math.sin(ph * 5 + c.y * 9) * 2 : 0), p[1] - u * 4.4 - ph * rise, 1.5 + ph * grow, 0, 7); cx.fill(); st.smokeN++; } }
   }
   st.badgesDrawn = nb;
 }
@@ -2741,7 +2746,8 @@ const WISHES = [
   { id: 'harvest', icon: '🌾', name: 'A golden harvest', tip: 'Happy cottages sow fields; a turning mill ripens them faster', tiers: [20, 80, 240], unit: 'fields brought in' },
   { id: 'snowman', icon: '⛄', name: 'Snowmen in the gardens', tip: 'When winter snow reaches the village, the children build snowmen', tiers: [1, 3, 6], unit: 'snowmen' },
   { id: 'thirsty', icon: '🪣', name: 'A well for a thirsty cottage', tip: 'A cottage far from water gets thirsty: dig it a well in the lowland (droughts make more)', tiers: [1, 3, 6], unit: 'thirsty cottages saved' },
-  { id: 'waterfall', icon: '💦', name: 'A waterfall', tip: 'Dig a steep drop right below a fast stream: the water pours over the edge (storms make wild ones)', tiers: [12, 25, 45], unit: 'm tall waterfall' }
+  { id: 'waterfall', icon: '💦', name: 'A waterfall', tip: 'Dig a steep drop right below a fast stream: the water pours over the edge (storms make wild ones)', tiers: [12, 25, 45], unit: 'm tall waterfall' },
+  { id: 'bread', icon: '🍞', name: 'Fresh bread for the village', tip: 'A turning mill fills flour sacks; the miller carts them to a cottage along a dry road', tiers: [3, 9, 18], unit: 'sacks of flour delivered' }
 ];
 const W = { stars: {}, val: {}, live: {}, forced: {}, granted: 0, toasts: [], evals: 0, ms: 0, open: false, storm: { on: false, set: null, wet: false, S: null, best: 0 }, rainbows0: 0 };
 for (const w of WISHES) { W.stars[w.id] = 0; W.val[w.id] = 0; }
@@ -2771,7 +2777,7 @@ function wishValues() {
   o.lake = lakeCells(S) / N2; o.forest = L.trees / N2; o.village = V.cottages; o.mill = V.mills;
   o.storm = stormWatch(S); o.rainbow = Math.max(0, (st.rainbows || 0) - W.rainbows0);
   o.skate = st.skatersDrawn > 0 && st.skateSpots ? st.skateSpots.length : 0;
-  o.harvest = V.harvested || 0; o.snowman = st.snowmenDrawn || 0; o.thirsty = RESCUE.seed === S.seed ? RESCUE.n : 0;
+  o.harvest = V.harvested || 0; o.snowman = st.snowmenDrawn || 0; o.thirsty = RESCUE.seed === S.seed ? RESCUE.n : 0; o.bread = FLOUR.seed === S.seed ? FLOUR.n : 0;
   st.falls = LV.waterfalls(S); o.waterfall = st.falls.best / S.N * LV.FALL_M; // the tallest fall right now, in metres
   for (const k in W.forced) o[k] = W.forced[k];
 }
@@ -2957,7 +2963,7 @@ addEventListener('pagehide', () => autoSave('pagehide'));
 window.LV_AUTO = { AS, save: autoSave, get: asGet, put: asPut, clear: asClear, restore: autoRestore };
 
 
-window.__lv = { st, AU, updSound, LV, LT, leaf: LS, clockText, wheelAng, get col() { return [colR, colG, colB]; }, get tilt() { return tilt; }, get area() { return area; }, setTool, newWorld, unproj, proj, get S() { return st.S; }, floes, breakup: sndBreakup, yearTurn, flourT, SACK_T, carts, CART_LOAD, cartTarget };
+window.__lv = { st, AU, updSound, LV, LT, leaf: LS, clockText, wheelAng, get col() { return [colR, colG, colB]; }, get tilt() { return tilt; }, get area() { return area; }, setTool, newWorld, unproj, proj, get S() { return st.S; }, floes, breakup: sndBreakup, yearTurn, flourT, SACK_T, carts, CART_LOAD, cartTarget, bakeT, FLOUR };
 updUI(); updSound();
 const rawHash = (location.hash || '').slice(1);
 let fromHash = ''; try { fromHash = decodeURIComponent(rawHash); } catch (e) { fromHash = ''; }
