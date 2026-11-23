@@ -101,10 +101,11 @@ thunder rolling in a moment after each lightning flash), the wind blows softly a
 winter and storms, birds chirp by day where the forest is, the owl hoots at night, crickets chirp
 on summer evenings, turning mill wheels creak and clack (silent when paused or the river is dry),
 and distant cowbells ring near the village by day. Winter and rain hush the birds; the sound fades
-out when the tab is hidden. `window.LV_AUDIO` shows the current layer levels for testing.
+out when the tab is hidden. The river murmur sits where the water flows on your screen (a river
+on the left side of the valley sounds from the left). `window.LV_AUDIO` shows the current layer levels for testing.
 
 Your finger makes small sounds too, panned to where you touch: Raise, Dig or Smooth in the water
-gives a soft splash, the Sponge slurps, a new spring bubbles up with a few drops, each new cottage
+gives a soft splash, the Sponge slurps, planting rustles like leaves, a new spring bubbles up with a few drops, each new cottage
 gets three hammer taps and a tiny house-warming bell, and a new well drops its bucket down the shaft
 with a splash far below (a dull knock if the ground is dry or rocky).
 

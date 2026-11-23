@@ -1676,7 +1676,7 @@ function rasterCottages(T, data) {
 // (angle advances by the flow speed every frame), still when the river is dry
 const wheelAng = new WeakMap();
 function rasterWheels(T, data, put) {
-  const S = st.S, N = S.N, ow = T.ow, oh = T.oh, cp = T.cp, pick = T.pick; let n = 0;
+  const S = st.S, N = S.N, ow = T.ow, oh = T.oh, cp = T.cp, pick = T.pick; let n = 0, hid = 0;
   for (const c of S.cottages) {
     if (!c.wheel || c.ruin) continue;
     const a = (wheelAng.get(c) || 0) + (st.paused ? 0 : (c.turn || 0) * 0.02 * SPEEDS[st.speed][0]); wheelAng.set(c, a); // turns even while hidden behind a ridge
@@ -1684,7 +1684,7 @@ function rasterWheels(T, data, put) {
     const sc = persp(y, N), hz = 0.22 * (1 - y / N) * (1 - y / N);
     const ox = (x + 0.5 - N / 2) * cp * sc + ow / 2, oy = baseY(T, y, N) - (S.h[i] + S.d[i]) * cp * T.hEx * sc;
     const bx = Math.round(ox), by = Math.round(oy); if (bx < 4 || by < 4 || bx >= ow - 4 || by >= oh) continue;
-    const pc = pick[Math.min(oh - 1, by + 1) * ow + bx]; if (pc >= 0 && (Math.abs(pc % N - x) > 4 || Math.abs(((pc / N) | 0) - y) > 5)) continue;
+    const pc = pick[Math.min(oh - 1, by + 1) * ow + bx]; if (pc >= 0 && (Math.abs(pc % N - x) > 4 || Math.abs(((pc / N) | 0) - y) > 5)) { hid++; continue; } // behind a ridge
     const R = Math.max(4, cp * sc * 2.4), EW = 0.72, cyw = by - R * 0.4, H = (r, g, b) => [r + (215 - r) * hz, g + (232 - g) * hz, b + (245 - b) * hz];
     const [r1, g1, b1] = H(196, 146, 88), [r2, g2, b2] = H(112, 70, 36), wet = c.turn > 0;
     for (let py = Math.floor(cyw - R - 1); py <= Math.ceil(cyw + R + 1); py++) for (let px = Math.floor(bx - R * EW - 1); px <= Math.ceil(bx + R * EW + 1); px++) {
@@ -1700,7 +1700,7 @@ function rasterWheels(T, data, put) {
     if (wet) for (let k = -2; k <= 2; k++) { const px = bx + Math.round(k * R * 0.25), py = Math.round(cyw + R * 0.85); if (px >= 0 && py >= 0 && px < ow && py < oh) { const q = (py * ow + px) * 4; data[q] = 235; data[q + 1] = 245; data[q + 2] = 250; } } // foam where the paddles dip
     n++;
   }
-  st.wheelsDrawn = n;
+  st.wheelsDrawn = n; st.wheelsHidden = hid;
 }
 // a small lantern (dark frame, glass that glows from the evening on); its glow is added later in drawLanterns
 function lantern(put, x, y, u, seed) {
@@ -2148,7 +2148,7 @@ function adapt(dt) {
 // and thunder after lightning, wind (stronger in winter and storms), birds by day in the forest, crickets on
 // summer evenings, an owl at night, the creak and clack of turning mill wheels, cowbells near the village.
 // window.LV_AUDIO holds the levels (0..1) and gains so tests can check them without listening.
-const AU = { want: false, on: false, started: false, state: 'none', nodes: 0, live: 0, L: {}, G: {}, ev: { chirp: 0, cricket: 0, owl: 0, clack: 0, creak: 0, bell: 0, thunder: 0, plop: 0, slurp: 0, splash: 0, knock: 0, well: 0 }, flow: 0, veg: 0, ticks: 0 };
+const AU = { want: false, on: false, started: false, state: 'none', nodes: 0, live: 0, L: {}, G: {}, ev: { chirp: 0, cricket: 0, owl: 0, clack: 0, creak: 0, bell: 0, thunder: 0, plop: 0, slurp: 0, splash: 0, knock: 0, well: 0, rustle: 0 }, flow: 0, riverPan: 0, veg: 0, ticks: 0 };
 window.LV_AUDIO = AU;
 const AU_KEY = 'lv-sound', AU_MASTER = 0.45, AU_DT = 0.25;
 const AU_MAX = { river: 0.55, rain: 0.42, wind: 0.2, birds: 0.42, crickets: 0.13, owl: 0.38, mill: 0.42, cows: 0.26, thunder: 0.85 }; // full-level gain per layer
@@ -2174,6 +2174,7 @@ function auGraph(ac) {
   const chain = (...ns) => { for (let i = 0; i < ns.length - 1; i++) ns[i].connect(ns[i + 1]); return ns[ns.length - 1]; };
   g.master = gain(0); g.master.connect(ac.destination);
   for (const k in AU_MAX) { g.bus[k] = gain(0); g.bus[k].connect(g.master); }
+  if (ac.createStereoPanner) { g.riverP = node(ac.createStereoPanner()); g.bus.river.disconnect(); g.bus.river.connect(g.riverP); g.riverP.connect(g.master); } // the river sits where it flows on screen
   g.bus.fx = gain(0.9); g.bus.fx.connect(g.master); // tool sounds: a fixed level, not a valley layer
   g.white = noiseBuf(ac, 'white'); g.pink = noiseBuf(ac, 'pink'); g.brown = noiseBuf(ac, 'brown');
   // river: a deep brown-noise murmur plus a softer band of gurgle that wanders
@@ -2297,8 +2298,16 @@ function sndWell(x, ok) { // a well: the bucket drops down the shaft and splashe
   else noiseHit('fx', AG.brown, t, 0.3, 'lowpass', 220, 0.7, 0.45, pan, 0.05);
   AU.ev.well++;
 }
-function fxBrush(S, g, x) { // while a brush is held: splash or slurp now and then where there is water under the finger
-  if (!fxOn() || !g) return; const tool = st.tool; if (tool !== 'raise' && tool !== 'lower' && tool !== 'smooth' && tool !== 'drain') return;
+function sndRustle(x) { // planting: a soft leafy rustle, a few dry crackles over a swish of pink noise
+  if (!fxOn()) return; const t = AG.ac.currentTime + 0.02, pan = fxPan(x);
+  const { fl } = noiseHit('fx', AG.pink, t, 0.34, 'bandpass', 2600 + Math.random() * 900, 1.2, 0.16, pan, 0.08); fl.frequency.setValueAtTime(fl.frequency.value, t); fl.frequency.linearRampToValueAtTime(3800, t + 0.25);
+  for (let k = 0, n = 2 + (Math.random() * 3 | 0); k < n; k++) noiseHit('fx', AG.white, t + 0.03 + Math.random() * 0.22, 0.05, 'highpass', 3500 + Math.random() * 2500, 0.7, 0.1 + Math.random() * 0.06, pan, 0.008);
+  AU.ev.rustle++;
+}
+function fxBrush(S, g, x) { // while a brush is held: splash or slurp now and then where there is water under the finger (Plant rustles on land)
+  if (!fxOn() || !g) return; const tool = st.tool;
+  if (tool === 'plant') { const now = st.time; if (now - (AU.fxT || -9) < 0.3) return; const N = S.N, i = Math.round(g[1]) * N + Math.round(g[0]); if (!(i >= 0 && i < N * N) || S.d[i] > 0.3) return; AU.fxT = now + Math.random() * 0.12; sndRustle(x); return; }
+  if (tool !== 'raise' && tool !== 'lower' && tool !== 'smooth' && tool !== 'drain') return;
   const N = S.N, gx = Math.round(g[0]), gy = Math.round(g[1]); let w = 0;
   for (let v = -1; v <= 1; v++) for (let u = -1; u <= 1; u++) { const X = gx + u, Y = gy + v; if (X >= 0 && Y >= 0 && X < N && Y < N) w = Math.max(w, S.d[Y * N + X]); }
   const now = st.time, gap = tool === 'drain' ? 0.42 : 0.34; if (w < 0.08 || now - (AU.fxT || -9) < gap) return; AU.fxT = now + Math.random() * 0.1;
@@ -2307,9 +2316,11 @@ function fxBrush(S, g, x) { // while a brush is held: splash or slurp now and th
 // ---- the levels follow the valley (cheap: one pass over the grid, four times a second)
 const clamp01 = v => v < 0 ? 0 : v > 1 ? 1 : v;
 function auLevels() {
-  const S = st.S, N = S.N, d = S.d, u = S.u, v = S.v, L = AU.L; let f = 0;
-  for (let i = 0; i < d.length; i += 2) { const w = d[i]; if (w > 0.03) { const s = Math.abs(u[i]) + Math.abs(v[i]); if (s > 0.2) f += Math.min(w, 2) * Math.min(s, 4); } }
+  const S = st.S, N = S.N, d = S.d, u = S.u, v = S.v, L = AU.L; let f = 0, fx = 0, fy = 0;
+  for (let i = 0; i < d.length; i += 2) { const w = d[i]; if (w > 0.03) { const s = Math.abs(u[i]) + Math.abs(v[i]); if (s > 0.2) { const q = Math.min(w, 2) * Math.min(s, 4); f += q; fx += q * (i % N); fy += q * ((i / N) | 0); } } }
   AU.flow = f * 2 / (N * N);
+  // where the river runs: the flow-weighted middle of the moving water, projected to the screen, pans the murmur (gently, at most 0.6)
+  let pan = 0; if (f > 0) { const q = proj(fx / f, fy / f); if (q && innerWidth > 0) pan = Math.max(-0.6, Math.min(0.6, (q[0] / innerWidth) * 1.2 - 0.6)); } AU.riverPan = pan;
   const sea = S.P.seasons, yf = sea ? LV.yearFrac(S) : 0.3, h = LT.h, night = LT.night, day = 1 - night;
   const winter = sea ? (yf > 0.75 ? 1 : yf > 0.68 ? (yf - 0.68) / 0.07 : yf < 0.04 ? 1 - yf / 0.04 : 0) : 0;
   const summer = sea ? (yf >= 0.25 && yf < 0.5 ? 1 : yf > 0.2 && yf < 0.25 ? (yf - 0.2) / 0.05 : yf >= 0.5 && yf < 0.55 ? 1 - (yf - 0.5) / 0.05 : 0) : 1;
@@ -2335,6 +2346,7 @@ function auTick(dt) {
   auLevels();
   const ac = AG.ac, t = ac.currentTime, L = AU.L, R = Math.random;
   for (const k in AU_MAX) { AU.G[k] = L[k] * AU_MAX[k]; AG.bus[k].gain.setTargetAtTime(AU.G[k], t, k === 'thunder' ? 0.1 : 0.7); }
+  if (AG.riverP) AG.riverP.pan.setTargetAtTime(AU.riverPan, t, 0.8);
   AG.gurgle.frequency.setTargetAtTime(700 + 500 * R() + 400 * L.river, t, 0.5);
   AG.windF.frequency.setTargetAtTime(260 + 380 * R() + 200 * L.wind, t, 1.2); AG.gust.gain.setTargetAtTime(0.6 + 0.6 * R(), t, 1);
   const at = () => t + 0.05 + R() * AU_DT;
