@@ -24,7 +24,8 @@ canvas{display:block;width:100vw;height:100vh;touch-action:none}
 #padKeys button{flex:1;padding:0;min-width:0;border-radius:8px;color:#0f1a24;font-size:12px;font-weight:600;display:flex;align-items:flex-end;justify-content:center;padding-bottom:4px}
 #pad .pa{display:flex;gap:6px;justify-content:space-between}#pad .go{background:rgba(140,200,255,.25);border-color:rgba(160,210,255,.6)}
 #bSky{position:fixed;top:max(8px,env(safe-area-inset-top));right:max(8px,env(safe-area-inset-right));width:40px;height:40px;padding:0;font-size:18px;line-height:1;color:#dfe9f2;background:rgba(15,26,36,.55);border:1px solid rgba(255,255,255,.18);border-radius:50%;cursor:pointer;backdrop-filter:blur(6px)}
-#bSky:focus-visible,#pad button:focus-visible{outline:2px solid #9fd0ff;outline-offset:2px}
+#bTempo{position:fixed;top:calc(max(8px,env(safe-area-inset-top)) + 48px);right:max(8px,env(safe-area-inset-right));width:40px;height:40px;padding:0;font:600 13px/1 system-ui,sans-serif;color:#dfe9f2;background:rgba(15,26,36,.55);border:1px solid rgba(255,255,255,.18);border-radius:50%;cursor:pointer;backdrop-filter:blur(6px)}
+#bTempo:focus-visible,#bSky:focus-visible,#pad button:focus-visible{outline:2px solid #9fd0ff;outline-offset:2px}
 #pad.busy #padKeys,#pad.busy #padUndo,#pad.busy #padSwap{opacity:.45;pointer-events:none}
 #pad.busy .go{animation:roBusy 1.2s ease-in-out infinite}
 @keyframes roBusy{50%{background:rgba(140,200,255,.45)}}
@@ -42,6 +43,7 @@ canvas{display:block;width:100vw;height:100vh;touch-action:none}
  <button id="bShare" aria-label="Copy a link to your drawing" title="Copy a link to your drawing">🔗 <span>Share</span></button>
  <button id="bSound" aria-label="Sound is off (tap to turn on)" aria-pressed="false" title="Sound on/off (M)">🔇 <span>Sound</span></button>
 </div>
+<button id="bTempo" aria-label="Tempo">84</button>
 <button id="bSky" aria-label="Sky: auto">🌗</button>
 <div id="pad" hidden role="dialog" aria-label="Compose a melody">
  <div class="ph"><b>Compose</b> <span id="padCloud"></span><button id="padX" aria-label="Close">✕</button></div>
@@ -227,7 +229,8 @@ canvas{display:block;width:100vw;height:100vh;touch-action:none}
 </script>
 <script>(() => {
 'use strict';
-const FW = 1000, BPM = 84, EIGHTH = 60 / BPM / 2, SAVE_KEY = 'rain-organ-v1', MAX_LEAVES = 48;
+const FW = 1000, TEMPOS = [72, 84, 96], TEMPO_KEY = 'rain-organ-tempo', SAVE_KEY = 'rain-organ-v1', MAX_LEAVES = 48;
+let BPM = (() => { try { const v = +localStorage.getItem(TEMPO_KEY); return TEMPOS.includes(v) ? v : 84; } catch (e) { return 84; } })(), EIGHTH = 60 / BPM / 2; // tempo: 72/84/96 bpm (corner button, key T), saved per device
 const cv = document.getElementById('c'), cx = cv.getContext('2d'), hint = document.getElementById('hint');
 const $ = id => document.getElementById(id);
 const st = {
@@ -259,7 +262,7 @@ function startAudio() {
   try { ac = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { return; }
   master = ac.createGain(); master.gain.value = 0.5; master.connect(ac.destination);
   // small echo for space
-  const dl = ac.createDelay(1); dl.delayTime.value = EIGHTH * 3; const fb = ac.createGain(); fb.gain.value = 0.28;
+  const dl = ac.createDelay(1); echoDelay = dl; dl.delayTime.value = EIGHTH * 3; const fb = ac.createGain(); fb.gain.value = 0.28;
   const lp = ac.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 2200;
   wet = ac.createGain(); wet.gain.value = 0.35; wet.connect(dl); dl.connect(lp); lp.connect(fb); fb.connect(dl); lp.connect(master);
   verb = makeVerb();
@@ -487,7 +490,7 @@ function leafDrawn() { drawnN++; if (tipN < TIPS.length && drawnN >= TIP_AT[tipN
 $('bSound').onclick = () => { st.userMuted = soundOn; setSound(!soundOn); };
 addEventListener('keydown', e => {
   if (e.key === 'd' || e.key === 'D') setMode('draw'); else if (e.key === 'e' || e.key === 'E') setMode('erase');
-  else if (e.key === 'c' || e.key === 'C') openPad(!pad.open); else if (e.key === 'Escape') openPad(false); else if (e.key === ' ') { e.preventDefault(); setPause(!st.paused); } else if (e.key === 'n' || e.key === 'N') cycleSky(); else if (e.key === 'm' || e.key === 'M') { st.userMuted = soundOn; setSound(!soundOn); }
+  else if (e.key === 'c' || e.key === 'C') openPad(!pad.open); else if (e.key === 'Escape') openPad(false); else if (e.key === ' ') { e.preventDefault(); setPause(!st.paused); } else if (e.key === 'n' || e.key === 'N') cycleSky(); else if (e.key === 't' || e.key === 'T') cycleTempo(); else if (e.key === 'm' || e.key === 'M') { st.userMuted = soundOn; setSound(!soundOn); }
 });
 // ---------- simulation ----------
 function tick(dt) {
@@ -539,6 +542,17 @@ function skyLabel() {
 function setSky(m, quiet) { skyMode = SKY_MODES.includes(m) ? m : 'auto'; try { localStorage.setItem(SKY_KEY, skyMode); } catch (e) {} skyLabel(); if (!quiet) say(skyMode === 'auto' ? '🌗 The sky follows your clock' : skyMode === 'day' ? '☀️ Always day' : '🌙 Always night'); }
 const cycleSky = () => setSky(SKY_MODES[(SKY_MODES.indexOf(skyMode) + 1) % 3]);
 $('bSky').onclick = cycleSky; skyLabel(); setInterval(skyLabel, 60000);
+// ---------- tempo ----------
+let echoDelay = null;
+function tempoLabel() { const b = $('bTempo'); b.textContent = BPM; b.setAttribute('aria-label', 'Tempo ' + BPM + ' beats per minute (tap to change)'); b.title = 'Tempo ' + BPM + ' bpm (T)'; }
+function setTempo(v) {
+  if (!TEMPOS.includes(v)) return; BPM = v; EIGHTH = 60 / BPM / 2;
+  if (echoDelay) echoDelay.delayTime.value = EIGHTH * 3;
+  try { localStorage.setItem(TEMPO_KEY, String(v)); } catch (e) {}
+  tempoLabel(); say({ 72: '🐢 Drizzle', 84: '🌧 Steady', 96: '💨 Brisk' }[v] + ' · ' + v + ' bpm');
+}
+const cycleTempo = () => setTempo(TEMPOS[(TEMPOS.indexOf(BPM) + 1) % TEMPOS.length]);
+$('bTempo').onclick = cycleTempo; tempoLabel();
 const STARS = Array.from({ length: 34 }, (_, i) => ({ x: (i * 0.618034 + 0.13) % 1, y: ((i * 0.381966 * 7) % 1) * 0.55, r: 0.6 + ((i * 37) % 10) / 10, ph: i * 1.7 }));
 let pal = RO.skyPalette(skyHour());
 // ---------- drawing ----------
@@ -597,7 +611,7 @@ function frame(now) {
   draw(); requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
-window.RO_APP = { setSky, cycleSky, get skyMode() { return skyMode; }, setHour: h => { forcedHour = h === null || h === undefined ? null : +h; skyLabel(); }, skyHour, get pal() { return pal; }, cycleMat, MATS, pad, buildVoice, buildVoiceAsync, openPad, get FH() { return FH; }, PIECES, loadPiece, encode, decode, st, makeLeaf, tick, save, load, setSound, get soundOn() { return soundOn; }, audio: () => ({ ctx: !!ac, reverb: !!verb, state: ac ? ac.state : 'none' }) };
+window.RO_APP = { setTempo, cycleTempo, get bpm() { return BPM; }, setSky, cycleSky, get skyMode() { return skyMode; }, setHour: h => { forcedHour = h === null || h === undefined ? null : +h; skyLabel(); }, skyHour, get pal() { return pal; }, cycleMat, MATS, pad, buildVoice, buildVoiceAsync, openPad, get FH() { return FH; }, PIECES, loadPiece, encode, decode, st, makeLeaf, tick, save, load, setSound, get soundOn() { return soundOn; }, audio: () => ({ ctx: !!ac, reverb: !!verb, state: ac ? ac.state : 'none' }) };
 })();
 </script>
 </body></html>

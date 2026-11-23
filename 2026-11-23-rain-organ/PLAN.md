@@ -49,3 +49,4 @@ Not a game with goals: a sound toy and a little generative-music study.
 - Weather: a slow 'shower' that thickens the rain for a minute, or a rainbow at dawn after rain.
 - Drops that land on another leaf from a splash ring a very quiet grace note (careful: noise).
 - Record a piece to a short audio file (MediaRecorder) to share the sound, not only the link.
+- Done 2026-11-24 00:4x (v1.2): tempo corner button under the sky button: 72 / 84 / 96 bpm (key T), saved per device as rain-organ-tempo; the echo delay follows the tempo. tools/tempo-check.js 25 checks (desk, 844 landscape, 360 phone: beat spacing, save, key, fit, label).
