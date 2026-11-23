@@ -60,6 +60,12 @@ drier, with rains about half as often.
 rivers keep flowing). Ice holds the water: a frozen lake doesn't drain or evaporate, so it keeps
 its level until the spring thaw, and on sunny winter days little skaters glide in loops on the ice
 near the village. (`screenshot-ice.png`.)
+After a real winter the ice holds a little longer, while the first meltwater piles up behind it,
+and then in early spring it breaks up all at once: the held water rushes down the river as a short
+spring flood ("The ice breaks up!"). Keep the cottages off the low banks below a big lake.
+
+**Calendar**: a small strip under the clock shows the year and a four-season bar with a marker for
+today ("Year 2 · mid spring" on a big screen, just "Y2" on a phone).
 
 **Fireflies and lanterns**: wells and mill wheels carry little lanterns that glow and flicker
 through the night, and on spring and summer evenings fireflies blink over the meadows.

@@ -13,7 +13,7 @@ html,body{margin:0;height:100%;overflow:hidden;background:#9fdaf7;font:600 15px/
 #seedName{font-weight:500;color:#5a7290;font-size:13px}
 #clock{font-weight:600;color:#3a6a8a;font-size:13px;margin-left:8px;font-variant-numeric:tabular-nums}
 #stats{font-size:12px;font-weight:500;color:#5a7290;font-variant-numeric:tabular-nums}
-#hint{position:fixed;left:50%;top:calc(env(safe-area-inset-top) + 58px);transform:translate(-50%,-8px);background:#fff8d6;color:#6b4a12;border-radius:16px;padding:9px 16px;font-size:16px;box-shadow:0 4px 16px #6b4a1230;opacity:0;transition:opacity .35s,transform .35s;pointer-events:none;white-space:nowrap;max-width:94vw;overflow:hidden;text-overflow:ellipsis}
+#hint{position:fixed;left:50%;top:calc(env(safe-area-inset-top) + 80px);transform:translate(-50%,-8px);background:#fff8d6;color:#6b4a12;border-radius:16px;padding:9px 16px;font-size:16px;box-shadow:0 4px 16px #6b4a1230;opacity:0;transition:opacity .35s,transform .35s;pointer-events:none;white-space:nowrap;max-width:94vw;overflow:hidden;text-overflow:ellipsis}
 #hint.show{opacity:1;transform:translate(-50%,0)}
 nav{position:fixed;display:flex;gap:7px;padding:7px;background:#ffffffb8;border-radius:22px;box-shadow:0 6px 22px #2a5a8035;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
 button{appearance:none;border:0;margin:0;font:inherit;color:inherit;background:#fff;border-radius:16px;width:66px;height:66px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;box-shadow:0 2px 0 #c9dbe8,0 3px 8px #2a5a8020;cursor:pointer;touch-action:manipulation;transition:transform .12s,background .15s}
@@ -132,6 +132,12 @@ button.on{background:#ffe680;box-shadow:0 2px 0 #e0b93a,0 0 0 3px #ffd23f,0 4px 
 #volPop.show{display:flex;animation:win .18s ease-out}
 #volPop .vi{font-size:20px;width:26px;text-align:center}#volPop b{font-size:13px;color:#2f7d3a;width:40px;text-align:right}
 #volRange{flex:1;min-width:0;height:32px;accent-color:#3aa0e0}
+/* calendar strip: the year and a 4-season bar with today's marker, under the clock (placed by placeCal) */
+#cal{position:fixed;left:-999px;top:0;display:flex;align-items:center;gap:8px;padding:3px 10px;font-size:12px;font-weight:600;color:#3a6a8a;font-variant-numeric:tabular-nums;background:#ffffffc4;pointer-events:none;max-width:none}
+#cal .cb{position:relative;width:96px;height:8px;border-radius:4px;flex:none;background:linear-gradient(90deg,#9ad889 0 25%,#f5d55c 25% 50%,#ec9a4a 50% 75%,#bcd9ee 75% 100%);box-shadow:inset 0 0 0 1px #2a5a8020}
+#cal .cb i{position:absolute;top:-3px;width:4px;height:14px;margin-left:-2px;border-radius:2px;background:#24405a;box-shadow:0 0 0 1.5px #fff}
+@media (orientation:landscape) and (max-height:520px){#cal{font-size:11px;padding:2px 9px;gap:6px}#cal .cb{width:72px;height:7px}#cal .cb i{height:12px}#hint{top:62px}}
+@media (orientation:portrait) and (max-width:600px){#cal{font-size:11.5px;padding:3px 9px;gap:6px}#cal .cb{width:64px;height:7px}#cal .cb i{height:12px}#hint{top:calc(env(safe-area-inset-top) + 124px)}}
 </style></head><body>
 <canvas id="view" aria-label="Little Valley: draw on the valley to shape it"></canvas>
 <div id="top">
@@ -185,6 +191,7 @@ const DEFAULTS = {
   seasons: false, // a year of P.yearDays days: snow in winter, melt in spring, a drier summer (the app turns it on; tests opt in)
   yearDays: 4, // days per year (one day per season)
   events: false, // weather events: rare storms and summer droughts (the app turns it on; tests opt in)
+  iceJam: true, // spring ice-jam flood: a winter's real ice breaks up all at once (seasons only)
   boost: 1 // time-lapse: erosion and plant growth run this many times faster
 };
 
@@ -226,7 +233,7 @@ function create(N, seed, opts) {
   const P = Object.assign({}, DEFAULTS, opts || {});
   const n = N * N, F = () => new Float32Array(n);
   const T = generateTerrain(N, seed);
-  const S = { N, seed: String(seed), P, h: T.h, d: F(), s: F(), fL: F(), fR: F(), fT: F(), fB: F(), u: F(), v: F(), tmp: F(), tmp2: F(), ero: F(), wet: F(), dep: F(), veg: F(), tree: F(), bloom: F(), moist: F(), fert: F(), flood: F(), rush: F(), field: F(), ripe: F(), path: F(), tend: new Uint8Array(n), h0: null, springs: [], cottages: [], grown: 0, vtick: 0, steps: 0, time: 0, wx: null, rainNow: 0, dryNow: 0, dr: null, snow: F(), ice: F(), yearOff: 0 };
+  const S = { N, seed: String(seed), P, h: T.h, d: F(), s: F(), fL: F(), fR: F(), fT: F(), fB: F(), u: F(), v: F(), tmp: F(), tmp2: F(), ero: F(), wet: F(), dep: F(), veg: F(), tree: F(), bloom: F(), moist: F(), fert: F(), flood: F(), rush: F(), field: F(), ripe: F(), path: F(), tend: new Uint8Array(n), h0: null, springs: [], cottages: [], grown: 0, vtick: 0, steps: 0, time: 0, wx: null, rainNow: 0, dryNow: 0, dr: null, snow: F(), ice: F(), yearOff: 0, icePeak: 0, jam: null };
   S.h0 = new Float32Array(S.h);
   initLife(S);
   return S;
@@ -730,6 +737,7 @@ const SNOW_EVERY = 6, SNOW_FALL = 0.0006, SNOW_MELT = 0.006, SNOW_GLACIER = 0.00
 function yearLen(S) { return (S.P.dayLen || 720) * (S.P.yearDays || 4); }
 function yearFracAt(S, t) { const f = t / yearLen(S) + YEAR_START + (S.yearOff || 0); return f - Math.floor(f); }
 function yearFrac(S) { return yearFracAt(S, S.time); }
+function yearNum(S) { return Math.max(1, Math.floor(S.time / yearLen(S) + YEAR_START + (S.yearOff || 0)) + 1); } // Year 1, 2, … for the calendar strip
 function season(S) { return SEASONS[Math.min(3, Math.floor(yearFrac(S) * 4))]; }
 function isSummer(y) { return y >= 0.2 && y < 0.6; }
 function snowLine(y) {
@@ -767,6 +775,7 @@ function snowStep(S, tl) {
 const ICE_FREEZE = 1 / 90, ICE_THAW = 1 / 60, ICE_CALM = 1.2, ICE_HOLD = 0.99;
 function iceStep(S, tl, y, line) {
   const { N, h, d, u, v, ice } = S, H = N * 0.27, cold = y >= 0.62 && y < 0.97, fr = ICE_FREEZE * tl, th = ICE_THAW * tl;
+  const jam = S.P.iceJam !== false, hold = jam && !cold && S.icePeak >= JAM_MIN && (y >= 0.97 || y < JAM_Y); // a real winter's ice holds until the break-up
   for (let i = 0; i < ice.length; i++) {
     const di = d[i], c = ice[i];
     if (di < 0.02) { if (c > 0) ice[i] = 0; continue; }
@@ -774,8 +783,29 @@ function iceStep(S, tl, y, line) {
     if (cold && (y >= 0.74 || hn > line - 0.06) && sp < ICE_CALM * (0.5 + 0.5 * c)) { // shallow water freezes faster; ice keeps itself calm
       const g = fr * (di < 0.4 ? 1.6 - di * 1.5 : 1) * (y >= 0.74 ? 1 : 0.6 + 0.4 * Math.min(1, (hn - line + 0.06) * 6));
       ice[i] = c + g > 1 ? 1 : c + g;
-    } else if (c > 0) { const m = th * (cold ? 0.4 + sp : 1 + sp); ice[i] = c > m ? c - m : 0; }
+    } else if (c > 0) { const m = th * (cold ? 0.4 + sp : hold ? sp : 1 + sp); ice[i] = c > m ? c - m : 0; }
   }
+  if (jam) iceJam(S, cold, y);
+}
+// ---------- ice-jam flood (spring) ----------
+// All winter the frozen lake holds its water while the streams still feed it, so it stands a little above its
+// outlet. Real spring ice does not fade evenly: it rots in place, then breaks up and the dammed water goes at
+// once. Here: in the cold the biggest ice cover is remembered (S.icePeak, cells over 0.5). After a real winter
+// (JAM_MIN cells of ice) the ice holds through the late-winter thaw (only fast water eats it), and the early
+// spring melt piles up behind it. At JAM_Y (early spring) the whole cover breaks up in one go (ice → 0): the
+// held water rushes down the outlet as a short flood wave. A thin winter's ice just fades as before. No water
+// is made or lost. S.jam records the last break-up (time, ice cells, water on them) for the app's toast.
+const JAM_MIN = 40, JAM_Y = 0.02;
+function iceJam(S, cold, y) {
+  const ice = S.ice, d = S.d;
+  if (cold) { const n = totalIce(S); if (n > (S.icePeak || 0)) S.icePeak = n; return; }
+  if (!(S.icePeak > 0)) return;
+  let n = 0, vol = 0; for (let i = 0; i < ice.length; i++) if (ice[i] > 0.02) { n++; vol += d[i]; }
+  const late = y >= 0.3 && y < 0.62; // summer: nothing left to break
+  if (n === 0 || S.icePeak < JAM_MIN || late) { if (n === 0 || late) S.icePeak = 0; return; } // a thin winter: the ice just fades
+  if (y >= 0.97 || y < JAM_Y) return; // still holding
+  for (let i = 0; i < ice.length; i++) ice[i] = 0; // break-up: the jam lets go
+  S.jam = { t: S.time, cells: n, vol: Math.round(vol * 10) / 10, peak: S.icePeak }; S.icePeak = 0;
 }
 function totalIce(S) { let n = 0; const a = S.ice, d = S.d; for (let i = 0; i < a.length; i++) if (a[i] > 0.5 && d[i] > 0.02) n++; return n; }
 function totalSnow(S) { let t = 0; const a = S.snow; for (let i = 0; i < a.length; i++) t += a[i]; return t; }
@@ -939,7 +969,7 @@ function resample(S, N2) {
     T.wet[i] = lerp(S.wet, px, py); T.dep[i] = lerp(S.dep, px, py) * hs; T.h0[i] = lerp(S.h0, px, py) * hs;
     T.veg[i] = lerp(S.veg, px, py); T.tree[i] = lerp(S.tree, px, py); T.moist[i] = lerp(S.moist, px, py); T.fert[i] = lerp(S.fert, px, py); T.flood[i] = lerp(S.flood, px, py); T.rush[i] = lerp(S.rush, px, py); T.bloom[i] = lerp(S.bloom, px, py); T.field[i] = lerp(S.field, px, py); T.ripe[i] = lerp(S.ripe, px, py); T.path[i] = lerp(S.path, px, py); T.snow[i] = lerp(S.snow, px, py) * hs; T.ice[i] = lerp(S.ice, px, py);
   }
-  T.springs = S.springs.map(sp => Object.assign({}, sp)); T.cottages = S.cottages.map(c => Object.assign({}, c, c.wheel ? { wheel: Object.assign({}, c.wheel) } : {})); T.grown = S.grown; T.vtick = S.vtick; T.steps = S.steps; T.time = S.time; T.wx = S.wx ? Object.assign({}, S.wx) : null; T.rainNow = S.rainNow || 0; T.yearOff = S.yearOff || 0; T.dryNow = S.dryNow || 0; T.drOver = S.drOver ? Object.assign({}, S.drOver) : null;
+  T.springs = S.springs.map(sp => Object.assign({}, sp)); T.cottages = S.cottages.map(c => Object.assign({}, c, c.wheel ? { wheel: Object.assign({}, c.wheel) } : {})); T.grown = S.grown; T.vtick = S.vtick; T.steps = S.steps; T.time = S.time; T.wx = S.wx ? Object.assign({}, S.wx) : null; T.rainNow = S.rainNow || 0; T.yearOff = S.yearOff || 0; T.icePeak = S.icePeak || 0; T.jam = S.jam ? Object.assign({}, S.jam) : null; T.dryNow = S.dryNow || 0; T.drOver = S.drOver ? Object.assign({}, S.drOver) : null;
   return T;
 }
 
@@ -1067,7 +1097,7 @@ function unpackShare(bytes, seed, opts) {
   if (hasNaN(S)) throw new Error('share link has broken numbers');
   return S;
 }
-const API = { packState, unpackState, packShare, unpackShare, initLife,  iceStep, totalIce, ICE_HOLD, eventRain, droughtOf, droughtAt, weatherEvent, STORM_AMP, yearFrac, yearFracAt, yearLen, season, snowLine, snowFalling, leafState, snowStep, totalSnow, SEASONS, clockHour, dayFrac, planRain, rainCell, weatherStep, mulberry32, hashStr, makeNoise, randomSeedName, generateTerrain, create, seedLife, step, applyTool, totalWater, totalTerrain, resample, lifeStep, countTrees, countLife, leafy, treeHappy, cottageMood, cottageCell, countVillage, waterNear, wellYield, WELL_MIN, WELL_HIGH, MILL_T, MILL_RIPEN, FLOOD_RUIN, GROW_MAX, KIDS_MAX, GROW_T, plotSize, plotOf, plotCrop, hasNaN, DEFAULTS };
+const API = { packState, unpackState, packShare, unpackShare, initLife,  iceStep, iceJam, totalIce, ICE_HOLD, JAM_MIN, JAM_Y, eventRain, droughtOf, droughtAt, weatherEvent, STORM_AMP, yearFrac, yearFracAt, yearLen, yearNum, season, snowLine, snowFalling, leafState, snowStep, totalSnow, SEASONS, clockHour, dayFrac, planRain, rainCell, weatherStep, mulberry32, hashStr, makeNoise, randomSeedName, generateTerrain, create, seedLife, step, applyTool, totalWater, totalTerrain, resample, lifeStep, countTrees, countLife, leafy, treeHappy, cottageMood, cottageCell, countVillage, waterNear, wellYield, WELL_MIN, WELL_HIGH, MILL_T, MILL_RIPEN, FLOOD_RUIN, GROW_MAX, KIDS_MAX, GROW_T, plotSize, plotOf, plotCrop, hasNaN, DEFAULTS };
 if (typeof module !== 'undefined' && module.exports) module.exports = API; else root.LV = API;
 })(typeof window !== 'undefined' ? window : globalThis);
 </script>
@@ -1380,7 +1410,7 @@ function layout() {
   area = { x: L, y: T, w: Math.max(50, R - L), h: Math.max(50, B - T) };
   tilt = null;
 }
-addEventListener('resize', () => setTimeout(layout, 50));
+addEventListener('resize', () => setTimeout(() => { layout(); placeCal(); }, 50));
 
 // tilted view geometry (offscreen buffer in "render pixels")
 function tiltGeom() {
@@ -2082,13 +2112,38 @@ document.addEventListener('keydown', e => {
 const SEASON_ICON = { spring: '🌸', summer: '🌻', autumn: '🍂', winter: '❄️' };
 function seasonIcon() { const S = st.S; return S.P.seasons ? SEASON_ICON[LV.season(S)] + ' ' : ''; }
 function clockText() { const h = LT.h, hh = Math.floor(h), mm = Math.floor((h - hh) * 6) * 10; return seasonIcon() + (LT.rain > 0.1 ? (LT.storm > 0.1 ? '⛈ ' : '🌧 ') : LT.night > 0.5 ? '🌙 ' : LT.dry > 0.05 ? '🌵 ' : LT.glow > 0.3 && LT.h > 12 ? '🌇 ' : '☀️ ') + String(hh).padStart(2, '0') + ':' + String(mm).padStart(2, '0'); }
+// calendar strip (v4 extra): under the clock, the year and a 4-season bar with a marker for today. Desktop and
+// landscape say "Year 2 · mid spring", a narrow phone just "Y2". It sits under the clock (beside the wishes and
+// share buttons on desktop, under the stats pill on a narrow phone) and is placed by placeCal().
+const cal = document.createElement('div'); cal.id = 'cal'; cal.className = 'pill'; cal.setAttribute('aria-label', 'Calendar');
+cal.innerHTML = '<span class="ct"></span><span class="cb"><i></i></span>'; document.body.appendChild(cal);
+function calText() {
+  const S = st.S, y = LV.yearFrac(S), Y = LV.yearNum(S), sea = LV.season(S), q = y * 4 - Math.floor(y * 4), dps = Math.max(1, Math.round((S.P.yearDays || 4) / 4));
+  const part = dps > 1 ? 'day ' + (Math.floor(q * dps) + 1) + ' of ' + sea : (q < 1 / 3 ? 'early ' : q < 2 / 3 ? 'mid ' : 'late ') + sea;
+  return { Y, y, full: 'Year ' + Y + ' · ' + part, short: 'Y' + Y };
+}
+function placeCal() {
+  const S = st.S; if (!S.P.seasons) { cal.style.display = 'none'; return; } cal.style.display = '';
+  const c = calText(), narrow = vw < 600, txt = narrow ? c.short : c.full, ct = cal.firstChild;
+  if (ct.textContent !== txt) ct.textContent = txt; cal.title = c.full + ' (a year is ' + (S.P.yearDays || 4) + ' days, one season a day)';
+  cal.lastChild.firstChild.style.left = (c.y * 100).toFixed(1) + '%';
+  const ck = $('clock').getBoundingClientRect(), ti = $('title').getBoundingClientRect(), stt = $('stats').getBoundingClientRect(), w = cal.offsetWidth;
+  let top = ti.bottom + 5, left = Math.round(ck.right + 6 - w);
+  if (narrow && stt.top >= ti.bottom - 2) { top = stt.bottom + 5; left = Math.round(stt.right - w); } // phone: its own spot under the stats pill
+  const sb = document.getElementById('shareBtn'); if (sb) { const r = sb.getBoundingClientRect(); if (r.top < top + 30 && r.bottom > top && left < r.right + 8) left = Math.round(r.right + 8); } // desktop: beside Share
+  left = Math.max(8, Math.min(left, innerWidth - w - 8));
+  cal.style.left = left + 'px'; cal.style.top = Math.round(top) + 'px';
+}
 let skyPrev = null;
 const SEASON_HINT = { spring: 'Spring: the snow melts and the rivers swell', summer: 'Summer: long days, fewer rains', autumn: 'Autumn: the leafy trees turn gold and red', winter: 'Winter: snow creeps down the mountains' };
 function skyHints() {
   const S = st.S; if (!st.iceT || Math.abs(st.time - st.iceT) > 1) { st.iceT = st.time; st.iceN = S.P.seasons ? LV.totalIce(S) : 0; }
+  // ice-jam flood: the sim records each break-up (S.jam); a fresh one (not an old one from a loaded save) gets its own hint
+  const jam = !!(S.jam && S.jam.t !== st.jamSeen && S.time - S.jam.t < 10); if (S.jam) st.jamSeen = S.jam.t; if (jam) st.iceN = 0;
   const now = { ice: st.iceN > 25, dry: (S.dryNow || 0) > 0.05, storm: LV.weatherEvent(S) === 'storm', rain: (S.rainNow || 0) > 0.05, eve: LT.glow > 0.5 && LT.h > 12, morn: LT.h >= 6.5 && LT.h < 12, sea: S.P.seasons ? LV.season(S) : '' };
   if (skyPrev && st.wake <= 0) {
-    if (now.dry && !skyPrev.dry) hint(st.dryHint = 'Drought: a long dry spell. Rivers shrink; cottages need a well');
+    if (jam) { st.jams = (st.jams || 0) + 1; hint(st.iceHint = st.jamHint = 'The ice breaks up! A spring flood rushes down the river'); }
+    else if (now.dry && !skyPrev.dry) hint(st.dryHint = 'Drought: a long dry spell. Rivers shrink; cottages need a well');
     else if (!now.dry && skyPrev.dry) hint(st.dryHint = 'The drought is over: rain will come again');
     else if (now.sea !== skyPrev.sea && now.sea) { st.seasonHint = SEASON_HINT[now.sea]; hint(st.seasonHint); }
     else if (now.ice && !skyPrev.ice) hint(st.iceHint = 'Frost: the still lakes freeze over (the rivers keep flowing)');
@@ -2098,7 +2153,7 @@ function skyHints() {
     else if (now.eve && !skyPrev.eve) hint(st.S.cottages.length ? 'Evening: the cottage windows light up' : 'Evening falls over the valley');
     else if (now.morn && !skyPrev.morn) hint('Good morning, valley!');
     // the frost and thaw notes are remembered even when a season or weather hint wins the moment
-    if (now.ice !== skyPrev.ice) st.iceHint = now.ice ? 'Frost: the still lakes freeze over (the rivers keep flowing)' : 'The ice breaks up: the lakes flow again';
+    if (now.ice !== skyPrev.ice && !(st.jamHint && st.iceHint === st.jamHint)) st.iceHint = now.ice ? 'Frost: the still lakes freeze over (the rivers keep flowing)' : 'The ice breaks up: the lakes flow again';
   }
   if (skyPrev && skyPrev.rain && !now.rain && LT.elev > 0.2 && LT.night < 0.1 && st.shower <= 0) { st.rainbow = RAINBOW_T; st.rainbows = (st.rainbows || 0) + 1; if (st.wake <= 0 && !now.dry) hint(st.bowHint = 'A rainbow over the valley!'); }
   skyPrev = now;
@@ -2149,6 +2204,7 @@ function frame(now) {
     const ru = V.ruins ? ` · ${V.ruins} ruin${V.ruins > 1 ? 's' : ''}` : '';
     const mi = V.mills ? ` · ${V.mills} mill${V.mills > 1 ? 's' : ''}` : '';
     $('clock').textContent = clockText();
+    placeCal();
     $('stats').textContent = (vw < 600 ? `${tt} trees · ${hp}% happy · ${ff} 🌼 · 🏠 ${V.cottages} (${V.happy} 😊)${V.mills ? ' ⚙' + V.mills : ''}${V.ruins ? ' · ' + V.ruins + ' ruin' : ''}`
       : vw < 1000 ? `${tt} trees (${hp}% happy) · ${ff} flowers · 🏠 ${V.cottages} (${V.happy} happy)${V.mills ? ' · ⚙ ' + V.mills : ''}${ru}`
       : `${S.N}² · ${Math.round(st.fps)} fps · ${tt} trees (${hp}% happy) · ${ff} flowers · ${V.cottages} cottage${V.cottages === 1 ? '' : 's'} (${V.happy} happy)${fl}${mi}${ru}${S.dryNow > 0.05 ? ' · drought' : LV.weatherEvent(S) === 'storm' ? ' · storm' : ''}`) + (st.paused ? ' · paused' : ''); }
