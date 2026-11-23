@@ -103,6 +103,30 @@ button.on{background:#ffe680;box-shadow:0 2px 0 #e0b93a,0 0 0 3px #ffd23f,0 4px 
   #wishPanel .wtip{display:none}#wishClose{width:36px;height:34px}
   #wishToast{top:40%}
 }
+/* save & share: a button beside the wishes star and a small panel */
+#shareBtn{position:fixed;left:calc(env(safe-area-inset-left) + 80px);top:calc(env(safe-area-inset-top) + 58px);width:62px;height:62px;border-radius:16px;background:#f4fbff}
+#shareBtn svg{width:28px;height:28px}#shareBtn span{font-size:11px}
+#sharePanel{position:fixed;left:calc(env(safe-area-inset-left) + 10px);top:calc(env(safe-area-inset-top) + 128px);width:340px;background:#fffdf4f2;border-radius:20px;padding:10px 12px;box-shadow:0 8px 28px #2a5a8045;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);display:none;color:#3a4a5a}
+#sharePanel.show{display:block;animation:win .22s ease-out}
+#sharePanel .wh{display:flex;align-items:center;gap:8px;margin-bottom:8px}#sharePanel .wh b{font-size:17px;color:#2f7d3a}
+#shareClose{width:40px;height:40px;border-radius:12px;font-size:18px;background:#f4fbff;flex:none;margin-left:auto}
+#sharePanel .sb{display:flex;gap:8px}
+#sharePanel .sb button{flex:1;width:auto;height:58px;font-size:22px;border-radius:14px;background:#fff}
+#sharePanel .sb button span{font-size:12px}
+#sharePanel .sl{display:none;margin-top:8px}#sharePanel .sl.has{display:block}
+#sh-url{width:100%;box-sizing:border-box;font:12px/1.3 ui-monospace,monospace;padding:6px 8px;border:1px solid #c9dbe8;border-radius:10px;background:#fff;color:#3a4a5a}
+#sh-msg{font-size:12px;font-weight:500;color:#5a6a78;margin-top:8px;line-height:1.35;overflow-wrap:anywhere}
+@media (orientation:portrait) and (max-width:820px){
+  #shareBtn{top:auto;left:calc(env(safe-area-inset-left) + 70px);bottom:calc(env(safe-area-inset-bottom) + 158px);width:54px;height:54px}
+  #shareBtn svg{width:24px;height:24px}#shareBtn span{font-size:10px}
+  #sharePanel{left:8px;right:8px;width:auto;top:auto;bottom:calc(env(safe-area-inset-bottom) + 220px)}
+}
+@media (orientation:landscape) and (max-height:520px){
+  #shareBtn{top:auto;left:calc(env(safe-area-inset-left) + 126px);bottom:calc(env(safe-area-inset-bottom) + 6px);width:48px;height:48px;border-radius:13px}
+  #shareBtn svg{width:21px;height:21px}#shareBtn span{font-size:9.5px}
+  #sharePanel{left:calc(env(safe-area-inset-left) + 72px);right:calc(env(safe-area-inset-right) + 64px);width:auto;max-width:440px;margin:0 auto;top:6px;padding:7px 9px}
+  #sharePanel .sb button{height:46px;font-size:18px}#shareClose{width:36px;height:34px}#sh-msg{margin-top:5px}
+}
 </style></head><body>
 <canvas id="view" aria-label="Little Valley: draw on the valley to shape it"></canvas>
 <div id="top">
@@ -915,7 +939,86 @@ function resample(S, N2) {
 
 function hasNaN(S) { for (const k of ['h', 'd', 's', 'u', 'v', 'fL', 'fR', 'fT', 'fB', 'veg', 'tree', 'moist', 'flood', 'rush', 'bloom', 'field', 'ripe', 'path', 'snow', 'ice']) { const a = S[k]; for (let i = 0; i < a.length; i++) if (!Number.isFinite(a[i])) return k; } return false; }
 
-const API = { iceStep, totalIce, ICE_HOLD, eventRain, droughtOf, droughtAt, weatherEvent, STORM_AMP, yearFrac, yearFracAt, yearLen, season, snowLine, snowFalling, leafState, snowStep, totalSnow, SEASONS, clockHour, dayFrac, planRain, rainCell, weatherStep, mulberry32, hashStr, makeNoise, randomSeedName, generateTerrain, create, seedLife, step, applyTool, totalWater, totalTerrain, resample, lifeStep, countTrees, countLife, leafy, treeHappy, cottageMood, cottageCell, countVillage, waterNear, wellYield, WELL_MIN, WELL_HIGH, MILL_T, MILL_RIPEN, FLOOD_RUIN, GROW_MAX, KIDS_MAX, GROW_T, plotSize, plotOf, plotCrop, hasNaN, DEFAULTS };
+// ---------- save / share (pack the valley into bytes; the app deflates and base64s them) ----------
+const SAVE_EXACT = { h: 1, d: 1, s: 1, h0: 1 }, SAVE_SKIP = { tmp: 1, tmp2: 1 }, SAVE_META_SKIP = { N: 1, seed: 1, P: 1 };
+function packState(S) {
+  const n = S.N * S.N, fields = [], parts = [];
+  const keys = Object.keys(S).filter(k => ArrayBuffer.isView(S[k]) && S[k].length === n && !SAVE_SKIP[k]);
+  const kind = k => S[k] instanceof Uint8Array ? 'u8' : SAVE_EXACT[k] ? 'f' : 'q';
+  for (const t of ['f', 'q', 'u8']) for (const k of keys) { // floats first, then uint16, then bytes: offsets stay aligned
+    if (kind(k) !== t) continue; const a = S[k];
+    if (t === 'f') { parts.push(new Uint8Array(new Float32Array(a).buffer)); fields.push([k, t]); continue; }
+    if (t === 'u8') { parts.push(new Uint8Array(a)); fields.push([k, t]); continue; }
+    let lo = Infinity, hi = -Infinity; for (let i = 0; i < n; i++) { if (a[i] < lo) lo = a[i]; if (a[i] > hi) hi = a[i]; }
+    const q = new Uint16Array(n), sc = hi > lo ? 65535 / (hi - lo) : 0; for (let i = 0; i < n; i++) q[i] = Math.round((a[i] - lo) * sc);
+    parts.push(new Uint8Array(q.buffer)); fields.push([k, t, lo, hi]);
+  }
+  const meta = {}; for (const k of Object.keys(S)) if (!ArrayBuffer.isView(S[k]) && !SAVE_META_SKIP[k] && typeof S[k] !== 'function') meta[k] = S[k];
+  let len = 0; for (const p of parts) len += p.length; const blob = new Uint8Array(len); let o = 0; for (const p of parts) { blob.set(p, o); o += p.length; }
+  return { head: { app: 'little-valley', v: 1, seed: S.seed, N: S.N, P: S.P, fields, meta: JSON.parse(JSON.stringify(meta)) }, blob };
+}
+const fin01 = v => typeof v === 'number' && v >= 0 && v <= 1;
+function checkPlaces(sp, co) {
+  if (!Array.isArray(sp) || !Array.isArray(co) || sp.length > 64 || co.length > 200) throw new Error('bad springs or cottages');
+  for (const p of sp.concat(co)) if (!p || !fin01(p.x) || !fin01(p.y)) throw new Error('bad place');
+}
+function unpackState(head, blob) {
+  if (!head || head.app !== 'little-valley' || head.v !== 1) throw new Error('not a Little Valley save');
+  const N = head.N; if (!Number.isInteger(N) || N < 32 || N > 512 || typeof head.seed !== 'string' || !Array.isArray(head.fields)) throw new Error('bad save header');
+  const S = create(N, head.seed, head.P && typeof head.P === 'object' ? head.P : {}), n = N * N; let o = 0;
+  for (const f of head.fields) {
+    const [k, t, lo, hi] = f, w = t === 'f' ? 4 : t === 'q' ? 2 : 1;
+    if (o + n * w > blob.length) throw new Error('save file is cut short');
+    const raw = blob.slice(o, o + n * w); o += n * w; const a = S[k]; if (!ArrayBuffer.isView(a) || a.length !== n) continue;
+    if (t === 'f') a.set(new Float32Array(raw.buffer)); else if (t === 'u8') a.set(raw);
+    else { const q = new Uint16Array(raw.buffer), sc = (hi - lo) / 65535; for (let i = 0; i < n; i++) a[i] = lo + q[i] * sc; }
+  }
+  if (o !== blob.length) throw new Error('save file size does not match');
+  const m = head.meta || {}; checkPlaces(m.springs || [], m.cottages || []);
+  for (const k of Object.keys(m)) if (!SAVE_META_SKIP[k] && k in S && !ArrayBuffer.isView(S[k])) S[k] = m[k];
+  if (hasNaN(S)) throw new Error('save file has broken numbers');
+  return S;
+}
+// Share: terrain change vs the seed (1/8 steps; changes under 0.5, the sim's own settling and fine erosion, are left out so the link stays short),
+// lakes and rivers (surface level in 1/8 steps where deeper than 0.3), springs, cottages, clock. Plants and fields regrow, puddles come back with a fresh sheet of water.
+const SHARE_V = 1, SH_HQ = 8, SH_HDZ = 0.5, SH_WQ = 8, SH_WDZ = 0.3;
+function packShare(S) {
+  const N = S.N, n = N * N, base = generateTerrain(N, S.seed).h, sp = S.springs.slice(0, 255), co = S.cottages.slice(0, 255);
+  const buf = new ArrayBuffer(14 + sp.length * 5 + co.length * 5 + n * 4), dv = new DataView(buf); let o = 0;
+  dv.setUint8(o++, 0x4c); dv.setUint8(o++, SHARE_V); dv.setUint16(o, N, true); o += 2; dv.setFloat32(o, S.time || 0, true); o += 4; dv.setFloat32(o, S.yearOff || 0, true); o += 4;
+  const u16 = v => Math.max(0, Math.min(65535, Math.round(v * 65535)));
+  dv.setUint8(o++, sp.length); for (const p of sp) { dv.setUint16(o, u16(p.x), true); dv.setUint16(o + 2, u16(p.y), true); dv.setUint8(o + 4, Math.max(0, Math.min(255, Math.round((p.rate || 1) * 16)))); o += 5; }
+  dv.setUint8(o++, co.length); for (const c of co) { dv.setUint16(o, u16(c.x), true); dv.setUint16(o + 2, u16(c.y), true); dv.setUint8(o + 4, (c.ruin ? 1 : 0) | (c.well ? 2 : 0)); o += 5; }
+  // two planes per grid (low bytes, then high bytes) of row-delta coded values: flat or untouched land deflates to almost nothing
+  const plane = (get) => { let prev = 0; const lo = new Uint8Array(buf, o, n), hi = new Uint8Array(buf, o + n, n); for (let i = 0; i < n; i++) { const v = get(i), e = (v - prev) & 0xffff; prev = v; lo[i] = e & 255; hi[i] = e >> 8; } o += 2 * n; };
+  plane(i => { const dh = S.h[i] - base[i]; return Math.abs(dh) < SH_HDZ ? 0 : Math.max(-32768, Math.min(32767, Math.round(dh * SH_HQ))); });
+  plane(i => S.d[i] < SH_WDZ ? 0 : Math.min(65535, Math.round((S.h[i] + S.d[i]) * SH_WQ))); // the water surface: flat on a lake, so it packs small
+  return new Uint8Array(buf, 0, o);
+}
+function unpackShare(bytes, seed, opts) {
+  if (!(bytes instanceof Uint8Array) || bytes.length < 14) throw new Error('share link too short');
+  const dv = new DataView(bytes.buffer, bytes.byteOffset, bytes.length); let o = 0;
+  if (dv.getUint8(o++) !== 0x4c || dv.getUint8(o++) !== SHARE_V) throw new Error('not a Little Valley link');
+  const N = dv.getUint16(o, true); o += 2; if (N < 32 || N > 512) throw new Error('bad valley size');
+  const time = dv.getFloat32(o, true), yearOff = dv.getFloat32(o + 4, true); o += 8;
+  if (!Number.isFinite(time) || !Number.isFinite(yearOff) || time < 0 || time > 1e9) throw new Error('bad clock');
+  const need = k => { if (o + k > bytes.length) throw new Error('share link cut short'); };
+  need(1); const ns = dv.getUint8(o++), sp = []; need(ns * 5);
+  for (let k = 0; k < ns; k++) { sp.push({ x: dv.getUint16(o, true) / 65535, y: dv.getUint16(o + 2, true) / 65535, rate: dv.getUint8(o + 4) / 16 }); o += 5; }
+  need(1); const nc = dv.getUint8(o++), co = []; need(nc * 5);
+  for (let k = 0; k < nc; k++) { const f = dv.getUint8(o + 4); co.push({ x: dv.getUint16(o, true) / 65535, y: dv.getUint16(o + 2, true) / 65535, ruin: !!(f & 1), well: !!(f & 2), flood: 0 }); o += 5; }
+  const n = N * N; if (o + 4 * n !== bytes.length) throw new Error('share link size does not match');
+  const S = create(N, seed, opts), base = S.h0;
+  const plane = (set) => { let prev = 0; for (let i = 0; i < n; i++) { const e = bytes[o + i] | (bytes[o + n + i] << 8); prev = (prev + e) & 0xffff; set(i, prev); } o += 2 * n; };
+  plane((i, v) => { S.h[i] = base[i] + ((v << 16) >> 16) / SH_HQ; });
+  plane((i, v) => { S.d[i] = Math.max(v ? v / SH_WQ - S.h[i] : 0, 0.25); });
+  S.time = time; S.yearOff = yearOff; S.springs = sp; S.cottages = co;
+  initLife(S); // forests and meadows start fresh on the shared land
+  for (const c of co) c.mood = c.ruin ? 'ruin' : cottageMood(S, c);
+  if (hasNaN(S)) throw new Error('share link has broken numbers');
+  return S;
+}
+const API = { packState, unpackState, packShare, unpackShare, initLife,  iceStep, totalIce, ICE_HOLD, eventRain, droughtOf, droughtAt, weatherEvent, STORM_AMP, yearFrac, yearFracAt, yearLen, season, snowLine, snowFalling, leafState, snowStep, totalSnow, SEASONS, clockHour, dayFrac, planRain, rainCell, weatherStep, mulberry32, hashStr, makeNoise, randomSeedName, generateTerrain, create, seedLife, step, applyTool, totalWater, totalTerrain, resample, lifeStep, countTrees, countLife, leafy, treeHappy, cottageMood, cottageCell, countVillage, waterNear, wellYield, WELL_MIN, WELL_HIGH, MILL_T, MILL_RIPEN, FLOOD_RUIN, GROW_MAX, KIDS_MAX, GROW_T, plotSize, plotOf, plotCrop, hasNaN, DEFAULTS };
 if (typeof module !== 'undefined' && module.exports) module.exports = API; else root.LV = API;
 })(typeof window !== 'undefined' ? window : globalThis);
 </script>
@@ -2307,10 +2410,95 @@ window.LV_WISHES = {
 };
 updWishBtn();
 
+// ---------- save and share a valley ----------
+// Save file: JSON header + the whole state (deflated, base64). Share link: #seed/1<base64url of deflated terrain change, water, springs, cottages>.
+const SH = { open: false, last: null, lastErr: null, link: '' };
+const hasZ = typeof CompressionStream === 'function' && typeof DecompressionStream === 'function';
+async function zPipe(u8, Ctor) { const s = new Blob([u8]).stream().pipeThrough(new Ctor('deflate-raw')); return new Uint8Array(await new Response(s).arrayBuffer()); }
+const deflate = u8 => hasZ ? zPipe(u8, CompressionStream) : Promise.resolve(u8);
+const inflate = u8 => zPipe(u8, DecompressionStream);
+function toB64(u8) { let s = ''; for (let i = 0; i < u8.length; i += 0x8000) s += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000)); return btoa(s); }
+function fromB64(s) { const b = atob(s), u = new Uint8Array(b.length); for (let i = 0; i < b.length; i++) u[i] = b.charCodeAt(i); return u; }
+const b64url = u8 => toB64(u8).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+const unb64url = s => { if (!/^[A-Za-z0-9_-]*$/.test(s)) throw new Error('bad characters'); s = s.replace(/-/g, '+').replace(/_/g, '/'); return fromB64(s + '='.repeat((4 - s.length % 4) % 4)); };
+function installValley(S, msg) {
+  const i = NLEVELS.indexOf(S.N); if (i >= 0) nIndex = i; else S = LV.resample(S, NLEVELS[nIndex]);
+  st.S = S; st.N = S.N; st.wake = 2.5; if (st.shower > 0) { st.shower = 0; updUI(); }
+  $('seedName').textContent = S.seed; skyPrev = null; allocRender(); statT = 0; hint(msg);
+}
+async function shareLink() {
+  const z = await deflate(LV.packShare(st.S)); SH.bytes = z.length;
+  return location.href.split('#')[0] + '#' + encodeURIComponent(st.S.seed) + '/' + (hasZ ? '1' : '0') + b64url(z);
+}
+async function loadShare(seed, code) { // code = '1' + base64url (deflated) or '0' + base64url (raw)
+  let bytes = unb64url(code.slice(1)); if (code[0] === '1') bytes = await inflate(bytes); else if (code[0] !== '0') throw new Error('unknown link version');
+  return LV.unpackShare(bytes, seed, { weather: st.weather !== false, seasons: st.seasons !== false, events: st.events !== false });
+}
+async function saveText() {
+  const { head, blob } = LV.packState(st.S); const z = await deflate(blob);
+  head.z = hasZ ? 'deflate-raw' : 'none'; head.data = toB64(z); head.saved = new Date().toISOString().slice(0, 16);
+  return JSON.stringify(head);
+}
+async function loadText(txt) {
+  let head; try { head = JSON.parse(txt); } catch (e) { throw new Error('not a Little Valley save'); }
+  if (!head || typeof head.data !== 'string') throw new Error('not a Little Valley save');
+  let blob = fromB64(head.data); if (head.z === 'deflate-raw') blob = await inflate(blob); else if (head.z !== 'none') throw new Error('unknown packing');
+  return LV.unpackState(head, blob);
+}
+async function shareFromHash(raw) { // raw hash without '#'; returns true when it was a shared valley
+  const k = raw.indexOf('/'); if (k < 0) return false;
+  let seed = 'Little Valley'; try { seed = decodeURIComponent(raw.slice(0, k)) || seed; } catch (e) { }
+  try { const S = await loadShare(seed, raw.slice(k + 1)); installValley(S, 'A shared valley: ' + seed + '!'); SH.last = 'link'; SH.lastErr = null; }
+  catch (e) { SH.lastErr = 'link: ' + e.message; SH.last = 'badlink'; newWorld(seed); hint('That link looks broken, so here is a fresh ' + seed); }
+  return true;
+}
+function slug(s) { return s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'valley'; }
+async function doSave() {
+  try { const txt = await saveText(), a = document.createElement('a'); SH.saveLen = txt.length; SH.saveName = 'little-valley-' + slug(st.S.seed) + '.json';
+    a.href = URL.createObjectURL(new Blob([txt], { type: 'application/json' })); a.download = SH.saveName; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+    SH.last = 'saved'; shMsg('Saved ' + SH.saveName + ' (' + Math.round(txt.length / 1024) + ' KB)'); }
+  catch (e) { SH.lastErr = 'save: ' + e.message; shMsg('Could not save: ' + e.message); }
+}
+async function loadFile(f) {
+  if (!f) return; if (f.size > 40e6) { shMsg('That file is too big for a valley'); return; }
+  try { const S = await loadText(await f.text()); installValley(S, 'Welcome back to ' + S.seed + '!'); SH.last = 'loaded'; SH.lastErr = null; shareOpen(false);
+    try { history.replaceState(null, '', '#' + encodeURIComponent(S.seed)); } catch (e) { } }
+  catch (e) { SH.lastErr = 'load: ' + e.message; SH.last = 'badfile'; shMsg('That is not a valley file (' + e.message + ')'); hint('That is not a valley file'); }
+}
+async function doLink() {
+  try { const url = await shareLink(); SH.link = url; shLink.value = url; shLink.parentNode.classList.add('has');
+    try { history.replaceState(null, '', url.slice(url.indexOf('#'))); } catch (e) { }
+    let copied = false; try { if (navigator.clipboard && window.isSecureContext) { await navigator.clipboard.writeText(url); copied = true; } } catch (e) { }
+    if (!copied) { shLink.focus(); shLink.select(); try { copied = document.execCommand('copy'); } catch (e) { } }
+    SH.last = 'link-made'; shMsg((copied ? 'Link copied' : 'Link ready: copy it from the box') + ' (' + url.length + ' characters). It carries the land, water, springs and cottages; plants regrow.'); }
+  catch (e) { SH.lastErr = 'link: ' + e.message; shMsg('Could not make a link: ' + e.message); }
+}
+const shareSvg = '<svg viewBox="0 0 34 34" aria-hidden="true"><path d="M6 14v14h22V14" fill="#fff" stroke="#3a7fb8" stroke-width="2.4" stroke-linejoin="round"/><path d="M17 21V4M11 9.5 17 4l6 5.5" stroke="#e8792b" stroke-width="2.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+const bShare = document.createElement('button'); bShare.id = 'shareBtn'; bShare.innerHTML = shareSvg + '<span>Share</span>'; bShare.setAttribute('aria-label', 'Save or share this valley'); bShare.onclick = () => shareOpen(!SH.open); document.body.appendChild(bShare);
+const shPanel = document.createElement('div'); shPanel.id = 'sharePanel'; shPanel.setAttribute('role', 'dialog'); shPanel.setAttribute('aria-label', 'Save and share');
+shPanel.innerHTML = '<div class="wh"><b>Save &amp; share</b><button id="shareClose" aria-label="Close">✕</button></div>'
+  + '<div class="sb"><button id="sh-link">🔗<span>Copy link</span></button><button id="sh-save">💾<span>Save file</span></button><button id="sh-load">📂<span>Open file</span></button></div>'
+  + '<div class="sl"><input id="sh-url" readonly aria-label="Share link"></div><div id="sh-msg">A link opens this valley for anyone; a file keeps everything (also forests and fields).</div>'
+  + '<input id="sh-file" type="file" accept=".json,application/json" hidden>';
+document.body.appendChild(shPanel);
+const shLink = $('sh-url'), shFile = $('sh-file');
+function shMsg(t) { $('sh-msg').textContent = t; }
+function shareOpen(on) { SH.open = on; shPanel.classList.toggle('show', on); bShare.classList.toggle('on', on); if (on && W.open) wishOpen(false); }
+$('shareClose').onclick = () => shareOpen(false); $('sh-link').onclick = doLink; $('sh-save').onclick = doSave; $('sh-load').onclick = () => shFile.click();
+shFile.onchange = () => { loadFile(shFile.files[0]); shFile.value = ''; };
+bWish.addEventListener('click', () => { if (SH.open) shareOpen(false); });
+cv.addEventListener('pointerdown', () => { if (SH.open) shareOpen(false); });
+addEventListener('dragover', e => { if (e.dataTransfer && [...e.dataTransfer.types].includes('Files')) e.preventDefault(); });
+addEventListener('drop', e => { const f = e.dataTransfer && e.dataTransfer.files[0]; if (f) { e.preventDefault(); loadFile(f); } });
+addEventListener('hashchange', () => { const raw = (location.hash || '').slice(1); if (raw.includes('/')) shareFromHash(raw); });
+window.LV_SHARE = { SH, hasZ, shareLink, loadShare, saveText, loadText, shareFromHash, open: () => shareOpen(true), close: () => shareOpen(false), loadFile };
+
 window.__lv = { st, AU, updSound, LV, LT, leaf: LS, clockText, wheelAng, get col() { return [colR, colG, colB]; }, get tilt() { return tilt; }, get area() { return area; }, setTool, newWorld, unproj, proj, get S() { return st.S; } };
 updUI(); updSound();
-const fromHash = decodeURIComponent((location.hash || '').slice(1));
-newWorld(fromHash || LV.randomSeedName());
+const rawHash = (location.hash || '').slice(1);
+let fromHash = ''; try { fromHash = decodeURIComponent(rawHash); } catch (e) { fromHash = ''; }
+if (rawHash.includes('/')) { let sd = 'Little Valley'; try { sd = decodeURIComponent(rawHash.slice(0, rawHash.indexOf('/'))) || sd; } catch (e) { } newWorld(sd); shareFromHash(rawHash); }
+else newWorld(fromHash || LV.randomSeedName());
 requestAnimationFrame(frame);
 })();
 </script>

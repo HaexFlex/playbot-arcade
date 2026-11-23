@@ -77,7 +77,7 @@ rivers shrink, the meadows turn yellow and cottages without a well grow thirsty 
 well stay happy). And when a rain passes while the sun is out, a **rainbow** appears.
 (`screenshot-storm.png`: a storm with lightning.)
 
-Worlds are seeded by name in the URL hash, e.g. `index.html#Daisy%20Glacier%205`.
+Worlds are seeded by name in the URL hash, e.g. `index.html#Daisy%20Glacier%205` (a shared valley adds its packed changes after a `/`, see Save and share).
 
 ## Life
 Meadows and pine forests follow the water: ground near lakes and rivers gets moist, forests
@@ -120,6 +120,23 @@ cheerful toast and sparkles (and a little chime if the sound is on). The star ba
 stars; your best is saved on this device (localStorage). Wishes are optional: the panel closes
 with ✕ or a tap on the valley, and free play never waits for them. `window.LV_WISHES` is the test hook.
 
+## Save and share
+Tap **Share** (next to the wishes star) for a small panel with three buttons:
+- **Copy link** makes a link that opens your valley for anyone: the seed name plus the land you
+  shaped, the lakes and rivers, the springs and the cottages (with their wells), packed with the
+  browser's built-in deflate into the address after a `/` (e.g. `index.html#Daisy%20Glacier%205/1…`).
+  Forests, meadows and fields regrow on the shared land. Small changes the valley makes by itself
+  (settling and fine erosion under 0.5 height units) are left out to keep the link short: an
+  untouched valley is about 160 characters, a valley that has run for a while about 7,000–10,000.
+  The link is copied when the browser allows it and is always shown in a box to copy by hand.
+- **Save file** downloads `little-valley-<seed>.json` with everything (terrain, water, sediment,
+  snow, ice, forests, flowers, fields, paths, cottages, clock and weather), about 0.65–1 MB.
+- **Open file** loads such a file back (you can also drop it on the valley). The valley comes back
+  exactly as it was saved.
+
+A broken or cut-off link opens a fresh valley of that name with a short hint; a wrong file is refused
+and your valley stays. `window.LV_SHARE` is the test hook.
+
 ## Arcade card GIF
 `node tools/make-gif.js` records `little-valley.gif` (440x275, 36 frames, under 1 MB): a summer
 afternoon turns into a moonlit night over a little village by the river while a rain passes;
@@ -130,4 +147,4 @@ Heightmap terrain from seeded noise, shallow water with the virtual-pipes method
 conserving), sediment erosion and deposition with semi-Lagrangian transport, and thermal
 slumping of steep slopes. Rendering is a software-drawn tilted 3D view on a 2D canvas.
 
-See `PLAN.md` for where it is going (goals, saving and sharing a valley).
+See `PLAN.md` for where it is going.
