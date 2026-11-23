@@ -30,7 +30,8 @@ find its way: lakes fill, rivers spill over ridges, carve gullies and drop sand.
 - **Mill wheels** come by themselves: a cottage right beside a fast river that keeps running
   builds a water wheel in it. The wheel turns with the current, stops when the river dries up,
   and a turning mill makes its fields ripen faster. (Shower runoff doesn't count: the miller
-  waits for a real river.)
+  waits for a real river.) While the wheel grinds, flour sacks pile up by the miller's door,
+  one about every 15 seconds, up to three.
   (`screenshot-mill.png`: a village by the upper river with three turning mill wheels.)
 - **Speed** cycles 1x, 2x, 4x and **8x Time-lapse** (hourglass): erosion and growth run four
   times faster, so you can watch a river carve its gorge and the forest follow the new banks.
