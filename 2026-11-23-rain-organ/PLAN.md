@@ -28,3 +28,5 @@ Not a game with goals: a sound toy and a little generative-music study.
 
 ## Checklist (every step)
 - [ ] build, tests pass, look at a screenshot, publish if the project is listed in publish.sh
+
+- Done 2026-11-23 21:2x: per-cloud rhythm (tap a cloud: every 2/3/4/6 eighths, dots show the cycle; saved and in share links; tools/rhythm-check.js).
