@@ -31,7 +31,9 @@ find its way: lakes fill, rivers spill over ridges, carve gullies and drop sand.
   builds a water wheel in it. The wheel turns with the current, stops when the river dries up,
   and a turning mill makes its fields ripen faster. (Shower runoff doesn't count: the miller
   waits for a real river.) While the wheel grinds, flour sacks pile up by the miller's door,
-  one about every 15 seconds, up to three.
+  one about every 15 seconds, up to three. When the pile is full the miller loads it onto a
+  little handcart and pulls it along a dry road to the nearest cottage, unloads with a puff of
+  flour and walks back with the empty cart.
   (`screenshot-mill.png`: a village by the upper river with three turning mill wheels.)
 - **Speed** cycles 1x, 2x, 4x and **8x Time-lapse** (hourglass): erosion and growth run four
   times faster, so you can watch a river carve its gorge and the forest follow the new banks.
