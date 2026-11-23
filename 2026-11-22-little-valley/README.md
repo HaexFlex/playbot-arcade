@@ -126,8 +126,10 @@ Tap **Share** (next to the wishes star) for a small panel with three buttons:
   shaped, the lakes and rivers, the springs and the cottages (with their wells), packed with the
   browser's built-in deflate into the address after a `/` (e.g. `index.html#Daisy%20Glacier%205/1…`).
   Forests, meadows and fields regrow on the shared land. Small changes the valley makes by itself
-  (settling and fine erosion under 0.5 height units) are left out to keep the link short: an
-  untouched valley is about 160 characters, a valley that has run for a while about 7,000–10,000.
+  are smoothed out to keep the link short: the land goes on a half-resolution grid plus fixes
+  wherever that is more than 1 height unit off, so every spot comes back within 1 unit. An
+  untouched valley is about 100 characters, a valley that has run for a while about 4,000–12,000
+  (about 3x shorter than the first link format, which still opens).
   The link is copied when the browser allows it and is always shown in a box to copy by hand.
 - **Save file** downloads `little-valley-<seed>.json` with everything (terrain, water, sediment,
   snow, ice, forests, flowers, fields, paths, cottages, clock and weather), about 0.65–1 MB.
@@ -136,6 +138,13 @@ Tap **Share** (next to the wishes star) for a small panel with three buttons:
 
 A broken or cut-off link opens a fresh valley of that name with a short hint; a wrong file is refused
 and your valley stays. `window.LV_SHARE` is the test hook.
+
+**Autosave:** the valley also keeps itself. Every 30 seconds, and whenever you hide the tab or leave
+the page, the whole valley (the same text as a save file) goes into the browser's IndexedDB
+(localStorage as a fallback). A reload brings it back with "Welcome back". A share link in the
+address wins over the autosave (unless you kept playing after opening it), the dice still gives a
+fresh valley (which the next autosave keeps), and a broken or old autosave is simply ignored.
+`window.LV_AUTO` is the test hook.
 
 ## Arcade card GIF
 `node tools/make-gif.js` records `little-valley.gif` (440x275, 36 frames, under 1 MB): a summer
