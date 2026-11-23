@@ -70,7 +70,7 @@ every feature must be visible on screen (no hidden numbers); stays at 30+ fps at
 2. Small ideas for day/night (lanterns and fireflies are done): smoke lit by the sunset, an optional "always day" toggle if someone prefers it (rainbows are done).
 3. Ideas for mills and wells: flour sacks or a little millstone sprite by a turning mill, a well bucket animation, a mill race (a short dug channel) so a cottage can bring the river to its wheel.
 4. Ideas for the village: haystacks or sheaves as little 3D sprites on ripe fields, paths that bend around slopes (cheap A* every few seconds), a harvest counter in the pill.
-5. A short GIF for the arcade card (time-lapse of a river carving, about 1 MB or less).
+5. Done (2026-11-23): `little-valley.gif` on the arcade card (`node tools/make-gif.js`: a summer afternoon to a moonlit night over a little village by the river, a rain passing, lit windows and fireflies; 440x275, 36 frames at 6 fps, 939 KB). Idea: a second GIF of a river carving in time-lapse for the README.
 6. Note: the Shower stays a deluge on purpose (about 5 height units of rain at 1x); the gentle natural rain is the everyday weather now.
 
 ## Checklist (every step)

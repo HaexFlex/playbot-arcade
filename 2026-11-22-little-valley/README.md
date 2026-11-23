@@ -115,6 +115,11 @@ cheerful toast and sparkles (and a little chime if the sound is on). The star ba
 stars; your best is saved on this device (localStorage). Wishes are optional: the panel closes
 with ✕ or a tap on the valley, and free play never waits for them. `window.LV_WISHES` is the test hook.
 
+## Arcade card GIF
+`node tools/make-gif.js` records `little-valley.gif` (440x275, 36 frames, under 1 MB): a summer
+afternoon turns into a moonlit night over a little village by the river while a rain passes;
+the windows and lanterns light up and fireflies come out. The controls are hidden for the recording.
+
 ## How it works
 Heightmap terrain from seeded noise, shallow water with the virtual-pipes method (mass
 conserving), sediment erosion and deposition with semi-Lagrangian transport, and thermal
