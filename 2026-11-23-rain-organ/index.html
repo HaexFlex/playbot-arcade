@@ -2,6 +2,7 @@
 <html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Rain Organ</title>
+<link rel="icon" href="../favicon.svg" type="image/svg+xml">
 <meta name="description" content="Draw leaves under little clouds; every raindrop that hits one rings a note.">
 <style>html,body{margin:0;height:100%;background:#0f1a24;overflow:hidden;font-family:system-ui,-apple-system,Segoe UI,sans-serif;color:#dfe9f2;-webkit-user-select:none;user-select:none}
 canvas{display:block;width:100vw;height:100vh;touch-action:none}
@@ -24,6 +25,10 @@ canvas{display:block;width:100vw;height:100vh;touch-action:none}
 #pad .pa{display:flex;gap:6px;justify-content:space-between}#pad .go{background:rgba(140,200,255,.25);border-color:rgba(160,210,255,.6)}
 #bSky{position:fixed;top:max(8px,env(safe-area-inset-top));right:max(8px,env(safe-area-inset-right));width:40px;height:40px;padding:0;font-size:18px;line-height:1;color:#dfe9f2;background:rgba(15,26,36,.55);border:1px solid rgba(255,255,255,.18);border-radius:50%;cursor:pointer;backdrop-filter:blur(6px)}
 #bSky:focus-visible,#pad button:focus-visible{outline:2px solid #9fd0ff;outline-offset:2px}
+#pad.busy #padKeys,#pad.busy #padUndo,#pad.busy #padSwap{opacity:.45;pointer-events:none}
+#pad.busy .go{animation:roBusy 1.2s ease-in-out infinite}
+@keyframes roBusy{50%{background:rgba(140,200,255,.45)}}
+@media (prefers-reduced-motion:reduce){#pad.busy .go{animation:none}}
 </style></head>
 <body>
 <canvas id="c" aria-label="Rain Organ: draw leaves under the clouds; raindrops ring them"></canvas>
@@ -52,6 +57,12 @@ canvas{display:block;width:100vw;height:100vh;touch-action:none}
   const BASE_MIDI = 48;                    // C3
   const MIN_LEN = 30, MAX_LEN = 600;       // leaf lengths in field units (field is 1000 x 700)
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+  // work clock for composer deadlines: counts physics work (drop steps x leaves checked) instead of wall time,
+  // in units of ~1 ms on a desktop (WORK_PER_MS, measured 2026-11-23). So a sliced (async) run, a blocking run,
+  // a slow phone and a fast laptop all stop at the same point and build the same leaves.
+  const WORK_PER_MS = 50000;
+  const clk = { work: 0 };
+  const clock = () => clk.work / WORK_PER_MS;
   function stepForLength(len) {
     const t = clamp(Math.log(len / MIN_LEN) / Math.log(MAX_LEN / MIN_LEN), 0, 1);
     return Math.round((1 - t) * (STEPS - 1)); // short = high
@@ -98,7 +109,7 @@ canvas{display:block;width:100vw;height:100vh;touch-action:none}
   // follow one drop from (x0,y0) through the leaves; returns the leaf indices it rings, in order
   function trace(leaves, x0, y0, maxY = 2000, dt = 1 / 240) {
     const d = { x: x0, y: y0, vx: 0, vy: 40 }, hits = [], path = [];
-    for (let t = 0; t < 12 && d.y < maxY && d.x > -50 && d.x < 1050; t += dt) { const i = stepDrop(d, leaves, dt); path.push(d.x, d.y, d.vx, d.vy); if (i >= 0 && d.impact > 60 && !hits.includes(i)) hits.push(i); } // a drop rings each leaf once
+    for (let t = 0; t < 12 && d.y < maxY && d.x > -50 && d.x < 1050; t += dt) { clk.work += leaves.length + 1; const i = stepDrop(d, leaves, dt); path.push(d.x, d.y, d.vx, d.vy); if (i >= 0 && d.impact > 60 && !hits.includes(i)) hits.push(i); } // a drop rings each leaf once
     return { hits, path };
   }
   // build a falling melody: leaves placed so one drop from (x0,y0) rings steps[] in order.
@@ -111,13 +122,33 @@ canvas{display:block;width:100vw;height:100vh;touch-action:none}
     return Math.min(pd(a, c, d), pd(b, c, d), pd(c, a, b), pd(d, a, b));
   }
   function crowds(L, leaves, gap = 12) { return leaves.some(M => segDist([L.x1, L.y1], [L.x2, L.y2], [M.x1, M.y1], [M.x2, M.y2]) < gap); }
-  function compose(steps, x0, y0, rnd, maxY = 520, tries = 400, why = null, fixed = [], others = [], fallK = 1, xlo = 20, xhi = 980, fillY = 0, until = 0) {
-    // until: a Date.now() deadline (0 = none), so the app never freezes long on a hard tune
+  // run a composer generator to the end in one go (the blocking form used by node tests and the app's sync calls)
+  function finish(g) { let r = g.next(); while (!r.done) r = g.next(); return r.value; }
+  // run it in slices of ~sliceMs with setTimeout yields in between; resolves with the same value as finish()
+  function sliced(g, sliceMs = 30, onSlice = null) {
+    return new Promise((res, rej) => {
+      const step = () => {
+        try {
+          const t0 = performance.now(); let r;
+          do r = g.next(); while (!r.done && performance.now() - t0 < sliceMs);
+          clk.maxSlice = Math.max(clk.maxSlice || 0, performance.now() - t0); // the longest slice (checks read it)
+          if (r.done) { res(r.value); return; }
+          if (onSlice) onSlice();
+          setTimeout(step, 0);
+        } catch (e) { rej(e); }
+      };
+      step();
+    });
+  }
+  function compose(...a) { return finish(composeGen(...a)); }
+  function* composeGen(steps, x0, y0, rnd, maxY = 520, tries = 400, why = null, fixed = [], others = [], fallK = 1, xlo = 20, xhi = 980, fillY = 0, until = 0) {
+    // until: a RO.clock() deadline (0 = none), so the app never works long on a hard tune
     // fillY (tall fields): spread the falls so the last leaf lands near fillY instead of bunching at the top
     // fixed: leaves already placed by other voices; others: [[x,y,hits]] their drops must keep ringing the same leaves
     const F = fixed.length;
     for (let k = 0; k < tries; k++) {
-      if (until && Date.now() > until) return null;
+      if (k) yield; // a pause point between tries (sliced runs give the page a breath here)
+      if (until && clock() > until) return null;
       const leaves = fixed.slice(); let ok = true;
       for (let n = 0; n < steps.length && ok; n++) {
         const { path } = trace(leaves, x0, y0, maxY + 40);
@@ -138,8 +169,10 @@ canvas{display:block;width:100vw;height:100vh;touch-action:none}
         if (crowds(L, leaves)) { ok = false; if (why) why.cross = (why.cross || 0) + 1; break; }
         leaves.push(L);
         const tr = trace(leaves, x0, y0, maxY + 40).hits;
-        const bad = tr.length !== leaves.length - F || tr.some((h, i) => h !== F + i) || others.some(([ox, oy, oh]) => { const t = trace(leaves, ox, oy, maxY + 40).hits; return t.length !== oh.length || t.some((h, i) => h !== oh[i]); });
+        let bad = tr.length !== leaves.length - F || tr.some((h, i) => h !== F + i);
+        for (let o = 0; o < others.length && !bad; o++) { yield; const [ox, oy, oh] = others[o], t = trace(leaves, ox, oy, maxY + 40).hits; bad = t.length !== oh.length || t.some((h, i) => h !== oh[i]); }
         if (bad) { ok = false; if (why) why['order' + n] = (why['order' + n] || 0) + 1; }
+        if (n + 1 < steps.length) yield; // and between leaves: one try on a long tune can take a while
       }
       if (ok) return leaves.slice(F);
     }
@@ -147,15 +180,16 @@ canvas{display:block;width:100vw;height:100vh;touch-action:none}
   }
   // each cloud keeps to its own lane, so there is always room to recompose one voice later
   function laneOf(x, n) { if (n < 2) return [20, 980]; const w = 960 / n, i = Math.max(0, Math.min(n - 1, Math.floor((x - 20) / w))); return [Math.max(20, 20 + i * w - 70), Math.min(980, 20 + (i + 1) * w + 70)]; }
-  function composePiece(voices, seed = 1, maxY = 520, fallK = 1, fill = 0, until = 0) {
+  function composePiece(...a) { return finish(composePieceGen(...a)); }
+  function* composePieceGen(voices, seed = 1, maxY = 520, fallK = 1, fill = 0, until = 0) {
     // fill 0..1: each voice spreads its leaves down to fill*maxY (0 = the old short falls)
     let sd = seed >>> 0 || 1; const rnd = () => (sd = (sd * 16807) % 2147483647) / 2147483647;
     const all = [], others = [];
     for (const v of voices) {
       const [lo, hi] = laneOf(v.x, voices.length);
       let L = null; // tall field: try the full spread first, then gentler ones (very long falls can fling a drop out of its lane)
-      for (const f of fill ? [1, 0.9, 0.8, 0.7, 0.6, 0.5, 0] : [0]) if (!L) L = compose(v.steps, v.x, v.y, rnd, maxY, f ? 250 : 600, null, all, others, fallK, lo, hi, f * fill * maxY, until);
-      if (!L && until && Date.now() > until) return null;
+      for (const f of fill ? [1, 0.9, 0.8, 0.7, 0.6, 0.5, 0] : [0]) if (!L) L = yield* composeGen(v.steps, v.x, v.y, rnd, maxY, f ? 250 : 600, null, all, others, fallK, lo, hi, f * fill * maxY, until);
+      if (!L && until && clock() > until) return null;
       if (!L) return null;
       others.push([v.x, v.y, L.map((_, i) => all.length + i)]); all.push(...L);
     }
@@ -187,7 +221,7 @@ canvas{display:block;width:100vw;height:100vh;touch-action:none}
     return { hour, name, top, bottom, lum, cloud: c(3), drop: light ? [28, 66, 110] : [176, 214, 250], ink: light ? [12, 24, 36] : [232, 240, 248], inkTop: contrast([12, 24, 36], top) > contrast([232, 240, 248], top) ? [12, 24, 36] : [232, 240, 248], puddle: c(6), stars: n(7), night: n(8), leafL: n(9) };
   }
   const rgba = (c, a) => 'rgba(' + c[0] + ',' + c[1] + ',' + c[2] + ',' + (a === undefined ? 1 : +a.toFixed(3)) + ')';
-  const RO = { skyPalette, rgba, contrast, SCALE, STEPS, MIN_LEN, MAX_LEN, stepForLength, midiForStep, freqForMidi, noteName, leafNote, closest, bounce, stepDrop, clamp, lengthForStep, trace, compose, composePiece, laneOf, segDist, crowds };
+  const RO = { clock, clk, finish, sliced, composeGen, composePieceGen, skyPalette, rgba, contrast, SCALE, STEPS, MIN_LEN, MAX_LEN, stepForLength, midiForStep, freqForMidi, noteName, leafNote, closest, bounce, stepDrop, clamp, lengthForStep, trace, compose, composePiece, laneOf, segDist, crowds };
   if (typeof module !== 'undefined' && module.exports) module.exports = RO; else root.RO = RO;
 })(typeof window !== 'undefined' ? window : globalThis);
 </script>
@@ -321,46 +355,59 @@ function loadPiece(ix) {
 // ---------- melody pad: tap a tune, a cloud builds the leaf path for it ----------
 const PAD_STEPS = [3, 4, 5, 6, 7, 8, 9, 10, 11, 12], PAD_MAX = 8;
 const leafHue = step => 265 - step * 17; // low notes violet, middle blue-green, high notes warm orange
-const pad = { open: false, cloud: 0, seq: [] };
+const pad = { open: false, cloud: 0, seq: [], busy: false };
 function renderPad() {
   $('padCloud').textContent = 'for the ' + cloudName(pad.cloud) + ' cloud · up to ' + PAD_MAX + ' notes';
   $('padSeq').innerHTML = pad.seq.length ? pad.seq.map(s => '<i style="background:hsl(' + leafHue(s) + ',70%,70%)">' + RO.noteName(RO.midiForStep(s)) + '</i>').join('') : '<span>Tap the keys: short ones are high, long ones low.</span>';
 }
 $('padKeys').innerHTML = PAD_STEPS.map(s => '<button data-s="' + s + '" style="height:' + (40 + (12 - s) * 6) + 'px;background:hsl(' + leafHue(s) + ',70%,70%)" aria-label="' + RO.noteName(RO.midiForStep(s)) + '">' + RO.noteName(RO.midiForStep(s)).replace(/\d/, '') + '</button>').join('');
-$('padKeys').onclick = e => { const b = e.target.closest('button'); if (!b) return; const s = +b.dataset.s; if (!soundOn && !st.userMuted) setSound(true); pling(RO.freqForMidi(RO.midiForStep(s)), 350, RO.clamp(st.clouds[pad.cloud].x / FW * 1.6 - 0.8, -0.8, 0.8)); if (pad.seq.length < PAD_MAX) pad.seq.push(s); renderPad(); };
+$('padKeys').onclick = e => { if (pad.busy) return; const b = e.target.closest('button'); if (!b) return; const s = +b.dataset.s; if (!soundOn && !st.userMuted) setSound(true); pling(RO.freqForMidi(RO.midiForStep(s)), 350, RO.clamp(st.clouds[pad.cloud].x / FW * 1.6 - 0.8, -0.8, 0.8)); if (pad.seq.length < PAD_MAX) pad.seq.push(s); renderPad(); };
 function openPad(o) { pad.open = o; $('pad').hidden = !o; $('bPad').classList.toggle('on', o); if (o) renderPad(); }
 $('bPad').onclick = () => openPad(!pad.open); $('padX').onclick = () => openPad(false);
-$('padUndo').onclick = () => { pad.seq.pop(); renderPad(); };
-$('padSwap').onclick = () => { pad.cloud = (pad.cloud + 1) % st.clouds.length; renderPad(); };
+$('padUndo').onclick = () => { if (pad.busy) return; pad.seq.pop(); renderPad(); };
+$('padSwap').onclick = () => { if (pad.busy) return; pad.cloud = (pad.cloud + 1) % st.clouds.length; renderPad(); };
 // build the path for one cloud: its old composed leaves go, everything else must stay as it is
-function buildVoice(k, steps) {
+function buildVoice(k, steps) { return RO.finish(buildVoiceGen(k, steps)); }
+// the same work as a generator: the pad runs it in small slices so a hard tune never blocks the page
+function* buildVoiceGen(k, steps) {
+  steps = steps.slice(); const sig = encode(); // if the sky changes while a sliced run composes, its result is dropped (never overwrite new leaves)
   const c = st.clouds[k], keep = st.leaves.filter(L => L.voice !== k);
   const others = st.clouds.map((o, j) => j === k ? null : [o.x, o.y + 22, RO.trace(keep, o.x, o.y + 22, FH + 40).hits]).filter(Boolean);
   let sd = 1 + steps.reduce((a, s) => a * 31 + s, 7) % 9973; const rnd = () => (sd = (sd * 16807) % 2147483647) / 2147483647;
   const [lo, hi] = RO.laneOf(c.x, st.clouds.length), my = Math.min(FH - 30, 1400);
   const tall = FH > 900, fy = Math.min(FH - 30, 1970);
   let L = null; // tall field: first try to spread the tune down the field (the other clouds' leaves stay where they are)
-  if (tall) for (const f of [0.9, 0.6]) if (!L) L = RO.compose(steps, c.x, c.y + 22, rnd, fy, 120, null, keep, others, fallK(), lo, hi, f * fy);
+  if (tall) for (const f of [0.9, 0.6]) if (!L) L = yield* RO.composeGen(steps, c.x, c.y + 22, rnd, fy, 120, null, keep, others, fallK(), lo, hi, f * fy);
   if (tall && !L && keep.length && keep.every(K => K.voice >= 0)) { // tall field, only composed leaves around: lay out every cloud again, each keeps its tune and material
     const tunes = st.clouds.map((o, j) => j === k ? steps : RO.trace(keep, o.x, o.y + 22, FH + 40).hits.map(i => keep[i].note.step));
     const mats = st.clouds.map((o, j) => j === k ? st.mat : ((keep.find(K => K.voice === j) || {}).mat | 0));
     const voices = st.clouds.map((o, j) => ({ x: o.x, y: o.y + 22, steps: tunes[j] })).filter(v => v.steps.length);
-    const until = Date.now() + 1200; let A = null; // spread layout if it is found quickly, else the classic (top) layout
-    for (let seed = 1; seed <= 3 && !A && Date.now() < until; seed++) A = RO.composePiece(voices, seed, fy, fallK(), 0.9, until);
-    for (let seed = 1; seed <= 3 && !A; seed++) A = RO.composePiece(voices, seed, my, fallK(), 0, Date.now() + 800);
+    const until = RO.clock() + 1200; let A = null; // spread layout if it is found quickly, else the classic (top) layout
+    for (let seed = 1; seed <= 3 && !A && RO.clock() < until; seed++) A = yield* RO.composePieceGen(voices, seed, fy, fallK(), 0.9, until);
+    for (let seed = 1; seed <= 3 && !A; seed++) A = yield* RO.composePieceGen(voices, seed, my, fallK(), 0, RO.clock() + 800);
+    if (A && encode() !== sig) return 'stale';
     if (A) { let n0 = 0; const out = []; st.clouds.forEach((o, j) => { if (!tunes[j].length) return; for (let i = 0; i < tunes[j].length; i++) { const l = A[n0 + i]; out.push(Object.assign(makeLeaf(l.x1, l.y1, l.x2, l.y2, mats[j]), { voice: j })); } n0 += tunes[j].length; });
       st.leaves = out; for (const d of st.drops) d.rang = []; save(); return true; }
   }
-  if (!L) L = RO.compose(steps, c.x, c.y + 22, rnd, my, tall ? 300 : 700, null, keep, others, fallK(), lo, hi);
-  if (!L) L = RO.compose(steps, c.x, c.y + 22, rnd, my, tall ? 300 : 700, null, keep, others, 1, lo, hi);
-  if (!L) L = RO.compose(steps, c.x, c.y + 22, rnd, my, tall ? 300 : 700, null, keep, others, 1);
+  if (!L) L = yield* RO.composeGen(steps, c.x, c.y + 22, rnd, my, tall ? 300 : 700, null, keep, others, fallK(), lo, hi);
+  if (!L) L = yield* RO.composeGen(steps, c.x, c.y + 22, rnd, my, tall ? 300 : 700, null, keep, others, 1, lo, hi);
+  if (!L) L = yield* RO.composeGen(steps, c.x, c.y + 22, rnd, my, tall ? 300 : 700, null, keep, others, 1);
   if (!L) return false;
+  if (encode() !== sig) return 'stale';
   st.leaves = keep.concat(L.map(l => Object.assign(makeLeaf(l.x1, l.y1, l.x2, l.y2, st.mat), { voice: k })));
   for (const d of st.drops) d.rang = []; save(); return true;
 }
-$('padGo').onclick = () => {
+// composing runs in ~30 ms slices (setTimeout yields), so the page keeps drawing and answering taps;
+// while it runs the pad says "composing…" and ignores further taps on its buttons
+function setBusy(b) { pad.busy = b; $('pad').classList.toggle('busy', b); $('padGo').textContent = b ? '☁️ composing…' : '🌧 Let it rain'; $('padGo').setAttribute('aria-busy', b ? 'true' : 'false'); }
+function buildVoiceAsync(k, steps) { return RO.sliced(buildVoiceGen(k, steps), 30); }
+$('padGo').onclick = async () => {
+  if (pad.busy) return;
   if (!pad.seq.length) { say('Tap a few keys first'); return; }
-  if (buildVoice(pad.cloud, pad.seq)) { openPad(false); say('🌧 The ' + cloudName(pad.cloud) + ' cloud plays your tune'); }
+  const k = pad.cloud; setBusy(true); let ok = false;
+  try { ok = await buildVoiceAsync(k, pad.seq); } finally { setBusy(false); }
+  if (ok === 'stale') say('The sky changed while composing: tap Let it rain again');
+  else if (ok) { openPad(false); say('🌧 The ' + cloudName(k) + ' cloud plays your tune'); }
   else say('No room for that tune here: try fewer or higher notes, erase some leaves, or move the cloud');
 };
 // share links: #s=<base64 of "x1,y1,x2,y2;...|cx,cy;cx,cy">
@@ -550,7 +597,7 @@ function frame(now) {
   draw(); requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
-window.RO_APP = { setSky, cycleSky, get skyMode() { return skyMode; }, setHour: h => { forcedHour = h === null || h === undefined ? null : +h; skyLabel(); }, skyHour, get pal() { return pal; }, cycleMat, MATS, pad, buildVoice, openPad, get FH() { return FH; }, PIECES, loadPiece, encode, decode, st, makeLeaf, tick, save, load, setSound, get soundOn() { return soundOn; }, audio: () => ({ ctx: !!ac, reverb: !!verb, state: ac ? ac.state : 'none' }) };
+window.RO_APP = { setSky, cycleSky, get skyMode() { return skyMode; }, setHour: h => { forcedHour = h === null || h === undefined ? null : +h; skyLabel(); }, skyHour, get pal() { return pal; }, cycleMat, MATS, pad, buildVoice, buildVoiceAsync, openPad, get FH() { return FH; }, PIECES, loadPiece, encode, decode, st, makeLeaf, tick, save, load, setSound, get soundOn() { return soundOn; }, audio: () => ({ ctx: !!ac, reverb: !!verb, state: ac ? ac.state : 'none' }) };
 })();
 </script>
 </body></html>
