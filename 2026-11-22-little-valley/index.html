@@ -998,10 +998,11 @@ function buildCottage(g) {
   const res = LV.applyTool(st.S, 'cottage', g[0], g[1], 0, 0); st.lastCottage = res;
   let m = COTTAGE_MSG[res] || res;
   if (res === 'built' || res === 'rebuilt') { const c = st.S.cottages.find(c => Math.hypot(c.x * st.S.N - g[0], c.y * st.S.N - g[1]) < 2); if (c && c.mood === 'sad' && res === 'built') m = 'A new cottage, but it is thirsty: bring water close'; else if (c && c.mood === 'happy') m = res === 'rebuilt' ? 'Rebuilt, and happy by the water!' : 'A happy cottage by the water!'; }
+  if (res === 'built' || res === 'rebuilt') sndKnock(st.ptr && st.ptr.x);
   hint(m); statT = 0;
 }
 const WELL_MSG = { dug: 'A well! Fresh groundwater makes the cottage happy', has: 'This cottage already has a well', dry: 'The well stays dry here: too little groundwater', rock: 'Solid rock up here: no groundwater for a well', nohouse: 'Tap a cottage to dig its well' };
-function digWell(g) { const res = LV.applyTool(st.S, 'well', g[0], g[1], 0, 0); st.lastWell = res; hint(WELL_MSG[res] || res); statT = 0; }
+function digWell(g) { const res = LV.applyTool(st.S, 'well', g[0], g[1], 0, 0); st.lastWell = res; if (res === 'dug' || res === 'dry' || res === 'rock') sndWell(st.ptr && st.ptr.x, res === 'dug'); hint(WELL_MSG[res] || res); statT = 0; }
 function setTool(id) { st.tool = id; updUI(); hint(TOOLS.find(t => t[0] === id)[2]); }
 function updUI() {
   for (const [id] of TOOLS) $('t-' + id).classList.toggle('on', st.tool === id);
@@ -1887,7 +1888,7 @@ cv.addEventListener('pointerdown', e => {
   cv.setPointerCapture && cv.setPointerCapture(e.pointerId);
   st.ptr = { id: e.pointerId, x: e.clientX, y: e.clientY, down: true, type: e.pointerType };
   const g = unproj(e.clientX, e.clientY); st.ptr.g = g;
-  if (g && st.tool === 'spring') { const res = LV.applyTool(st.S, 'spring', g[0], g[1], 0, 0); hint(res === 'added' ? 'A new spring bubbles up!' : 'Spring removed'); }
+  if (g && st.tool === 'spring') { const res = LV.applyTool(st.S, 'spring', g[0], g[1], 0, 0); sndSpring(e.clientX, res === 'added'); hint(res === 'added' ? 'A new spring bubbles up!' : 'Spring removed'); }
   if (g && st.tool === 'cottage') buildCottage(g);
   if (g && st.tool === 'well') digWell(g);
   e.preventDefault();
@@ -1944,7 +1945,7 @@ function frame(now) {
   const P = st.ptr;
   if (P && P.down && st.tool !== 'spring' && st.tool !== 'cottage' && st.tool !== 'well') {
     const g = unproj(P.x, P.y); P.g = g;
-    if (g) LV.applyTool(S, st.tool, g[0], g[1], SIZES[st.size][1] * S.N, dtReal);
+    if (g) { fxBrush(S, g, P.x); LV.applyTool(S, st.tool, g[0], g[1], SIZES[st.size][1] * S.N, dtReal); }
   }
   // weather
   if (st.shower > 0) { st.shower -= dtReal; S.P.rain = 0.05; if (st.shower <= 0) { st.shower = 0; S.P.rain = 0; updUI(); } } else S.P.rain = 0;
@@ -2001,7 +2002,7 @@ function adapt(dt) {
 // and thunder after lightning, wind (stronger in winter and storms), birds by day in the forest, crickets on
 // summer evenings, an owl at night, the creak and clack of turning mill wheels, cowbells near the village.
 // window.LV_AUDIO holds the levels (0..1) and gains so tests can check them without listening.
-const AU = { want: false, on: false, started: false, state: 'none', nodes: 0, live: 0, L: {}, G: {}, ev: { chirp: 0, cricket: 0, owl: 0, clack: 0, creak: 0, bell: 0, thunder: 0 }, flow: 0, veg: 0, ticks: 0 };
+const AU = { want: false, on: false, started: false, state: 'none', nodes: 0, live: 0, L: {}, G: {}, ev: { chirp: 0, cricket: 0, owl: 0, clack: 0, creak: 0, bell: 0, thunder: 0, plop: 0, slurp: 0, splash: 0, knock: 0, well: 0 }, flow: 0, veg: 0, ticks: 0 };
 window.LV_AUDIO = AU;
 const AU_KEY = 'lv-sound', AU_MASTER = 0.45, AU_DT = 0.25;
 const AU_MAX = { river: 0.55, rain: 0.42, wind: 0.2, birds: 0.42, crickets: 0.13, owl: 0.38, mill: 0.42, cows: 0.26, thunder: 0.85 }; // full-level gain per layer
@@ -2027,6 +2028,7 @@ function auGraph(ac) {
   const chain = (...ns) => { for (let i = 0; i < ns.length - 1; i++) ns[i].connect(ns[i + 1]); return ns[ns.length - 1]; };
   g.master = gain(0); g.master.connect(ac.destination);
   for (const k in AU_MAX) { g.bus[k] = gain(0); g.bus[k].connect(g.master); }
+  g.bus.fx = gain(0.9); g.bus.fx.connect(g.master); // tool sounds: a fixed level, not a valley layer
   g.white = noiseBuf(ac, 'white'); g.pink = noiseBuf(ac, 'pink'); g.brown = noiseBuf(ac, 'brown');
   // river: a deep brown-noise murmur plus a softer band of gurgle that wanders
   chain(loop(g.brown), filt('lowpass', 520, 0.5), gain(0.9), g.bus.river);
@@ -2113,6 +2115,48 @@ function thunder(t, k) { // a crack, then a long rumble that rolls over the hill
   fl.frequency.setValueAtTime(420, t); fl.frequency.exponentialRampToValueAtTime(110, t + 1.5);
   for (let b = 0; b < 3; b++) { const a = t + 0.6 + b * (0.6 + Math.random() * 0.8); e.gain.setTargetAtTime(0.55 * k * (1 - b * 0.25), a, 0.12); e.gain.setTargetAtTime(0, a + 0.3, 0.7); }
   AU.ev.thunder++;
+}
+// ---- tool sounds (sound part 2): small cues for what your finger does, panned to where it is
+const fxOn = () => AG && AU.on;
+const fxPan = x => x == null ? 0 : Math.max(-0.7, Math.min(0.7, (x / innerWidth) * 1.4 - 0.7));
+function drop(t, f, k, pan) { // one water drop: a quick falling sine 'bloop'
+  const e = auVoice('fx', t, 0.25, pan), o = osc('sine', f, t, 0.25, e); o.frequency.exponentialRampToValueAtTime(f * 0.32, t + 0.1);
+  e.gain.setValueAtTime(0, t); e.gain.linearRampToValueAtTime(0.3 * k, t + 0.006); e.gain.setTargetAtTime(0, t + 0.03, 0.035);
+}
+function sndSpring(x, added) { // a new spring bubbles up; a removed one is soaked away
+  if (!fxOn()) return; const t = AG.ac.currentTime + 0.02, pan = fxPan(x);
+  if (added) { drop(t, 820, 1, pan); for (let k = 1; k < 4; k++) drop(t + 0.09 * k + Math.random() * 0.05, 700 + k * 160 + Math.random() * 120, 0.55 - k * 0.1, pan); AU.ev.plop++; }
+  else sndSlurp(x, 1);
+}
+function sndSlurp(x, k) { // the sponge soaks up water: a short sucking swish
+  if (!fxOn()) return; const t = AG.ac.currentTime + 0.02, { fl } = noiseHit('fx', AG.pink, t, 0.32, 'bandpass', 2200, 3, 0.32 * k, fxPan(x), 0.09);
+  fl.frequency.setValueAtTime(2200, t); fl.frequency.exponentialRampToValueAtTime(520, t + 0.25); AU.ev.slurp++;
+}
+function sndSplash(x, k) { // Raise, Dig or Smooth stirs the water: a soft slosh
+  if (!fxOn()) return; const t = AG.ac.currentTime + 0.02, pan = fxPan(x);
+  noiseHit('fx', AG.white, t, 0.4, 'bandpass', 900 + Math.random() * 700, 0.8, 0.28 * k, pan, 0.08);
+  noiseHit('fx', AG.brown, t, 0.35, 'lowpass', 380, 0.7, 0.35 * k, pan, 0.07); AU.ev.splash++;
+}
+function sndKnock(x) { // a new cottage: three hammer taps on wood and a tiny house-warming bell
+  if (!fxOn()) return; const t = AG.ac.currentTime + 0.02, pan = fxPan(x);
+  for (let k = 0; k < 3; k++) { const a = t + k * 0.16, e = auVoice('fx', a, 0.2, pan), o = osc('triangle', 260 - k * 12, a, 0.2, e); o.frequency.exponentialRampToValueAtTime(150, a + 0.08);
+    e.gain.setValueAtTime(0, a); e.gain.linearRampToValueAtTime(0.32, a + 0.004); e.gain.setTargetAtTime(0, a + 0.008, 0.025);
+    noiseHit('fx', AG.white, a, 0.08, 'bandpass', 2000, 2, 0.12, pan, 0.012); }
+  const b = t + 0.58, e = auVoice('fx', b, 1.2, pan); osc('sine', 1318, b, 1.2, e); osc('sine', 2637, b, 0.6, e);
+  e.gain.setValueAtTime(0, b); e.gain.linearRampToValueAtTime(0.1, b + 0.006); e.gain.setTargetAtTime(0, b + 0.01, 0.3); AU.ev.knock++;
+}
+function sndWell(x, ok) { // a well: the bucket drops down the shaft and splashes far below (or a dull knock on dry stone)
+  if (!fxOn()) return; const t = AG.ac.currentTime + 0.02, pan = fxPan(x);
+  if (ok) { drop(t + 0.35, 420, 1, pan); drop(t + 0.62, 380, 0.4, pan); drop(t + 0.86, 360, 0.18, pan); noiseHit('fx', AG.brown, t + 0.35, 0.4, 'lowpass', 300, 0.7, 0.3, pan, 0.08); }
+  else noiseHit('fx', AG.brown, t, 0.3, 'lowpass', 220, 0.7, 0.45, pan, 0.05);
+  AU.ev.well++;
+}
+function fxBrush(S, g, x) { // while a brush is held: splash or slurp now and then where there is water under the finger
+  if (!fxOn() || !g) return; const tool = st.tool; if (tool !== 'raise' && tool !== 'lower' && tool !== 'smooth' && tool !== 'drain') return;
+  const N = S.N, gx = Math.round(g[0]), gy = Math.round(g[1]); let w = 0;
+  for (let v = -1; v <= 1; v++) for (let u = -1; u <= 1; u++) { const X = gx + u, Y = gy + v; if (X >= 0 && Y >= 0 && X < N && Y < N) w = Math.max(w, S.d[Y * N + X]); }
+  const now = st.time, gap = tool === 'drain' ? 0.42 : 0.34; if (w < 0.08 || now - (AU.fxT || -9) < gap) return; AU.fxT = now + Math.random() * 0.1;
+  if (tool === 'drain') sndSlurp(x, 0.6 + 0.4 * clamp01(w)); else sndSplash(x, 0.5 + 0.5 * clamp01(w));
 }
 // ---- the levels follow the valley (cheap: one pass over the grid, four times a second)
 const clamp01 = v => v < 0 ? 0 : v > 1 ? 1 : v;

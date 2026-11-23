@@ -103,6 +103,11 @@ on summer evenings, turning mill wheels creak and clack (silent when paused or t
 and distant cowbells ring near the village by day. Winter and rain hush the birds; the sound fades
 out when the tab is hidden. `window.LV_AUDIO` shows the current layer levels for testing.
 
+Your finger makes small sounds too, panned to where you touch: Raise, Dig or Smooth in the water
+gives a soft splash, the Sponge slurps, a new spring bubbles up with a few drops, each new cottage
+gets three hammer taps and a tiny house-warming bell, and a new well drops its bucket down the shaft
+with a splash far below (a dull knock if the ground is dry or rocky).
+
 ## Valley wishes
 Tap the **Wishes** star for a small panel of seven gentle goals, each with three stars:
 a lake to row on (one still lake covering 3.5%, 6% or 10% of the valley), a deep green forest
