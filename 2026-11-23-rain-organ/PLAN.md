@@ -23,7 +23,7 @@ Not a game with goals: a sound toy and a little generative-music study.
 1. Done (2026-11-23): **melody pad** (🎹, key C): 10 keys (G3..E5), up to 8 notes, the chosen cloud builds the path with RO.compose; the other cloud's line is kept intact; composed leaves remember their cloud (saved), and dragging a cloud moves its tune along. tools/pad-check.js tests it on desktop and phone.
 1b. Done (v0.4): portrait phones use longer falls (fallK up to 1.8); each cloud keeps to its own lane (RO.laneOf).
 2. Look (leaf shapes, pitch palette and drop streaks done in v0.4): still open: a puddle at the bottom that ripples, rain-on-window mood. Leaves of a composed piece can cross. Try a penalty in compose for crossing.
-3. Voices: leaf materials (wood/glass/reed), per-cloud tempo, a third cloud.
+3. Voices: leaf materials (wood/glass/reed) and puddle plips are done (v0.5). Open: per-cloud tempo, a third cloud.
 4. A headless browser test file (now tools/shot.js does a smoke check), a README GIF.
 
 ## Checklist (every step)

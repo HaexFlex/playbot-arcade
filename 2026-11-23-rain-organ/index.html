@@ -153,7 +153,7 @@ const cv = document.getElementById('c'), cx = cv.getContext('2d'), hint = docume
 const $ = id => document.getElementById(id);
 const st = {
   clouds: [{ x: 300, y: 70, every: 2, off: 0 }, { x: 680, y: 60, every: 3, off: 1 }],
-  leaves: [], drops: [], splashes: [], paused: false, mode: 'draw', t: 0, beat: 0, nextBeat: 0, notes: 0,
+  leaves: [], drops: [], splashes: [], paused: false, mode: 'draw', mat: 0, plips: 0, t: 0, beat: 0, nextBeat: 0, notes: 0,
 };
 // ---------- view: fit the 1000x700 field into the window ----------
 let scale = 1, ox = 0, oy = 0, dpr = 1, FH = 700; // the field is 1000 wide; its height follows the window (taller on a phone)
@@ -179,9 +179,12 @@ function setSound(on) {
   soundOn = on; if (on) { startAudio(); if (ac && ac.state === 'suspended') ac.resume(); }
   $('bSound').innerHTML = (on ? '🔊' : '🔇') + ' <span>Sound</span>'; $('bSound').classList.toggle('on', on);
 }
-function pling(freq, vel, pan) {
+const MATS = [{ name: 'Wood', icon: '🪵' }, { name: 'Glass', icon: '🔔' }, { name: 'Reed', icon: '🌾' }];
+function pling(freq, vel, pan, mat = 0) {
   st.notes++;
   if (!soundOn || !ac) return;
+  if (mat === 1) return bell(freq, vel, pan);
+  if (mat === 2) return reed(freq, vel, pan);
   const t = ac.currentTime, len = 0.6 + 1.4 * Math.min(1, 200 / freq);
   const g = ac.createGain(), p = ac.createStereoPanner ? ac.createStereoPanner() : null;
   const amp = 0.05 + 0.22 * Math.min(1, vel / 700);
@@ -193,17 +196,40 @@ function pling(freq, vel, pan) {
   out.connect(master); out.connect(wet);
   o1.start(t); o2.start(t); o1.stop(t + len + 0.05); o2.stop(t + 0.2);
 }
+function voiceOut(pan) { const p = ac.createStereoPanner ? ac.createStereoPanner() : ac.createGain(); if (p.pan) p.pan.value = pan; p.connect(master); p.connect(wet); return p; }
+function bell(freq, vel, pan) { // glass: inharmonic bell partials, long ring
+  const t = ac.currentTime, out = voiceOut(pan), amp = 0.03 + 0.12 * Math.min(1, vel / 700);
+  for (const [r, a, d] of [[1, 1, 2.6], [2.76, 0.45, 1.3], [5.4, 0.25, 0.6], [8.93, 0.12, 0.3]]) {
+    const g = ac.createGain(), o = ac.createOscillator(); o.type = 'sine'; o.frequency.value = freq * r;
+    g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(amp * a, t + 0.002); g.gain.exponentialRampToValueAtTime(0.0005, t + d);
+    o.connect(g); g.connect(out); o.start(t); o.stop(t + d + 0.05);
+  }
+}
+function reed(freq, vel, pan) { // reed: a soft, breathy pluck (triangle through a closing lowpass)
+  const t = ac.currentTime, out = voiceOut(pan), amp = 0.06 + 0.2 * Math.min(1, vel / 700);
+  const o = ac.createOscillator(), f = ac.createBiquadFilter(), g = ac.createGain(); o.type = 'triangle'; o.frequency.value = freq;
+  f.type = 'lowpass'; f.Q.value = 2; f.frequency.setValueAtTime(freq * 6, t); f.frequency.exponentialRampToValueAtTime(freq * 1.2, t + 0.35);
+  g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(amp, t + 0.012); g.gain.exponentialRampToValueAtTime(0.0006, t + 0.9);
+  o.connect(f); f.connect(g); g.connect(out); o.start(t); o.stop(t + 1);
+}
+let plipN = 0;
+function plip(pan) { // a drop landing in the puddle: a tiny, quiet water plip (pitch glides up)
+  st.plips++; if (!soundOn || !ac || ++plipN % 2) return;
+  const t = ac.currentTime, out = voiceOut(pan), o = ac.createOscillator(), g = ac.createGain(), f0 = 900 + Math.random() * 900;
+  o.type = 'sine'; o.frequency.setValueAtTime(f0, t); o.frequency.exponentialRampToValueAtTime(f0 * 1.9, t + 0.05);
+  g.gain.setValueAtTime(0.018, t); g.gain.exponentialRampToValueAtTime(0.0004, t + 0.07); o.connect(g); g.connect(out); o.start(t); o.stop(t + 0.09);
+}
 // ---------- save ----------
-function save() { try { localStorage.setItem(SAVE_KEY, JSON.stringify({ leaves: st.leaves.map(L => [L.x1, L.y1, L.x2, L.y2].map(Math.round).concat(L.voice >= 0 ? [L.voice] : [])), clouds: st.clouds.map(c => [Math.round(c.x), Math.round(c.y)]) })); } catch (e) {} }
+function save() { try { localStorage.setItem(SAVE_KEY, JSON.stringify({ leaves: st.leaves.map(L => [L.x1, L.y1, L.x2, L.y2].map(Math.round).concat([L.voice >= 0 ? L.voice : -1, L.mat | 0])), clouds: st.clouds.map(c => [Math.round(c.x), Math.round(c.y)]) })); } catch (e) {} }
 function load() {
   try {
     const s = JSON.parse(localStorage.getItem(SAVE_KEY) || 'null'); if (!s) return false;
-    st.leaves = (s.leaves || []).slice(0, MAX_LEAVES).map(a => { const L = makeLeaf(a[0], a[1], a[2], a[3]); if (a[4] >= 0) L.voice = a[4]; return L; });
+    st.leaves = (s.leaves || []).slice(0, MAX_LEAVES).map(a => { const L = makeLeaf(a[0], a[1], a[2], a[3], (a[5] | 0) % 3); if (a[4] >= 0) L.voice = a[4]; return L; });
     (s.clouds || []).forEach((c, i) => { if (st.clouds[i]) { st.clouds[i].x = c[0]; st.clouds[i].y = c[1]; } });
     return true;
   } catch (e) { return false; }
 }
-function makeLeaf(x1, y1, x2, y2) { const len = Math.hypot(x2 - x1, y2 - y1); return { x1, y1, x2, y2, len, note: RO.leafNote(len), glow: 0 }; }
+function makeLeaf(x1, y1, x2, y2, mat = 0) { const len = Math.hypot(x2 - x1, y2 - y1); return { x1, y1, x2, y2, mat, len, note: RO.leafNote(len), glow: 0 }; }
 // built-in pieces: each voice is a melody (scale steps) that RO.composePiece turns into a falling path of leaves
 const PIECES = [
   { name: 'Lullaby', voices: [[9, 8, 7, 5, 7, 8], [8, 7, 5, 4]] },
@@ -246,7 +272,7 @@ function buildVoice(k, steps) {
   if (!L) L = RO.compose(steps, c.x, c.y + 22, rnd, my, 700, null, keep, others, 1, lo, hi);
   if (!L) L = RO.compose(steps, c.x, c.y + 22, rnd, my, 700, null, keep, others, 1);
   if (!L) return false;
-  st.leaves = keep.concat(L.map(l => Object.assign(makeLeaf(l.x1, l.y1, l.x2, l.y2), { voice: k })));
+  st.leaves = keep.concat(L.map(l => Object.assign(makeLeaf(l.x1, l.y1, l.x2, l.y2, st.mat), { voice: k })));
   for (const d of st.drops) d.rang = []; save(); return true;
 }
 $('padGo').onclick = () => {
@@ -255,11 +281,11 @@ $('padGo').onclick = () => {
   else say('No room for that tune here: try fewer or higher notes, erase some leaves, or move the cloud');
 };
 // share links: #s=<base64 of "x1,y1,x2,y2;...|cx,cy;cx,cy">
-function encode() { return btoa(st.leaves.map(L => [L.x1, L.y1, L.x2, L.y2].map(Math.round).join(',')).join(';') + '|' + st.clouds.map(c => Math.round(c.x) + ',' + Math.round(c.y)).join(';')); }
+function encode() { return btoa(st.leaves.map(L => [L.x1, L.y1, L.x2, L.y2].map(Math.round).concat(L.mat ? [L.mat] : []).join(',')).join(';') + '|' + st.clouds.map(c => Math.round(c.x) + ',' + Math.round(c.y)).join(';')); }
 function decode(h) {
   try {
     const [ls, cs] = atob(h).split('|'), leaves = [];
-    for (const part of (ls || '').split(';')) { if (!part) continue; const a = part.split(',').map(Number); if (a.length !== 4 || a.some(v => !isFinite(v) || Math.abs(v) > 5000)) return false; leaves.push(makeLeaf(a[0], a[1], a[2], a[3])); }
+    for (const part of (ls || '').split(';')) { if (!part) continue; const a = part.split(',').map(Number); if ((a.length !== 4 && a.length !== 5) || a.some(v => !isFinite(v) || Math.abs(v) > 5000)) return false; leaves.push(makeLeaf(a[0], a[1], a[2], a[3], ((a[4] | 0) % 3 + 3) % 3)); }
     st.leaves = leaves.slice(0, MAX_LEAVES);
     (cs || '').split(';').forEach((part, i) => { const a = part.split(',').map(Number); if (st.clouds[i] && a.length === 2 && a.every(isFinite)) { st.clouds[i].x = RO.clamp(a[0], 40, FW - 40); st.clouds[i].y = RO.clamp(a[1], 30, 200); } });
     return true;
@@ -293,7 +319,7 @@ function endDrag() {
     if (len >= RO.MIN_LEN * 0.8) {
       if (len > RO.MAX_LEN) { const k = RO.MAX_LEN / len; x2 = x1 + (x2 - x1) * k; y2 = y1 + (y2 - y1) * k; }
       if (st.leaves.length >= MAX_LEAVES) st.leaves.shift();
-      const L = makeLeaf(x1, y1, x2, y2); L.glow = 1; st.leaves.push(L); pling(L.note.freq, 300, ((x1 + x2) / 2 / FW) * 1.6 - 0.8);
+      const L = makeLeaf(x1, y1, x2, y2, st.mat); L.glow = 1; st.leaves.push(L); pling(L.note.freq, 300, ((x1 + x2) / 2 / FW) * 1.6 - 0.8, L.mat);
     }
   }
   if (drag && drag.kind === 'cloud') save();
@@ -302,7 +328,11 @@ function endDrag() {
 cv.addEventListener('pointerup', endDrag); cv.addEventListener('pointercancel', endDrag);
 function setMode(m) { st.mode = m; $('bDraw').classList.toggle('on', m === 'draw'); $('bErase').classList.toggle('on', m === 'erase'); $('bDraw').setAttribute('aria-pressed', m === 'draw'); $('bErase').setAttribute('aria-pressed', m === 'erase'); }
 function setPause(p) { st.paused = p; $('bPause').innerHTML = (p ? '▶️ <span>Play</span>' : '⏸ <span>Pause</span>'); }
-$('bDraw').onclick = () => setMode('draw'); $('bErase').onclick = () => setMode('erase');
+function drawLabel() { const M = MATS[st.mat]; $('bDraw').innerHTML = M.icon + ' <span>' + M.name + '</span>'; $('bDraw').title = 'Draw ' + M.name.toLowerCase() + ' leaves (D); tap again for another material'; }
+function cycleMat() { st.mat = (st.mat + 1) % 3; drawLabel(); say(MATS[st.mat].icon + ' ' + MATS[st.mat].name + ' leaves' + (st.mat === 1 ? ': bells' : st.mat === 2 ? ': soft plucks' : ': marimba')); if (!soundOn && !st.userMuted) setSound(true); pling(RO.freqForMidi(72), 400, 0, st.mat); try { localStorage.setItem('rain-organ-mat', st.mat); } catch (e) {} }
+try { st.mat = (+localStorage.getItem('rain-organ-mat') || 0) % 3; } catch (e) {}
+drawLabel();
+$('bDraw').onclick = () => { if (st.mode === 'draw') cycleMat(); else setMode('draw'); }; $('bErase').onclick = () => setMode('erase');
 $('bPause').onclick = () => setPause(!st.paused);
 $('bClear').onclick = () => { if (st.leaves.length && confirm('Clear all leaves?')) { st.leaves = []; st.drops = []; save(); } };
 $('bPiece').onclick = () => { const ix = (pieceIx + 1) % PIECES.length; if (loadPiece(ix)) say('🎵 ' + PIECES[ix].name); };
@@ -331,11 +361,11 @@ function tick(dt) {
     const i = RO.stepDrop(d, st.leaves, h, 900, 4, -1);
     if (i >= 0) {
       const L = st.leaves[i]; L.glow = 1; d.hits++;
-      if (d.impact > 60 && !d.rang.includes(L)) { d.rang.push(L); pling(L.note.freq, d.impact, RO.clamp(d.x / FW * 1.6 - 0.8, -0.9, 0.9)); st.splashes.push({ x: d.x, y: d.y, r: 2, a: 0.8 }); }
+      if (d.impact > 60 && !d.rang.includes(L)) { d.rang.push(L); pling(L.note.freq, d.impact, RO.clamp(d.x / FW * 1.6 - 0.8, -0.9, 0.9), L.mat); st.splashes.push({ x: d.x, y: d.y, r: 2, a: 0.8 }); }
     }
   }
   for (const d of st.drops) d.life += dt;
-  st.drops = st.drops.filter(d => { if (d.y > FH + 10) { st.splashes.push({ x: d.x, y: FH - 2, r: 3, a: 0.6, pool: 1 }); return false; } return d.life < 12 && d.x > -20 && d.x < FW + 20; });
+  st.drops = st.drops.filter(d => { if (d.y > FH - 4) { st.splashes.push({ x: d.x, y: FH - 2, r: 3, a: 0.6, pool: 1 }); plip(RO.clamp(d.x / FW * 1.6 - 0.8, -0.9, 0.9)); return false; } return d.life < 12 && d.x > -20 && d.x < FW + 20; });
   for (const L of st.leaves) L.glow = Math.max(0, L.glow - dt * 2.2);
   for (const s of st.splashes) { s.r += dt * 40; s.a -= dt * 1.4; }
   st.splashes = st.splashes.filter(s => s.a > 0);
@@ -347,17 +377,17 @@ function draw() {
   const g = cx.createLinearGradient(0, 0, 0, h); g.addColorStop(0, '#17283a'); g.addColorStop(1, '#0c141c'); cx.fillStyle = g; cx.fillRect(0, 0, w, h);
   cx.setTransform(dpr * scale, 0, 0, dpr * scale, dpr * ox, dpr * oy);
   // field frame + ground
-  cx.fillStyle = 'rgba(120,170,210,0.05)'; cx.fillRect(0, FH - 6, FW, 6);
+  { const pg = cx.createLinearGradient(0, FH - 14, 0, FH); pg.addColorStop(0, 'rgba(120,170,210,0)'); pg.addColorStop(1, 'rgba(120,170,210,0.16)'); cx.fillStyle = pg; cx.fillRect(0, FH - 14, FW, 14); }
   // leaves
   cx.lineCap = 'round';
   for (const L of st.leaves) {
     const hue = leafHue(L.note.step), gl = L.glow;
     cx.strokeStyle = 'hsla(' + hue + ',70%,' + (45 + 30 * gl) + '%,' + (0.75 + 0.25 * gl) + ')';
-    const dx = L.x2 - L.x1, dy = L.y2 - L.y1, n = Math.hypot(dx, dy) || 1, wv = Math.min(9, 3 + n * 0.03) + 2 * gl, nx = -dy / n * wv, ny = dx / n * wv;
+    const dx = L.x2 - L.x1, dy = L.y2 - L.y1, n = Math.hypot(dx, dy) || 1, wv = (L.mat === 2 ? 0.55 : 1) * (Math.min(9, 3 + n * 0.03) + 2 * gl), nx = -dy / n * wv, ny = dx / n * wv;
     const mx = (L.x1 + L.x2) / 2, my = (L.y1 + L.y2) / 2;
-    cx.fillStyle = 'hsla(' + hue + ',75%,' + (52 + 25 * gl) + '%,' + (0.8 + 0.2 * gl) + ')'; cx.shadowColor = 'hsla(' + hue + ',90%,70%,' + gl + ')'; cx.shadowBlur = 18 * gl;
+    cx.fillStyle = L.mat === 1 ? 'hsla(' + hue + ',80%,' + (78 + 15 * gl) + '%,' + (0.38 + 0.4 * gl) + ')' : 'hsla(' + hue + ',' + (L.mat === 2 ? 45 : 75) + '%,' + (52 + 25 * gl) + '%,' + (0.8 + 0.2 * gl) + ')'; cx.shadowColor = 'hsla(' + hue + ',90%,70%,' + gl + ')'; cx.shadowBlur = 18 * gl;
     cx.beginPath(); cx.moveTo(L.x1, L.y1); cx.quadraticCurveTo(mx + nx, my + ny, L.x2, L.y2); cx.quadraticCurveTo(mx - nx, my - ny, L.x1, L.y1); cx.fill();
-    cx.shadowBlur = 0; cx.strokeStyle = 'hsla(' + hue + ',60%,' + (75 + 15 * gl) + '%,0.55)'; cx.lineWidth = 1.2; cx.beginPath(); cx.moveTo(L.x1, L.y1); cx.lineTo(L.x2, L.y2); cx.stroke();
+    cx.shadowBlur = 0; cx.strokeStyle = L.mat === 1 ? 'rgba(255,255,255,' + (0.6 + 0.4 * gl) + ')' : 'hsla(' + hue + ',60%,' + (75 + 15 * gl) + '%,0.55)'; cx.lineWidth = L.mat === 1 ? 1.6 : 1.2; cx.beginPath(); cx.moveTo(L.x1, L.y1); cx.lineTo(L.x2, L.y2); cx.stroke();
   }
   cx.shadowBlur = 0;
   if (drag && drag.kind === 'leaf') {
@@ -384,7 +414,7 @@ function frame(now) {
   draw(); requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
-window.RO_APP = { pad, buildVoice, openPad, get FH() { return FH; }, PIECES, loadPiece, encode, decode, st, makeLeaf, tick, save, load, setSound, get soundOn() { return soundOn; } };
+window.RO_APP = { cycleMat, MATS, pad, buildVoice, openPad, get FH() { return FH; }, PIECES, loadPiece, encode, decode, st, makeLeaf, tick, save, load, setSound, get soundOn() { return soundOn; } };
 })();
 </script>
 </body></html>
