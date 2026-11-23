@@ -220,13 +220,18 @@ function plip(pan) { // a drop landing in the puddle: a tiny, quiet water plip (
   g.gain.setValueAtTime(0.018, t); g.gain.exponentialRampToValueAtTime(0.0004, t + 0.07); o.connect(g); g.connect(out); o.start(t); o.stop(t + 0.09);
 }
 const RHYTHMS = [2, 3, 4, 6]; // cloud rhythms in eighth notes
+const MAX_CLOUDS = 3;
+function newCloud(x, y, i) { return { x, y, every: [2, 3, 4][i] || 4, off: [0, 1, 2][i] || 0 }; }
+function setCloudCount(n) { while (st.clouds.length > n) { const k = st.clouds.length - 1; st.clouds.pop(); for (const L of st.leaves) if (L.voice === k) L.voice = -1; } while (st.clouds.length < n) st.clouds.push(newCloud(500, 45, st.clouds.length)); }
+// clouds are named by where they sit, left to right
+function cloudName(i) { const n = st.clouds.length, r = st.clouds.filter(c => c.x < st.clouds[i].x).length; return n === 3 ? ['left', 'middle', 'right'][r] : ['left', 'right'][Math.min(r, 1)]; }
 // ---------- save ----------
 function save() { try { localStorage.setItem(SAVE_KEY, JSON.stringify({ leaves: st.leaves.map(L => [L.x1, L.y1, L.x2, L.y2].map(Math.round).concat([L.voice >= 0 ? L.voice : -1, L.mat | 0])), clouds: st.clouds.map(c => [Math.round(c.x), Math.round(c.y), c.every]) })); } catch (e) {} }
 function load() {
   try {
     const s = JSON.parse(localStorage.getItem(SAVE_KEY) || 'null'); if (!s) return false;
     st.leaves = (s.leaves || []).slice(0, MAX_LEAVES).map(a => { const L = makeLeaf(a[0], a[1], a[2], a[3], (a[5] | 0) % 3); if (a[4] >= 0) L.voice = a[4]; return L; });
-    (s.clouds || []).forEach((c, i) => { if (st.clouds[i]) { st.clouds[i].x = c[0]; st.clouds[i].y = c[1]; if (RHYTHMS.includes(c[2])) st.clouds[i].every = c[2]; } });
+    setCloudCount(RO.clamp((s.clouds || []).length, 2, MAX_CLOUDS)); (s.clouds || []).forEach((c, i) => { if (st.clouds[i]) { st.clouds[i].x = c[0]; st.clouds[i].y = c[1]; if (RHYTHMS.includes(c[2])) st.clouds[i].every = c[2]; } });
     return true;
   } catch (e) { return false; }
 }
@@ -236,17 +241,18 @@ const PIECES = [
   { name: 'Lullaby', voices: [[9, 8, 7, 5, 7, 8], [8, 7, 5, 4]] },
   { name: 'Waterwheel', voices: [[5, 6, 7, 8, 9, 10], [7, 9, 11, 12]] },
   { name: 'Bells', voices: [[12, 10, 11, 9, 10, 8], [10, 12, 14]] },
+  { name: 'Three Clouds', voices: [[7, 8, 9, 7], [10, 9, 10, 12], [5, 4]] },
 ];
-const HOME = [[300, 70], [700, 60]];
+const HOMES = { 2: [[300, 70], [700, 60]], 3: [[190, 70], [500, 48], [810, 66]] };
 let pieceIx = -1;
 const fallK = () => RO.clamp((FH - 80) / 560, 1, 1.8); // taller field (portrait phone): longer falls between leaves
 function loadPiece(ix) {
-  const P = PIECES[ix];
-  st.clouds.forEach((c, i) => { c.x = HOME[i][0]; c.y = HOME[i][1]; c.every = i ? 3 : 2; });
+  const P = PIECES[ix], HOME = HOMES[P.voices.length], prevN = st.clouds.length;
+  setCloudCount(P.voices.length); st.clouds.forEach((c, i) => { c.x = HOME[i][0]; c.y = HOME[i][1]; c.every = [2, 3, 4][i]; c.off = i; });
   const voices = P.voices.map((steps, i) => ({ x: HOME[i][0], y: HOME[i][1] + 22, steps }));
   let L = null; for (let seed = 1; seed <= 12 && !L; seed++) L = RO.composePiece(voices, seed, Math.min(FH - 30, 1400), fallK());
   for (let seed = 1; seed <= 12 && !L; seed++) L = RO.composePiece(voices, seed);
-  if (!L) return false;
+  if (!L) { setCloudCount(prevN); return false; }
   let n0 = 0; st.leaves = L.map(l => makeLeaf(l.x1, l.y1, l.x2, l.y2)); P.voices.forEach((v, k) => { for (let i = 0; i < v.length; i++) st.leaves[n0 + i].voice = k; n0 += v.length; }); st.drops = []; pieceIx = ix; save(); return true;
 }
 // ---------- melody pad: tap a tune, a cloud builds the leaf path for it ----------
@@ -254,15 +260,15 @@ const PAD_STEPS = [3, 4, 5, 6, 7, 8, 9, 10, 11, 12], PAD_MAX = 8;
 const leafHue = step => 265 - step * 17; // low notes violet, middle blue-green, high notes warm orange
 const pad = { open: false, cloud: 0, seq: [] };
 function renderPad() {
-  $('padCloud').textContent = 'for the ' + (pad.cloud === 0 ? 'left' : 'right') + ' cloud · up to ' + PAD_MAX + ' notes';
+  $('padCloud').textContent = 'for the ' + cloudName(pad.cloud) + ' cloud · up to ' + PAD_MAX + ' notes';
   $('padSeq').innerHTML = pad.seq.length ? pad.seq.map(s => '<i style="background:hsl(' + leafHue(s) + ',70%,70%)">' + RO.noteName(RO.midiForStep(s)) + '</i>').join('') : '<span>Tap the keys: short ones are high, long ones low.</span>';
 }
 $('padKeys').innerHTML = PAD_STEPS.map(s => '<button data-s="' + s + '" style="height:' + (40 + (12 - s) * 6) + 'px;background:hsl(' + leafHue(s) + ',70%,70%)" aria-label="' + RO.noteName(RO.midiForStep(s)) + '">' + RO.noteName(RO.midiForStep(s)).replace(/\d/, '') + '</button>').join('');
-$('padKeys').onclick = e => { const b = e.target.closest('button'); if (!b) return; const s = +b.dataset.s; if (!soundOn && !st.userMuted) setSound(true); pling(RO.freqForMidi(RO.midiForStep(s)), 350, pad.cloud ? 0.4 : -0.4); if (pad.seq.length < PAD_MAX) pad.seq.push(s); renderPad(); };
+$('padKeys').onclick = e => { const b = e.target.closest('button'); if (!b) return; const s = +b.dataset.s; if (!soundOn && !st.userMuted) setSound(true); pling(RO.freqForMidi(RO.midiForStep(s)), 350, RO.clamp(st.clouds[pad.cloud].x / FW * 1.6 - 0.8, -0.8, 0.8)); if (pad.seq.length < PAD_MAX) pad.seq.push(s); renderPad(); };
 function openPad(o) { pad.open = o; $('pad').hidden = !o; $('bPad').classList.toggle('on', o); if (o) renderPad(); }
 $('bPad').onclick = () => openPad(!pad.open); $('padX').onclick = () => openPad(false);
 $('padUndo').onclick = () => { pad.seq.pop(); renderPad(); };
-$('padSwap').onclick = () => { pad.cloud = 1 - pad.cloud; renderPad(); };
+$('padSwap').onclick = () => { pad.cloud = (pad.cloud + 1) % st.clouds.length; renderPad(); };
 // build the path for one cloud: its old composed leaves go, everything else must stay as it is
 function buildVoice(k, steps) {
   const c = st.clouds[k], keep = st.leaves.filter(L => L.voice !== k);
@@ -272,13 +278,13 @@ function buildVoice(k, steps) {
   let L = RO.compose(steps, c.x, c.y + 22, rnd, my, 700, null, keep, others, fallK(), lo, hi);
   if (!L) L = RO.compose(steps, c.x, c.y + 22, rnd, my, 700, null, keep, others, 1, lo, hi);
   if (!L) L = RO.compose(steps, c.x, c.y + 22, rnd, my, 700, null, keep, others, 1);
-  if (!L) return false;
+  if (!L) { setCloudCount(prevN); return false; }
   st.leaves = keep.concat(L.map(l => Object.assign(makeLeaf(l.x1, l.y1, l.x2, l.y2, st.mat), { voice: k })));
   for (const d of st.drops) d.rang = []; save(); return true;
 }
 $('padGo').onclick = () => {
   if (!pad.seq.length) { say('Tap a few keys first'); return; }
-  if (buildVoice(pad.cloud, pad.seq)) { openPad(false); say('🌧 The ' + (pad.cloud ? 'right' : 'left') + ' cloud plays your tune'); }
+  if (buildVoice(pad.cloud, pad.seq)) { openPad(false); say('🌧 The ' + cloudName(pad.cloud) + ' cloud plays your tune'); }
   else say('No room for that tune here: try fewer or higher notes, erase some leaves, or move the cloud');
 };
 // share links: #s=<base64 of "x1,y1,x2,y2;...|cx,cy;cx,cy">
@@ -288,7 +294,7 @@ function decode(h) {
     const [ls, cs] = atob(h).split('|'), leaves = [];
     for (const part of (ls || '').split(';')) { if (!part) continue; const a = part.split(',').map(Number); if ((a.length !== 4 && a.length !== 5) || a.some(v => !isFinite(v) || Math.abs(v) > 5000)) return false; leaves.push(makeLeaf(a[0], a[1], a[2], a[3], ((a[4] | 0) % 3 + 3) % 3)); }
     st.leaves = leaves.slice(0, MAX_LEAVES);
-    (cs || '').split(';').forEach((part, i) => { const a = part.split(',').map(Number); if (st.clouds[i] && (a.length === 2 || a.length === 3) && a.every(isFinite)) { if (RHYTHMS.includes(a[2])) st.clouds[i].every = a[2]; st.clouds[i].x = RO.clamp(a[0], 40, FW - 40); st.clouds[i].y = RO.clamp(a[1], 30, 200); } });
+    const parts = (cs || '').split(';').filter(Boolean); if (parts.length >= 2) setCloudCount(Math.min(parts.length, MAX_CLOUDS)); parts.forEach((part, i) => { const a = part.split(',').map(Number); if (st.clouds[i] && (a.length === 2 || a.length === 3) && a.every(isFinite)) { if (RHYTHMS.includes(a[2])) st.clouds[i].every = a[2]; st.clouds[i].x = RO.clamp(a[0], 40, FW - 40); st.clouds[i].y = RO.clamp(a[1], 30, 200); } });
     return true;
   } catch (e) { return false; }
 }
@@ -315,8 +321,12 @@ cv.addEventListener('pointermove', e => {
   else if (drag.kind === 'erase') { const i = leafAt(p); if (i >= 0) { st.leaves.splice(i, 1); save(); } }
 });
 // a quick tap on a cloud changes its rhythm: a drop every 2nd, 3rd, 4th or 6th eighth note
-function cycleRhythm(i) { const c = st.clouds[i], k = (RHYTHMS.indexOf(c.every) + 1) % RHYTHMS.length; c.every = RHYTHMS[k]; c.flash = 1; say('☁️ The ' + (i ? 'right' : 'left') + ' cloud now rains every ' + ['', '', '2nd', '3rd', '4th', '', '6th'][c.every] + ' beat'); save(); }
+function cycleRhythm(i) { const c = st.clouds[i], k = (RHYTHMS.indexOf(c.every) + 1) % RHYTHMS.length; c.every = RHYTHMS[k]; c.flash = 1; say('☁️ The ' + cloudName(i) + ' cloud now rains every ' + ['', '', '2nd', '3rd', '4th', '', '6th'][c.every] + ' beat'); save(); }
 function endDrag() {
+  // a quick tap in the empty sky adds a third cloud there
+  if (drag && drag.kind === 'leaf' && Math.hypot(drag.x2 - drag.x1, drag.y2 - drag.y1) < 8 && drag.y1 < 200 && st.clouds.length < MAX_CLOUDS && st.clouds.every(c => Math.abs(c.x - drag.x1) > 90)) {
+    st.clouds.push(newCloud(RO.clamp(drag.x1, 40, FW - 40), RO.clamp(drag.y1, 30, 200), st.clouds.length)); st.clouds[st.clouds.length - 1].flash = 1; say('☁️ A third cloud joins in (Clear sends it home)'); save(); drag = null; return;
+  }
   if (drag && drag.kind === 'cloud' && drag.moved < 8 && performance.now() - drag.t0 < 400) cycleRhythm(drag.i);
   if (drag && drag.kind === 'leaf') {
     let { x1, y1, x2, y2 } = drag; const len = Math.hypot(x2 - x1, y2 - y1);
@@ -338,7 +348,7 @@ try { st.mat = (+localStorage.getItem('rain-organ-mat') || 0) % 3; } catch (e) {
 drawLabel();
 $('bDraw').onclick = () => { if (st.mode === 'draw') cycleMat(); else setMode('draw'); }; $('bErase').onclick = () => setMode('erase');
 $('bPause').onclick = () => setPause(!st.paused);
-$('bClear').onclick = () => { if (st.leaves.length && confirm('Clear all leaves?')) { st.leaves = []; st.drops = []; save(); } };
+$('bClear').onclick = () => { if ((st.leaves.length || st.clouds.length > 2) && confirm('Clear all leaves?')) { st.leaves = []; st.drops = []; if (st.clouds.length > 2) setCloudCount(2); save(); } };
 $('bPiece').onclick = () => { const ix = (pieceIx + 1) % PIECES.length; if (loadPiece(ix)) say('🎵 ' + PIECES[ix].name); };
 $('bShare').onclick = async () => {
   const url = location.href.split('#')[0] + '#s=' + encode();
