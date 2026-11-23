@@ -132,7 +132,8 @@ canvas{display:block;width:100vw;height:100vh;touch-action:none}
       const step = () => {
         try {
           const t0 = performance.now(); let r;
-          do r = g.next(); while (!r.done && performance.now() - t0 < sliceMs);
+          // stop early when the next piece of work would likely overrun the slice (one piece = the longest seen so far)
+          let t = t0, piece = 0; do { r = g.next(); const now = performance.now(); piece = Math.max(piece, now - t); t = now; } while (!r.done && t - t0 + piece < sliceMs);
           clk.maxSlice = Math.max(clk.maxSlice || 0, performance.now() - t0); // the longest slice (checks read it)
           if (r.done) { res(r.value); return; }
           if (onSlice) onSlice();
@@ -170,6 +171,7 @@ canvas{display:block;width:100vw;height:100vh;touch-action:none}
         if (Math.min(L.x1, L.x2) < xlo || Math.max(L.x1, L.x2) > xhi || Math.max(L.y1, L.y2) > maxY) { ok = false; if (why) why[Math.max(L.y1, L.y2) > maxY ? 'deep' : 'side'] = (why[Math.max(L.y1, L.y2) > maxY ? 'deep' : 'side'] || 0) + 1; break; }
         if (crowds(L, leaves)) { ok = false; if (why) why.cross = (why.cross || 0) + 1; break; }
         leaves.push(L);
+        yield; // a trace down a tall field is the costliest piece: one per pause
         const tr = trace(leaves, x0, y0, maxY + 40).hits;
         let bad = tr.length !== leaves.length - F || tr.some((h, i) => h !== F + i);
         for (let o = 0; o < others.length && !bad; o++) { yield; const [ox, oy, oh] = others[o], t = trace(leaves, ox, oy, maxY + 40).hits; bad = t.length !== oh.length || t.some((h, i) => h !== oh[i]); }
@@ -274,7 +276,7 @@ function startAudio() {
 }
 function setSound(on) {
   soundOn = on; if (on) { startAudio(); if (ac && ac.state === 'suspended') ac.resume(); }
-  if (hiss) hiss.gain.setTargetAtTime(on ? 0.05 : 0, ac.currentTime, 0.6);
+  if (hiss) hiss.gain.setTargetAtTime(on ? 0.05 + 0.08 * showerAmt() : 0, ac.currentTime, 0.6);
   $('bSound').innerHTML = (on ? '🔊' : '🔇') + ' <span>Sound</span>'; $('bSound').classList.toggle('on', on); $('bSound').setAttribute('aria-label', on ? 'Sound is on (tap to mute)' : 'Sound is off (tap to turn on)'); $('bSound').setAttribute('aria-pressed', on);
 }
 const MATS = [{ name: 'Wood', icon: '🪵' }, { name: 'Glass', icon: '🔔' }, { name: 'Reed', icon: '🌾' }];
@@ -375,14 +377,14 @@ function buildVoice(k, steps) { return RO.finish(buildVoiceGen(k, steps)); }
 function* buildVoiceGen(k, steps) {
   steps = steps.slice(); const sig = encode(); // if the sky changes while a sliced run composes, its result is dropped (never overwrite new leaves)
   const c = st.clouds[k], keep = st.leaves.filter(L => L.voice !== k);
-  const others = st.clouds.map((o, j) => j === k ? null : [o.x, o.y + 22, RO.trace(keep, o.x, o.y + 22, FH + 40).hits]).filter(Boolean);
+  const others = []; for (let j = 0; j < st.clouds.length; j++) if (j !== k) { yield; const o = st.clouds[j]; others.push([o.x, o.y + 22, RO.trace(keep, o.x, o.y + 22, FH + 40).hits]); } // one trace per pause
   let sd = 1 + steps.reduce((a, s) => a * 31 + s, 7) % 9973; const rnd = () => (sd = (sd * 16807) % 2147483647) / 2147483647;
   const [lo, hi] = RO.laneOf(c.x, st.clouds.length), my = Math.min(FH - 30, 1400);
   const tall = FH > 900, fy = Math.min(FH - 30, 1970);
   let L = null; // tall field: first try to spread the tune down the field (the other clouds' leaves stay where they are)
   if (tall) for (const f of [0.9, 0.6]) if (!L) L = yield* RO.composeGen(steps, c.x, c.y + 22, rnd, fy, 120, null, keep, others, fallK(), lo, hi, f * fy);
   if (tall && !L && keep.length && keep.every(K => K.voice >= 0)) { // tall field, only composed leaves around: lay out every cloud again, each keeps its tune and material
-    const tunes = st.clouds.map((o, j) => j === k ? steps : RO.trace(keep, o.x, o.y + 22, FH + 40).hits.map(i => keep[i].note.step));
+    const tunes = []; for (let j = 0; j < st.clouds.length; j++) { const o = st.clouds[j]; if (j !== k) yield; tunes.push(j === k ? steps : RO.trace(keep, o.x, o.y + 22, FH + 40).hits.map(i => keep[i].note.step)); }
     const mats = st.clouds.map((o, j) => j === k ? st.mat : ((keep.find(K => K.voice === j) || {}).mat | 0));
     const voices = st.clouds.map((o, j) => ({ x: o.x, y: o.y + 22, steps: tunes[j] })).filter(v => v.steps.length);
     const until = RO.clock() + 1200; let A = null; // spread layout if it is found quickly, else the classic (top) layout
@@ -490,11 +492,11 @@ function leafDrawn() { drawnN++; if (tipN < TIPS.length && drawnN >= TIP_AT[tipN
 $('bSound').onclick = () => { st.userMuted = soundOn; setSound(!soundOn); };
 addEventListener('keydown', e => {
   if (e.key === 'd' || e.key === 'D') setMode('draw'); else if (e.key === 'e' || e.key === 'E') setMode('erase');
-  else if (e.key === 'c' || e.key === 'C') openPad(!pad.open); else if (e.key === 'Escape') openPad(false); else if (e.key === ' ') { e.preventDefault(); setPause(!st.paused); } else if (e.key === 'n' || e.key === 'N') cycleSky(); else if (e.key === 't' || e.key === 'T') cycleTempo(); else if (e.key === 'm' || e.key === 'M') { st.userMuted = soundOn; setSound(!soundOn); }
+  else if (e.key === 'c' || e.key === 'C') openPad(!pad.open); else if (e.key === 'Escape') openPad(false); else if (e.key === ' ') { e.preventDefault(); setPause(!st.paused); } else if (e.key === 'n' || e.key === 'N') cycleSky(); else if (e.key === 't' || e.key === 'T') cycleTempo(); else if (e.key === 'w' || e.key === 'W') startShower(); else if (e.key === 'm' || e.key === 'M') { st.userMuted = soundOn; setSound(!soundOn); }
 });
 // ---------- simulation ----------
 function tick(dt) {
-  st.t += dt;
+  st.t += dt; showerTick();
   while (st.t >= st.nextBeat) {
     st.nextBeat += EIGHTH; st.beat++;
     for (const c of st.clouds) if ((st.beat + c.off) % c.every === 0) st.drops.push({ x: c.x, y: c.y + 22, vx: 0, vy: 40, hits: 0, rang: [], life: 0 });
@@ -542,6 +544,16 @@ function skyLabel() {
 function setSky(m, quiet) { skyMode = SKY_MODES.includes(m) ? m : 'auto'; try { localStorage.setItem(SKY_KEY, skyMode); } catch (e) {} skyLabel(); if (!quiet) say(skyMode === 'auto' ? '🌗 The sky follows your clock' : skyMode === 'day' ? '☀️ Always day' : '🌙 Always night'); }
 const cycleSky = () => setSky(SKY_MODES[(SKY_MODES.indexOf(skyMode) + 1) % 3]);
 $('bSky').onclick = cycleSky; skyLabel(); setInterval(skyLabel, 60000);
+// ---------- passing shower ----------
+// every 4-7 minutes the far rain thickens for ~45 s (ramp 8 s, hold, fade 12 s), the rain hiss swells, and by day a rainbow follows.
+// purely mood: the clouds' drops and the music never change. Key W starts one now.
+const SHOWER = { ramp: 8, hold: 26, fade: 12 };
+let shower = { at: null, next: 240 + Math.random() * 180, rainbowAt: null }; // at/rainbowAt: sim time (s) or null
+function showerAmt(t = st.t) { if (shower.at === null) return 0; const u = t - shower.at, S = SHOWER;
+  if (u < 0) return 0; if (u < S.ramp) return u / S.ramp; if (u < S.ramp + S.hold) return 1; if (u < S.ramp + S.hold + S.fade) return 1 - (u - S.ramp - S.hold) / S.fade; return 0; }
+function rainbowAmt(t = st.t) { if (shower.rainbowAt === null) return 0; const u = t - shower.rainbowAt; return u < 0 || u > 30 ? 0 : Math.min(1, u / 4) * Math.min(1, (30 - u) / 10); }
+function startShower() { if (showerAmt() > 0) return; shower.at = st.t; shower.rainbowAt = st.t + SHOWER.ramp + SHOWER.hold + SHOWER.fade * 0.4; shower.next = st.t + SHOWER.ramp + SHOWER.hold + SHOWER.fade + 240 + Math.random() * 180; say('🌦 A shower passes by'); }
+function showerTick() { if (st.t >= shower.next) startShower(); if (hiss && soundOn) hiss.gain.setTargetAtTime(0.05 + 0.08 * showerAmt(), ac.currentTime, 0.5); }
 // ---------- tempo ----------
 let echoDelay = null;
 function tempoLabel() { const b = $('bTempo'); b.textContent = BPM; b.setAttribute('aria-label', 'Tempo ' + BPM + ' beats per minute (tap to change)'); b.title = 'Tempo ' + BPM + ' bpm (T)'; }
@@ -565,8 +577,13 @@ function draw() {
   if (P.stars > 0.02) { const t = performance.now() / 1000; for (const S of STARS) { cx.fillStyle = 'rgba(235,240,255,' + (P.stars * (0.35 + 0.3 * Math.sin(t * 1.3 + S.ph))).toFixed(3) + ')'; cx.beginPath(); cx.arc(S.x * w, S.y * h, S.r, 0, Math.PI * 2); cx.fill(); } }
   // far rain behind the glass (screen space, purely for mood)
   { const t = performance.now() / 1000; cx.strokeStyle = C(P.drop, P.lum > 0.2 ? 0.1 : 0.07); cx.lineWidth = 1; cx.beginPath();
-    for (let i = 0; i < 70; i++) { const fx = (i * 0.618034) % 1, sp = 180 + (i * 37) % 140, x = fx * (w + 60) - 30, y = ((t * sp + i * 97) % (h + 40)) - 20 - 0; cx.moveTo(x, y); cx.lineTo(x - 3, y + 14); }
-    cx.stroke(); }
+    const SA = showerAmt(), nFar = 70 + Math.round(150 * SA); cx.strokeStyle = C(P.drop, (P.lum > 0.2 ? 0.1 : 0.07) * (1 + 0.9 * SA));
+    for (let i = 0; i < nFar; i++) { const fx = (i * 0.618034) % 1, sp = 180 + (i * 37) % 140, x = fx * (w + 60) - 30, y = ((t * sp + i * 97) % (h + 40)) - 20 - 0; cx.moveTo(x, y); cx.lineTo(x - 3 - 3 * SA, y + 14 + 8 * SA); }
+    cx.stroke();
+    // a rainbow after a daytime shower: a soft arc that fades out over ~25 s
+    const rb = rainbowAmt() * Math.min(1, Math.max(0, (P.lum - 0.35) * 3));
+    if (rb > 0.01) { const R = Math.max(w, h) * 0.55, cxr = w * 0.62, cyr = h * 0.95; cx.lineWidth = Math.max(4, R * 0.018);
+      ['255,90,90', '255,170,70', '255,235,100', '110,220,120', '90,160,255', '160,110,230'].forEach((col, i) => { cx.strokeStyle = 'rgba(' + col + ',' + (0.22 * rb).toFixed(3) + ')'; cx.beginPath(); cx.arc(cxr, cyr, R - i * cx.lineWidth, Math.PI * 1.08, Math.PI * 1.92); cx.stroke(); }); } }
   cx.setTransform(dpr * scale, 0, 0, dpr * scale, dpr * ox, dpr * oy);
   // field frame + ground
   { const pg = cx.createLinearGradient(0, FH - 14, 0, FH); pg.addColorStop(0, C(P.puddle, 0)); pg.addColorStop(1, C(P.puddle, 0.22 + 0.08 * P.night)); cx.fillStyle = pg; cx.fillRect(0, FH - 14, FW, 14); }
@@ -611,7 +628,7 @@ function frame(now) {
   draw(); requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
-window.RO_APP = { setTempo, cycleTempo, get bpm() { return BPM; }, setSky, cycleSky, get skyMode() { return skyMode; }, setHour: h => { forcedHour = h === null || h === undefined ? null : +h; skyLabel(); }, skyHour, get pal() { return pal; }, cycleMat, MATS, pad, buildVoice, buildVoiceAsync, openPad, get FH() { return FH; }, PIECES, loadPiece, encode, decode, st, makeLeaf, tick, save, load, setSound, get soundOn() { return soundOn; }, audio: () => ({ ctx: !!ac, reverb: !!verb, state: ac ? ac.state : 'none' }) };
+window.RO_APP = { startShower, showerAmt, rainbowAmt, shower, setTempo, cycleTempo, get bpm() { return BPM; }, setSky, cycleSky, get skyMode() { return skyMode; }, setHour: h => { forcedHour = h === null || h === undefined ? null : +h; skyLabel(); }, skyHour, get pal() { return pal; }, cycleMat, MATS, pad, buildVoice, buildVoiceAsync, openPad, get FH() { return FH; }, PIECES, loadPiece, encode, decode, st, makeLeaf, tick, save, load, setSound, get soundOn() { return soundOn; }, audio: () => ({ ctx: !!ac, reverb: !!verb, state: ac ? ac.state : 'none' }) };
 })();
 </script>
 </body></html>

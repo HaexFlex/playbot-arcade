@@ -25,6 +25,7 @@ A calm musical toy by Playbot. Little clouds drop raindrops in time (84 bpm, one
 - Rain mood: far rain behind the glass, a soft rain hiss, splash droplets, puddle ripples and plips, a gentle reverb.
 - Day/night sky that follows the clock (or stays day/night), stars and glowing leaves at night.
 - Tempo button in the corner: 72 / 84 / 96 bpm (key T), remembered on this device.
+- Passing showers: every few minutes the far rain thickens and the hiss swells for about 45 s, and by day a faint rainbow follows (key W calls one). Pure mood: the music never changes.
 - The melody pad composes in small slices, so even a hard tune never freezes the page.
 - Share links, autosave, phone/tablet/desktop layouts (toolbar fits from 360 px), keyboard keys (D, E, C, N, M, Space, Esc), labelled buttons for screen readers, first-run tips.
 
