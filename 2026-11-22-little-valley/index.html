@@ -84,6 +84,7 @@ button.on{background:#ffe680;box-shadow:0 2px 0 #e0b93a,0 0 0 3px #ffd23f,0 4px 
 #wishToast .tt{font-size:20px;color:#c8660f}
 #wishToast .tn{font-size:15px;color:#3a4a5a;margin-top:3px}
 #wishToast .tst{font-size:26px;color:#f0a818;letter-spacing:3px;margin-top:2px}
+#wishToast .ty{font-size:13px;color:#5d7a4a;margin-top:3px}
 #wishToast .spk{position:absolute;left:50%;top:50%;font-style:normal;color:#ffc533;font-size:16px;opacity:0}
 #wishToast.show .spk{animation:spk 1.3s ease-out forwards}
 @keyframes spk{0%{opacity:0;transform:translate(-50%,-50%) scale(.4)}20%{opacity:1}100%{opacity:0;transform:translate(calc(-50% + var(--dx)),calc(-50% + var(--dy))) scale(1.2) rotate(90deg)}}
@@ -795,7 +796,7 @@ function iceStep(S, tl, y, line) {
 // spring melt piles up behind it. At JAM_Y (early spring) the whole cover breaks up in one go (ice → 0): the
 // held water rushes down the outlet as a short flood wave. A thin winter's ice just fades as before. No water
 // is made or lost. S.jam records the last break-up (time, ice cells, water on them) for the app's toast.
-const JAM_MIN = 40, JAM_Y = 0.02;
+const JAM_MIN = 40, JAM_Y = 0.02, FLOE_PTS = 48;
 function iceJam(S, cold, y) {
   const ice = S.ice, d = S.d;
   if (cold) { const n = totalIce(S); if (n > (S.icePeak || 0)) S.icePeak = n; return; }
@@ -804,8 +805,9 @@ function iceJam(S, cold, y) {
   const late = y >= 0.3 && y < 0.62; // summer: nothing left to break
   if (n === 0 || S.icePeak < JAM_MIN || late) { if (n === 0 || late) S.icePeak = 0; return; } // a thin winter: the ice just fades
   if (y >= 0.97 || y < JAM_Y) return; // still holding
-  for (let i = 0; i < ice.length; i++) ice[i] = 0; // break-up: the jam lets go
-  S.jam = { t: S.time, cells: n, vol: Math.round(vol * 10) / 10, peak: S.icePeak }; S.icePeak = 0;
+  const pts = [], stp = Math.max(1, Math.floor(n / FLOE_PTS)); let k = 0; // spots for the app's drifting floes: every stp-th iced cell (not saved)
+  for (let i = 0; i < ice.length; i++) { if (ice[i] > 0.02 && k++ % stp === 0 && pts.length < FLOE_PTS) pts.push(i); ice[i] = 0; } // break-up: the jam lets go
+  S.jam = { t: S.time, cells: n, vol: Math.round(vol * 10) / 10, peak: S.icePeak }; S.icePeak = 0; S.jamPts = pts;
 }
 function totalIce(S) { let n = 0; const a = S.ice, d = S.d; for (let i = 0; i < a.length; i++) if (a[i] > 0.5 && d[i] > 0.02) n++; return n; }
 function totalSnow(S) { let t = 0; const a = S.snow; for (let i = 0; i < a.length; i++) t += a[i]; return t; }
@@ -976,7 +978,7 @@ function resample(S, N2) {
 function hasNaN(S) { for (const k of ['h', 'd', 's', 'u', 'v', 'fL', 'fR', 'fT', 'fB', 'veg', 'tree', 'moist', 'flood', 'rush', 'bloom', 'field', 'ripe', 'path', 'snow', 'ice']) { const a = S[k]; for (let i = 0; i < a.length; i++) if (!Number.isFinite(a[i])) return k; } return false; }
 
 // ---------- save / share (pack the valley into bytes; the app deflates and base64s them) ----------
-const SAVE_EXACT = { h: 1, d: 1, s: 1, h0: 1 }, SAVE_SKIP = { tmp: 1, tmp2: 1 }, SAVE_META_SKIP = { N: 1, seed: 1, P: 1 };
+const SAVE_EXACT = { h: 1, d: 1, s: 1, h0: 1 }, SAVE_SKIP = { tmp: 1, tmp2: 1 }, SAVE_META_SKIP = { N: 1, seed: 1, P: 1, jamPts: 1 };
 function packState(S) {
   const n = S.N * S.N, fields = [], parts = [];
   const keys = Object.keys(S).filter(k => ArrayBuffer.isView(S[k]) && S[k].length === n && !SAVE_SKIP[k]);
@@ -1097,7 +1099,7 @@ function unpackShare(bytes, seed, opts) {
   if (hasNaN(S)) throw new Error('share link has broken numbers');
   return S;
 }
-const API = { packState, unpackState, packShare, unpackShare, initLife,  iceStep, iceJam, totalIce, ICE_HOLD, JAM_MIN, JAM_Y, eventRain, droughtOf, droughtAt, weatherEvent, STORM_AMP, yearFrac, yearFracAt, yearLen, yearNum, season, snowLine, snowFalling, leafState, snowStep, totalSnow, SEASONS, clockHour, dayFrac, planRain, rainCell, weatherStep, mulberry32, hashStr, makeNoise, randomSeedName, generateTerrain, create, seedLife, step, applyTool, totalWater, totalTerrain, resample, lifeStep, countTrees, countLife, leafy, treeHappy, cottageMood, cottageCell, countVillage, waterNear, wellYield, WELL_MIN, WELL_HIGH, MILL_T, MILL_RIPEN, FLOOD_RUIN, GROW_MAX, KIDS_MAX, GROW_T, plotSize, plotOf, plotCrop, hasNaN, DEFAULTS };
+const API = { packState, unpackState, packShare, unpackShare, initLife,  iceStep, iceJam, totalIce, ICE_HOLD, JAM_MIN, JAM_Y, FLOE_PTS, eventRain, droughtOf, droughtAt, weatherEvent, STORM_AMP, yearFrac, yearFracAt, yearLen, yearNum, season, snowLine, snowFalling, leafState, snowStep, totalSnow, SEASONS, clockHour, dayFrac, planRain, rainCell, weatherStep, mulberry32, hashStr, makeNoise, randomSeedName, generateTerrain, create, seedLife, step, applyTool, totalWater, totalTerrain, resample, lifeStep, countTrees, countLife, leafy, treeHappy, cottageMood, cottageCell, countVillage, waterNear, wellYield, WELL_MIN, WELL_HIGH, MILL_T, MILL_RIPEN, FLOOD_RUIN, GROW_MAX, KIDS_MAX, GROW_T, plotSize, plotOf, plotCrop, hasNaN, DEFAULTS };
 if (typeof module !== 'undefined' && module.exports) module.exports = API; else root.LV = API;
 })(typeof window !== 'undefined' ? window : globalThis);
 </script>
@@ -2140,6 +2142,8 @@ function skyHints() {
   const S = st.S; if (!st.iceT || Math.abs(st.time - st.iceT) > 1) { st.iceT = st.time; st.iceN = S.P.seasons ? LV.totalIce(S) : 0; }
   // ice-jam flood: the sim records each break-up (S.jam); a fresh one (not an old one from a loaded save) gets its own hint
   const jam = !!(S.jam && S.jam.t !== st.jamSeen && S.time - S.jam.t < 10); if (S.jam) st.jamSeen = S.jam.t; if (jam) st.iceN = 0;
+  if (jam && S.jamPts) { const c = floeSpawn(S, S.jamPts); S.jamPts = null; sndBreakup(c ? fxPan(c[0]) : 0, Math.min(1, 0.55 + S.jam.cells / 1500)); } // floes drift off, the ice cracks and rumbles
+  yearTurn(S);
   const now = { ice: st.iceN > 25, dry: (S.dryNow || 0) > 0.05, storm: LV.weatherEvent(S) === 'storm', rain: (S.rainNow || 0) > 0.05, eve: LT.glow > 0.5 && LT.h > 12, morn: LT.h >= 6.5 && LT.h < 12, sea: S.P.seasons ? LV.season(S) : '' };
   if (skyPrev && st.wake <= 0) {
     if (jam) { st.jams = (st.jams || 0) + 1; hint(st.iceHint = st.jamHint = 'The ice breaks up! A spring flood rushes down the river'); }
@@ -2159,6 +2163,51 @@ function skyHints() {
   skyPrev = now;
 }
 const RAINBOW_T = 16; // real seconds a rainbow stays
+// new year: when the calendar rolls over by itself (not a loaded save, a new valley or a calendar jump), a small
+// birthday toast in the wish-toast style ("Daisy Glacier 5 turns 1!"). st.yearSeen remembers the valley object and its
+// calendar offset, so a new valley, a loaded save or a calendar jump never counts as a birthday.
+function yearTurn(S) {
+  if (!S.P.seasons) { st.yearSeen = null; return; }
+  const Y = LV.yearNum(S), off = S.yearOff || 0, ys = st.yearSeen;
+  if (ys && ys.S === S && ys.off === off && Y === ys.Y + 1 && S.time > ys.t) { st.yearToasts = (st.yearToasts || 0) + 1; W.toasts.push({ year: Y, name: S.seed }); if (!W.showing) wishToast(); }
+  st.yearSeen = { S, Y, off, t: S.time };
+}
+// ice floes (after the spring break-up): small pale plates of the broken ice ride the current downriver, turn
+// slowly, melt and fade within a few seconds (faster when stranded on a bank). Capped at FLOE_MAX; cheap: one
+// grid read per floe per frame. They age in real time while the valley runs (frozen while paused).
+const FLOE_MAX = 48, floes = []; st.floes = floes;
+function floeSpawn(S, pts) {
+  const N = S.N; let sx = 0, n = 0;
+  for (const i of pts) { if (floes.length >= FLOE_MAX) break; const x = i % N + Math.random() - 0.5, y = ((i / N) | 0) + Math.random() - 0.5;
+    floes.push({ x, y, x0: x, y0: y, a: Math.random() * 6.283, w: (Math.random() - 0.5) * 0.8, r: 1 + Math.random() * 0.9, age: -Math.random() * 1.2, life: 15 + Math.random() * 6, k: 5 + (Math.random() * 3 | 0), sd: Math.random() * 100 });
+    const p = proj(x, y); if (p) { sx += p[0]; n++; } }
+  st.floesMade = (st.floesMade || 0) + floes.length; st.floeT = S.time; st.floeS = S;
+  return n ? [sx / n] : null;
+}
+function floeStep(S, dt) {
+  if (st.floeS !== S) { floes.length = 0; st.floeS = S; } if (!floes.length) return; const N = S.N, dS = Math.max(0, S.time - (st.floeT == null ? S.time : st.floeT)); st.floeT = S.time; if (st.paused) return;
+  for (let k = floes.length - 1; k >= 0; k--) { const f = floes[k], xi = Math.round(f.x), yi = Math.round(f.y);
+    if (xi < 0 || yi < 0 || xi >= N || yi >= N) { floes.splice(k, 1); continue; }
+    const i = yi * N + xi, dep = S.d[i]; f.age += dt * (dep < 0.04 ? 3 : 1); // stranded on a bank: it melts fast
+    if (f.age > 0) { f.x += S.u[i] * dS * 0.9; f.y += S.v[i] * dS * 0.9; f.a += f.w * dt * (0.3 + Math.min(2, Math.hypot(S.u[i], S.v[i]))); }
+    if (f.age >= f.life) floes.splice(k, 1); }
+}
+function drawFloes() {
+  st.floesDrawn = 0; if (!floes.length) return; const S = st.S, N = S.N, T = tilt, top = st.view !== 'tilt';
+  cx.save();
+  for (const f of floes) { if (f.age <= 0) continue; const q = f.age / f.life, al = Math.min(1, f.age / 0.5) * (q < 0.55 ? 1 : 1 - (q - 0.55) / 0.45); if (al <= 0.02) continue;
+    const p = proj(f.x, f.y); if (!p) continue; let u;
+    if (top) { const R = st.topRect; u = R.sz / N; }
+    else { if (!T || !T.pick) continue; const sc = persp(f.y, N); u = T.cp * sc * T.s;
+      const bx = Math.round((p[0] - T.sx) / T.s), by = Math.round((p[1] - T.sy) / T.s) + 1; if (bx < 0 || by < 0 || bx >= T.ow || by >= T.oh) continue;
+      const pc = T.pick[by * T.ow + bx], xi = Math.round(f.x), yi = Math.round(f.y); if (pc < 0 || Math.abs(pc % N - xi) > 3 || Math.abs(((pc / N) | 0) - yi) > 4) continue; } // behind a ridge
+    const r = Math.max(2.6, u * f.r * (1 - 0.4 * q)), sq = top ? 1 : 0.55, dy = Math.max(1, r * 0.22); // tilt view: flattened onto the water
+    const poly = (ox, oy) => { cx.beginPath(); for (let j = 0; j < f.k; j++) { const a = f.a + j / f.k * 6.283, rr = r * (0.72 + 0.28 * Math.sin(f.sd + j * 2.4)); const x = p[0] + ox + Math.cos(a) * rr, y = p[1] + oy + Math.sin(a) * rr * sq; j ? cx.lineTo(x, y) : cx.moveTo(x, y); } cx.closePath(); };
+    cx.globalAlpha = al * 0.35; cx.fillStyle = '#1d4f78'; poly(0, dy); cx.fill(); // its shadow in the water
+    cx.globalAlpha = al * 0.95; cx.fillStyle = '#f4f9fc'; cx.strokeStyle = 'rgba(110,150,185,.9)'; cx.lineWidth = Math.max(0.8, r * 0.16); poly(0, 0); cx.fill(); cx.stroke();
+    st.floesDrawn++; }
+  cx.restore();
+}
 
 // ---------- main loop ----------
 let last = performance.now(), fpsAcc = 0, fpsN = 0, statT = 0;
@@ -2190,6 +2239,7 @@ function frame(now) {
   cx.setTransform(dpr, 0, 0, dpr, 0, 0);
   if (st.view === 'tilt') { tiltGeom(); drawSky(st.time, dtReal); renderTilt(st.time); }
   else { drawSky(st.time, dtReal); renderTop(st.time); drawCottagesTop(); drawWindowGlowTop(st.time); }
+  floeStep(S, dtReal); drawFloes();
   drawCottageBadges(st.time);
   drawNaturalRain(st.time); drawOverlays(st.time); drawShower(st.time);
   const work = performance.now() - t0;
@@ -2229,7 +2279,7 @@ function adapt(dt) {
 // and thunder after lightning, wind (stronger in winter and storms), birds by day in the forest, crickets on
 // summer evenings, an owl at night, the creak and clack of turning mill wheels, cowbells near the village.
 // window.LV_AUDIO holds the levels (0..1) and gains so tests can check them without listening.
-const AU = { want: false, on: false, started: false, state: 'none', nodes: 0, live: 0, L: {}, G: {}, ev: { chirp: 0, cricket: 0, owl: 0, clack: 0, creak: 0, bell: 0, thunder: 0, plop: 0, slurp: 0, splash: 0, knock: 0, well: 0, rustle: 0 }, flow: 0, riverPan: 0, veg: 0, ticks: 0, vol: 1, snowCover: 0, rainMuffle: 0, rainCut: 9000, masterT: 0 };
+const AU = { want: false, on: false, started: false, state: 'none', nodes: 0, live: 0, L: {}, G: {}, ev: { chirp: 0, cricket: 0, owl: 0, clack: 0, creak: 0, bell: 0, thunder: 0, plop: 0, slurp: 0, splash: 0, knock: 0, well: 0, rustle: 0, rumble: 0 }, flow: 0, riverPan: 0, veg: 0, ticks: 0, vol: 1, snowCover: 0, rainMuffle: 0, rainCut: 9000, masterT: 0 };
 window.LV_AUDIO = AU;
 const AU_KEY = 'lv-sound', AU_MASTER = 0.45, AU_DT = 0.25;
 const AU_MAX = { river: 0.55, rain: 0.42, wind: 0.2, birds: 0.42, crickets: 0.13, owl: 0.38, mill: 0.42, cows: 0.26, thunder: 0.85 }; // full-level gain per layer
@@ -2347,6 +2397,17 @@ function thunder(t, k) { // a crack, then a long rumble that rolls over the hill
   fl.frequency.setValueAtTime(420, t); fl.frequency.exponentialRampToValueAtTime(110, t + 1.5);
   for (let b = 0; b < 3; b++) { const a = t + 0.6 + b * (0.6 + Math.random() * 0.8); e.gain.setTargetAtTime(0.55 * k * (1 - b * 0.25), a, 0.12); e.gain.setTargetAtTime(0, a + 0.3, 0.7); }
   AU.ev.thunder++;
+}
+function sndBreakup(pan, k) { // spring break-up: sharp cracks over a deep, slow rumble of shifting ice (fx bus, so mute and volume apply)
+  if (!fxOn()) return; const t = AG.ac.currentTime + 0.03;
+  const { e, fl } = noiseHit('fx', AG.brown, t, 3.6, 'lowpass', 260, 0.8, 0.75 * k, pan * 0.6, 1.1); fl.frequency.setValueAtTime(260, t); fl.frequency.exponentialRampToValueAtTime(70, t + 2.8);
+  e.gain.setTargetAtTime(0.5 * k, t + 0.9, 0.2); e.gain.setTargetAtTime(0, t + 1.4, 0.8); // a second heave as the jam lets go
+  const g = auVoice('fx', t, 3, pan * 0.6), o = osc('sine', 62, t, 3, g); o.frequency.exponentialRampToValueAtTime(38, t + 2.6); // the groan under it
+  g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.3 * k, t + 0.25); g.gain.setTargetAtTime(0, t + 0.8, 0.7);
+  for (let c = 0; c < 5; c++) { const a = t + c * 0.22 + Math.random() * 0.25, pc = Math.max(-0.8, Math.min(0.8, pan + (Math.random() - 0.5) * 0.6));
+    noiseHit('fx', AG.white, a, 0.12, 'highpass', 2200 + Math.random() * 1800, 0.7, (0.35 - c * 0.04) * k, pc, 0.018); // crack
+    noiseHit('fx', AG.pink, a + 0.01, 0.25, 'bandpass', 700 + Math.random() * 500, 1.5, 0.22 * k, pc, 0.06); } // its splintering body
+  AU.ev.rumble++;
 }
 // ---- tool sounds (sound part 2): small cues for what your finger does, panned to where it is
 const fxOn = () => AG && AU.on;
@@ -2561,7 +2622,13 @@ function renderWishes() {
 function wishOpen(on) { W.open = on; if (on) { wishEval(true); renderWishes(); } wPanel.classList.toggle('show', on); updWishBtn(); }
 cv.addEventListener('pointerdown', () => { if (W.open) wishOpen(false); });
 function wishToast() {
-  const it = W.toasts.shift(); if (!it) { W.showing = false; return; } W.showing = true; const [w, s, was] = it;
+  const it = W.toasts.shift(); if (!it) { W.showing = false; return; } W.showing = true;
+  if (it.year) { let sp = ''; for (let k = 0; k < 14; k++) { const a = k / 14 * 6.283 + Math.random() * 0.4, r = 60 + Math.random() * 70; sp += `<i class="spk" style="--dx:${(Math.cos(a) * r).toFixed(0)}px;--dy:${(Math.sin(a) * r * 0.7).toFixed(0)}px;animation-delay:${(Math.random() * 0.25).toFixed(2)}s">${k % 2 ? '✦' : '❄'}</i>`; }
+    const esc = x => String(x).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+    wToast.innerHTML = `<div class="tt">Happy birthday, valley!</div><div class="tn">🎂 ${esc(it.name)} turns ${it.year - 1}</div><div class="ty">🌱 Year ${it.year} begins</div>${sp}`;
+    wToast.classList.remove('show'); void wToast.offsetWidth; wToast.classList.add('show'); W.lastYear = 'year:' + it.year; wishChime(1);
+    clearTimeout(W.tt); W.tt = setTimeout(() => { wToast.classList.remove('show'); setTimeout(wishToast, 450); }, 3000); return; }
+  const [w, s, was] = it;
   let sp = ''; for (let k = 0; k < 14; k++) { const a = k / 14 * 6.283 + Math.random() * 0.4, r = 60 + Math.random() * 70; sp += `<i class="spk" style="--dx:${(Math.cos(a) * r).toFixed(0)}px;--dy:${(Math.sin(a) * r * 0.7).toFixed(0)}px;animation-delay:${(Math.random() * 0.25).toFixed(2)}s">${k % 3 ? '✦' : '★'}</i>`; }
   wToast.innerHTML = `<div class="tt">${s === 3 ? 'Three stars!' : !was ? 'Wish granted!' : 'Another star!'}</div><div class="tn">${w.icon} ${w.name}</div><div class="tst">${'★'.repeat(s)}<i>${'★'.repeat(3 - s)}</i></div>${sp}`;
   wToast.classList.remove('show'); void wToast.offsetWidth; wToast.classList.add('show'); W.lastToast = w.id + ':' + s; W.toastN = (W.toastN || 0) + 1;
@@ -2698,7 +2765,7 @@ addEventListener('pagehide', () => autoSave('pagehide'));
 window.LV_AUTO = { AS, save: autoSave, get: asGet, put: asPut, clear: asClear, restore: autoRestore };
 
 
-window.__lv = { st, AU, updSound, LV, LT, leaf: LS, clockText, wheelAng, get col() { return [colR, colG, colB]; }, get tilt() { return tilt; }, get area() { return area; }, setTool, newWorld, unproj, proj, get S() { return st.S; } };
+window.__lv = { st, AU, updSound, LV, LT, leaf: LS, clockText, wheelAng, get col() { return [colR, colG, colB]; }, get tilt() { return tilt; }, get area() { return area; }, setTool, newWorld, unproj, proj, get S() { return st.S; }, floes, breakup: sndBreakup, yearTurn };
 updUI(); updSound();
 const rawHash = (location.hash || '').slice(1);
 let fromHash = ''; try { fromHash = decodeURIComponent(rawHash); } catch (e) { fromHash = ''; }
