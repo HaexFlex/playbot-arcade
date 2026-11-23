@@ -127,6 +127,11 @@ button.on{background:#ffe680;box-shadow:0 2px 0 #e0b93a,0 0 0 3px #ffd23f,0 4px 
   #sharePanel{left:calc(env(safe-area-inset-left) + 72px);right:calc(env(safe-area-inset-right) + 64px);width:auto;max-width:440px;margin:0 auto;top:6px;padding:7px 9px}
   #sharePanel .sb button{height:46px;font-size:18px}#shareClose{width:36px;height:34px}#sh-msg{margin-top:5px}
 }
+/* volume slider (sound part 2b): a small pill beside the speaker button */
+#volPop{position:fixed;display:none;align-items:center;gap:8px;padding:8px 12px;background:#fffdf4f2;border-radius:16px;box-shadow:0 4px 16px #0003;z-index:30;width:230px;box-sizing:border-box}
+#volPop.show{display:flex;animation:win .18s ease-out}
+#volPop .vi{font-size:20px;width:26px;text-align:center}#volPop b{font-size:13px;color:#2f7d3a;width:40px;text-align:right}
+#volRange{flex:1;min-width:0;height:32px;accent-color:#3aa0e0}
 </style></head><body>
 <canvas id="view" aria-label="Little Valley: draw on the valley to shape it"></canvas>
 <div id="top">
@@ -438,7 +443,7 @@ function villageStep(S, tl) {
     if (flood[i] > FLOOD_FIELD || d[i] > 0.3 || S.rush[i] > 5) { f -= tl / 4; ripe[i] = 0; } // a flood drowns the crop
     else if (tend[i]) {
       if (f === 0) ripe[i] = cellRand(plotOf(N, i), 47) * 0.6; // a new plot starts at its own point in the season
-      f += tg / FIELD_GROW * (1 - 0.7 * tree[i]); let r = ripe[i] + tg / FIELD_RIPEN * (tend[i] === 2 ? MILL_RIPEN : 1); if (r > 1.3) r = 0; ripe[i] = r; // harvest, sow again
+      f += tg / FIELD_GROW * (1 - 0.7 * tree[i]); let r = ripe[i] + tg / FIELD_RIPEN * (tend[i] === 2 ? MILL_RIPEN : 1); if (r > 1.3) { r = 0; if (f > 0.3) S.harvests = (S.harvests || 0) + 1; } ripe[i] = r; // harvest (counted per cell), sow again
     } else { f -= tg / FIELD_FALLOW; ripe[i] = Math.max(0, ripe[i] - tg / FIELD_RIPEN); }
     f = f < 0 ? 0 : f > 1 ? 1 : f; field[i] = f;
     if (f > 0.02 && tend[i]) { tree[i] *= 0.93; bloom[i] *= 0.9; } // clearing the plot
@@ -450,7 +455,7 @@ function countVillage(S) {
   // fields: plots with a grown crop; ripe share; path cells
   const N = S.N, seen = new Set(); let ripeN = 0, cells = 0, paths = 0;
   for (let i = 0; i < S.field.length; i++) { if (S.path[i] > 0.3) paths++; if (S.field[i] > 0.5) { cells++; seen.add(plotOf(N, i)); if (S.ripe[i] > 0.75) ripeN++; } }
-  return { cottages, happy, sad, flooded, ruins, grown, wells, mills, wheels, fields: seen.size, fieldCells: cells, ripe: cells ? ripeN / cells : 0, paths };
+  return { cottages, happy, sad, flooded, ruins, grown, wells, mills, wheels, fields: seen.size, fieldCells: cells, ripe: cells ? ripeN / cells : 0, paths, harvested: Math.floor((S.harvests || 0) / (plotSize(N) * plotSize(N))) }; // harvested: whole plots brought in so far
 }
 function placeCottage(S, gx, gy) {
   const N = S.N, h = S.h, H = N * 0.27, x = Math.round(gx), y = Math.round(gy);
@@ -2050,7 +2055,7 @@ cv.addEventListener('pointerleave', e => { if (st.ptr && !st.ptr.down) st.ptr = 
 document.addEventListener('gesturestart', e => e.preventDefault());
 document.addEventListener('keydown', e => {
   const k = e.key.toLowerCase(); const map = { '1': 'raise', '2': 'lower', '3': 'smooth', '4': 'rain', '5': 'spring', '6': 'drain', '7': 'plant', '8': 'cottage', '9': 'well' };
-  if (map[k]) setTool(map[k]); else if (k === ' ') { e.preventDefault(); bPlay.click(); } else if (k === 'v') bView.click(); else if (k === 'n') $('c-new').click(); else if (k === 'r') $('c-reset').click(); else if (k === 's') bShower.click(); else if (k === 'b') bSize.click(); else if (k === 'f') bSpeed.click();
+  if (map[k]) setTool(map[k]); else if (k === ' ') { e.preventDefault(); bPlay.click(); } else if (k === 'v') bView.click(); else if (k === 'n') $('c-new').click(); else if (k === 'r') $('c-reset').click(); else if (k === 's') bShower.click(); else if (k === 'b') bSize.click(); else if (k === 'f') bSpeed.click(); else if (k === '+' || k === '=') { volShow(); setVolume(AU.vol * 100 + 10); } else if (k === '-' || k === '_') { volShow(); setVolume(AU.vol * 100 - 10); } else if (k === 'escape') volHide();
 });
 
 // ---------- clock and weather hints ----------
@@ -2148,12 +2153,14 @@ function adapt(dt) {
 // and thunder after lightning, wind (stronger in winter and storms), birds by day in the forest, crickets on
 // summer evenings, an owl at night, the creak and clack of turning mill wheels, cowbells near the village.
 // window.LV_AUDIO holds the levels (0..1) and gains so tests can check them without listening.
-const AU = { want: false, on: false, started: false, state: 'none', nodes: 0, live: 0, L: {}, G: {}, ev: { chirp: 0, cricket: 0, owl: 0, clack: 0, creak: 0, bell: 0, thunder: 0, plop: 0, slurp: 0, splash: 0, knock: 0, well: 0, rustle: 0 }, flow: 0, riverPan: 0, veg: 0, ticks: 0 };
+const AU = { want: false, on: false, started: false, state: 'none', nodes: 0, live: 0, L: {}, G: {}, ev: { chirp: 0, cricket: 0, owl: 0, clack: 0, creak: 0, bell: 0, thunder: 0, plop: 0, slurp: 0, splash: 0, knock: 0, well: 0, rustle: 0 }, flow: 0, riverPan: 0, veg: 0, ticks: 0, vol: 1, snowCover: 0, rainMuffle: 0, rainCut: 9000, masterT: 0 };
 window.LV_AUDIO = AU;
 const AU_KEY = 'lv-sound', AU_MASTER = 0.45, AU_DT = 0.25;
 const AU_MAX = { river: 0.55, rain: 0.42, wind: 0.2, birds: 0.42, crickets: 0.13, owl: 0.38, mill: 0.42, cows: 0.26, thunder: 0.85 }; // full-level gain per layer
 for (const k in AU_MAX) { AU.L[k] = 0; AU.G[k] = 0; }
 try { AU.want = localStorage.getItem(AU_KEY) === '1'; } catch (e) { /* private mode */ }
+const VOL_KEY = 'lv-volume'; try { const v = parseInt(localStorage.getItem(VOL_KEY), 10); if (v >= 0 && v <= 150) AU.vol = v / 100; } catch (e) { /* private mode */ }
+const auMaster = () => AU_MASTER * AU.vol; // the volume slider scales the whole mix (0-150%)
 let AG = null, auT = 0;
 function noiseBuf(ac, kind) { // 2 s of looping noise (white, pink or brown), cross-faded at the seam so the loop never clicks
   const n = ac.sampleRate * 2, M = 2048, raw = new Float32Array(n + M); let l = 0, p0 = 0, p1 = 0, p2 = 0;
@@ -2174,6 +2181,8 @@ function auGraph(ac) {
   const chain = (...ns) => { for (let i = 0; i < ns.length - 1; i++) ns[i].connect(ns[i + 1]); return ns[ns.length - 1]; };
   g.master = gain(0); g.master.connect(ac.destination);
   for (const k in AU_MAX) { g.bus[k] = gain(0); g.bus[k].connect(g.master); }
+  // rain goes through a lowpass that closes when snow lies on the ground: rain on snow (and snowfall) sounds muffled
+  g.rainF = filt('lowpass', 9000, 0.4); g.bus.rain.disconnect(); g.bus.rain.connect(g.rainF); g.rainF.connect(g.master);
   if (ac.createStereoPanner) { g.riverP = node(ac.createStereoPanner()); g.bus.river.disconnect(); g.bus.river.connect(g.riverP); g.riverP.connect(g.master); } // the river sits where it flows on screen
   g.bus.fx = gain(0.9); g.bus.fx.connect(g.master); // tool sounds: a fixed level, not a valley layer
   g.white = noiseBuf(ac, 'white'); g.pink = noiseBuf(ac, 'pink'); g.brown = noiseBuf(ac, 'brown');
@@ -2195,12 +2204,12 @@ function auStart() { // called from a user gesture
       const sb = ac.createBuffer(1, 1, ac.sampleRate), s = ac.createBufferSource(); s.buffer = sb; s.connect(ac.destination); s.start(0); // unlocks iOS
       ac.onstatechange = () => { AU.state = ac.state; }; }
     if (AG.ac.state !== 'running' && !document.hidden) AG.ac.resume().catch(() => {});
-    AG.master.gain.cancelScheduledValues(AG.ac.currentTime); AG.master.gain.setTargetAtTime(AU_MASTER, AG.ac.currentTime, 0.8);
+    AG.master.gain.cancelScheduledValues(AG.ac.currentTime); AG.master.gain.setTargetAtTime(auMaster(), AG.ac.currentTime, 0.8); AU.masterT = auMaster();
     AU.state = AG.ac.state; auT = 0;
   } catch (e) { AU.state = 'error'; }
 }
 function auStop() { if (!AG) return; const t = AG.ac.currentTime; AG.master.gain.cancelScheduledValues(t); AG.master.gain.setTargetAtTime(0, t, 0.15); setTimeout(() => { if (!AU.want && AG && AG.ac.state === 'running') AG.ac.suspend().catch(() => {}); }, 900); }
-function setSound(on) { AU.want = on; try { localStorage.setItem(AU_KEY, on ? '1' : '0'); } catch (e) { /* private mode */ } if (on) auStart(); else auStop(); updSound(); hint(on ? 'Sound on: listen to the valley' : 'Sound off'); }
+function setSound(on) { AU.want = on; try { localStorage.setItem(AU_KEY, on ? '1' : '0'); } catch (e) { /* private mode */ } if (on) auStart(); else auStop(); updSound(); hint(on ? 'Sound on: listen to the valley (hold the speaker for volume)' : 'Sound off'); }
 // a remembered "on" starts at the first tap anywhere; any tap also wakes an interrupted iOS context
 for (const ev of ['pointerup', 'touchend', 'keydown', 'click']) addEventListener(ev, () => { if (AU.want && (!AG || AG.ac.state !== 'running') && !document.hidden) { auStart(); updSound(); } }, { passive: true });
 document.addEventListener('visibilitychange', () => { if (!AG) return; const t = AG.ac.currentTime;
@@ -2316,9 +2325,11 @@ function fxBrush(S, g, x) { // while a brush is held: splash or slurp now and th
 // ---- the levels follow the valley (cheap: one pass over the grid, four times a second)
 const clamp01 = v => v < 0 ? 0 : v > 1 ? 1 : v;
 function auLevels() {
-  const S = st.S, N = S.N, d = S.d, u = S.u, v = S.v, L = AU.L; let f = 0, fx = 0, fy = 0;
-  for (let i = 0; i < d.length; i += 2) { const w = d[i]; if (w > 0.03) { const s = Math.abs(u[i]) + Math.abs(v[i]); if (s > 0.2) { const q = Math.min(w, 2) * Math.min(s, 4); f += q; fx += q * (i % N); fy += q * ((i / N) | 0); } } }
+  const S = st.S, N = S.N, d = S.d, u = S.u, v = S.v, L = AU.L, sn = S.snow, ice = S.ice; let f = 0, fx = 0, fy = 0, cov = 0, n = 0;
+  for (let i = 0; i < d.length; i += 2) { const w = d[i]; n++; if (sn[i] > 0.03 || (ice && ice[i] > 0.5)) cov++; if (w > 0.03) { const s = Math.abs(u[i]) + Math.abs(v[i]); if (s > 0.2) { const q = Math.min(w, 2) * Math.min(s, 4); f += q; fx += q * (i % N); fy += q * ((i / N) | 0); } } }
   AU.flow = f * 2 / (N * N);
+  // snow (or ice) on the ground muffles the rain: a soft hush instead of a hiss
+  AU.snowCover = n ? cov / n : 0; AU.rainMuffle = clamp01((AU.snowCover - 0.05) / 0.45); AU.rainCut = 9000 * Math.pow(1100 / 9000, AU.rainMuffle);
   // where the river runs: the flow-weighted middle of the moving water, projected to the screen, pans the murmur (gently, at most 0.6)
   let pan = 0; if (f > 0) { const q = proj(fx / f, fy / f); if (q && innerWidth > 0) pan = Math.max(-0.6, Math.min(0.6, (q[0] / innerWidth) * 1.2 - 0.6)); } AU.riverPan = pan;
   const sea = S.P.seasons, yf = sea ? LV.yearFrac(S) : 0.3, h = LT.h, night = LT.night, day = 1 - night;
@@ -2330,7 +2341,7 @@ function auLevels() {
   let turn = 0, mills = 0; if (!st.paused) for (const c of S.cottages) if (c.wheel && !c.ruin && c.turn > 0) { mills++; turn = Math.max(turn, c.turn); }
   AU.turn = turn * SPEEDS[st.speed][0];
   L.river = clamp01(Math.pow(AU.flow / 0.12, 0.6)) * 0.9 + (AU.flow > 0.002 ? 0.1 : 0);
-  L.rain = clamp01(rain * (0.6 + 0.4 * storm) + storm * 0.25);
+  L.rain = clamp01(rain * (0.6 + 0.4 * storm) + storm * 0.25) * (1 - 0.35 * AU.rainMuffle);
   L.wind = clamp01(0.22 + 0.4 * winter + 0.65 * storm + 0.15 * rain) * (0.75 + 0.25 * Math.sin(st.time * 0.31) * Math.sin(st.time * 0.17 + 1));
   L.birds = clamp01(day * (1 - 0.92 * winter) * (1 - 0.8 * rain) * (0.12 + 0.88 * AU.veg) * (1 + 0.35 * bump(h, 7, 2.5)));
   L.crickets = clamp01(summer * Math.max(LT.glow * 0.9, night) * (h >= 17 || h < 5 ? 1 : 0) * dry * (1 - winter));
@@ -2347,6 +2358,7 @@ function auTick(dt) {
   const ac = AG.ac, t = ac.currentTime, L = AU.L, R = Math.random;
   for (const k in AU_MAX) { AU.G[k] = L[k] * AU_MAX[k]; AG.bus[k].gain.setTargetAtTime(AU.G[k], t, k === 'thunder' ? 0.1 : 0.7); }
   if (AG.riverP) AG.riverP.pan.setTargetAtTime(AU.riverPan, t, 0.8);
+  AG.rainF.frequency.setTargetAtTime(AU.rainCut, t, 1.5);
   AG.gurgle.frequency.setTargetAtTime(700 + 500 * R() + 400 * L.river, t, 0.5);
   AG.windF.frequency.setTargetAtTime(260 + 380 * R() + 200 * L.wind, t, 1.2); AG.gust.gain.setTargetAtTime(0.6 + 0.6 * R(), t, 1);
   const at = () => t + 0.05 + R() * AU_DT;
@@ -2358,6 +2370,33 @@ function auTick(dt) {
   const bolts = st.bolts || 0; if (bolts > (AU.bolts || 0)) { thunder(t + 0.5 + R() * 1.8, 0.6 + 0.4 * clamp01(LT.storm)); } AU.bolts = bolts;
   AU.nodes = AG.base + AU.live;
 }
+
+// ---- volume (sound part 2b): hold (or right-click) the speaker, or press + / -, for a small slider
+const volPop = document.createElement('div'); volPop.id = 'volPop'; volPop.setAttribute('role', 'dialog'); volPop.setAttribute('aria-label', 'Volume');
+volPop.innerHTML = '<span class="vi">🔈</span><input id="volRange" type="range" min="0" max="150" step="5" aria-label="Volume"><b id="volVal"></b>';
+document.body.appendChild(volPop);
+const volRange = $('volRange'), volVal = $('volVal'); let volT = 0, volHold = 0, volLong = false;
+function volShow() { volRange.value = Math.round(AU.vol * 100); volVal.textContent = Math.round(AU.vol * 100) + '%';
+  volPop.classList.add('show'); const b = bSound.getBoundingClientRect(), w = volPop.offsetWidth, h = volPop.offsetHeight; let x, y;
+  if (b.right > innerWidth * 0.7 && !(innerHeight > innerWidth && b.top > innerHeight * 0.6)) { x = b.left - w - 8; y = b.top + b.height / 2 - h / 2; } else { x = b.left + b.width / 2 - w / 2; y = b.top - h - 8; } // beside a side rail, above the bottom row on a portrait phone
+  volPop.style.left = Math.max(6, Math.min(innerWidth - w - 6, x)) + 'px'; volPop.style.top = Math.max(6, Math.min(innerHeight - h - 6, y)) + 'px'; volArm(); }
+function volHide() { volPop.classList.remove('show'); clearTimeout(volT); }
+function volArm() { clearTimeout(volT); volT = setTimeout(volHide, 5000); }
+function setVolume(pc, init) { pc = Math.max(0, Math.min(150, Math.round(pc))); AU.vol = pc / 100; if (!init) try { localStorage.setItem(VOL_KEY, String(pc)); } catch (e) { /* private mode */ }
+  volRange.value = pc; volVal.textContent = pc + '%'; volPop.querySelector('.vi').textContent = pc === 0 ? '🔇' : pc < 60 ? '🔈' : pc < 110 ? '🔉' : '🔊';
+  if (init) return;
+  if (pc > 0 && !AU.want) setSound(true); // moving the slider up while muted turns the sound on
+  if (AG && AU.want && !document.hidden) { const t = AG.ac.currentTime; AG.master.gain.cancelScheduledValues(t); AG.master.gain.setTargetAtTime(auMaster(), t, 0.1); AU.masterT = auMaster(); }
+  volArm(); }
+volRange.addEventListener('input', () => setVolume(+volRange.value));
+volPop.addEventListener('pointerdown', e => { e.stopPropagation(); volArm(); });
+addEventListener('pointerdown', e => { if (volPop.classList.contains('show') && !volPop.contains(e.target) && e.target !== bSound && !bSound.contains(e.target)) volHide(); }, true);
+bSound.addEventListener('pointerdown', () => { volLong = false; clearTimeout(volHold); volHold = setTimeout(() => { volLong = true; volShow(); }, 480); });
+for (const ev of ['pointerup', 'pointercancel', 'pointerleave']) bSound.addEventListener(ev, () => clearTimeout(volHold));
+bSound.addEventListener('contextmenu', e => { e.preventDefault(); clearTimeout(volHold); volLong = true; volShow(); });
+bSound.onclick = () => { if (volLong) { volLong = false; return; } setSound(!AU.want); }; // a long press opens the slider instead of toggling
+setVolume(Math.round(AU.vol * 100), true);
+window.LV_VOL = { show: volShow, hide: volHide, set: setVolume };
 
 // ---------- valley wishes (v5): an optional goal mode with stars ----------
 // A star button opens a small panel of gentle wishes that are checked against the real valley about
@@ -2372,7 +2411,9 @@ const WISHES = [
   { id: 'mill', icon: '⚙️', name: 'The mill wheel turns', tip: 'Build a cottage right beside a fast stream', tiers: [1, 2, 3], unit: 'mills turning' },
   { id: 'storm', icon: '⛈️', name: 'Dry feet in a storm', tip: 'Keep every cottage dry until a storm has passed', tiers: [1, 3, 5], unit: 'cottages stayed dry' },
   { id: 'rainbow', icon: '🌈', name: 'Rainbow hunter', tip: 'When the rain stops on a sunny day, look up', tiers: [1, 2, 3], unit: 'rainbows seen' },
-  { id: 'skate', icon: '⛸️', name: 'Skaters on the ice', tip: 'In winter a frozen lake near cottages draws skaters', tiers: [1, 2, 3], unit: 'skating spots' }
+  { id: 'skate', icon: '⛸️', name: 'Skaters on the ice', tip: 'In winter a frozen lake near cottages draws skaters', tiers: [1, 2, 3], unit: 'skating spots' },
+  { id: 'harvest', icon: '🌾', name: 'A golden harvest', tip: 'Happy cottages sow fields; a turning mill ripens them faster', tiers: [20, 80, 240], unit: 'fields brought in' },
+  { id: 'snowman', icon: '⛄', name: 'Snowmen in the gardens', tip: 'When winter snow reaches the village, the children build snowmen', tiers: [1, 3, 6], unit: 'snowmen' }
 ];
 const W = { stars: {}, val: {}, live: {}, forced: {}, granted: 0, toasts: [], evals: 0, ms: 0, open: false, storm: { on: false, set: null, wet: false, S: null, best: 0 }, rainbows0: 0 };
 for (const w of WISHES) { W.stars[w.id] = 0; W.val[w.id] = 0; }
@@ -2402,6 +2443,7 @@ function wishValues() {
   o.lake = lakeCells(S) / N2; o.forest = L.trees / N2; o.village = V.cottages; o.mill = V.mills;
   o.storm = stormWatch(S); o.rainbow = Math.max(0, (st.rainbows || 0) - W.rainbows0);
   o.skate = st.skatersDrawn > 0 && st.skateSpots ? st.skateSpots.length : 0;
+  o.harvest = V.harvested || 0; o.snowman = st.snowmenDrawn || 0;
   for (const k in W.forced) o[k] = W.forced[k];
 }
 const starsOf = (w, v) => w.tiers.reduce((a, t) => a + (v >= t - 1e-9 ? 1 : 0), 0);

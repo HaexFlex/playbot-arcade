@@ -102,7 +102,12 @@ winter and storms, birds chirp by day where the forest is, the owl hoots at nigh
 on summer evenings, turning mill wheels creak and clack (silent when paused or the river is dry),
 and distant cowbells ring near the village by day. Winter and rain hush the birds; the sound fades
 out when the tab is hidden. The river murmur sits where the water flows on your screen (a river
-on the left side of the valley sounds from the left). `window.LV_AUDIO` shows the current layer levels for testing.
+on the left side of the valley sounds from the left). When snow (or ice) lies on the valley, rain sounds
+muffled: a soft hush instead of a hiss. `window.LV_AUDIO` shows the current layer levels for testing.
+
+**Volume**: hold the speaker button (or right-click it) for a small slider from 0 to 150%; on a keyboard
+**+** and **-** turn it up or down by 10%, Escape closes it. The volume is remembered on this device, and
+sliding it up while muted turns the sound on.
 
 Your finger makes small sounds too, panned to where you touch: Raise, Dig or Smooth in the water
 gives a soft splash, the Sponge slurps, planting rustles like leaves, a new spring bubbles up with a few drops, each new cottage
@@ -110,11 +115,12 @@ gets three hammer taps and a tiny house-warming bell, and a new well drops its b
 with a splash far below (a dull knock if the ground is dry or rocky).
 
 ## Valley wishes
-Tap the **Wishes** star for a small panel of seven gentle goals, each with three stars:
+Tap the **Wishes** star for a small panel of nine gentle goals, each with three stars:
 a lake to row on (one still lake covering 3.5%, 6% or 10% of the valley), a deep green forest
 (32%, 38%, 45% forest), a little village (3, 6, 10 cottages), the mill wheel turns (1, 2, 3 mills
 turning), dry feet in a storm (1, 3, 5 cottages kept dry until a storm has passed), rainbow hunter
-(1, 2, 3 rainbows seen) and skaters on the ice (1, 2, 3 skating spots). Each line shows live
+(1, 2, 3 rainbows seen), skaters on the ice (1, 2, 3 skating spots), a golden harvest (20, 80, 240
+field plots brought in by the village) and snowmen in the gardens (1, 3, 6 snowmen). Each line shows live
 progress, the next goal and a short tip. Wishes are checked against the real valley twice a
 second (they only read it; the simulation is unchanged). Reaching a goal gives a star with a
 cheerful toast and sparkles (and a little chime if the sound is on). The star badge counts all
