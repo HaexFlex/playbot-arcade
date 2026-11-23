@@ -162,7 +162,7 @@ const cv = document.getElementById('c'), cx = cv.getContext('2d'), hint = docume
 const $ = id => document.getElementById(id);
 const st = {
   clouds: [{ x: 300, y: 70, every: 2, off: 0 }, { x: 680, y: 60, every: 3, off: 1 }],
-  leaves: [], drops: [], splashes: [], paused: false, mode: 'draw', mat: 0, plips: 0, t: 0, beat: 0, nextBeat: 0, notes: 0,
+  leaves: [], drops: [], splashes: [], sprays: [], paused: false, mode: 'draw', mat: 0, plips: 0, t: 0, beat: 0, nextBeat: 0, notes: 0,
 };
 // ---------- view: fit the 1000x700 field into the window ----------
 let scale = 1, ox = 0, oy = 0, dpr = 1, FH = 700; // the field is 1000 wide; its height follows the window (taller on a phone)
@@ -174,7 +174,16 @@ function resize() {
 addEventListener('resize', resize); resize();
 const toField = (px, py) => ({ x: (px - ox) / scale, y: (py - oy) / scale });
 // ---------- sound ----------
-let ac = null, master = null, wet = null, hiss = null, soundOn = false;
+let ac = null, master = null, wet = null, verb = null, hiss = null, soundOn = false;
+// a gentle room: impulse response made from decaying stereo noise (about 1.8 s), mixed in low
+function makeVerb() {
+  if (!ac.createConvolver) return null;
+  try {
+    const sr = ac.sampleRate, len = Math.floor(sr * 1.8), ir = ac.createBuffer(2, len, sr);
+    for (let ch = 0; ch < 2; ch++) { const d = ir.getChannelData(ch); let lp = 0; for (let i = 0; i < len; i++) { const k = i / len; lp = lp * 0.55 + (Math.random() * 2 - 1) * 0.45; d[i] = lp * Math.pow(1 - k, 2.6) * (i < sr * 0.012 ? i / (sr * 0.012) : 1); } }
+    const cv = ac.createConvolver(); cv.buffer = ir; const g = ac.createGain(); g.gain.value = 0.18; cv.connect(g); g.connect(master); return cv;
+  } catch (e) { return null; }
+}
 function startAudio() {
   if (ac) return;
   try { ac = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { return; }
@@ -183,6 +192,7 @@ function startAudio() {
   const dl = ac.createDelay(1); dl.delayTime.value = EIGHTH * 3; const fb = ac.createGain(); fb.gain.value = 0.28;
   const lp = ac.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 2200;
   wet = ac.createGain(); wet.gain.value = 0.35; wet.connect(dl); dl.connect(lp); lp.connect(fb); fb.connect(dl); lp.connect(master);
+  verb = makeVerb();
   // soft rain outside the window: looped brown-ish noise through a band filter, very quiet
   const len = ac.sampleRate * 3, buf = ac.createBuffer(1, len, ac.sampleRate), d = buf.getChannelData(0); let last = 0;
   for (let i = 0; i < len; i++) { last = last * 0.86 + (Math.random() * 2 - 1) * 0.14; d[i] = last * 2.2 + (Math.random() * 2 - 1) * 0.05; }
@@ -208,10 +218,10 @@ function pling(freq, vel, pan, mat = 0) {
   const g2 = ac.createGain(); g2.gain.setValueAtTime(amp * 0.5, t); g2.gain.exponentialRampToValueAtTime(0.0005, t + 0.12);
   const o2 = ac.createOscillator(); o2.type = 'sine'; o2.frequency.value = freq * 3.98; o2.connect(g2);
   const out = p || g; if (p) { p.pan.value = pan; g.connect(p); g2.connect(p); } else g2.connect(g);
-  out.connect(master); out.connect(wet);
+  out.connect(master); out.connect(wet); if (verb) out.connect(verb);
   o1.start(t); o2.start(t); o1.stop(t + len + 0.05); o2.stop(t + 0.2);
 }
-function voiceOut(pan) { const p = ac.createStereoPanner ? ac.createStereoPanner() : ac.createGain(); if (p.pan) p.pan.value = pan; p.connect(master); p.connect(wet); return p; }
+function voiceOut(pan, dry) { const p = ac.createStereoPanner ? ac.createStereoPanner() : ac.createGain(); if (p.pan) p.pan.value = pan; p.connect(master); p.connect(wet); if (verb && !dry) p.connect(verb); return p; }
 function bell(freq, vel, pan) { // glass: inharmonic bell partials, long ring
   const t = ac.currentTime, out = voiceOut(pan), amp = 0.03 + 0.12 * Math.min(1, vel / 700);
   for (const [r, a, d] of [[1, 1, 2.6], [2.76, 0.45, 1.3], [5.4, 0.25, 0.6], [8.93, 0.12, 0.3]]) {
@@ -230,7 +240,7 @@ function reed(freq, vel, pan) { // reed: a soft, breathy pluck (triangle through
 let plipN = 0;
 function plip(pan) { // a drop landing in the puddle: a tiny, quiet water plip (pitch glides up)
   st.plips++; if (!soundOn || !ac || ++plipN % 2) return;
-  const t = ac.currentTime, out = voiceOut(pan), o = ac.createOscillator(), g = ac.createGain(), f0 = 900 + Math.random() * 900;
+  const t = ac.currentTime, out = voiceOut(pan, true), o = ac.createOscillator(), g = ac.createGain(), f0 = 900 + Math.random() * 900;
   o.type = 'sine'; o.frequency.setValueAtTime(f0, t); o.frequency.exponentialRampToValueAtTime(f0 * 1.9, t + 0.05);
   g.gain.setValueAtTime(0.018, t); g.gain.exponentialRampToValueAtTime(0.0004, t + 0.07); o.connect(g); g.connect(out); o.start(t); o.stop(t + 0.09);
 }
@@ -390,14 +400,28 @@ function tick(dt) {
     const i = RO.stepDrop(d, st.leaves, h, 900, 4, -1);
     if (i >= 0) {
       const L = st.leaves[i]; L.glow = 1; d.hits++;
-      if (d.impact > 60 && !d.rang.includes(L)) { d.rang.push(L); pling(L.note.freq, d.impact, RO.clamp(d.x / FW * 1.6 - 0.8, -0.9, 0.9), L.mat); st.splashes.push({ x: d.x, y: d.y, r: 2, a: 0.8 }); }
+      if (d.impact > 60 && !d.rang.includes(L)) { d.rang.push(L); pling(L.note.freq, d.impact, RO.clamp(d.x / FW * 1.6 - 0.8, -0.9, 0.9), L.mat); st.splashes.push({ x: d.x, y: d.y, r: 2, a: 0.8 }); spray(d.x, d.y, L, d.impact); }
     }
   }
   for (const d of st.drops) d.life += dt;
-  st.drops = st.drops.filter(d => { if (d.y > FH - 4) { st.splashes.push({ x: d.x, y: FH - 2, r: 3, a: 0.6, pool: 1 }); plip(RO.clamp(d.x / FW * 1.6 - 0.8, -0.9, 0.9)); return false; } return d.life < 12 && d.x > -20 && d.x < FW + 20; });
+  st.drops = st.drops.filter(d => { if (d.y > FH - 4) { st.splashes.push({ x: d.x, y: FH - 2, r: 3, a: 0.6, pool: 1 }, { x: d.x, y: FH - 2, r: 0.5, a: 0.45, pool: 1 }); spray(d.x, FH - 3, null, 160); plip(RO.clamp(d.x / FW * 1.6 - 0.8, -0.9, 0.9)); return false; } return d.life < 12 && d.x > -20 && d.x < FW + 20; });
   for (const L of st.leaves) L.glow = Math.max(0, L.glow - dt * 2.2);
   for (const s of st.splashes) { s.r += dt * 40; s.a -= dt * 1.4; }
-  st.splashes = st.splashes.filter(s => s.a > 0);
+  st.splashes = st.splashes.filter(s => s.a > 0); if (st.splashes.length > MAX_SPLASH) st.splashes.splice(0, st.splashes.length - MAX_SPLASH);
+  for (const q of st.sprays) { q.vy += 900 * dt; q.x += q.vx * dt; q.y += q.vy * dt; q.life -= dt; }
+  st.sprays = st.sprays.filter(q => q.life > 0 && q.y < FH);
+}
+// tiny droplets that spray off a struck leaf (or jump out of the puddle): short-lived and capped, so phones stay smooth
+const MAX_SPRAY = 60, MAX_SPLASH = 40;
+function spray(x, y, L, impact) {
+  let nx = 0, ny = -1;
+  if (L) { const dx = L.x2 - L.x1, dy = L.y2 - L.y1, n = Math.hypot(dx, dy) || 1; nx = -dy / n; ny = dx / n; if (ny > 0) { nx = -nx; ny = -ny; } }
+  const k = L ? 3 + (impact > 300 ? 2 : impact > 150 ? 1 : 0) : 2, sp = L ? 90 + Math.min(220, impact * 0.35) : 110;
+  for (let i = 0; i < k; i++) {
+    if (st.sprays.length >= MAX_SPRAY) st.sprays.shift();
+    const a = (Math.random() - 0.5) * 1.6, s = sp * (0.55 + Math.random() * 0.6), c = Math.cos(a), si = Math.sin(a);
+    st.sprays.push({ x, y: y - 2, vx: (nx * c - ny * si) * s, vy: (nx * si + ny * c) * s, life: 0.25 + Math.random() * 0.25, r: 1 + Math.random() * 0.9, hue: L ? leafHue(L.note.step) : -1 });
+  }
 }
 // ---------- drawing ----------
 function draw() {
@@ -433,6 +457,7 @@ function draw() {
   cx.fillStyle = 'rgba(170,215,255,0.9)';
   for (const d of st.drops) { cx.strokeStyle = 'rgba(170,215,255,0.18)'; cx.lineWidth = 2.5; cx.beginPath(); cx.moveTo(d.x, d.y); cx.lineTo(d.x - d.vx * 0.03, d.y - d.vy * 0.03); cx.stroke(); cx.beginPath(); cx.ellipse(d.x, d.y, 3.2, 4.6, Math.atan2(d.vx, d.vy) * -1, 0, Math.PI * 2); cx.fill(); }
   for (const s of st.splashes) { cx.strokeStyle = 'rgba(170,215,255,' + s.a + ')'; cx.lineWidth = 1.5; cx.beginPath(); if (s.pool) cx.ellipse(s.x, s.y, s.r * 1.6, s.r * 0.4, 0, 0, Math.PI * 2); else cx.arc(s.x, s.y, s.r, 0, Math.PI * 2); cx.stroke(); }
+  for (const q of st.sprays) { cx.fillStyle = q.hue < 0 ? 'rgba(180,220,255,' + Math.min(0.8, q.life * 3) + ')' : 'hsla(' + q.hue + ',60%,82%,' + Math.min(0.85, q.life * 3) + ')'; cx.beginPath(); cx.arc(q.x, q.y, q.r, 0, Math.PI * 2); cx.fill(); }
   // clouds
   for (const c of st.clouds) {
     const pulse = ((st.beat + c.off) % c.every === 0) ? Math.max(0, 1 - (st.t - (st.nextBeat - EIGHTH)) / EIGHTH) : 0;
@@ -450,7 +475,7 @@ function frame(now) {
   draw(); requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
-window.RO_APP = { cycleMat, MATS, pad, buildVoice, openPad, get FH() { return FH; }, PIECES, loadPiece, encode, decode, st, makeLeaf, tick, save, load, setSound, get soundOn() { return soundOn; } };
+window.RO_APP = { cycleMat, MATS, pad, buildVoice, openPad, get FH() { return FH; }, PIECES, loadPiece, encode, decode, st, makeLeaf, tick, save, load, setSound, get soundOn() { return soundOn; }, audio: () => ({ ctx: !!ac, reverb: !!verb, state: ac ? ac.state : 'none' }) };
 })();
 </script>
 </body></html>

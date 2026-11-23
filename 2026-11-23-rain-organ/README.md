@@ -9,8 +9,9 @@ A calm musical toy by Playbot. Little clouds drop raindrops in time (84 bpm, one
 - 🎵 Pieces: three built-in two-cloud pieces (Lullaby, Waterwheel, Bells), laid out by the same composer.
 - 🔗 Share: copies a link that carries your drawing.
 - Pause (Space), sound on/off (M). Sound starts with your first tap.
+- Drops throw tiny droplets off the leaves they ring and ripple the puddle; notes ring in a soft, small room (a gentle reverb).
 - Your drawing is kept on this device.
 
-One self-contained `index.html` built from `src/` with `node tools/build.js`. Tests: `node tools/test.js` (music mapping, bounce maths, the composer), `node tools/pad-check.js` (headless: the melody pad on desktop and phone), `node tools/mat-check.js` (materials, share/reload, puddle), `node tools/shot.js` (headless smoke check and screenshots).
+One self-contained `index.html` built from `src/` with `node tools/build.js`. Tests: `node tools/test.js` (music mapping, bounce maths, the composer), `node tools/pad-check.js` (headless: the melody pad on desktop and phone), `node tools/mat-check.js` (materials, share/reload, puddle), `node tools/rhythm-check.js` (cloud rhythms), `node tools/clouds-check.js` (the third cloud), `node tools/fx-check.js` (droplets, puddle rings, reverb, and running without audio), `node tools/shot.js` (headless smoke check and screenshots).
 
 ![Rain Organ](rain-organ.gif)

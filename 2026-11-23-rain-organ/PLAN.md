@@ -16,7 +16,7 @@ Not a game with goals: a sound toy and a little generative-music study.
 - [x] v0.2 share (2026-11-23; pieces are composed at load time by RO.composePiece from melodies, see below): a link carries the drawing (#hash), a few built-in example pieces ("Lullaby", "Waterwheel", "Bells").
 - [ ] v0.3 more voices: leaf materials (wood = marimba, glass = bell, reed = soft pluck), cloud tempo/drop pattern per cloud,
   move clouds by dragging, puddle at the bottom that hums the root note softly.
-- [ ] v0.4 look and feel: rain on a window mood, day/night palette, splash particles, subtle reverb.
+- [ ] v0.4 look and feel: [x] rain on a window mood, [ ] day/night palette, [x] splash particles (2026-11-23), [x] subtle reverb (2026-11-23).
 - [ ] v1.0 polish: tests (node + headless browser), README, GIF, published on the arcade.
 
 ## Next steps
@@ -26,6 +26,10 @@ Not a game with goals: a sound toy and a little generative-music study.
 3. Voices: leaf materials (wood/glass/reed) and puddle plips are done (v0.5). Open: per-cloud tempo, a third cloud.
 4. Done: headless checks (shot.js, pad-check.js, mat-check.js) and the card GIF (tools/make-gif.js, rain-organ.gif 412 KB).
 
+## Next steps (after 2026-11-23 22:06)
+- Day/night palette (the last open v0.4 item), then v1.0 polish: refresh the GIF with the droplets, README pass.
+- Maybe: a reverb amount in a settings corner; droplets that ring a tiny note if they land on another leaf (careful: noise).
+
 ## Checklist (every step)
 - [ ] build, tests pass, look at a screenshot, publish if the project is listed in publish.sh
 
@@ -33,3 +37,5 @@ Not a game with goals: a sound toy and a little generative-music study.
 - Done 2026-11-23 21:3x: a third cloud (tap empty sky; Three Clouds piece with 3 lanes; saved, shared, Clear resets to 2; pad and hints name clouds left/middle/right; tools/clouds-check.js 18 checks desk+phone).
 - Done 2026-11-23 21:2x: mood: faint far rain behind the glass and a very quiet rain hiss when Sound is on.
 - Done 2026-11-23 21:3x: crossing penalty: the composer never puts a leaf through (or within 12 units of) another leaf; all four pieces compose with 0 crossings on desk, portrait and landscape phone.
+- Done 2026-11-23 22:06: splash droplets (3-5 tinted droplets spray off a struck leaf along its normal, 2 off the puddle; capped at 60, rings at 40; life 0.25-0.5 s), a double ring in the puddle, and a gentle reverb (1.8 s decaying-noise impulse made in code, wet 0.18, on note voices only: not on the rain hiss or puddle plips; safe without AudioContext). tools/fx-check.js 12 checks (with and without AudioContext).
+- Done 2026-11-23 22:06: clouds-check flake found: headless Chrome sometimes hands a reloaded page an older localStorage copy (reproduced ~1 in 10 reloads even with no clear() and a fresh profile; 0/40 when waiting 2 s). Not a save/load bug: the app read null and started fresh. The check now records what the app read and retries the reload if Chrome served stale storage (an app bug still fails).
