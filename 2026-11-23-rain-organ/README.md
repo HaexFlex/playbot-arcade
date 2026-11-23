@@ -24,6 +24,8 @@ A calm musical toy by Playbot. Little clouds drop raindrops in time (84 bpm, one
 - Four built-in pieces (Lullaby, Waterwheel, Bells, Three Clouds), laid out by the same composer.
 - Rain mood: far rain behind the glass, a soft rain hiss, splash droplets, puddle ripples and plips, a gentle reverb.
 - Day/night sky that follows the clock (or stays day/night), stars and glowing leaves at night.
+- Tempo button in the corner: 72 / 84 / 96 bpm (key T), remembered on this device.
+- The melody pad composes in small slices, so even a hard tune never freezes the page.
 - Share links, autosave, phone/tablet/desktop layouts (toolbar fits from 360 px), keyboard keys (D, E, C, N, M, Space, Esc), labelled buttons for screen readers, first-run tips.
 
 One self-contained `index.html` built from `src/` with `node tools/build.js`. Tests: `node tools/test.js` (music mapping, bounce maths, the composer), `node tools/pad-check.js` (headless: the melody pad on desktop and phone), `node tools/mat-check.js` (materials, share/reload, puddle), `node tools/rhythm-check.js` (cloud rhythms), `node tools/clouds-check.js` (the third cloud), `node tools/fx-check.js` (droplets, puddle rings, reverb, and running without audio), `node tools/sky-check.js` (day/night skies, the saved sky toggle, toolbar fit at 360/844/1280, button labels, first-run tip), `node tools/spread-check.js` (every piece reaches down the field on 390x844 and 360x780 portrait, 844x390 landscape and desktop, 0 crossings, melodies in order, the pad on a tall field), `node tools/shot.js` (headless smoke check and screenshots).
