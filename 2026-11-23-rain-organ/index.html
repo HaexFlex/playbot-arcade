@@ -22,26 +22,29 @@ canvas{display:block;width:100vw;height:100vh;touch-action:none}
 #padKeys{display:flex;gap:4px;align-items:flex-end;height:96px;margin-bottom:8px}
 #padKeys button{flex:1;padding:0;min-width:0;border-radius:8px;color:#0f1a24;font-size:12px;font-weight:600;display:flex;align-items:flex-end;justify-content:center;padding-bottom:4px}
 #pad .pa{display:flex;gap:6px;justify-content:space-between}#pad .go{background:rgba(140,200,255,.25);border-color:rgba(160,210,255,.6)}
+#bSky{position:fixed;top:max(8px,env(safe-area-inset-top));right:max(8px,env(safe-area-inset-right));width:40px;height:40px;padding:0;font-size:18px;line-height:1;color:#dfe9f2;background:rgba(15,26,36,.55);border:1px solid rgba(255,255,255,.18);border-radius:50%;cursor:pointer;backdrop-filter:blur(6px)}
+#bSky:focus-visible,#pad button:focus-visible{outline:2px solid #9fd0ff;outline-offset:2px}
 </style></head>
 <body>
 <canvas id="c" aria-label="Rain Organ: draw leaves under the clouds; raindrops ring them"></canvas>
 <div id="bar" role="toolbar" aria-label="Tools">
  <button id="bDraw" class="on" aria-pressed="true" title="Draw leaves (D)">✏️ <span>Draw</span></button>
- <button id="bErase" aria-pressed="false" title="Erase: tap a leaf (E)">🧽 <span>Erase</span></button>
- <button id="bPause" title="Pause the rain (Space)">⏸ <span>Pause</span></button>
- <button id="bClear" title="Clear all leaves">🗑 <span>Clear</span></button>
- <button id="bPad" title="Compose a melody for a cloud (C)">🎹 <span>Compose</span></button>
- <button id="bPiece" title="Play a built-in piece">🎵 <span>Pieces</span></button>
- <button id="bShare" title="Copy a link to your drawing">🔗 <span>Share</span></button>
- <button id="bSound" title="Sound on/off (M)">🔇 <span>Sound</span></button>
+ <button id="bErase" aria-pressed="false" aria-label="Erase: tap or swipe over leaves" title="Erase: tap a leaf (E)">🧽 <span>Erase</span></button>
+ <button id="bPause" aria-label="Pause the rain" title="Pause the rain (Space)">⏸ <span>Pause</span></button>
+ <button id="bClear" aria-label="Clear all leaves" title="Clear all leaves">🗑 <span>Clear</span></button>
+ <button id="bPad" aria-label="Compose a melody for a cloud" title="Compose a melody for a cloud (C)">🎹 <span>Compose</span></button>
+ <button id="bPiece" aria-label="Play the next built-in piece" title="Play a built-in piece">🎵 <span>Pieces</span></button>
+ <button id="bShare" aria-label="Copy a link to your drawing" title="Copy a link to your drawing">🔗 <span>Share</span></button>
+ <button id="bSound" aria-label="Sound is off (tap to turn on)" aria-pressed="false" title="Sound on/off (M)">🔇 <span>Sound</span></button>
 </div>
+<button id="bSky" aria-label="Sky: auto">🌗</button>
 <div id="pad" hidden role="dialog" aria-label="Compose a melody">
  <div class="ph"><b>Compose</b> <span id="padCloud"></span><button id="padX" aria-label="Close">✕</button></div>
  <div id="padSeq" aria-live="polite"></div>
  <div id="padKeys"></div>
  <div class="pa"><button id="padUndo">↩ Undo</button><button id="padSwap">☁️ Other cloud</button><button id="padGo" class="go">🌧 Let it rain</button></div>
 </div>
-<div id="hint">Drag to draw a leaf under a cloud. Short leaves ring high, long ones low.</div>
+<div id="hint" role="status" aria-live="polite">Drag to draw a leaf under a cloud. Short leaves ring high, long ones low.</div>
 <script>// Rain Organ core: pure maths (music mapping, bounce). Works in the browser and in node.
 (function (root) {
   const SCALE = [0, 2, 4, 7, 9];          // major pentatonic
@@ -151,7 +154,33 @@ canvas{display:block;width:100vw;height:100vh;touch-action:none}
     }
     return all;
   }
-  const RO = { SCALE, STEPS, MIN_LEN, MAX_LEN, stepForLength, midiForStep, freqForMidi, noteName, leafNote, closest, bounce, stepDrop, clamp, lengthForStep, trace, compose, composePiece, laneOf, segDist, crowds };
+
+  // ---------- sky palette by local time of day (0..24 h): night, dawn, day, dusk with soft blends ----------
+  // each key: [hour, skyTop, skyBottom, cloud, drop, ink, puddle, stars 0..1, night 0..1 (leaf glow), leafL (leaf lightness shift)]
+  const SKY_KEYS = [
+    [0, '#0a1120', '#060a12', '#7b879c', '#a8cdf5', '#dfe9f2', '#5a7fa8', 1, 1, 4],
+    [5, '#0e1526', '#0a0f1a', '#7b879c', '#a8cdf5', '#dfe9f2', '#5a7fa8', 0.9, 1, 4],
+    [6.5, '#3b3f6b', '#93666a', '#e6c6c8', '#f0f4ff', '#fff4ec', '#9a8fb5', 0.15, 0.4, 0],
+    [8.5, '#7299b8', '#b9ccd8', '#f1f5f8', '#24507e', '#10202e', '#5c86a8', 0, 0, -12],
+    [17, '#7299b8', '#b9ccd8', '#f1f5f8', '#24507e', '#10202e', '#5c86a8', 0, 0, -12],
+    [18.7, '#2f2c58', '#8c5a5a', '#e8b9ad', '#f2f0ff', '#fff2ea', '#a1819f', 0.2, 0.4, 0],
+    [20.5, '#101a2e', '#0b111c', '#8590a6', '#a8cdf5', '#dfe9f2', '#5a7fa8', 0.85, 0.9, 3],
+    [24, '#0a1120', '#060a12', '#7b879c', '#a8cdf5', '#dfe9f2', '#5a7fa8', 1, 1, 4],
+  ];
+  const hex = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16));
+  const mixRGB = (a, b, k) => a.map((v, i) => Math.round(v + (b[i] - v) * k));
+  const skyLum = c => { const f = v => { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); }; return 0.2126 * f(c[0]) + 0.7152 * f(c[1]) + 0.0722 * f(c[2]); };
+  const contrast = (a, b) => { const x = skyLum(a), y = skyLum(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); };
+  function skyPalette(hour) {
+    hour = ((+hour % 24) + 24) % 24; let i = 0; while (i < SKY_KEYS.length - 2 && hour >= SKY_KEYS[i + 1][0]) i++;
+    const A = SKY_KEYS[i], B = SKY_KEYS[i + 1], u = (hour - A[0]) / (B[0] - A[0] || 1), k = u * u * (3 - 2 * u); // smoothstep
+    const c = j => mixRGB(hex(A[j]), hex(B[j]), k), n = j => A[j] + (B[j] - A[j]) * k;
+    const name = hour < 5.5 || hour >= 20 ? 'night' : hour < 8 ? 'dawn' : hour < 17.5 ? 'day' : 'dusk';
+    const top = c(1), bottom = c(2), lum = skyLum(mixRGB(top, bottom, 0.5)), light = lum > 0.2; // ink and drops flip by brightness, so they never fade into the sky
+    return { hour, name, top, bottom, lum, cloud: c(3), drop: light ? [28, 66, 110] : [176, 214, 250], ink: light ? [12, 24, 36] : [232, 240, 248], inkTop: contrast([12, 24, 36], top) > contrast([232, 240, 248], top) ? [12, 24, 36] : [232, 240, 248], puddle: c(6), stars: n(7), night: n(8), leafL: n(9) };
+  }
+  const rgba = (c, a) => 'rgba(' + c[0] + ',' + c[1] + ',' + c[2] + ',' + (a === undefined ? 1 : +a.toFixed(3)) + ')';
+  const RO = { skyPalette, rgba, contrast, SCALE, STEPS, MIN_LEN, MAX_LEN, stepForLength, midiForStep, freqForMidi, noteName, leafNote, closest, bounce, stepDrop, clamp, lengthForStep, trace, compose, composePiece, laneOf, segDist, crowds };
   if (typeof module !== 'undefined' && module.exports) module.exports = RO; else root.RO = RO;
 })(typeof window !== 'undefined' ? window : globalThis);
 </script>
@@ -202,7 +231,7 @@ function startAudio() {
 function setSound(on) {
   soundOn = on; if (on) { startAudio(); if (ac && ac.state === 'suspended') ac.resume(); }
   if (hiss) hiss.gain.setTargetAtTime(on ? 0.05 : 0, ac.currentTime, 0.6);
-  $('bSound').innerHTML = (on ? '🔊' : '🔇') + ' <span>Sound</span>'; $('bSound').classList.toggle('on', on);
+  $('bSound').innerHTML = (on ? '🔊' : '🔇') + ' <span>Sound</span>'; $('bSound').classList.toggle('on', on); $('bSound').setAttribute('aria-label', on ? 'Sound is on (tap to mute)' : 'Sound is off (tap to turn on)'); $('bSound').setAttribute('aria-pressed', on);
 }
 const MATS = [{ name: 'Wood', icon: '🪵' }, { name: 'Glass', icon: '🔔' }, { name: 'Reed', icon: '🌾' }];
 function pling(freq, vel, pan, mat = 0) {
@@ -303,7 +332,7 @@ function buildVoice(k, steps) {
   let L = RO.compose(steps, c.x, c.y + 22, rnd, my, 700, null, keep, others, fallK(), lo, hi);
   if (!L) L = RO.compose(steps, c.x, c.y + 22, rnd, my, 700, null, keep, others, 1, lo, hi);
   if (!L) L = RO.compose(steps, c.x, c.y + 22, rnd, my, 700, null, keep, others, 1);
-  if (!L) { setCloudCount(prevN); return false; }
+  if (!L) return false;
   st.leaves = keep.concat(L.map(l => Object.assign(makeLeaf(l.x1, l.y1, l.x2, l.y2, st.mat), { voice: k })));
   for (const d of st.drops) d.rang = []; save(); return true;
 }
@@ -358,7 +387,7 @@ function endDrag() {
     if (len >= RO.MIN_LEN * 0.8) {
       if (len > RO.MAX_LEN) { const k = RO.MAX_LEN / len; x2 = x1 + (x2 - x1) * k; y2 = y1 + (y2 - y1) * k; }
       if (st.leaves.length >= MAX_LEAVES) st.leaves.shift();
-      const L = makeLeaf(x1, y1, x2, y2, st.mat); L.glow = 1; st.leaves.push(L); pling(L.note.freq, 300, ((x1 + x2) / 2 / FW) * 1.6 - 0.8, L.mat);
+      const L = makeLeaf(x1, y1, x2, y2, st.mat); L.glow = 1; st.leaves.push(L); pling(L.note.freq, 300, ((x1 + x2) / 2 / FW) * 1.6 - 0.8, L.mat); leafDrawn();
     }
   }
   if (drag && drag.kind === 'cloud') save();
@@ -366,8 +395,8 @@ function endDrag() {
 }
 cv.addEventListener('pointerup', endDrag); cv.addEventListener('pointercancel', endDrag);
 function setMode(m) { st.mode = m; $('bDraw').classList.toggle('on', m === 'draw'); $('bErase').classList.toggle('on', m === 'erase'); $('bDraw').setAttribute('aria-pressed', m === 'draw'); $('bErase').setAttribute('aria-pressed', m === 'erase'); }
-function setPause(p) { st.paused = p; $('bPause').innerHTML = (p ? '▶️ <span>Play</span>' : '⏸ <span>Pause</span>'); }
-function drawLabel() { const M = MATS[st.mat]; $('bDraw').innerHTML = M.icon + ' <span>' + M.name + '</span>'; $('bDraw').title = 'Draw ' + M.name.toLowerCase() + ' leaves (D); tap again for another material'; }
+function setPause(p) { st.paused = p; $('bPause').innerHTML = (p ? '▶️ <span>Play</span>' : '⏸ <span>Pause</span>'); $('bPause').setAttribute('aria-label', p ? 'Play: let it rain again' : 'Pause the rain'); }
+function drawLabel() { const M = MATS[st.mat]; $('bDraw').innerHTML = M.icon + ' <span>' + M.name + '</span>'; $('bDraw').title = 'Draw ' + M.name.toLowerCase() + ' leaves (D); tap again for another material'; $('bDraw').setAttribute('aria-label', $('bDraw').title); }
 function cycleMat() { st.mat = (st.mat + 1) % 3; drawLabel(); say(MATS[st.mat].icon + ' ' + MATS[st.mat].name + ' leaves' + (st.mat === 1 ? ': bells' : st.mat === 2 ? ': soft plucks' : ': marimba')); if (!soundOn && !st.userMuted) setSound(true); pling(RO.freqForMidi(72), 400, 0, st.mat); try { localStorage.setItem('rain-organ-mat', st.mat); } catch (e) {} }
 try { st.mat = (+localStorage.getItem('rain-organ-mat') || 0) % 3; } catch (e) {}
 drawLabel();
@@ -381,11 +410,15 @@ $('bShare').onclick = async () => {
   catch (e) { prompt('Copy this link:', url); }
 };
 let sayT = 0;
-function say(t) { hint.textContent = t; hint.classList.remove('gone'); clearTimeout(sayT); sayT = setTimeout(() => hint.classList.add('gone'), 2600); }
+function say(t, ms = 2600) { hint.textContent = t; hint.classList.remove('gone'); clearTimeout(sayT); sayT = setTimeout(() => hint.classList.add('gone'), ms); }
+// first-run tips: one at a time as you draw your 1st, 3rd and 6th leaf, each shown once per device
+const TIPS = ['Nice! Tap a cloud to change its rhythm, or tap the empty sky for a third cloud.', 'Tap ✏️ again for glass bells 🔔 or soft reed plucks 🌾.', 'Try 🎹 Compose for your own tune, or 🎵 Pieces. 🌗 (top right) changes the sky.'], TIP_AT = [1, 3, 6];
+let tipN = 0, drawnN = 0; try { tipN = +localStorage.getItem('rain-organ-tips') || 0; } catch (e) {}
+function leafDrawn() { drawnN++; if (tipN < TIPS.length && drawnN >= TIP_AT[tipN]) { say(TIPS[tipN], 5000); tipN++; try { localStorage.setItem('rain-organ-tips', tipN); } catch (e) {} } }
 $('bSound').onclick = () => { st.userMuted = soundOn; setSound(!soundOn); };
 addEventListener('keydown', e => {
   if (e.key === 'd' || e.key === 'D') setMode('draw'); else if (e.key === 'e' || e.key === 'E') setMode('erase');
-  else if (e.key === 'c' || e.key === 'C') openPad(!pad.open); else if (e.key === 'Escape') openPad(false); else if (e.key === ' ') { e.preventDefault(); setPause(!st.paused); } else if (e.key === 'm' || e.key === 'M') { st.userMuted = soundOn; setSound(!soundOn); }
+  else if (e.key === 'c' || e.key === 'C') openPad(!pad.open); else if (e.key === 'Escape') openPad(false); else if (e.key === ' ') { e.preventDefault(); setPause(!st.paused); } else if (e.key === 'n' || e.key === 'N') cycleSky(); else if (e.key === 'm' || e.key === 'M') { st.userMuted = soundOn; setSound(!soundOn); }
 });
 // ---------- simulation ----------
 function tick(dt) {
@@ -423,49 +456,69 @@ function spray(x, y, L, impact) {
     st.sprays.push({ x, y: y - 2, vx: (nx * c - ny * si) * s, vy: (nx * si + ny * c) * s, life: 0.25 + Math.random() * 0.25, r: 1 + Math.random() * 0.9, hue: L ? leafHue(L.note.step) : -1 });
   }
 }
+// ---------- sky: follows the local time of day (auto), or stays at day or night (saved) ----------
+const SKY_KEY = 'rain-organ-sky', SKY_MODES = ['auto', 'day', 'night'];
+let skyMode = 'auto', forcedHour = null; // forcedHour: for checks (RO_APP.setHour)
+try { const m = localStorage.getItem(SKY_KEY); if (SKY_MODES.includes(m)) skyMode = m; } catch (e) {}
+function skyHour() { if (forcedHour !== null) return forcedHour; if (skyMode === 'day') return 12; if (skyMode === 'night') return 0; const d = new Date(); return d.getHours() + d.getMinutes() / 60; }
+function skyLabel() {
+  const b = $('bSky'), P = RO.skyPalette(skyHour());
+  b.textContent = skyMode === 'day' ? '☀️' : skyMode === 'night' ? '🌙' : '🌗';
+  const lab = skyMode === 'auto' ? 'Sky: auto, follows your clock (now ' + P.name + ')' : 'Sky: always ' + skyMode;
+  b.setAttribute('aria-label', lab + '. Tap to change'); b.title = lab + ' (N)';
+}
+function setSky(m, quiet) { skyMode = SKY_MODES.includes(m) ? m : 'auto'; try { localStorage.setItem(SKY_KEY, skyMode); } catch (e) {} skyLabel(); if (!quiet) say(skyMode === 'auto' ? '🌗 The sky follows your clock' : skyMode === 'day' ? '☀️ Always day' : '🌙 Always night'); }
+const cycleSky = () => setSky(SKY_MODES[(SKY_MODES.indexOf(skyMode) + 1) % 3]);
+$('bSky').onclick = cycleSky; skyLabel(); setInterval(skyLabel, 60000);
+const STARS = Array.from({ length: 34 }, (_, i) => ({ x: (i * 0.618034 + 0.13) % 1, y: ((i * 0.381966 * 7) % 1) * 0.55, r: 0.6 + ((i * 37) % 10) / 10, ph: i * 1.7 }));
+let pal = RO.skyPalette(skyHour());
 // ---------- drawing ----------
 function draw() {
+  const P = pal = RO.skyPalette(skyHour()), C = RO.rgba;
   cx.setTransform(dpr, 0, 0, dpr, 0, 0);
   const w = innerWidth, h = innerHeight;
-  const g = cx.createLinearGradient(0, 0, 0, h); g.addColorStop(0, '#17283a'); g.addColorStop(1, '#0c141c'); cx.fillStyle = g; cx.fillRect(0, 0, w, h);
+  const g = cx.createLinearGradient(0, 0, 0, h); g.addColorStop(0, C(P.top)); g.addColorStop(1, C(P.bottom)); cx.fillStyle = g; cx.fillRect(0, 0, w, h);
+  // a few stars at night (behind the rain), twinkling softly
+  if (P.stars > 0.02) { const t = performance.now() / 1000; for (const S of STARS) { cx.fillStyle = 'rgba(235,240,255,' + (P.stars * (0.35 + 0.3 * Math.sin(t * 1.3 + S.ph))).toFixed(3) + ')'; cx.beginPath(); cx.arc(S.x * w, S.y * h, S.r, 0, Math.PI * 2); cx.fill(); } }
   // far rain behind the glass (screen space, purely for mood)
-  { const t = performance.now() / 1000; cx.strokeStyle = 'rgba(150,190,230,0.07)'; cx.lineWidth = 1; cx.beginPath();
+  { const t = performance.now() / 1000; cx.strokeStyle = C(P.drop, P.lum > 0.2 ? 0.1 : 0.07); cx.lineWidth = 1; cx.beginPath();
     for (let i = 0; i < 70; i++) { const fx = (i * 0.618034) % 1, sp = 180 + (i * 37) % 140, x = fx * (w + 60) - 30, y = ((t * sp + i * 97) % (h + 40)) - 20 - 0; cx.moveTo(x, y); cx.lineTo(x - 3, y + 14); }
     cx.stroke(); }
   cx.setTransform(dpr * scale, 0, 0, dpr * scale, dpr * ox, dpr * oy);
   // field frame + ground
-  { const pg = cx.createLinearGradient(0, FH - 14, 0, FH); pg.addColorStop(0, 'rgba(120,170,210,0)'); pg.addColorStop(1, 'rgba(120,170,210,0.16)'); cx.fillStyle = pg; cx.fillRect(0, FH - 14, FW, 14); }
+  { const pg = cx.createLinearGradient(0, FH - 14, 0, FH); pg.addColorStop(0, C(P.puddle, 0)); pg.addColorStop(1, C(P.puddle, 0.22 + 0.08 * P.night)); cx.fillStyle = pg; cx.fillRect(0, FH - 14, FW, 14); }
   // leaves
-  cx.lineCap = 'round';
+  cx.lineCap = 'round'; const lit = P.lum > 0.2, LL = P.leafL, NG = P.night; // by day leaves sit a little darker; at night they glow a little
   for (const L of st.leaves) {
     const hue = leafHue(L.note.step), gl = L.glow;
     cx.strokeStyle = 'hsla(' + hue + ',70%,' + (45 + 30 * gl) + '%,' + (0.75 + 0.25 * gl) + ')';
     const dx = L.x2 - L.x1, dy = L.y2 - L.y1, n = Math.hypot(dx, dy) || 1, wv = (L.mat === 2 ? 0.55 : 1) * (Math.min(9, 3 + n * 0.03) + 2 * gl), nx = -dy / n * wv, ny = dx / n * wv;
     const mx = (L.x1 + L.x2) / 2, my = (L.y1 + L.y2) / 2;
-    cx.fillStyle = L.mat === 1 ? 'hsla(' + hue + ',80%,' + (78 + 15 * gl) + '%,' + (0.38 + 0.4 * gl) + ')' : 'hsla(' + hue + ',' + (L.mat === 2 ? 45 : 75) + '%,' + (52 + 25 * gl) + '%,' + (0.8 + 0.2 * gl) + ')'; cx.shadowColor = 'hsla(' + hue + ',90%,70%,' + gl + ')'; cx.shadowBlur = 18 * gl;
+    cx.fillStyle = L.mat === 1 ? 'hsla(' + hue + ',80%,' + (78 + LL + 15 * gl) + '%,' + (0.38 + (lit ? 0.22 : 0) + 0.4 * gl) + ')' : 'hsla(' + hue + ',' + (L.mat === 2 ? 45 : 75) + '%,' + (52 + LL + 25 * gl) + '%,' + (0.8 + 0.2 * gl) + ')'; cx.shadowColor = 'hsla(' + hue + ',90%,70%,' + Math.max(gl, 0.5 * NG).toFixed(3) + ')'; cx.shadowBlur = 18 * gl + 8 * NG;
     cx.beginPath(); cx.moveTo(L.x1, L.y1); cx.quadraticCurveTo(mx + nx, my + ny, L.x2, L.y2); cx.quadraticCurveTo(mx - nx, my - ny, L.x1, L.y1); cx.fill();
-    cx.shadowBlur = 0; cx.strokeStyle = L.mat === 1 ? 'rgba(255,255,255,' + (0.6 + 0.4 * gl) + ')' : 'hsla(' + hue + ',60%,' + (75 + 15 * gl) + '%,0.55)'; cx.lineWidth = L.mat === 1 ? 1.6 : 1.2; cx.beginPath(); cx.moveTo(L.x1, L.y1); cx.lineTo(L.x2, L.y2); cx.stroke();
+    cx.shadowBlur = 0; cx.strokeStyle = L.mat === 1 ? (lit ? 'hsla(' + hue + ',45%,32%,' : 'rgba(255,255,255,') + (0.6 + 0.4 * gl) + ')' : 'hsla(' + hue + ',60%,' + (75 + LL + 15 * gl) + '%,0.55)'; cx.lineWidth = L.mat === 1 ? 1.6 : 1.2; cx.beginPath(); cx.moveTo(L.x1, L.y1); cx.lineTo(L.x2, L.y2); cx.stroke();
   }
   cx.shadowBlur = 0;
   if (drag && drag.kind === 'leaf') {
     const len = Math.min(RO.MAX_LEN, Math.hypot(drag.x2 - drag.x1, drag.y2 - drag.y1));
-    cx.strokeStyle = 'rgba(220,235,255,0.5)'; cx.lineWidth = 5; cx.setLineDash([10, 8]);
+    cx.strokeStyle = C(P.ink, 0.5); cx.lineWidth = 5; cx.setLineDash([10, 8]);
     cx.beginPath(); cx.moveTo(drag.x1, drag.y1); cx.lineTo(drag.x2, drag.y2); cx.stroke(); cx.setLineDash([]);
-    if (len >= RO.MIN_LEN * 0.8) { cx.fillStyle = '#dfe9f2'; cx.font = '18px system-ui'; cx.fillText(RO.leafNote(len).name, drag.x2 + 10, drag.y2 - 10); }
+    if (len >= RO.MIN_LEN * 0.8) { const nm = RO.leafNote(len).name; cx.font = '18px system-ui'; cx.fillStyle = 'rgba(15,26,36,0.72)'; cx.fillRect(drag.x2 + 5, drag.y2 - 30, cx.measureText(nm).width + 10, 26); cx.fillStyle = '#eef4fa'; cx.fillText(nm, drag.x2 + 10, drag.y2 - 10); }
   }
   // drops
-  cx.fillStyle = 'rgba(170,215,255,0.9)';
-  for (const d of st.drops) { cx.strokeStyle = 'rgba(170,215,255,0.18)'; cx.lineWidth = 2.5; cx.beginPath(); cx.moveTo(d.x, d.y); cx.lineTo(d.x - d.vx * 0.03, d.y - d.vy * 0.03); cx.stroke(); cx.beginPath(); cx.ellipse(d.x, d.y, 3.2, 4.6, Math.atan2(d.vx, d.vy) * -1, 0, Math.PI * 2); cx.fill(); }
-  for (const s of st.splashes) { cx.strokeStyle = 'rgba(170,215,255,' + s.a + ')'; cx.lineWidth = 1.5; cx.beginPath(); if (s.pool) cx.ellipse(s.x, s.y, s.r * 1.6, s.r * 0.4, 0, 0, Math.PI * 2); else cx.arc(s.x, s.y, s.r, 0, Math.PI * 2); cx.stroke(); }
-  for (const q of st.sprays) { cx.fillStyle = q.hue < 0 ? 'rgba(180,220,255,' + Math.min(0.8, q.life * 3) + ')' : 'hsla(' + q.hue + ',60%,82%,' + Math.min(0.85, q.life * 3) + ')'; cx.beginPath(); cx.arc(q.x, q.y, q.r, 0, Math.PI * 2); cx.fill(); }
+  // drops: a thin rim in the opposite tone keeps them visible on any part of the sky gradient
+  const dropRim = C(P.lum > 0.2 ? [235, 243, 250] : [10, 20, 34], 0.45);
+  for (const d of st.drops) { cx.strokeStyle = C(P.drop, 0.2); cx.lineWidth = 2.5; cx.beginPath(); cx.moveTo(d.x, d.y); cx.lineTo(d.x - d.vx * 0.03, d.y - d.vy * 0.03); cx.stroke(); cx.beginPath(); cx.ellipse(d.x, d.y, 3.2, 4.6, Math.atan2(d.vx, d.vy) * -1, 0, Math.PI * 2); cx.fillStyle = C(P.drop, 0.92); cx.fill(); cx.strokeStyle = dropRim; cx.lineWidth = 1; cx.stroke(); }
+  for (const s of st.splashes) { cx.strokeStyle = C(P.drop, s.a); cx.lineWidth = 1.5; cx.beginPath(); if (s.pool) cx.ellipse(s.x, s.y, s.r * 1.6, s.r * 0.4, 0, 0, Math.PI * 2); else cx.arc(s.x, s.y, s.r, 0, Math.PI * 2); cx.stroke(); }
+  for (const q of st.sprays) { cx.fillStyle = q.hue < 0 ? C(P.drop, Math.min(0.8, q.life * 3)) : 'hsla(' + q.hue + ',60%,' + (82 + LL * 1.5) + '%,' + Math.min(0.85, q.life * 3) + ')'; cx.beginPath(); cx.arc(q.x, q.y, q.r, 0, Math.PI * 2); cx.fill(); }
   // clouds
   for (const c of st.clouds) {
     const pulse = ((st.beat + c.off) % c.every === 0) ? Math.max(0, 1 - (st.t - (st.nextBeat - EIGHTH)) / EIGHTH) : 0;
-    cx.fillStyle = 'rgba(205,220,235,' + (0.82 + 0.18 * pulse) + ')';
+    cx.fillStyle = C(P.cloud, 0.82 + 0.18 * pulse);
     for (const [dx, dy, r] of [[-26, 4, 20], [0, -8, 26], [26, 4, 20], [0, 10, 22]]) { cx.beginPath(); cx.arc(c.x + dx, c.y + dy, r + pulse * 2, 0, Math.PI * 2); cx.fill(); }
     // rhythm dots: one per eighth of the cycle, the raining one lit
     const ph = (((st.beat + c.off) % c.every) + c.every) % c.every; c.flash = Math.max(0, (c.flash || 0) - 0.02);
-    for (let k = 0; k < c.every; k++) { cx.fillStyle = k === (c.every - ph) % c.every ? 'rgba(170,215,255,0.9)' : 'rgba(200,215,230,' + (0.25 + 0.5 * c.flash) + ')'; cx.beginPath(); cx.arc(c.x + (k - (c.every - 1) / 2) * 9, c.y + 40, 2.4, 0, Math.PI * 2); cx.fill(); }
+    for (let k = 0; k < c.every; k++) { cx.fillStyle = k === (c.every - ph) % c.every ? C(P.inkTop, 0.9) : C(P.inkTop, 0.25 + 0.5 * c.flash); cx.beginPath(); cx.arc(c.x + (k - (c.every - 1) / 2) * 9, c.y + 40, 2.4, 0, Math.PI * 2); cx.fill(); }
   }
 }
 let last = performance.now();
@@ -475,7 +528,7 @@ function frame(now) {
   draw(); requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
-window.RO_APP = { cycleMat, MATS, pad, buildVoice, openPad, get FH() { return FH; }, PIECES, loadPiece, encode, decode, st, makeLeaf, tick, save, load, setSound, get soundOn() { return soundOn; }, audio: () => ({ ctx: !!ac, reverb: !!verb, state: ac ? ac.state : 'none' }) };
+window.RO_APP = { setSky, cycleSky, get skyMode() { return skyMode; }, setHour: h => { forcedHour = h === null || h === undefined ? null : +h; skyLabel(); }, skyHour, get pal() { return pal; }, cycleMat, MATS, pad, buildVoice, openPad, get FH() { return FH; }, PIECES, loadPiece, encode, decode, st, makeLeaf, tick, save, load, setSound, get soundOn() { return soundOn; }, audio: () => ({ ctx: !!ac, reverb: !!verb, state: ac ? ac.state : 'none' }) };
 })();
 </script>
 </body></html>

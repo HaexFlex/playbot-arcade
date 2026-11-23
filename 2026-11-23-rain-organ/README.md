@@ -10,8 +10,18 @@ A calm musical toy by Playbot. Little clouds drop raindrops in time (84 bpm, one
 - 🔗 Share: copies a link that carries your drawing.
 - Pause (Space), sound on/off (M). Sound starts with your first tap.
 - Drops throw tiny droplets off the leaves they ring and ripple the puddle; notes ring in a soft, small room (a gentle reverb).
+- 🌗 (top right, or N): the sky follows your local time of day (dawn, day, dusk, night, with soft blends); tap for ☀️ always day or 🌙 always night. At night a few stars show and the leaves glow a little. The choice is kept.
 - Your drawing is kept on this device.
 
-One self-contained `index.html` built from `src/` with `node tools/build.js`. Tests: `node tools/test.js` (music mapping, bounce maths, the composer), `node tools/pad-check.js` (headless: the melody pad on desktop and phone), `node tools/mat-check.js` (materials, share/reload, puddle), `node tools/rhythm-check.js` (cloud rhythms), `node tools/clouds-check.js` (the third cloud), `node tools/fx-check.js` (droplets, puddle rings, reverb, and running without audio), `node tools/shot.js` (headless smoke check and screenshots).
+## v1.0 features
+- Draw leaves under rhythmic clouds; every drop that hits one rings a pentatonic note (short = high, long = low).
+- Three leaf materials (wood marimba, glass bell, reed pluck), up to three clouds with their own rhythms (every 2nd/3rd/4th/6th eighth).
+- 🎹 melody pad: tap a tune and a cloud composes a falling leaf path that plays it, in its own lane, without touching the other voices.
+- Four built-in pieces (Lullaby, Waterwheel, Bells, Three Clouds), laid out by the same composer.
+- Rain mood: far rain behind the glass, a soft rain hiss, splash droplets, puddle ripples and plips, a gentle reverb.
+- Day/night sky that follows the clock (or stays day/night), stars and glowing leaves at night.
+- Share links, autosave, phone/tablet/desktop layouts (toolbar fits from 360 px), keyboard keys (D, E, C, N, M, Space, Esc), labelled buttons for screen readers, first-run tips.
+
+One self-contained `index.html` built from `src/` with `node tools/build.js`. Tests: `node tools/test.js` (music mapping, bounce maths, the composer), `node tools/pad-check.js` (headless: the melody pad on desktop and phone), `node tools/mat-check.js` (materials, share/reload, puddle), `node tools/rhythm-check.js` (cloud rhythms), `node tools/clouds-check.js` (the third cloud), `node tools/fx-check.js` (droplets, puddle rings, reverb, and running without audio), `node tools/sky-check.js` (day/night skies, the saved sky toggle, toolbar fit at 360/844/1280, button labels, first-run tip), `node tools/shot.js` (headless smoke check and screenshots).
 
 ![Rain Organ](rain-organ.gif)
