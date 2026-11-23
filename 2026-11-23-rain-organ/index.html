@@ -1,0 +1,333 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Rain Organ</title>
+<meta name="description" content="Draw leaves under little clouds; every raindrop that hits one rings a note.">
+<style>html,body{margin:0;height:100%;background:#0f1a24;overflow:hidden;font-family:system-ui,-apple-system,Segoe UI,sans-serif;color:#dfe9f2;-webkit-user-select:none;user-select:none}
+canvas{display:block;width:100vw;height:100vh;touch-action:none}
+#bar{position:fixed;left:50%;bottom:max(12px,env(safe-area-inset-bottom));transform:translateX(-50%);display:flex;gap:6px;padding:6px;border-radius:14px;background:rgba(15,26,36,.72);backdrop-filter:blur(6px)}
+#bar button{font:inherit;font-size:15px;color:#dfe9f2;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);border-radius:10px;padding:8px 12px;min-height:40px;cursor:pointer}
+#bar button.on{background:rgba(140,200,255,.22);border-color:rgba(160,210,255,.55)}
+#bar button:focus-visible{outline:2px solid #9fd0ff;outline-offset:2px}
+#hint{position:fixed;left:50%;top:max(12px,env(safe-area-inset-top));transform:translateX(-50%);font-size:14px;opacity:.85;background:rgba(15,26,36,.6);padding:6px 12px;border-radius:10px;transition:opacity 1s;pointer-events:none;text-align:center;max-width:90vw}
+#hint.gone{opacity:0}
+@media (max-width:560px){#bar button span{display:none}#bar button{font-size:18px;padding:8px 14px}}
+</style></head>
+<body>
+<canvas id="c" aria-label="Rain Organ: draw leaves under the clouds; raindrops ring them"></canvas>
+<div id="bar" role="toolbar" aria-label="Tools">
+ <button id="bDraw" class="on" aria-pressed="true" title="Draw leaves (D)">✏️ <span>Draw</span></button>
+ <button id="bErase" aria-pressed="false" title="Erase: tap a leaf (E)">🧽 <span>Erase</span></button>
+ <button id="bPause" title="Pause the rain (Space)">⏸ <span>Pause</span></button>
+ <button id="bClear" title="Clear all leaves">🗑 <span>Clear</span></button>
+ <button id="bPiece" title="Play a built-in piece">🎵 <span>Pieces</span></button>
+ <button id="bShare" title="Copy a link to your drawing">🔗 <span>Share</span></button>
+ <button id="bSound" title="Sound on/off (M)">🔇 <span>Sound</span></button>
+</div>
+<div id="hint">Drag to draw a leaf under a cloud. Short leaves ring high, long ones low.</div>
+<script>// Rain Organ core: pure maths (music mapping, bounce). Works in the browser and in node.
+(function (root) {
+  const SCALE = [0, 2, 4, 7, 9];          // major pentatonic
+  const STEPS = 15;                        // 3 octaves of the scale
+  const BASE_MIDI = 48;                    // C3
+  const MIN_LEN = 30, MAX_LEN = 600;       // leaf lengths in field units (field is 1000 x 700)
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+  function stepForLength(len) {
+    const t = clamp(Math.log(len / MIN_LEN) / Math.log(MAX_LEN / MIN_LEN), 0, 1);
+    return Math.round((1 - t) * (STEPS - 1)); // short = high
+  }
+  function midiForStep(step) { const o = Math.floor(step / 5); return BASE_MIDI + 12 * o + SCALE[step % 5]; }
+  const freqForMidi = m => 440 * Math.pow(2, (m - 69) / 12);
+  const noteName = m => ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'][m % 12] + (Math.floor(m / 12) - 1);
+  function leafNote(len) { const s = stepForLength(len), m = midiForStep(s); return { step: s, midi: m, freq: freqForMidi(m), name: noteName(m) }; }
+  // closest point on segment ab to p; returns {x,y,t,d}
+  function closest(px, py, ax, ay, bx, by) {
+    const dx = bx - ax, dy = by - ay, L2 = dx * dx + dy * dy || 1e-9;
+    const t = clamp(((px - ax) * dx + (py - ay) * dy) / L2, 0, 1);
+    const x = ax + t * dx, y = ay + t * dy;
+    return { x, y, t, d: Math.hypot(px - x, py - y) };
+  }
+  // bounce a velocity off a surface with normal n (unit, pointing toward the drop)
+  function bounce(vx, vy, nx, ny, rest = 0.62, fric = 0.97) {
+    const vn = vx * nx + vy * ny;           // negative when moving into the leaf
+    if (vn >= 0) return null;
+    const tx = vx - vn * nx, ty = vy - vn * ny;
+    return { vx: tx * fric - vn * rest * nx, vy: ty * fric - vn * rest * ny, impact: -vn };
+  }
+  // one physics step for a drop against leaves; returns the index of the leaf it hit (or -1)
+  function stepDrop(d, leaves, dt, g = 900, r = 4, skip = -1) {
+    d.vy += g * dt; d.x += d.vx * dt; d.y += d.vy * dt;
+    for (let i = 0; i < leaves.length; i++) {
+      if (i === skip) continue;
+      const L = leaves[i], c = closest(d.x, d.y, L.x1, L.y1, L.x2, L.y2);
+      if (c.d > r + 2) continue;
+      let nx = d.x - c.x, ny = d.y - c.y, n = Math.hypot(nx, ny);
+      if (n < 1e-6) { nx = -(L.y2 - L.y1); ny = L.x2 - L.x1; n = Math.hypot(nx, ny); if (nx * d.vx + ny * d.vy > 0) { nx = -nx; ny = -ny; } }
+      nx /= n; ny /= n;
+      const b = bounce(d.vx, d.vy, nx, ny);
+      if (!b) continue;
+      d.vx = b.vx; d.vy = b.vy; d.x = c.x + nx * (r + 2.1); d.y = c.y + ny * (r + 2.1);
+      d.impact = b.impact;
+      return i;
+    }
+    return -1;
+  }
+
+  // the leaf length that rings a given scale step (middle of its band)
+  function lengthForStep(step) { return MIN_LEN * Math.pow(MAX_LEN / MIN_LEN, 1 - step / (STEPS - 1)); }
+  // follow one drop from (x0,y0) through the leaves; returns the leaf indices it rings, in order
+  function trace(leaves, x0, y0, maxY = 2000, dt = 1 / 240) {
+    const d = { x: x0, y: y0, vx: 0, vy: 40 }, hits = [], path = [];
+    for (let t = 0; t < 12 && d.y < maxY && d.x > -50 && d.x < 1050; t += dt) { const i = stepDrop(d, leaves, dt); path.push(d.x, d.y, d.vx, d.vy); if (i >= 0 && d.impact > 60 && !hits.includes(i)) hits.push(i); } // a drop rings each leaf once
+    return { hits, path };
+  }
+  // build a falling melody: leaves placed so one drop from (x0,y0) rings steps[] in order.
+  // rnd: a 0..1 random function (seeded in tests). Returns null if no layout fits in maxY.
+  function compose(steps, x0, y0, rnd, maxY = 520, tries = 400, why = null, fixed = [], others = []) {
+    // fixed: leaves already placed by other voices; others: [[x,y,hits]] their drops must keep ringing the same leaves
+    const F = fixed.length;
+    for (let k = 0; k < tries; k++) {
+      const leaves = fixed.slice(); let ok = true;
+      for (let n = 0; n < steps.length && ok; n++) {
+        const { path } = trace(leaves, x0, y0, maxY + 40);
+        // where the drop is after its last bounce: start looking a little below that
+        let lastY = y0; for (let j = 0; j < path.length; j += 4) if (path[j + 3] < 0 && path[j + 1] > lastY) lastY = path[j + 1];
+        const fall = 45 + rnd() * 50, want = lastY + fall; let pj = -1;
+        for (let j = 0; j < path.length; j += 4) if (path[j + 3] > 0 && path[j + 1] >= want) { pj = j; break; }
+        if (pj < 0) { ok = false; if (why) why.nofall = (why.nofall || 0) + 1; break; }
+        const px = path[pj], py = path[pj + 1], vx = path[pj + 2];
+        const len = lengthForStep(steps[n]), f = 0.25 + rnd() * 0.5;
+        // slope: send the drop back toward the middle when it drifts out, otherwise keep its direction
+        let dir = Math.abs(vx) < 20 ? (rnd() < 0.5 ? 1 : -1) : Math.sign(vx);
+        if (px < 220) dir = 1; else if (px > 780) dir = -1;
+        const a = (0.18 + rnd() * 0.32) * dir, ux = Math.cos(a), uy = Math.sin(a); // dir 1 = right end lower
+        const L = { x1: px - ux * len * f, y1: py - uy * len * f, x2: px + ux * len * (1 - f), y2: py + uy * len * (1 - f) };
+        if (Math.min(L.x1, L.x2) < 20 || Math.max(L.x1, L.x2) > 980 || Math.max(L.y1, L.y2) > maxY) { ok = false; if (why) why[Math.max(L.y1, L.y2) > maxY ? 'deep' : 'side'] = (why[Math.max(L.y1, L.y2) > maxY ? 'deep' : 'side'] || 0) + 1; break; }
+        leaves.push(L);
+        const tr = trace(leaves, x0, y0, maxY + 40).hits;
+        const bad = tr.length !== leaves.length - F || tr.some((h, i) => h !== F + i) || others.some(([ox, oy, oh]) => { const t = trace(leaves, ox, oy, maxY + 40).hits; return t.length !== oh.length || t.some((h, i) => h !== oh[i]); });
+        if (bad) { ok = false; if (why) why['order' + n] = (why['order' + n] || 0) + 1; }
+      }
+      if (ok) return leaves.slice(F);
+    }
+    return null;
+  }
+  function composePiece(voices, seed = 1, maxY = 520) {
+    let sd = seed >>> 0 || 1; const rnd = () => (sd = (sd * 16807) % 2147483647) / 2147483647;
+    const all = [], others = [];
+    for (const v of voices) {
+      const L = compose(v.steps, v.x, v.y, rnd, maxY, 600, null, all, others);
+      if (!L) return null;
+      others.push([v.x, v.y, L.map((_, i) => all.length + i)]); all.push(...L);
+    }
+    return all;
+  }
+  const RO = { SCALE, STEPS, MIN_LEN, MAX_LEN, stepForLength, midiForStep, freqForMidi, noteName, leafNote, closest, bounce, stepDrop, clamp, lengthForStep, trace, compose, composePiece };
+  if (typeof module !== 'undefined' && module.exports) module.exports = RO; else root.RO = RO;
+})(typeof window !== 'undefined' ? window : globalThis);
+</script>
+<script>(() => {
+'use strict';
+const FW = 1000, BPM = 84, EIGHTH = 60 / BPM / 2, SAVE_KEY = 'rain-organ-v1', MAX_LEAVES = 48;
+const cv = document.getElementById('c'), cx = cv.getContext('2d'), hint = document.getElementById('hint');
+const $ = id => document.getElementById(id);
+const st = {
+  clouds: [{ x: 300, y: 70, every: 2, off: 0 }, { x: 680, y: 60, every: 3, off: 1 }],
+  leaves: [], drops: [], splashes: [], paused: false, mode: 'draw', t: 0, beat: 0, nextBeat: 0, notes: 0,
+};
+// ---------- view: fit the 1000x700 field into the window ----------
+let scale = 1, ox = 0, oy = 0, dpr = 1, FH = 700; // the field is 1000 wide; its height follows the window (taller on a phone)
+function resize() {
+  dpr = Math.min(2, window.devicePixelRatio || 1);
+  const w = innerWidth, h = innerHeight; cv.width = w * dpr; cv.height = h * dpr;
+  FH = Math.round(RO.clamp(FW * (h - 64) / w, 560, 2000)); scale = Math.min(w / FW, (h - 64) / FH); ox = (w - FW * scale) / 2; oy = Math.max(0, (h - 64 - FH * scale) / 2);
+}
+addEventListener('resize', resize); resize();
+const toField = (px, py) => ({ x: (px - ox) / scale, y: (py - oy) / scale });
+// ---------- sound ----------
+let ac = null, master = null, wet = null, soundOn = false;
+function startAudio() {
+  if (ac) return;
+  try { ac = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { return; }
+  master = ac.createGain(); master.gain.value = 0.5; master.connect(ac.destination);
+  // small echo for space
+  const dl = ac.createDelay(1); dl.delayTime.value = EIGHTH * 3; const fb = ac.createGain(); fb.gain.value = 0.28;
+  const lp = ac.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 2200;
+  wet = ac.createGain(); wet.gain.value = 0.35; wet.connect(dl); dl.connect(lp); lp.connect(fb); fb.connect(dl); lp.connect(master);
+}
+function setSound(on) {
+  soundOn = on; if (on) { startAudio(); if (ac && ac.state === 'suspended') ac.resume(); }
+  $('bSound').innerHTML = (on ? '🔊' : '🔇') + ' <span>Sound</span>'; $('bSound').classList.toggle('on', on);
+}
+function pling(freq, vel, pan) {
+  st.notes++;
+  if (!soundOn || !ac) return;
+  const t = ac.currentTime, len = 0.6 + 1.4 * Math.min(1, 200 / freq);
+  const g = ac.createGain(), p = ac.createStereoPanner ? ac.createStereoPanner() : null;
+  const amp = 0.05 + 0.22 * Math.min(1, vel / 700);
+  g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(amp, t + 0.004); g.gain.exponentialRampToValueAtTime(0.0008, t + len);
+  const o1 = ac.createOscillator(); o1.type = 'sine'; o1.frequency.value = freq; o1.connect(g);
+  const g2 = ac.createGain(); g2.gain.setValueAtTime(amp * 0.5, t); g2.gain.exponentialRampToValueAtTime(0.0005, t + 0.12);
+  const o2 = ac.createOscillator(); o2.type = 'sine'; o2.frequency.value = freq * 3.98; o2.connect(g2);
+  const out = p || g; if (p) { p.pan.value = pan; g.connect(p); g2.connect(p); } else g2.connect(g);
+  out.connect(master); out.connect(wet);
+  o1.start(t); o2.start(t); o1.stop(t + len + 0.05); o2.stop(t + 0.2);
+}
+// ---------- save ----------
+function save() { try { localStorage.setItem(SAVE_KEY, JSON.stringify({ leaves: st.leaves.map(L => [L.x1, L.y1, L.x2, L.y2].map(Math.round)), clouds: st.clouds.map(c => [Math.round(c.x), Math.round(c.y)]) })); } catch (e) {} }
+function load() {
+  try {
+    const s = JSON.parse(localStorage.getItem(SAVE_KEY) || 'null'); if (!s) return false;
+    st.leaves = (s.leaves || []).slice(0, MAX_LEAVES).map(a => makeLeaf(a[0], a[1], a[2], a[3]));
+    (s.clouds || []).forEach((c, i) => { if (st.clouds[i]) { st.clouds[i].x = c[0]; st.clouds[i].y = c[1]; } });
+    return true;
+  } catch (e) { return false; }
+}
+function makeLeaf(x1, y1, x2, y2) { const len = Math.hypot(x2 - x1, y2 - y1); return { x1, y1, x2, y2, len, note: RO.leafNote(len), glow: 0 }; }
+// built-in pieces: each voice is a melody (scale steps) that RO.composePiece turns into a falling path of leaves
+const PIECES = [
+  { name: 'Lullaby', voices: [[9, 8, 7, 5, 7, 8], [8, 7, 5, 4]] },
+  { name: 'Waterwheel', voices: [[5, 6, 7, 8, 9, 10], [7, 9, 11, 12]] },
+  { name: 'Bells', voices: [[12, 10, 11, 9, 10, 8], [10, 12, 14]] },
+];
+const HOME = [[300, 70], [700, 60]];
+let pieceIx = -1;
+function loadPiece(ix) {
+  const P = PIECES[ix];
+  st.clouds.forEach((c, i) => { c.x = HOME[i][0]; c.y = HOME[i][1]; });
+  const voices = P.voices.map((steps, i) => ({ x: HOME[i][0], y: HOME[i][1] + 22, steps }));
+  let L = null; for (let seed = 1; seed <= 12 && !L; seed++) L = RO.composePiece(voices, seed);
+  if (!L) return false;
+  st.leaves = L.map(l => makeLeaf(l.x1, l.y1, l.x2, l.y2)); st.drops = []; pieceIx = ix; save(); return true;
+}
+// share links: #s=<base64 of "x1,y1,x2,y2;...|cx,cy;cx,cy">
+function encode() { return btoa(st.leaves.map(L => [L.x1, L.y1, L.x2, L.y2].map(Math.round).join(',')).join(';') + '|' + st.clouds.map(c => Math.round(c.x) + ',' + Math.round(c.y)).join(';')); }
+function decode(h) {
+  try {
+    const [ls, cs] = atob(h).split('|'), leaves = [];
+    for (const part of (ls || '').split(';')) { if (!part) continue; const a = part.split(',').map(Number); if (a.length !== 4 || a.some(v => !isFinite(v) || Math.abs(v) > 5000)) return false; leaves.push(makeLeaf(a[0], a[1], a[2], a[3])); }
+    st.leaves = leaves.slice(0, MAX_LEAVES);
+    (cs || '').split(';').forEach((part, i) => { const a = part.split(',').map(Number); if (st.clouds[i] && a.length === 2 && a.every(isFinite)) { st.clouds[i].x = RO.clamp(a[0], 40, FW - 40); st.clouds[i].y = RO.clamp(a[1], 30, 200); } });
+    return true;
+  } catch (e) { return false; }
+}
+const fromLink = location.hash.startsWith('#s=') && decode(location.hash.slice(3));
+if (fromLink) { save(); history.replaceState(null, '', location.pathname + location.search); }
+else if (!load()) loadPiece(0);
+// ---------- input ----------
+let drag = null;
+function leafAt(p) { let best = -1, bd = 16 / Math.max(0.6, scale); st.leaves.forEach((L, i) => { const c = RO.closest(p.x, p.y, L.x1, L.y1, L.x2, L.y2); if (c.d < bd) { bd = c.d; best = i; } }); return best; }
+function cloudAt(p) { return st.clouds.findIndex(c => Math.hypot(p.x - c.x, (p.y - c.y) * 1.6) < 46); }
+cv.addEventListener('pointerdown', e => {
+  if (!soundOn && !st.userMuted) setSound(true);
+  hint.classList.add('gone');
+  const p = toField(e.clientX, e.clientY); cv.setPointerCapture(e.pointerId);
+  const ci = cloudAt(p);
+  if (ci >= 0) { drag = { kind: 'cloud', i: ci, dx: st.clouds[ci].x - p.x, dy: st.clouds[ci].y - p.y }; return; }
+  if (st.mode === 'erase') { const i = leafAt(p); if (i >= 0) { st.leaves.splice(i, 1); for (const d of st.drops) d.rang = []; save(); } drag = { kind: 'erase' }; return; }
+  drag = { kind: 'leaf', x1: p.x, y1: p.y, x2: p.x, y2: p.y };
+});
+cv.addEventListener('pointermove', e => {
+  if (!drag) return; const p = toField(e.clientX, e.clientY);
+  if (drag.kind === 'cloud') { const c = st.clouds[drag.i]; c.x = RO.clamp(p.x + drag.dx, 40, FW - 40); c.y = RO.clamp(p.y + drag.dy, 30, 200); }
+  else if (drag.kind === 'leaf') { drag.x2 = p.x; drag.y2 = p.y; }
+  else if (drag.kind === 'erase') { const i = leafAt(p); if (i >= 0) { st.leaves.splice(i, 1); save(); } }
+});
+function endDrag() {
+  if (drag && drag.kind === 'leaf') {
+    let { x1, y1, x2, y2 } = drag; const len = Math.hypot(x2 - x1, y2 - y1);
+    if (len >= RO.MIN_LEN * 0.8) {
+      if (len > RO.MAX_LEN) { const k = RO.MAX_LEN / len; x2 = x1 + (x2 - x1) * k; y2 = y1 + (y2 - y1) * k; }
+      if (st.leaves.length >= MAX_LEAVES) st.leaves.shift();
+      const L = makeLeaf(x1, y1, x2, y2); L.glow = 1; st.leaves.push(L); pling(L.note.freq, 300, ((x1 + x2) / 2 / FW) * 1.6 - 0.8);
+    }
+  }
+  if (drag && drag.kind === 'cloud') save();
+  if (drag) save(); drag = null;
+}
+cv.addEventListener('pointerup', endDrag); cv.addEventListener('pointercancel', endDrag);
+function setMode(m) { st.mode = m; $('bDraw').classList.toggle('on', m === 'draw'); $('bErase').classList.toggle('on', m === 'erase'); $('bDraw').setAttribute('aria-pressed', m === 'draw'); $('bErase').setAttribute('aria-pressed', m === 'erase'); }
+function setPause(p) { st.paused = p; $('bPause').innerHTML = (p ? '▶️ <span>Play</span>' : '⏸ <span>Pause</span>'); }
+$('bDraw').onclick = () => setMode('draw'); $('bErase').onclick = () => setMode('erase');
+$('bPause').onclick = () => setPause(!st.paused);
+$('bClear').onclick = () => { if (st.leaves.length && confirm('Clear all leaves?')) { st.leaves = []; st.drops = []; save(); } };
+$('bPiece').onclick = () => { const ix = (pieceIx + 1) % PIECES.length; if (loadPiece(ix)) say('🎵 ' + PIECES[ix].name); };
+$('bShare').onclick = async () => {
+  const url = location.href.split('#')[0] + '#s=' + encode();
+  try { await navigator.clipboard.writeText(url); say('Link copied: send it to someone and they hear your rain'); }
+  catch (e) { prompt('Copy this link:', url); }
+};
+let sayT = 0;
+function say(t) { hint.textContent = t; hint.classList.remove('gone'); clearTimeout(sayT); sayT = setTimeout(() => hint.classList.add('gone'), 2600); }
+$('bSound').onclick = () => { st.userMuted = soundOn; setSound(!soundOn); };
+addEventListener('keydown', e => {
+  if (e.key === 'd' || e.key === 'D') setMode('draw'); else if (e.key === 'e' || e.key === 'E') setMode('erase');
+  else if (e.key === ' ') { e.preventDefault(); setPause(!st.paused); } else if (e.key === 'm' || e.key === 'M') { st.userMuted = soundOn; setSound(!soundOn); }
+});
+// ---------- simulation ----------
+function tick(dt) {
+  st.t += dt;
+  while (st.t >= st.nextBeat) {
+    st.nextBeat += EIGHTH; st.beat++;
+    for (const c of st.clouds) if ((st.beat + c.off) % c.every === 0) st.drops.push({ x: c.x, y: c.y + 22, vx: 0, vy: 40, hits: 0, rang: [], life: 0 });
+  }
+  // fixed 1/240 s physics steps, the same the composer uses, so built pieces play the same on every screen
+  st.acc = (st.acc || 0) + dt; const h = 1 / 240;
+  for (; st.acc >= h; st.acc -= h) for (const d of st.drops) {
+    const i = RO.stepDrop(d, st.leaves, h, 900, 4, -1);
+    if (i >= 0) {
+      const L = st.leaves[i]; L.glow = 1; d.hits++;
+      if (d.impact > 60 && !d.rang.includes(L)) { d.rang.push(L); pling(L.note.freq, d.impact, RO.clamp(d.x / FW * 1.6 - 0.8, -0.9, 0.9)); st.splashes.push({ x: d.x, y: d.y, r: 2, a: 0.8 }); }
+    }
+  }
+  for (const d of st.drops) d.life += dt;
+  st.drops = st.drops.filter(d => { if (d.y > FH + 10) { st.splashes.push({ x: d.x, y: FH - 2, r: 3, a: 0.6, pool: 1 }); return false; } return d.life < 12 && d.x > -20 && d.x < FW + 20; });
+  for (const L of st.leaves) L.glow = Math.max(0, L.glow - dt * 2.2);
+  for (const s of st.splashes) { s.r += dt * 40; s.a -= dt * 1.4; }
+  st.splashes = st.splashes.filter(s => s.a > 0);
+}
+// ---------- drawing ----------
+function draw() {
+  cx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  const w = innerWidth, h = innerHeight;
+  const g = cx.createLinearGradient(0, 0, 0, h); g.addColorStop(0, '#17283a'); g.addColorStop(1, '#0c141c'); cx.fillStyle = g; cx.fillRect(0, 0, w, h);
+  cx.setTransform(dpr * scale, 0, 0, dpr * scale, dpr * ox, dpr * oy);
+  // field frame + ground
+  cx.fillStyle = 'rgba(120,170,210,0.05)'; cx.fillRect(0, FH - 6, FW, 6);
+  // leaves
+  cx.lineCap = 'round';
+  for (const L of st.leaves) {
+    const hue = 200 - L.note.step * 11, gl = L.glow;
+    cx.strokeStyle = 'hsla(' + hue + ',70%,' + (45 + 30 * gl) + '%,' + (0.75 + 0.25 * gl) + ')';
+    cx.lineWidth = 6 + 4 * gl; cx.shadowColor = 'hsla(' + hue + ',90%,70%,' + gl + ')'; cx.shadowBlur = 18 * gl;
+    cx.beginPath(); cx.moveTo(L.x1, L.y1); cx.lineTo(L.x2, L.y2); cx.stroke();
+  }
+  cx.shadowBlur = 0;
+  if (drag && drag.kind === 'leaf') {
+    const len = Math.min(RO.MAX_LEN, Math.hypot(drag.x2 - drag.x1, drag.y2 - drag.y1));
+    cx.strokeStyle = 'rgba(220,235,255,0.5)'; cx.lineWidth = 5; cx.setLineDash([10, 8]);
+    cx.beginPath(); cx.moveTo(drag.x1, drag.y1); cx.lineTo(drag.x2, drag.y2); cx.stroke(); cx.setLineDash([]);
+    if (len >= RO.MIN_LEN * 0.8) { cx.fillStyle = '#dfe9f2'; cx.font = '18px system-ui'; cx.fillText(RO.leafNote(len).name, drag.x2 + 10, drag.y2 - 10); }
+  }
+  // drops
+  cx.fillStyle = 'rgba(170,215,255,0.9)';
+  for (const d of st.drops) { cx.beginPath(); cx.ellipse(d.x, d.y, 3.2, 4.6, Math.atan2(d.vx, d.vy) * -1, 0, Math.PI * 2); cx.fill(); }
+  for (const s of st.splashes) { cx.strokeStyle = 'rgba(170,215,255,' + s.a + ')'; cx.lineWidth = 1.5; cx.beginPath(); if (s.pool) cx.ellipse(s.x, s.y, s.r * 1.6, s.r * 0.4, 0, 0, Math.PI * 2); else cx.arc(s.x, s.y, s.r, 0, Math.PI * 2); cx.stroke(); }
+  // clouds
+  for (const c of st.clouds) {
+    const pulse = ((st.beat + c.off) % c.every === 0) ? Math.max(0, 1 - (st.t - (st.nextBeat - EIGHTH)) / EIGHTH) : 0;
+    cx.fillStyle = 'rgba(205,220,235,' + (0.82 + 0.18 * pulse) + ')';
+    for (const [dx, dy, r] of [[-26, 4, 20], [0, -8, 26], [26, 4, 20], [0, 10, 22]]) { cx.beginPath(); cx.arc(c.x + dx, c.y + dy, r + pulse * 2, 0, Math.PI * 2); cx.fill(); }
+  }
+}
+let last = performance.now();
+function frame(now) {
+  const dt = Math.min(0.05, (now - last) / 1000); last = now;
+  if (!st.paused) tick(dt);
+  draw(); requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+window.RO_APP = { get FH() { return FH; }, PIECES, loadPiece, encode, decode, st, makeLeaf, tick, save, load, setSound, get soundOn() { return soundOn; } };
+})();
+</script>
+</body></html>

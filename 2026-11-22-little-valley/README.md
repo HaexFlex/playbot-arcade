@@ -107,7 +107,7 @@ it and a fast river scours its bed. Leafy trees grow in the warm lowlands and pi
 slopes, and rich moist meadows bloom with buttercups, daisies, clover, gentians and poppies.
 The stats pill counts the trees (and how many of them are happy: moist ground, below the snow,
 not flooded; unhappy crowns turn yellow-brown), the flower patches and the cottages (how many
-are happy, the turning mills, any ruins, and on desktop the number of fields).
+are happy, the turning mills, any ruins, and on desktop the number of fields), plus the harvests: whole plots brought in so far (on desktop and tablet).
 
 Plants and cottages remember water: only water that *stands* for a while (a lake that stays)
 drowns trees or ruins a cottage, and only a river that *keeps* running fast and deep scours its

@@ -2477,11 +2477,12 @@ function frame(now) {
     const fl = V.fields ? ` · ${V.fields} field${V.fields > 1 ? 's' : ''}` : '';
     const ru = V.ruins ? ` · ${V.ruins} ruin${V.ruins > 1 ? 's' : ''}` : '';
     const mi = V.mills ? ` · ${V.mills} mill${V.mills > 1 ? 's' : ''}` : '';
+    const hv = V.harvested ? ` · ${V.harvested} harvest${V.harvested > 1 ? 's' : ''}` : ''; // whole plots brought in so far
     $('clock').textContent = clockText();
     placeCal();
     $('stats').textContent = (vw < 600 ? `${tt} trees · ${hp}% happy · ${ff} 🌼 · 🏠 ${V.cottages} (${V.happy} 😊)${V.mills ? ' ⚙' + V.mills : ''}${V.ruins ? ' · ' + V.ruins + ' ruin' : ''}`
-      : vw < 1000 ? `${tt} trees (${hp}% happy) · ${ff} flowers · 🏠 ${V.cottages} (${V.happy} happy)${V.mills ? ' · ⚙ ' + V.mills : ''}${ru}`
-      : `${S.N}² · ${Math.round(st.fps)} fps · ${tt} trees (${hp}% happy) · ${ff} flowers · ${V.cottages} cottage${V.cottages === 1 ? '' : 's'} (${V.happy} happy)${fl}${mi}${ru}${S.dryNow > 0.05 ? ' · drought' : LV.weatherEvent(S) === 'storm' ? ' · storm' : ''}`) + (st.paused ? ' · paused' : ''); }
+      : vw < 1000 ? `${tt} trees (${hp}% happy) · ${ff} flowers · 🏠 ${V.cottages} (${V.happy} happy)${V.mills ? ' · ⚙ ' + V.mills : ''}${V.harvested ? ' · 🌾 ' + V.harvested : ''}${ru}`
+      : `${S.N}² · ${Math.round(st.fps)} fps · ${tt} trees (${hp}% happy) · ${ff} flowers · ${V.cottages} cottage${V.cottages === 1 ? '' : 's'} (${V.happy} happy)${fl}${hv}${mi}${ru}${S.dryNow > 0.05 ? ' · drought' : LV.weatherEvent(S) === 'storm' ? ' · storm' : ''}`) + (st.paused ? ' · paused' : ''); }
   auTick(dtReal); wishTick(dtReal);
   requestAnimationFrame(frame);
 }
