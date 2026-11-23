@@ -51,6 +51,58 @@ button.on{background:#ffe680;box-shadow:0 2px 0 #e0b93a,0 0 0 3px #ffd23f,0 4px 
 @media (max-width:430px){#title b{font-size:16px}#seedName{font-size:12px}#tools button span{font-size:10.5px;letter-spacing:-.01em}}
 /* narrow portrait phones: the stats pill (trees, happy share, flowers) gets its own row under the title */
 @media (orientation:portrait) and (max-width:600px){#top{flex-wrap:wrap;row-gap:6px}#top .pill{max-width:calc(100vw - 20px)}#stats{margin-left:auto}#hint{top:calc(env(safe-area-inset-top) + 92px)}}
+/* valley wishes (v5): star button, panel, toast */
+#wishBtn{position:fixed;left:calc(env(safe-area-inset-left) + 10px);top:calc(env(safe-area-inset-top) + 58px);width:62px;height:62px;border-radius:16px;background:#fffbe8;box-shadow:0 2px 0 #e8cf7a,0 3px 10px #c8900030}
+#wishBtn svg{width:30px;height:30px}
+#wishBtn span{font-size:11px}
+#wishBtn b{position:absolute;top:-6px;right:-6px;min-width:22px;height:22px;padding:0 5px;border-radius:11px;background:#e8792b;color:#fff;font-size:12px;line-height:22px;text-align:center;box-shadow:0 1px 4px #8a4a1050;pointer-events:none}
+#wishBtn.on{background:#ffe680}
+#wishBtn.pop{animation:wpop .6s ease-out}
+@keyframes wpop{0%{transform:scale(1)}35%{transform:scale(1.25) rotate(-8deg)}70%{transform:scale(.95)}100%{transform:scale(1)}}
+#wishPanel{position:fixed;left:calc(env(safe-area-inset-left) + 10px);top:calc(env(safe-area-inset-top) + 128px);width:340px;max-height:calc(100vh - 232px);overflow:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;background:#fffdf4f2;border-radius:20px;padding:10px 12px 10px;box-shadow:0 8px 28px #2a5a8045;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);display:none;color:#3a4a5a}
+#wishPanel.show{display:block;animation:win .22s ease-out}
+@keyframes win{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+#wishPanel .wh{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+#wishPanel .wh b{font-size:17px;color:#2f7d3a}
+#wishPanel .wt{margin-left:auto;font-size:14px;color:#a8660f;font-variant-numeric:tabular-nums}
+#wishClose{width:40px;height:40px;border-radius:12px;font-size:18px;background:#f4fbff;flex:none}
+#wishPanel .wl{display:grid;grid-template-columns:1fr;gap:6px}
+#wishPanel .wi{display:flex;gap:8px;align-items:flex-start;background:#fff;border-radius:14px;padding:7px 9px;box-shadow:0 1px 0 #e4ecf2}
+#wishPanel .wi.got{background:#fffbe6}
+#wishPanel .wic{font-size:24px;line-height:30px;width:30px;text-align:center;flex:none}
+#wishPanel .wb{flex:1;min-width:0}
+#wishPanel .wn{font-size:14px;display:flex;justify-content:space-between;gap:6px}
+#wishPanel .ws{color:#f0a818;letter-spacing:1px;white-space:nowrap}#wishPanel .ws i,#wishToast .tst i{font-style:normal;color:#d8dee4}
+#wishPanel .wp{height:6px;border-radius:3px;background:#e8eef3;margin:4px 0 3px;overflow:hidden}
+#wishPanel .wp i{display:block;height:100%;border-radius:3px;background:linear-gradient(90deg,#7cc8ee,#5fb548);transition:width .4s}
+#wishPanel .wi.got .wp i{background:linear-gradient(90deg,#ffd23f,#f0a818)}
+#wishPanel .wv{font-size:12px;font-weight:500;color:#4a6680;font-variant-numeric:tabular-nums}
+#wishPanel .wtip{font-size:11.5px;font-weight:500;color:#7a8a98;margin-top:1px}
+#wishPanel .wf{font-size:11.5px;font-weight:500;color:#7a8a98;text-align:center;margin-top:7px}
+#wishToast{position:fixed;left:50%;top:30%;transform:translate(-50%,-50%) scale(.6);opacity:0;pointer-events:none;background:#fffbe6;border-radius:22px;padding:12px 22px;text-align:center;box-shadow:0 8px 30px #c890004a,0 0 0 3px #ffd23f;transition:opacity .35s,transform .35s cubic-bezier(.3,1.6,.5,1);white-space:nowrap;max-width:94vw}
+#wishToast.show{opacity:1;transform:translate(-50%,-50%) scale(1)}
+#wishToast .tt{font-size:20px;color:#c8660f}
+#wishToast .tn{font-size:15px;color:#3a4a5a;margin-top:3px}
+#wishToast .tst{font-size:26px;color:#f0a818;letter-spacing:3px;margin-top:2px}
+#wishToast .spk{position:absolute;left:50%;top:50%;font-style:normal;color:#ffc533;font-size:16px;opacity:0}
+#wishToast.show .spk{animation:spk 1.3s ease-out forwards}
+@keyframes spk{0%{opacity:0;transform:translate(-50%,-50%) scale(.4)}20%{opacity:1}100%{opacity:0;transform:translate(calc(-50% + var(--dx)),calc(-50% + var(--dy))) scale(1.2) rotate(90deg)}}
+/* portrait phones: the star sits bottom-left above the control row, the panel is a sheet above it */
+@media (orientation:portrait) and (max-width:820px){
+  #wishBtn{top:auto;left:calc(env(safe-area-inset-left) + 8px);bottom:calc(env(safe-area-inset-bottom) + 158px);width:54px;height:54px}
+  #wishBtn svg{width:26px;height:26px}#wishBtn span{font-size:10px}
+  #wishPanel{left:8px;right:8px;width:auto;top:auto;bottom:calc(env(safe-area-inset-bottom) + 220px);max-height:calc(100vh - env(safe-area-inset-bottom) - 230px - env(safe-area-inset-top) - 50px)}
+}
+/* landscape phones: the star sits bottom-left next to the tools, the panel fills the middle in two columns */
+@media (orientation:landscape) and (max-height:520px){
+  #wishBtn{top:auto;left:calc(env(safe-area-inset-left) + 72px);bottom:calc(env(safe-area-inset-bottom) + 6px);width:48px;height:48px;border-radius:13px}
+  #wishBtn svg{width:22px;height:22px}#wishBtn span{font-size:9.5px}#wishBtn b{min-width:19px;height:19px;line-height:19px;font-size:11px;top:-5px;right:-5px}
+  #wishPanel{left:calc(env(safe-area-inset-left) + 72px);right:calc(env(safe-area-inset-right) + 64px);width:auto;max-width:640px;margin:0 auto;top:6px;bottom:auto;max-height:calc(100vh - 66px);padding:7px 9px}
+  #wishPanel .wl{grid-template-columns:1fr 1fr;gap:5px}
+  #wishPanel .wi{padding:5px 7px}#wishPanel .wic{font-size:20px;line-height:24px;width:24px}
+  #wishPanel .wtip{display:none}#wishClose{width:36px;height:34px}
+  #wishToast{top:40%}
+}
 </style></head><body>
 <canvas id="view" aria-label="Little Valley: draw on the valley to shape it"></canvas>
 <div id="top">
@@ -1873,6 +1925,8 @@ function skyHints() {
     else if (now.rain && !skyPrev.rain && S.wx) hint(st.rainHint = 'A gentle rain drifts in from the ' + (S.wx.vx > 0 ? 'west' : 'east') + ', feeding the streams');
     else if (now.eve && !skyPrev.eve) hint(st.S.cottages.length ? 'Evening: the cottage windows light up' : 'Evening falls over the valley');
     else if (now.morn && !skyPrev.morn) hint('Good morning, valley!');
+    // the frost and thaw notes are remembered even when a season or weather hint wins the moment
+    if (now.ice !== skyPrev.ice) st.iceHint = now.ice ? 'Frost: the still lakes freeze over (the rivers keep flowing)' : 'The ice breaks up: the lakes flow again';
   }
   if (skyPrev && skyPrev.rain && !now.rain && LT.elev > 0.2 && LT.night < 0.1 && st.shower <= 0) { st.rainbow = RAINBOW_T; st.rainbows = (st.rainbows || 0) + 1; if (st.wake <= 0 && !now.dry) hint(st.bowHint = 'A rainbow over the valley!'); }
   skyPrev = now;
@@ -1926,7 +1980,7 @@ function frame(now) {
     $('stats').textContent = (vw < 600 ? `${tt} trees · ${hp}% happy · ${ff} 🌼 · 🏠 ${V.cottages} (${V.happy} 😊)${V.mills ? ' ⚙' + V.mills : ''}${V.ruins ? ' · ' + V.ruins + ' ruin' : ''}`
       : vw < 1000 ? `${tt} trees (${hp}% happy) · ${ff} flowers · 🏠 ${V.cottages} (${V.happy} happy)${V.mills ? ' · ⚙ ' + V.mills : ''}${ru}`
       : `${S.N}² · ${Math.round(st.fps)} fps · ${tt} trees (${hp}% happy) · ${ff} flowers · ${V.cottages} cottage${V.cottages === 1 ? '' : 's'} (${V.happy} happy)${fl}${mi}${ru}${S.dryNow > 0.05 ? ' · drought' : LV.weatherEvent(S) === 'storm' ? ' · storm' : ''}`) + (st.paused ? ' · paused' : ''); }
-  auTick(dtReal);
+  auTick(dtReal); wishTick(dtReal);
   requestAnimationFrame(frame);
 }
 // auto quality: lower render scale first, then the grid (not in time-lapse, which fills spare time on purpose)
@@ -1936,7 +1990,7 @@ function adapt(dt) {
   if (st.slowT > 2) {
     st.slowT = 0; st.work = 15;
     if (st.renderScale > 0.65) { st.renderScale -= 0.15; tilt = null; }
-    else if (nIndex > 0 && st.speed !== 3) { changeN(nIndex - 1); hint('Made the valley a bit smaller so it runs smoothly'); }
+    else if (nIndex > 0 && st.speed !== 3 && !st.holdN) { changeN(nIndex - 1); hint('Made the valley a bit smaller so it runs smoothly'); }
   }
 }
 
@@ -2102,6 +2156,112 @@ function auTick(dt) {
   const bolts = st.bolts || 0; if (bolts > (AU.bolts || 0)) { thunder(t + 0.5 + R() * 1.8, 0.6 + 0.4 * clamp01(LT.storm)); } AU.bolts = bolts;
   AU.nodes = AG.base + AU.live;
 }
+
+// ---------- valley wishes (v5): an optional goal mode with stars ----------
+// A star button opens a small panel of gentle wishes that are checked against the real valley about
+// twice a second (read-only: the sim and its determinism are untouched). Each wish has three tiers;
+// reaching a tier grants a star (best ever, saved in localStorage), with a cheerful toast, a sparkle and,
+// if sound is on, a little chime. Free play never waits for a wish. window.LV_WISHES is the test hook.
+const WISH_KEY = 'lv-wishes', WISH_DT = 0.5;
+const WISHES = [
+  { id: 'lake', icon: '🏞️', name: 'A lake to row on', tip: 'Dig a basin or dam a stream until the water stands still', tiers: [0.035, 0.06, 0.1], pct: true, unit: 'of the valley is one still lake' },
+  { id: 'forest', icon: '🌲', name: 'A deep green forest', tip: 'Plant trees on moist ground below the snow', tiers: [0.32, 0.38, 0.45], pct: true, unit: 'of the valley is forest' },
+  { id: 'village', icon: '🏡', name: 'A little village', tip: 'Build cottages near water: happy villages grow by themselves', tiers: [3, 6, 10], unit: 'cottages' },
+  { id: 'mill', icon: '⚙️', name: 'The mill wheel turns', tip: 'Build a cottage right beside a fast stream', tiers: [1, 2, 3], unit: 'mills turning' },
+  { id: 'storm', icon: '⛈️', name: 'Dry feet in a storm', tip: 'Keep every cottage dry until a storm has passed', tiers: [1, 3, 5], unit: 'cottages stayed dry' },
+  { id: 'rainbow', icon: '🌈', name: 'Rainbow hunter', tip: 'When the rain stops on a sunny day, look up', tiers: [1, 2, 3], unit: 'rainbows seen' },
+  { id: 'skate', icon: '⛸️', name: 'Skaters on the ice', tip: 'In winter a frozen lake near cottages draws skaters', tiers: [1, 2, 3], unit: 'skating spots' }
+];
+const W = { stars: {}, val: {}, live: {}, forced: {}, granted: 0, toasts: [], evals: 0, ms: 0, open: false, storm: { on: false, set: null, wet: false, S: null, best: 0 }, rainbows0: 0 };
+for (const w of WISHES) { W.stars[w.id] = 0; W.val[w.id] = 0; }
+try { const s = JSON.parse(localStorage.getItem(WISH_KEY) || 'null'); if (s && s.stars) for (const w of WISHES) W.stars[w.id] = Math.max(0, Math.min(3, s.stars[w.id] | 0)); } catch (e) { /* private mode */ }
+const wishTotal = () => WISHES.reduce((a, w) => a + W.stars[w.id], 0);
+function wishSave() { try { localStorage.setItem(WISH_KEY, JSON.stringify({ v: 1, stars: W.stars })); } catch (e) { /* private mode */ } }
+let lakeM = null, lakeQ = null;
+function lakeCells(S) { // the biggest 4-connected patch of still, standing water (or ice)
+  const N = S.N, n = N * N, d = S.d, u = S.u, v = S.v, ice = S.ice; if (!lakeM || lakeM.length !== n) { lakeM = new Uint8Array(n); lakeQ = new Int32Array(n); }
+  const m = lakeM, q = lakeQ; let best = 0;
+  for (let i = 0; i < n; i++) m[i] = d[i] > 0.2 && (Math.abs(u[i]) + Math.abs(v[i]) < 0.8 || (ice && ice[i] > 0.5)) ? 1 : 0;
+  for (let i = 0; i < n; i++) { if (m[i] !== 1) continue; let h = 0, t = 0; q[t++] = i; m[i] = 2;
+    while (h < t) { const j = q[h++], x = j % N; if (x > 0 && m[j - 1] === 1) { m[j - 1] = 2; q[t++] = j - 1; } if (x < N - 1 && m[j + 1] === 1) { m[j + 1] = 2; q[t++] = j + 1; } if (j >= N && m[j - N] === 1) { m[j - N] = 2; q[t++] = j - N; } if (j < n - N && m[j + N] === 1) { m[j + N] = 2; q[t++] = j + N; } }
+    if (t > best) best = t; }
+  return best;
+}
+function stormWatch(S) { // live tracker: which cottages stood when the storm began, did any get wet feet
+  const T = W.storm; if (T.S !== S) { T.S = S; T.on = false; T.set = null; }
+  const storm = LV.weatherEvent(S) === 'storm';
+  if (storm && !T.on) { T.on = true; T.wet = false; T.set = S.cottages.filter(c => !c.ruin); }
+  if (T.on) for (const c of T.set) if (c.ruin || S.cottages.indexOf(c) < 0 || LV.cottageMood(S, c) === 'flooded') T.wet = true;
+  if (!storm && T.on) { T.on = false; T.last = T.wet ? -1 : T.set.length; if (!T.wet) T.best = Math.max(T.best, T.set.length); }
+  return T.best;
+}
+function wishValues() {
+  const S = st.S, N2 = S.N * S.N, L = st.life || LV.countLife(S), V = st.village || LV.countVillage(S), o = W.val;
+  o.lake = lakeCells(S) / N2; o.forest = L.trees / N2; o.village = V.cottages; o.mill = V.mills;
+  o.storm = stormWatch(S); o.rainbow = Math.max(0, (st.rainbows || 0) - W.rainbows0);
+  o.skate = st.skatersDrawn > 0 && st.skateSpots ? st.skateSpots.length : 0;
+  for (const k in W.forced) o[k] = W.forced[k];
+}
+const starsOf = (w, v) => w.tiers.reduce((a, t) => a + (v >= t - 1e-9 ? 1 : 0), 0);
+function wishEval(force) {
+  const S = st.S; if (!S || (!force && (st.wake > 0 || S.steps < 300))) return;
+  const t0 = performance.now(); wishValues(); W.evals++;
+  for (const w of WISHES) { const s = starsOf(w, W.val[w.id]); if (s > W.stars[w.id]) { W.toasts.push([w, s, W.stars[w.id]]); W.stars[w.id] = s; W.granted++; wishSave(); } }
+  W.ms = W.ms * 0.8 + (performance.now() - t0) * 0.2;
+  if (W.toasts.length && !W.showing) wishToast();
+  updWishBtn(); if (W.open) renderWishes();
+}
+let wishT = 0;
+function wishTick(dt) { wishT -= dt; if (wishT > 0) return; wishT = WISH_DT; wishEval(false); }
+// ---- UI
+const starSvg = '<svg viewBox="0 0 34 34" aria-hidden="true"><path d="M17 3l4.2 8.6 9.4 1.4-6.8 6.6 1.6 9.4L17 24.6 8.6 29l1.6-9.4L3.4 13l9.4-1.4z" fill="#ffd23f" stroke="#e0a21a" stroke-width="1.8" stroke-linejoin="round"/><path d="M12.5 14.5l2.5-1" stroke="#fff" stroke-width="2" stroke-linecap="round"/></svg>';
+const bWish = document.createElement('button'); bWish.id = 'wishBtn'; bWish.onclick = () => wishOpen(!W.open); document.body.appendChild(bWish);
+const wPanel = document.createElement('div'); wPanel.id = 'wishPanel'; wPanel.setAttribute('role', 'dialog'); wPanel.setAttribute('aria-label', 'Valley wishes'); document.body.appendChild(wPanel);
+const wToast = document.createElement('div'); wToast.id = 'wishToast'; wToast.setAttribute('role', 'status'); document.body.appendChild(wToast);
+function updWishBtn() { const n = wishTotal(), h = `${starSvg}<span>Wishes</span><b>${n}</b>`; if (bWish.innerHTML !== h) bWish.innerHTML = h; bWish.setAttribute('aria-label', `Valley wishes: ${n} of ${WISHES.length * 3} stars`); bWish.classList.toggle('on', W.open); }
+const fmtW = (w, v) => w.pct ? (v * 100).toFixed(1).replace(/\.0$/, '') + '%' : String(Math.round(v));
+function wishLine(w) {
+  const v = W.val[w.id], s = W.stars[w.id], cur = starsOf(w, v);
+  if (w.id === 'storm' && W.storm.on) return `Storm! ${W.storm.wet ? 'A cottage got wet feet' : W.storm.set.length + ' cottage' + (W.storm.set.length === 1 ? '' : 's') + ' dry so far'}`;
+  if (s >= 3) return 'All three stars!' + (v >= w.tiers[0] ? ' Now ' + fmtW(w, v) + ' ' + w.unit : ' ✨');
+  const next = w.tiers[Math.max(s, cur)] != null ? w.tiers[Math.max(s, cur)] : w.tiers[2];
+  return `${fmtW(w, v)} ${w.unit} · next ★ at ${fmtW(w, next)}` + (w.id === 'storm' && W.storm.last === -1 ? ' (last storm: wet feet)' : '');
+}
+function renderWishes() {
+  const n = wishTotal();
+  let h = `<div class="wh"><b>Valley wishes</b><span class="wt">⭐ ${n} / ${WISHES.length * 3}</span><button id="wishClose" aria-label="Close wishes">✕</button></div><div class="wl">`;
+  for (const w of WISHES) {
+    const s = W.stars[w.id], v = W.val[w.id], nx = w.tiers[Math.min(2, s)], pv = s >= 3 ? 1 : Math.max(0, Math.min(1, v / nx));
+    h += `<div class="wi${s ? ' got' : ''}" id="wish-${w.id}"><div class="wic">${w.icon}</div><div class="wb"><div class="wn">${w.name} <span class="ws" aria-label="${s} of 3 stars">${'★'.repeat(s)}<i>${'★'.repeat(3 - s)}</i></span></div>` +
+      `<div class="wp"><i style="width:${(pv * 100).toFixed(0)}%"></i></div><div class="wv">${wishLine(w)}</div><div class="wtip">${w.tip}</div></div></div>`;
+  }
+  h += `</div><div class="wf">Wishes are optional: the valley is yours to play.</div>`;
+  wPanel.innerHTML = h; $('wishClose').onclick = () => wishOpen(false);
+}
+function wishOpen(on) { W.open = on; if (on) { wishEval(true); renderWishes(); } wPanel.classList.toggle('show', on); updWishBtn(); }
+cv.addEventListener('pointerdown', () => { if (W.open) wishOpen(false); });
+function wishToast() {
+  const it = W.toasts.shift(); if (!it) { W.showing = false; return; } W.showing = true; const [w, s, was] = it;
+  let sp = ''; for (let k = 0; k < 14; k++) { const a = k / 14 * 6.283 + Math.random() * 0.4, r = 60 + Math.random() * 70; sp += `<i class="spk" style="--dx:${(Math.cos(a) * r).toFixed(0)}px;--dy:${(Math.sin(a) * r * 0.7).toFixed(0)}px;animation-delay:${(Math.random() * 0.25).toFixed(2)}s">${k % 3 ? '✦' : '★'}</i>`; }
+  wToast.innerHTML = `<div class="tt">${s === 3 ? 'Three stars!' : !was ? 'Wish granted!' : 'Another star!'}</div><div class="tn">${w.icon} ${w.name}</div><div class="tst">${'★'.repeat(s)}<i>${'★'.repeat(3 - s)}</i></div>${sp}`;
+  wToast.classList.remove('show'); void wToast.offsetWidth; wToast.classList.add('show'); W.lastToast = w.id + ':' + s; W.toastN = (W.toastN || 0) + 1;
+  bWish.classList.remove('pop'); void bWish.offsetWidth; bWish.classList.add('pop'); wishChime(s);
+  clearTimeout(W.tt); W.tt = setTimeout(() => { wToast.classList.remove('show'); setTimeout(wishToast, 450); }, 3000);
+}
+function wishChime(s) { // a soft rising arpeggio of sine bells, one note more per star (only when sound is on and running)
+  if (!AG || !AU.on) return; const ac = AG.ac, t = ac.currentTime + 0.05, F = [784, 988, 1175, 1568];
+  for (let k = 0; k < s + 1; k++) { const a = t + k * 0.12, e = ac.createGain(); e.gain.value = 0; e.connect(AG.master); AU.live++;
+    osc('sine', F[k], a, 0.9, e); osc('sine', F[k] * 2.01, a, 0.5, e); e.gain.setValueAtTime(0, a); e.gain.linearRampToValueAtTime(0.16, a + 0.01); e.gain.exponentialRampToValueAtTime(0.001, a + 0.85);
+    setTimeout(() => { e.disconnect(); AU.live--; }, (a - ac.currentTime + 1.2) * 1000); }
+  AU.chimes = (AU.chimes || 0) + 1;
+}
+window.LV_WISHES = {
+  W, WISHES, get total() { return wishTotal(); }, get stars() { return Object.assign({}, W.stars); }, get values() { return Object.assign({}, W.val); },
+  eval: () => wishEval(true), open: () => wishOpen(true), close: () => wishOpen(false),
+  force(id, v) { if (v == null) delete W.forced[id]; else W.forced[id] = v; wishEval(true); return W.stars[id]; },
+  reset() { for (const w of WISHES) W.stars[w.id] = 0; W.forced = {}; W.storm.best = 0; W.rainbows0 = st.rainbows || 0; wishSave(); updWishBtn(); if (W.open) renderWishes(); }
+};
+updWishBtn();
 
 window.__lv = { st, AU, updSound, LV, LT, leaf: LS, clockText, wheelAng, get col() { return [colR, colG, colB]; }, get tilt() { return tilt; }, get area() { return area; }, setTool, newWorld, unproj, proj, get S() { return st.S; } };
 updUI(); updSound();

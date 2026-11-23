@@ -103,6 +103,18 @@ on summer evenings, turning mill wheels creak and clack (silent when paused or t
 and distant cowbells ring near the village by day. Winter and rain hush the birds; the sound fades
 out when the tab is hidden. `window.LV_AUDIO` shows the current layer levels for testing.
 
+## Valley wishes
+Tap the **Wishes** star for a small panel of seven gentle goals, each with three stars:
+a lake to row on (one still lake covering 3.5%, 6% or 10% of the valley), a deep green forest
+(32%, 38%, 45% forest), a little village (3, 6, 10 cottages), the mill wheel turns (1, 2, 3 mills
+turning), dry feet in a storm (1, 3, 5 cottages kept dry until a storm has passed), rainbow hunter
+(1, 2, 3 rainbows seen) and skaters on the ice (1, 2, 3 skating spots). Each line shows live
+progress, the next goal and a short tip. Wishes are checked against the real valley twice a
+second (they only read it; the simulation is unchanged). Reaching a goal gives a star with a
+cheerful toast and sparkles (and a little chime if the sound is on). The star badge counts all
+stars; your best is saved on this device (localStorage). Wishes are optional: the panel closes
+with ✕ or a tap on the valley, and free play never waits for them. `window.LV_WISHES` is the test hook.
+
 ## How it works
 Heightmap terrain from seeded noise, shallow water with the virtual-pipes method (mass
 conserving), sediment erosion and deposition with semi-Lagrangian transport, and thermal
