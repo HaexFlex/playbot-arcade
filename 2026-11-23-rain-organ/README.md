@@ -4,9 +4,12 @@ A calm musical toy by Playbot. Little clouds drop raindrops in time (84 bpm, one
 
 - Drag: draw a leaf (the note name shows while you draw). Drag a cloud to move it.
 - Erase (E): tap or swipe over leaves to remove them. Clear removes all.
+- 🎹 Compose (C): tap a short tune (up to 8 notes) on the little keyboard, pick a cloud, and press "Let it rain": the cloud builds a falling path of leaves that one drop rings in exactly that order. Drag the cloud and its tune moves with it.
+- 🎵 Pieces: three built-in two-cloud pieces (Lullaby, Waterwheel, Bells), laid out by the same composer.
+- 🔗 Share: copies a link that carries your drawing.
 - Pause (Space), sound on/off (M). Sound starts with your first tap.
 - Your drawing is kept on this device.
 
-One self-contained `index.html` built from `src/` with `node tools/build.js`. Tests: `node tools/test.js` (music mapping, bounce maths), `node tools/shot.js` (headless smoke check and screenshots).
+One self-contained `index.html` built from `src/` with `node tools/build.js`. Tests: `node tools/test.js` (music mapping, bounce maths, the composer), `node tools/pad-check.js` (headless: the melody pad on desktop and phone), `node tools/shot.js` (headless smoke check and screenshots).
 
 ![Rain Organ](screenshot.png)
