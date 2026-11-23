@@ -1815,7 +1815,7 @@ function rasterCottages(T, data) {
 // (after the full pile has stood CART_LOAD s of grinding) and pulls it to the nearest dry, standing cottage (a dry road: no water deeper than CART_WET on the way),
 // unloads there with a puff of flour, and walks back with the empty cart. App-side only, not saved.
 const FLOUR = { seed: null, n: 0 }, bakeT = new WeakMap(), BAKE_T = 40; // sacks delivered in this valley (read by the 'bread' wish); a cottage bakes for BAKE_T s after a delivery
-const carts = new Map(), cartTry = new WeakMap(), CART_LOAD = 6, CART_V = 1.6, CART_WET = 0.03, CART_MAX = 42; // cells per second (sim time at 1x), wet limit, longest trip in cells
+const carts = new Map(), cartTry = new WeakMap(), CART_LOAD = 6, CART_V = 1.6, CART_WET = 0.03, CART_MAX = 42, CART_SQ = 1.3; // cells per second (sim time at 1x), wet limit, longest trip in cells
 function cartTarget(S, m) {
   const N = S.N, mx = m.x * N + 1.2, my = m.y * N; let best = null;
   for (const c of S.cottages) { if (c === m || c.ruin) continue; const md = c.mood || LV.cottageMood(S, c); if (md === 'ruin' || md === 'flooded') continue;
@@ -1827,22 +1827,24 @@ function cartTarget(S, m) {
 }
 function rasterCarts(T, put) {
   const S = st.S, N = S.N, ow = T.ow, oh = T.oh, cp = T.cp, pick = T.pick, dt = st.paused ? 0 : st.bucketDt * SPEEDS[st.speed][0];
-  st.cartsDrawn = 0; st.cartsMoving = 0; st.cartPos = null; st.baking = 0;
+  st.cartsDrawn = 0; st.cartsMoving = 0; st.cartPos = null; st.baking = 0; st.cartLamps = 0;
   for (const c of S.cottages) { const b = bakeT.get(c); if (b > 0) { bakeT.set(c, Math.max(0, b - dt)); st.baking++; } }
   for (const [m, k] of carts) {
     if (!S.cottages.includes(m)) { carts.delete(m); continue; }
     const tc = k.to.c, tm = tc.mood || LV.cottageMood(S, tc); if (!k.back && (!S.cottages.includes(tc) || tm === 'ruin' || tm === 'flooded')) { k.back = true; k.p = 1 - k.p; k.lost = true; } // the way is gone: turn round
     if (k.wait > 0) { k.wait = Math.max(0, k.wait - dt); if (!k.wait) { k.back = true; k.p = 0; } }
     else { const step = dt * CART_V / Math.max(1, k.d); k.p = Math.min(1, k.p + step); k.roll += dt * CART_V; if (dt > 0) st.cartsMoving++;
-      if (k.p >= 1) { if (!k.back) { k.wait = 2.5; k.puff = 1; if (!k.lost) { st.flourDelivered = (st.flourDelivered || 0) + SACK_MAX; if (FLOUR.seed !== S.seed) { FLOUR.seed = S.seed; FLOUR.n = 0; } FLOUR.n += SACK_MAX; bakeT.set(tc, BAKE_T); st.bakes = (st.bakes || 0) + 1; if (FLOUR.n === SACK_MAX) hint('Flour for the baker! The cottage bakes fresh bread 🍞'); } } else { carts.delete(m); continue; } } }
+      if (k.p >= 1) { if (!k.back) { k.wait = 2.5; k.puff = 1; if (!k.lost) { st.flourDelivered = (st.flourDelivered || 0) + SACK_MAX; if (FLOUR.seed !== S.seed) { FLOUR.seed = S.seed; FLOUR.n = 0; } FLOUR.n += SACK_MAX; bakeT.set(tc, BAKE_T); st.bakes = (st.bakes || 0) + 1; if (FLOUR.n === SACK_MAX) hint('Flour for the baker! The cottage bakes fresh bread 🍞'); } if (k.vis) sndThump(k.sx); } else { carts.delete(m); continue; } } }
     if (k.puff) k.puff = Math.max(0, k.puff - dt * 0.8);
     const t = k.p * k.p * (3 - 2 * k.p) * 0.15 + k.p * 0.85, f = k.back ? 1 - t : t, gx = k.to.mx + (k.to.tx - k.to.mx) * f, gy = k.to.my + (k.to.ty - k.to.my) * f;
     const x0 = Math.max(0, Math.min(N - 2, Math.floor(gx))), y0 = Math.max(0, Math.min(N - 2, Math.floor(gy))), fx = Math.max(0, Math.min(1, gx - x0)), fy = Math.max(0, Math.min(1, gy - y0)), i0 = y0 * N + x0;
     const h = (S.h[i0] * (1 - fx) + S.h[i0 + 1] * fx) * (1 - fy) + (S.h[i0 + N] * (1 - fx) + S.h[i0 + N + 1] * fx) * fy;
     const sc = persp(gy, N), bx = Math.round((gx + 0.5 - N / 2) * cp * sc + ow / 2), by = Math.round(baseY(T, gy, N) - h * cp * T.hEx * sc);
-    if (bx < 6 || by < 6 || bx >= ow - 6 || by >= oh - 1) continue;
+    k.vis = false; if (bx < 6 || by < 6 || bx >= ow - 6 || by >= oh - 1) continue;
     const pc = pick[Math.min(oh - 1, by + 1) * ow + bx], vis = q => q >= 0 && Math.abs(q % N - gx) <= 3.5 && Math.abs(((q / N) | 0) - gy) <= 4.5;
     if (!vis(pc) && !vis(pick[Math.max(0, by - 2) * ow + bx])) continue;
+    k.vis = true; k.sx = T.sx + bx * T.s;
+    if (!k.wait && dt > 0) { k.sq = (k.sq || 0) + dt * CART_V; const now = performance.now(); if (k.sq >= CART_SQ && now - (k.sqT || 0) > 450) { k.sq = 0; k.sqT = now; sndSqueak(k.sx, k.back ? 0.7 : 1); } } // the wheel squeaks every ~1.3 cells
     const u = Math.max(3.2, cp * sc * 1.7), hz = 0.22 * (1 - gy / N) * (1 - gy / N), H = (r, g, b) => [r + (215 - r) * hz, g + (232 - g) * hz, b + (245 - b) * hz];
     const dir = (k.to.tx - k.to.mx) * (k.back ? -1 : 1) >= 0 ? 1 : -1, cw = Math.max(3, Math.round(u * 0.75)), ch = Math.max(2, Math.round(u * 0.4)), wr = Math.max(1, Math.round(u * 0.28));
     const [b1, b2, b3] = H(150, 104, 60), [d1, d2, d3] = H(104, 70, 40), cx = bx - dir * Math.round(u * 0.35), wy = by - wr, ty = wy - ch;
@@ -1857,6 +1859,8 @@ function rasterCarts(T, put) {
       put(mx - (walking && step ? 1 : 0), fy, 70, 60, 54); put(mx + (walking && !step ? 1 : 0), fy, 70, 60, 54); put(mx, fy - 1, 70, 60, 54);
       for (let py = fy - Math.round(hh * 0.7); py < fy - 1; py++) for (let px = mx - 1; px <= mx; px++) put(px, py, ...H(px < mx ? 246 : 214, px < mx ? 242 : 210, px < mx ? 232 : 200));
       put(mx, fy - Math.round(hh * 0.7) - 1, 236, 190, 160); put(mx - 1, fy - Math.round(hh * 0.7) - 1, 236, 190, 160); put(mx, fy - hh, 250, 250, 250); put(mx - 1, fy - hh, 250, 250, 250); }
+    if (LT.glow > 0.05) { const px = cx + dir * (cw - 1), top = ty - Math.max(3, Math.round(u * 0.9)); // a lantern on a short pole at the front of the cart, lit at night
+      for (let py = top; py < ty; py++) put(px, py, 74, 52, 32); put(px + dir, top, 74, 52, 32); lantern(put, px + dir * 2, top + 1, u, 5.3 + (k.to.mx | 0)); st.cartLamps++; }
     if (k.puff) for (let q = 0; q < 7; q++) { const a = q * 0.9 + k.puff, r = (1 - k.puff) * u * 1.6; put(Math.round(cx + Math.cos(a) * r), Math.round(ty - 2 - Math.abs(Math.sin(a)) * r * 0.7), 250, 248, 240); } // a puff of flour
     st.cartsDrawn++; st.cartPos = [bx, by];
   }
@@ -1898,6 +1902,14 @@ function lantern(put, x, y, u, seed) {
   put(x, y + s + 1, 60, 46, 34); st.lamps.push([x, y + s / 2, u, seed]);
 }
 // mood badges above the cottages (screen space, both views): a heart when happy, a thirsty drop
+// chimney smoke takes the light of the hour: the higher puffs catch the sunset (pink-orange) above the valley's shade,
+// at night it turns a dim blue-grey and the lowest puffs glow faintly from the hearth below
+const SMOKE_DAY = [235, 240, 245], SMOKE_COLD = [214, 220, 228], SMOKE_BAKE = [246, 236, 222], SMOKE_SUN = [255, 168, 120], SMOKE_NIGHT = [92, 100, 126], SMOKE_HEARTH = [255, 196, 132];
+function smokeRGB(c, ph) {
+  const w = LT.warm * 0.8 * (0.35 + 0.65 * ph) * (1 - LT.rain * 0.7), n = LT.night * 0.75, f = LT.glow * LT.night * 0.55 * (1 - ph) * (1 - ph), o = [0, 0, 0];
+  for (let j = 0; j < 3; j++) { let v = c[j] + (SMOKE_SUN[j] - c[j]) * w; v += (SMOKE_NIGHT[j] - v) * n; v += (SMOKE_HEARTH[j] - v) * f; o[j] = v | 0; }
+  o[3] = 1 - LT.night * 0.3; if (ph > 0.45 && ph < 0.55) st.smokeRGB = o; return o;
+}
 // when dry and far from water, blue waves when flooded; a puff of smoke from happy chimneys
 function drawCottageBadges(t) {
   const S = st.S, N = S.N; if (!S.cottages.length) return;
@@ -1919,7 +1931,7 @@ function drawCottageBadges(t) {
     else if (mood === 'flooded') { cx.strokeStyle = '#2a83c4'; cx.lineWidth = 1.6; for (const dy of [-1.8, 1.8]) { cx.beginPath(); cx.moveTo(-4.5, dy); cx.quadraticCurveTo(-2.2, dy - 2, 0, dy); cx.quadraticCurveTo(2.2, dy + 2, 4.5, dy); cx.stroke(); } }
     else { cx.strokeStyle = '#b08040'; cx.lineWidth = 1.5; cx.beginPath(); cx.moveTo(0, -4.5); cx.bezierCurveTo(3.5, -0.5, 3.5, 3.5, 0, 3.5); cx.bezierCurveTo(-3.5, 3.5, -3.5, -0.5, 0, -4.5); cx.stroke(); cx.beginPath(); cx.moveTo(-3.5, 4); cx.lineTo(3.5, -3.5); cx.stroke(); }
     cx.restore(); nb++;
-    if ((mood === 'happy' || bake || (cold && mood === 'sad')) && st.view === 'tilt') { const K = st.smokeK + (bake ? 3 : 0), sp = cold ? 0.32 : 0.5, rise = (cold ? 20 : 12) + (bake ? 6 : 0), grow = (cold ? 5 : 3) + (bake ? 1.5 : 0), a0 = cold ? 0.68 : bake ? 0.62 : 0.55, col = bake ? '246,236,222' : cold ? '214,220,228' : '235,240,245'; if (bake) st.bakeSmoke += K; for (let k = 0; k < K; k++) { const ph = (t * sp + k / K + c.x * 7) % 1; cx.fillStyle = `rgba(${col},${a0 * (1 - ph)})`; cx.beginPath(); cx.arc(p[0] + u * 1.0 + ph * 6 + (cold ? Math.sin(ph * 5 + c.y * 9) * 2 : 0), p[1] - u * 4.4 - ph * rise, 1.5 + ph * grow, 0, 7); cx.fill(); st.smokeN++; } }
+    if ((mood === 'happy' || bake || (cold && mood === 'sad')) && st.view === 'tilt') { const K = st.smokeK + (bake ? 3 : 0), sp = cold ? 0.32 : 0.5, rise = (cold ? 20 : 12) + (bake ? 6 : 0), grow = (cold ? 5 : 3) + (bake ? 1.5 : 0), a0 = cold ? 0.68 : bake ? 0.62 : 0.55, col = bake ? SMOKE_BAKE : cold ? SMOKE_COLD : SMOKE_DAY; if (bake) st.bakeSmoke += K; for (let k = 0; k < K; k++) { const ph = (t * sp + k / K + c.x * 7) % 1, q = smokeRGB(col, ph); cx.fillStyle = `rgba(${q[0]},${q[1]},${q[2]},${a0 * q[3] * (1 - ph)})`; cx.beginPath(); cx.arc(p[0] + u * 1.0 + ph * 6 + (cold ? Math.sin(ph * 5 + c.y * 9) * 2 : 0), p[1] - u * 4.4 - ph * rise, 1.5 + ph * grow, 0, 7); cx.fill(); st.smokeN++; } }
   }
   st.badgesDrawn = nb;
 }
@@ -2456,7 +2468,7 @@ function adapt(dt) {
 // and thunder after lightning, wind (stronger in winter and storms), birds by day in the forest, crickets on
 // summer evenings, an owl at night, the creak and clack of turning mill wheels, cowbells near the village.
 // window.LV_AUDIO holds the levels (0..1) and gains so tests can check them without listening.
-const AU = { want: false, on: false, started: false, state: 'none', nodes: 0, live: 0, L: {}, G: {}, ev: { chirp: 0, cricket: 0, owl: 0, clack: 0, creak: 0, bell: 0, thunder: 0, plop: 0, slurp: 0, splash: 0, knock: 0, well: 0, rustle: 0, rumble: 0, drip: 0 }, flow: 0, riverPan: 0, veg: 0, ticks: 0, vol: 1, snowCover: 0, rainMuffle: 0, rainCut: 9000, masterT: 0, melt: 0, meltPan: 0 };
+const AU = { want: false, on: false, started: false, state: 'none', nodes: 0, live: 0, L: {}, G: {}, ev: { chirp: 0, cricket: 0, owl: 0, clack: 0, creak: 0, bell: 0, thunder: 0, plop: 0, slurp: 0, splash: 0, knock: 0, well: 0, rustle: 0, rumble: 0, drip: 0, squeak: 0, thump: 0 }, flow: 0, riverPan: 0, veg: 0, ticks: 0, vol: 1, snowCover: 0, rainMuffle: 0, rainCut: 9000, masterT: 0, melt: 0, meltPan: 0 };
 window.LV_AUDIO = AU;
 const AU_KEY = 'lv-sound', AU_MASTER = 0.45, AU_DT = 0.25;
 const AU_MAX = { river: 0.55, rain: 0.42, wind: 0.2, birds: 0.42, crickets: 0.13, owl: 0.38, mill: 0.42, cows: 0.26, thunder: 0.85, melt: 0.3 }; // full-level gain per layer
@@ -2628,6 +2640,19 @@ function sndWell(x, ok) { // a well: the bucket drops down the shaft and splashe
   if (ok) { drop(t + 0.35, 420, 1, pan); drop(t + 0.62, 380, 0.4, pan); drop(t + 0.86, 360, 0.18, pan); noiseHit('fx', AG.brown, t + 0.35, 0.4, 'lowpass', 300, 0.7, 0.3, pan, 0.08); }
   else noiseHit('fx', AG.brown, t, 0.3, 'lowpass', 220, 0.7, 0.45, pan, 0.05);
   AU.ev.well++;
+}
+function sndSqueak(x, k) { // the flour cart: a dry wooden wheel squeaks on its axle, with a little knock of the cart box
+  if (!fxOn()) return; const t = AG.ac.currentTime + 0.02, pan = fxPan(x), f = 1250 + Math.random() * 350, dur = 0.16 + Math.random() * 0.08;
+  const bp = AG.ac.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = f * 1.2; bp.Q.value = 3; const e = auVoice('fx', t, dur + 0.05, pan); bp.connect(e);
+  const o = osc('triangle', f, t, dur + 0.05, bp); o.frequency.linearRampToValueAtTime(f * 1.18, t + dur * 0.4); o.frequency.linearRampToValueAtTime(f * 0.92, t + dur);
+  e.gain.setValueAtTime(0, t); e.gain.linearRampToValueAtTime(0.06 * k, t + 0.03); e.gain.setValueAtTime(0.06 * k, t + dur * 0.6); e.gain.linearRampToValueAtTime(0, t + dur); setTimeout(() => bp.disconnect(), (dur + 0.4) * 1000);
+  noiseHit('fx', AG.brown, t + dur * 0.5, 0.1, 'lowpass', 500, 0.7, 0.12 * k, pan, 0.02); AU.ev.squeak++;
+}
+function sndThump(x) { // the sacks come off the cart: two soft, dull thumps
+  if (!fxOn()) return; const t = AG.ac.currentTime + 0.02, pan = fxPan(x);
+  for (let q = 0; q < 2; q++) { const a = t + q * 0.28, e = auVoice('fx', a, 0.3, pan), o = osc('sine', 110 - q * 12, a, 0.3, e); o.frequency.exponentialRampToValueAtTime(55, a + 0.15);
+    e.gain.setValueAtTime(0, a); e.gain.linearRampToValueAtTime(0.3, a + 0.006); e.gain.setTargetAtTime(0, a + 0.01, 0.05); noiseHit('fx', AG.brown, a, 0.2, 'lowpass', 320, 0.7, 0.3, pan, 0.045); }
+  AU.ev.thump++;
 }
 function sndRustle(x) { // planting: a soft leafy rustle, a few dry crackles over a swish of pink noise
   if (!fxOn()) return; const t = AG.ac.currentTime + 0.02, pan = fxPan(x);
@@ -2963,7 +2988,7 @@ addEventListener('pagehide', () => autoSave('pagehide'));
 window.LV_AUTO = { AS, save: autoSave, get: asGet, put: asPut, clear: asClear, restore: autoRestore };
 
 
-window.__lv = { st, AU, updSound, LV, LT, leaf: LS, clockText, wheelAng, get col() { return [colR, colG, colB]; }, get tilt() { return tilt; }, get area() { return area; }, setTool, newWorld, unproj, proj, get S() { return st.S; }, floes, breakup: sndBreakup, yearTurn, flourT, SACK_T, carts, CART_LOAD, cartTarget, bakeT, FLOUR };
+window.__lv = { st, AU, updSound, LV, LT, leaf: LS, clockText, wheelAng, get col() { return [colR, colG, colB]; }, get tilt() { return tilt; }, get area() { return area; }, setTool, newWorld, unproj, proj, get S() { return st.S; }, floes, breakup: sndBreakup, yearTurn, flourT, SACK_T, carts, CART_LOAD, cartTarget, bakeT, FLOUR, smokeRGB };
 updUI(); updSound();
 const rawHash = (location.hash || '').slice(1);
 let fromHash = ''; try { fromHash = decodeURIComponent(rawHash); } catch (e) { fromHash = ''; }

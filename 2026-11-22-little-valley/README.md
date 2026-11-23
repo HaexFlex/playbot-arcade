@@ -34,7 +34,8 @@ find its way: lakes fill, rivers spill over ridges, carve gullies and drop sand.
   one about every 15 seconds, up to three. When the pile is full the miller loads it onto a
   little handcart and pulls it along a dry road to the nearest cottage, unloads with a puff of
   flour and walks back with the empty cart. The cottage bakes: a golden loaf shows on its badge
-  and its chimney puffs warm, thick smoke for a while.
+  and its chimney puffs warm, thick smoke for a while. At night the miller hangs a little lantern
+  on the front of the cart, and it glows like the lanterns at the wells and mills.
   (`screenshot-mill.png`: a village by the upper river with three turning mill wheels.)
 - **Speed** cycles 1x, 2x, 4x and **8x Time-lapse** (hourglass): erosion and growth run four
   times faster, so you can watch a river carve its gorge and the forest follow the new banks.
@@ -86,7 +87,8 @@ fades to bare brown rows that peek through thin snow, and they are sown again af
 **Snowmen**: when the snow reaches the village, little snowmen with red scarves and dark hats
 appear in the cottage gardens, and they melt with the snow in spring.
 
-**Winter smoke**: in late autumn and winter every lived-in cottage heats, so its chimney puffs thicker, slower, greyer smoke.
+**Winter smoke**: in late autumn and winter every lived-in cottage heats, so its chimney puffs thicker, slower, greyer smoke. The smoke takes the light of the hour: at sunset the higher puffs catch the low sun and turn
+pink-orange, and at night the smoke goes a dim blue-grey with a faint warm glow from the hearth just above the chimney.
 
 **Weather events**: now and then a rain is a **storm**: a dark, bigger, faster cloud with
 slanting rain and lightning (⛈ in the clock) that pours almost three times as hard, so low cottages
@@ -131,7 +133,8 @@ sliding it up while muted turns the sound on.
 Your finger makes small sounds too, panned to where you touch: Raise, Dig or Smooth in the water
 gives a soft splash, the Sponge slurps, planting rustles like leaves, a new spring bubbles up with a few drops, each new cottage
 gets three hammer taps and a tiny house-warming bell, and a new well drops its bucket down the shaft
-with a splash far below (a dull knock if the ground is dry or rocky).
+with a splash far below (a dull knock if the ground is dry or rocky). The flour cart's wooden wheel squeaks
+softly as it rolls (a little lighter on the way home), and the sacks come off with two dull thumps.
 
 ## Valley wishes
 Tap the **Wishes** star for a small panel of twelve gentle goals, each with three stars:
