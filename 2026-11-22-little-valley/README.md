@@ -65,6 +65,9 @@ near the village. (`screenshot-ice.png`.)
 through the night, and on spring and summer evenings fireflies blink over the meadows.
 (`screenshot-fireflies.png`.)
 
+**Fields under snow**: when snow lies on the fields they rest: nothing ripens or is harvested, the crop
+fades to bare brown rows that peek through thin snow, and they are sown again after the thaw.
+
 **Snowmen**: when the snow reaches the village, little snowmen with red scarves and dark hats
 appear in the cottage gardens, and they melt with the snow in spring.
 
