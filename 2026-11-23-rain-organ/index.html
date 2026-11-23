@@ -165,7 +165,7 @@ function resize() {
 addEventListener('resize', resize); resize();
 const toField = (px, py) => ({ x: (px - ox) / scale, y: (py - oy) / scale });
 // ---------- sound ----------
-let ac = null, master = null, wet = null, soundOn = false;
+let ac = null, master = null, wet = null, hiss = null, soundOn = false;
 function startAudio() {
   if (ac) return;
   try { ac = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { return; }
@@ -174,9 +174,15 @@ function startAudio() {
   const dl = ac.createDelay(1); dl.delayTime.value = EIGHTH * 3; const fb = ac.createGain(); fb.gain.value = 0.28;
   const lp = ac.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 2200;
   wet = ac.createGain(); wet.gain.value = 0.35; wet.connect(dl); dl.connect(lp); lp.connect(fb); fb.connect(dl); lp.connect(master);
+  // soft rain outside the window: looped brown-ish noise through a band filter, very quiet
+  const len = ac.sampleRate * 3, buf = ac.createBuffer(1, len, ac.sampleRate), d = buf.getChannelData(0); let last = 0;
+  for (let i = 0; i < len; i++) { last = last * 0.86 + (Math.random() * 2 - 1) * 0.14; d[i] = last * 2.2 + (Math.random() * 2 - 1) * 0.05; }
+  const src = ac.createBufferSource(); src.buffer = buf; src.loop = true; const bp = ac.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 900; bp.Q.value = 0.4;
+  hiss = ac.createGain(); hiss.gain.value = 0; src.connect(bp); bp.connect(hiss); hiss.connect(ac.destination); src.start();
 }
 function setSound(on) {
   soundOn = on; if (on) { startAudio(); if (ac && ac.state === 'suspended') ac.resume(); }
+  if (hiss) hiss.gain.setTargetAtTime(on ? 0.05 : 0, ac.currentTime, 0.6);
   $('bSound').innerHTML = (on ? '🔊' : '🔇') + ' <span>Sound</span>'; $('bSound').classList.toggle('on', on);
 }
 const MATS = [{ name: 'Wood', icon: '🪵' }, { name: 'Glass', icon: '🔔' }, { name: 'Reed', icon: '🌾' }];
@@ -389,6 +395,10 @@ function draw() {
   cx.setTransform(dpr, 0, 0, dpr, 0, 0);
   const w = innerWidth, h = innerHeight;
   const g = cx.createLinearGradient(0, 0, 0, h); g.addColorStop(0, '#17283a'); g.addColorStop(1, '#0c141c'); cx.fillStyle = g; cx.fillRect(0, 0, w, h);
+  // far rain behind the glass (screen space, purely for mood)
+  { const t = performance.now() / 1000; cx.strokeStyle = 'rgba(150,190,230,0.07)'; cx.lineWidth = 1; cx.beginPath();
+    for (let i = 0; i < 70; i++) { const fx = (i * 0.618034) % 1, sp = 180 + (i * 37) % 140, x = fx * (w + 60) - 30, y = ((t * sp + i * 97) % (h + 40)) - 20 - 0; cx.moveTo(x, y); cx.lineTo(x - 3, y + 14); }
+    cx.stroke(); }
   cx.setTransform(dpr * scale, 0, 0, dpr * scale, dpr * ox, dpr * oy);
   // field frame + ground
   { const pg = cx.createLinearGradient(0, FH - 14, 0, FH); pg.addColorStop(0, 'rgba(120,170,210,0)'); pg.addColorStop(1, 'rgba(120,170,210,0.16)'); cx.fillStyle = pg; cx.fillRect(0, FH - 14, FW, 14); }
