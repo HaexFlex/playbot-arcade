@@ -100,7 +100,7 @@ canvas{display:block;width:100vw;height:100vh;touch-action:none}
   }
   // build a falling melody: leaves placed so one drop from (x0,y0) rings steps[] in order.
   // rnd: a 0..1 random function (seeded in tests). Returns null if no layout fits in maxY.
-  function compose(steps, x0, y0, rnd, maxY = 520, tries = 400, why = null, fixed = [], others = []) {
+  function compose(steps, x0, y0, rnd, maxY = 520, tries = 400, why = null, fixed = [], others = [], fallK = 1, xlo = 20, xhi = 980) {
     // fixed: leaves already placed by other voices; others: [[x,y,hits]] their drops must keep ringing the same leaves
     const F = fixed.length;
     for (let k = 0; k < tries; k++) {
@@ -109,17 +109,17 @@ canvas{display:block;width:100vw;height:100vh;touch-action:none}
         const { path } = trace(leaves, x0, y0, maxY + 40);
         // where the drop is after its last bounce: start looking a little below that
         let lastY = y0; for (let j = 0; j < path.length; j += 4) if (path[j + 3] < 0 && path[j + 1] > lastY) lastY = path[j + 1];
-        const fall = 45 + rnd() * 50, want = lastY + fall; let pj = -1;
+        const fall = (45 + rnd() * 50) * fallK, want = lastY + fall; let pj = -1;
         for (let j = 0; j < path.length; j += 4) if (path[j + 3] > 0 && path[j + 1] >= want) { pj = j; break; }
         if (pj < 0) { ok = false; if (why) why.nofall = (why.nofall || 0) + 1; break; }
         const px = path[pj], py = path[pj + 1], vx = path[pj + 2];
         const len = lengthForStep(steps[n]), f = 0.25 + rnd() * 0.5;
         // slope: send the drop back toward the middle when it drifts out, otherwise keep its direction
         let dir = Math.abs(vx) < 20 ? (rnd() < 0.5 ? 1 : -1) : Math.sign(vx);
-        if (px < 220) dir = 1; else if (px > 780) dir = -1;
+        if (px < xlo + 200) dir = 1; else if (px > xhi - 200) dir = -1;
         const a = (0.18 + rnd() * 0.32) * dir, ux = Math.cos(a), uy = Math.sin(a); // dir 1 = right end lower
         const L = { x1: px - ux * len * f, y1: py - uy * len * f, x2: px + ux * len * (1 - f), y2: py + uy * len * (1 - f) };
-        if (Math.min(L.x1, L.x2) < 20 || Math.max(L.x1, L.x2) > 980 || Math.max(L.y1, L.y2) > maxY) { ok = false; if (why) why[Math.max(L.y1, L.y2) > maxY ? 'deep' : 'side'] = (why[Math.max(L.y1, L.y2) > maxY ? 'deep' : 'side'] || 0) + 1; break; }
+        if (Math.min(L.x1, L.x2) < xlo || Math.max(L.x1, L.x2) > xhi || Math.max(L.y1, L.y2) > maxY) { ok = false; if (why) why[Math.max(L.y1, L.y2) > maxY ? 'deep' : 'side'] = (why[Math.max(L.y1, L.y2) > maxY ? 'deep' : 'side'] || 0) + 1; break; }
         leaves.push(L);
         const tr = trace(leaves, x0, y0, maxY + 40).hits;
         const bad = tr.length !== leaves.length - F || tr.some((h, i) => h !== F + i) || others.some(([ox, oy, oh]) => { const t = trace(leaves, ox, oy, maxY + 40).hits; return t.length !== oh.length || t.some((h, i) => h !== oh[i]); });
@@ -129,17 +129,20 @@ canvas{display:block;width:100vw;height:100vh;touch-action:none}
     }
     return null;
   }
-  function composePiece(voices, seed = 1, maxY = 520) {
+  // each cloud keeps to its own lane, so there is always room to recompose one voice later
+  function laneOf(x, n) { if (n < 2) return [20, 980]; const w = 960 / n, i = Math.max(0, Math.min(n - 1, Math.floor((x - 20) / w))); return [Math.max(20, 20 + i * w - 70), Math.min(980, 20 + (i + 1) * w + 70)]; }
+  function composePiece(voices, seed = 1, maxY = 520, fallK = 1) {
     let sd = seed >>> 0 || 1; const rnd = () => (sd = (sd * 16807) % 2147483647) / 2147483647;
     const all = [], others = [];
     for (const v of voices) {
-      const L = compose(v.steps, v.x, v.y, rnd, maxY, 600, null, all, others);
+      const [lo, hi] = laneOf(v.x, voices.length);
+      const L = compose(v.steps, v.x, v.y, rnd, maxY, 600, null, all, others, fallK, lo, hi);
       if (!L) return null;
       others.push([v.x, v.y, L.map((_, i) => all.length + i)]); all.push(...L);
     }
     return all;
   }
-  const RO = { SCALE, STEPS, MIN_LEN, MAX_LEN, stepForLength, midiForStep, freqForMidi, noteName, leafNote, closest, bounce, stepDrop, clamp, lengthForStep, trace, compose, composePiece };
+  const RO = { SCALE, STEPS, MIN_LEN, MAX_LEN, stepForLength, midiForStep, freqForMidi, noteName, leafNote, closest, bounce, stepDrop, clamp, lengthForStep, trace, compose, composePiece, laneOf };
   if (typeof module !== 'undefined' && module.exports) module.exports = RO; else root.RO = RO;
 })(typeof window !== 'undefined' ? window : globalThis);
 </script>
@@ -209,17 +212,19 @@ const PIECES = [
 ];
 const HOME = [[300, 70], [700, 60]];
 let pieceIx = -1;
+const fallK = () => RO.clamp((FH - 80) / 560, 1, 1.8); // taller field (portrait phone): longer falls between leaves
 function loadPiece(ix) {
   const P = PIECES[ix];
   st.clouds.forEach((c, i) => { c.x = HOME[i][0]; c.y = HOME[i][1]; });
   const voices = P.voices.map((steps, i) => ({ x: HOME[i][0], y: HOME[i][1] + 22, steps }));
-  let L = null; for (let seed = 1; seed <= 12 && !L; seed++) L = RO.composePiece(voices, seed);
+  let L = null; for (let seed = 1; seed <= 12 && !L; seed++) L = RO.composePiece(voices, seed, Math.min(FH - 30, 1400), fallK());
+  for (let seed = 1; seed <= 12 && !L; seed++) L = RO.composePiece(voices, seed);
   if (!L) return false;
   let n0 = 0; st.leaves = L.map(l => makeLeaf(l.x1, l.y1, l.x2, l.y2)); P.voices.forEach((v, k) => { for (let i = 0; i < v.length; i++) st.leaves[n0 + i].voice = k; n0 += v.length; }); st.drops = []; pieceIx = ix; save(); return true;
 }
 // ---------- melody pad: tap a tune, a cloud builds the leaf path for it ----------
 const PAD_STEPS = [3, 4, 5, 6, 7, 8, 9, 10, 11, 12], PAD_MAX = 8;
-const leafHue = step => 210 - step * 13;
+const leafHue = step => 265 - step * 17; // low notes violet, middle blue-green, high notes warm orange
 const pad = { open: false, cloud: 0, seq: [] };
 function renderPad() {
   $('padCloud').textContent = 'for the ' + (pad.cloud === 0 ? 'left' : 'right') + ' cloud · up to ' + PAD_MAX + ' notes';
@@ -236,7 +241,10 @@ function buildVoice(k, steps) {
   const c = st.clouds[k], keep = st.leaves.filter(L => L.voice !== k);
   const others = st.clouds.map((o, j) => j === k ? null : [o.x, o.y + 22, RO.trace(keep, o.x, o.y + 22, FH + 40).hits]).filter(Boolean);
   let sd = 1 + steps.reduce((a, s) => a * 31 + s, 7) % 9973; const rnd = () => (sd = (sd * 16807) % 2147483647) / 2147483647;
-  const L = RO.compose(steps, c.x, c.y + 22, rnd, Math.min(FH - 30, 1400), 700, null, keep, others);
+  const [lo, hi] = RO.laneOf(c.x, st.clouds.length), my = Math.min(FH - 30, 1400);
+  let L = RO.compose(steps, c.x, c.y + 22, rnd, my, 700, null, keep, others, fallK(), lo, hi);
+  if (!L) L = RO.compose(steps, c.x, c.y + 22, rnd, my, 700, null, keep, others, 1, lo, hi);
+  if (!L) L = RO.compose(steps, c.x, c.y + 22, rnd, my, 700, null, keep, others, 1);
   if (!L) return false;
   st.leaves = keep.concat(L.map(l => Object.assign(makeLeaf(l.x1, l.y1, l.x2, l.y2), { voice: k })));
   for (const d of st.drops) d.rang = []; save(); return true;
@@ -345,8 +353,11 @@ function draw() {
   for (const L of st.leaves) {
     const hue = leafHue(L.note.step), gl = L.glow;
     cx.strokeStyle = 'hsla(' + hue + ',70%,' + (45 + 30 * gl) + '%,' + (0.75 + 0.25 * gl) + ')';
-    cx.lineWidth = 6 + 4 * gl; cx.shadowColor = 'hsla(' + hue + ',90%,70%,' + gl + ')'; cx.shadowBlur = 18 * gl;
-    cx.beginPath(); cx.moveTo(L.x1, L.y1); cx.lineTo(L.x2, L.y2); cx.stroke();
+    const dx = L.x2 - L.x1, dy = L.y2 - L.y1, n = Math.hypot(dx, dy) || 1, wv = Math.min(9, 3 + n * 0.03) + 2 * gl, nx = -dy / n * wv, ny = dx / n * wv;
+    const mx = (L.x1 + L.x2) / 2, my = (L.y1 + L.y2) / 2;
+    cx.fillStyle = 'hsla(' + hue + ',75%,' + (52 + 25 * gl) + '%,' + (0.8 + 0.2 * gl) + ')'; cx.shadowColor = 'hsla(' + hue + ',90%,70%,' + gl + ')'; cx.shadowBlur = 18 * gl;
+    cx.beginPath(); cx.moveTo(L.x1, L.y1); cx.quadraticCurveTo(mx + nx, my + ny, L.x2, L.y2); cx.quadraticCurveTo(mx - nx, my - ny, L.x1, L.y1); cx.fill();
+    cx.shadowBlur = 0; cx.strokeStyle = 'hsla(' + hue + ',60%,' + (75 + 15 * gl) + '%,0.55)'; cx.lineWidth = 1.2; cx.beginPath(); cx.moveTo(L.x1, L.y1); cx.lineTo(L.x2, L.y2); cx.stroke();
   }
   cx.shadowBlur = 0;
   if (drag && drag.kind === 'leaf') {
@@ -357,7 +368,7 @@ function draw() {
   }
   // drops
   cx.fillStyle = 'rgba(170,215,255,0.9)';
-  for (const d of st.drops) { cx.beginPath(); cx.ellipse(d.x, d.y, 3.2, 4.6, Math.atan2(d.vx, d.vy) * -1, 0, Math.PI * 2); cx.fill(); }
+  for (const d of st.drops) { cx.strokeStyle = 'rgba(170,215,255,0.18)'; cx.lineWidth = 2.5; cx.beginPath(); cx.moveTo(d.x, d.y); cx.lineTo(d.x - d.vx * 0.03, d.y - d.vy * 0.03); cx.stroke(); cx.beginPath(); cx.ellipse(d.x, d.y, 3.2, 4.6, Math.atan2(d.vx, d.vy) * -1, 0, Math.PI * 2); cx.fill(); }
   for (const s of st.splashes) { cx.strokeStyle = 'rgba(170,215,255,' + s.a + ')'; cx.lineWidth = 1.5; cx.beginPath(); if (s.pool) cx.ellipse(s.x, s.y, s.r * 1.6, s.r * 0.4, 0, 0, Math.PI * 2); else cx.arc(s.x, s.y, s.r, 0, Math.PI * 2); cx.stroke(); }
   // clouds
   for (const c of st.clouds) {
