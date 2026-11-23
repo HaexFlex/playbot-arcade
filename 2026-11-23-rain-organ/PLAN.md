@@ -32,3 +32,4 @@ Not a game with goals: a sound toy and a little generative-music study.
 - Done 2026-11-23 21:2x: per-cloud rhythm (tap a cloud: every 2/3/4/6 eighths, dots show the cycle; saved and in share links; tools/rhythm-check.js).
 - Done 2026-11-23 21:3x: a third cloud (tap empty sky; Three Clouds piece with 3 lanes; saved, shared, Clear resets to 2; pad and hints name clouds left/middle/right; tools/clouds-check.js 18 checks desk+phone).
 - Done 2026-11-23 21:2x: mood: faint far rain behind the glass and a very quiet rain hiss when Sound is on.
+- Done 2026-11-23 21:3x: crossing penalty: the composer never puts a leaf through (or within 12 units of) another leaf; all four pieces compose with 0 crossings on desk, portrait and landscape phone.
