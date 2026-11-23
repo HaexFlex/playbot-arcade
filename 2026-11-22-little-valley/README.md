@@ -25,6 +25,8 @@ find its way: lakes fill, rivers spill over ridges, carve gullies and drop sand.
   recently) the well finds groundwater and the cottage is happy even far from any river: it sows
   fields and its village grows, each new cottage digging its own well. Up on the high rock there
   is no groundwater.
+  Now and then a happy well hauls water: the crank turns, the bucket goes down the shaft and comes
+  back up full and dripping. A dry well's bucket hangs still.
 - **Mill wheels** come by themselves: a cottage right beside a fast river that keeps running
   builds a water wheel in it. The wheel turns with the current, stops when the river dries up,
   and a turning mill makes its fields ripen faster. (Shower runoff doesn't count: the miller
@@ -68,6 +70,7 @@ down the river for a while before they melt. Keep the cottages off the low banks
 **Calendar**: a small strip under the clock shows the year and a four-season bar with a marker for
 today ("Year 2 · mid spring" on a big screen, just "Y2" on a phone).
 Each new year the valley has a birthday: a little toast says "Daisy Glacier 5 turns 1".
+In mid-autumn, the first time the fresh snow whitens the peaks, a hint says "First snow!" (once a year).
 
 **Fireflies and lanterns**: wells and mill wheels carry little lanterns that glow and flicker
 through the night, and on spring and summer evenings fireflies blink over the meadows.
@@ -126,12 +129,16 @@ gets three hammer taps and a tiny house-warming bell, and a new well drops its b
 with a splash far below (a dull knock if the ground is dry or rocky).
 
 ## Valley wishes
-Tap the **Wishes** star for a small panel of nine gentle goals, each with three stars:
+Tap the **Wishes** star for a small panel of eleven gentle goals, each with three stars:
 a lake to row on (one still lake covering 3.5%, 6% or 10% of the valley), a deep green forest
 (32%, 38%, 45% forest), a little village (3, 6, 10 cottages), the mill wheel turns (1, 2, 3 mills
 turning), dry feet in a storm (1, 3, 5 cottages kept dry until a storm has passed), rainbow hunter
 (1, 2, 3 rainbows seen), skaters on the ice (1, 2, 3 skating spots), a golden harvest (20, 80, 240
-field plots brought in by the village) and snowmen in the gardens (1, 3, 6 snowmen). Each line shows live
+field plots brought in by the village), snowmen in the gardens (1, 3, 6 snowmen), a well for a
+thirsty cottage (1, 3, 6 thirsty cottages saved by a well you dug; droughts make more of them) and a
+waterfall (the tallest fall right now, 12, 25 or 45 m: a strong stream pouring over a drop twice as steep as
+wet ground settles; dig a steep pit just below a fast stream, and catch it quickly, because the wet cliff
+slumps within seconds; storms on the steep slopes make wild ones too). Each line shows live
 progress, the next goal and a short tip. Wishes are checked against the real valley twice a
 second (they only read it; the simulation is unchanged). Reaching a goal gives a star with a
 cheerful toast and sparkles (and a little chime if the sound is on). The star badge counts all

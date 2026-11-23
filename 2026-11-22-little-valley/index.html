@@ -809,6 +809,36 @@ function iceJam(S, cold, y) {
   for (let i = 0; i < ice.length; i++) { if (ice[i] > 0.02 && k++ % stp === 0 && pts.length < FLOE_PTS) pts.push(i); ice[i] = 0; } // break-up: the jam lets go
   S.jam = { t: S.time, cells: n, vol: Math.round(vol * 10) / 10, peak: S.icePeak }; S.icePeak = 0; S.jamPts = pts;
 }
+// ---------- waterfalls (read-only, for the app's waterfall wish) ----------
+// A fall cell is flowing water (outflow at least FALL_Q) whose main downstream neighbour sits at least
+// FALL_DROP lower: twice as steep as wet ground settles (talusWet 0.4), so the water really pours over an edge.
+// Measured: a settled mountain stream has drops up to ~0.6 and at most one lone 0.8 cell; a spring's own trickle
+// on a dry slope is skipped. Wet cliffs slump fast, so a big fall is a moment: a pit dug below a fast stream or a
+// storm on the steep slopes (height then 25-70 m on FALL_M's scale, fading within seconds).
+// Touching fall cells (8-connected) make one waterfall; its height is the drop of the water surface from its
+// top to the pool below (in cell units, like the terrain). Ice holds the water back, so frozen falls stop.
+// Returns { n, best, cells, top } (top = the tallest one's highest cell, for the app's hint/tests).
+const FALL_DROP = 0.8, FALL_Q = 3, FALL_M = 1280; // FALL_M: metres per unit of height / N (a 128 valley: 10 m a cell, mountains ~350 m)
+const nearSpring = (S, x, y) => S.springs.some(sp => Math.abs(sp.x * S.N - x) < 3 && Math.abs(sp.y * S.N - y) < 3); // a spring's own trickle on a steep slope is no waterfall
+let fallM = null, fallLow = null; // scratch (the sim's own buffers are left alone)
+function waterfalls(S, drop, qMin) {
+  drop = drop || FALL_DROP; qMin = qMin || FALL_Q;
+  const N = S.N, n = N * N, h = S.h, d = S.d, fL = S.fL, fR = S.fR, fT = S.fT, fB = S.fB;
+  if (!fallM || fallM.length !== n) { fallM = new Uint8Array(n); fallLow = new Float32Array(n); }
+  const m = fallM, low = fallLow; m.fill(0); let cells = 0;
+  for (let y = 1; y < N - 1; y++) for (let x = 1; x < N - 1; x++) {
+    const i = y * N + x; if (d[i] < 0.002) continue;
+    const l = fL[i], r = fR[i], t = fT[i], b = fB[i]; if (l + r + t + b < qMin) continue;
+    const j = l >= r && l >= t && l >= b ? i - 1 : r >= t && r >= b ? i + 1 : t >= b ? i - N : i + N;
+    if (h[i] - h[j] >= drop && !nearSpring(S, x, y)) { m[i] = 1; low[i] = h[j] + d[j]; cells++; }
+  }
+  let nf = 0, best = 0, top = -1; const q = [];
+  for (let i = 0; i < n; i++) { if (m[i] !== 1) continue; m[i] = 2; q.length = 0; q.push(i); let hi = -1e9, lo = 1e9, ti = i;
+    for (let k = 0; k < q.length; k++) { const c = q[k], cx = c % N; const sf = h[c] + d[c]; if (sf > hi) { hi = sf; ti = c; } if (low[c] < lo) lo = low[c];
+      for (let dy = -N; dy <= N; dy += N) for (let dx = -1; dx <= 1; dx++) { if (cx + dx < 0 || cx + dx >= N) continue; const e = c + dy + dx; if (e >= 0 && e < n && m[e] === 1) { m[e] = 2; q.push(e); } } }
+    nf++; if (hi - lo > best) { best = hi - lo; top = ti; } }
+  return { n: nf, best, cells, top };
+}
 function totalIce(S) { let n = 0; const a = S.ice, d = S.d; for (let i = 0; i < a.length; i++) if (a[i] > 0.5 && d[i] > 0.02) n++; return n; }
 function totalSnow(S) { let t = 0; const a = S.snow; for (let i = 0; i < a.length; i++) t += a[i]; return t; }
 
@@ -1099,7 +1129,7 @@ function unpackShare(bytes, seed, opts) {
   if (hasNaN(S)) throw new Error('share link has broken numbers');
   return S;
 }
-const API = { packState, unpackState, packShare, unpackShare, initLife,  iceStep, iceJam, totalIce, ICE_HOLD, JAM_MIN, JAM_Y, FLOE_PTS, eventRain, droughtOf, droughtAt, weatherEvent, STORM_AMP, yearFrac, yearFracAt, yearLen, yearNum, season, snowLine, snowFalling, leafState, snowStep, totalSnow, SEASONS, clockHour, dayFrac, planRain, rainCell, weatherStep, mulberry32, hashStr, makeNoise, randomSeedName, generateTerrain, create, seedLife, step, applyTool, totalWater, totalTerrain, resample, lifeStep, countTrees, countLife, leafy, treeHappy, cottageMood, cottageCell, countVillage, waterNear, wellYield, WELL_MIN, WELL_HIGH, MILL_T, MILL_RIPEN, FLOOD_RUIN, GROW_MAX, KIDS_MAX, GROW_T, plotSize, plotOf, plotCrop, hasNaN, DEFAULTS };
+const API = { waterfalls, FALL_DROP, FALL_Q, FALL_M, packState, unpackState, packShare, unpackShare, initLife,  iceStep, iceJam, totalIce, ICE_HOLD, JAM_MIN, JAM_Y, FLOE_PTS, eventRain, droughtOf, droughtAt, weatherEvent, STORM_AMP, yearFrac, yearFracAt, yearLen, yearNum, season, snowLine, snowFalling, leafState, snowStep, totalSnow, SEASONS, clockHour, dayFrac, planRain, rainCell, weatherStep, mulberry32, hashStr, makeNoise, randomSeedName, generateTerrain, create, seedLife, step, applyTool, totalWater, totalTerrain, resample, lifeStep, countTrees, countLife, leafy, treeHappy, cottageMood, cottageCell, countVillage, waterNear, wellYield, WELL_MIN, WELL_HIGH, MILL_T, MILL_RIPEN, FLOOD_RUIN, GROW_MAX, KIDS_MAX, GROW_T, plotSize, plotOf, plotCrop, hasNaN, DEFAULTS };
 if (typeof module !== 'undefined' && module.exports) module.exports = API; else root.LV = API;
 })(typeof window !== 'undefined' ? window : globalThis);
 </script>
@@ -1186,7 +1216,18 @@ function buildCottage(g) {
   hint(m); statT = 0;
 }
 const WELL_MSG = { dug: 'A well! Fresh groundwater makes the cottage happy', has: 'This cottage already has a well', dry: 'The well stays dry here: too little groundwater', rock: 'Solid rock up here: no groundwater for a well', nohouse: 'Tap a cottage to dig its well' };
-function digWell(g) { const res = LV.applyTool(st.S, 'well', g[0], g[1], 0, 0); st.lastWell = res; if (res === 'dug' || res === 'dry' || res === 'rock') sndWell(st.ptr && st.ptr.x, res === 'dug'); hint(WELL_MSG[res] || res); statT = 0; }
+// a well for a thirsty cottage: a cottage that was dry and far from water (not soggy, not flooded) and turns
+// happy with its new well counts as a rescue (per valley seed; read by the 'thirsty' wish)
+const RESCUE = { seed: null, n: 0 };
+function thirsty(S, c) { if (c.ruin || c.well) return false; const i = LV.cottageCell(S, c); return S.d[i] < 0.05 && LV.cottageMood(S, c) === 'sad'; }
+function digWell(g) {
+  const S = st.S, was = new Set(S.cottages.filter(c => thirsty(S, c)));
+  const res = LV.applyTool(S, 'well', g[0], g[1], 0, 0); st.lastWell = res; if (res === 'dug' || res === 'dry' || res === 'rock') sndWell(st.ptr && st.ptr.x, res === 'dug');
+  let msg = WELL_MSG[res] || res;
+  if (res === 'dug') { const c = S.cottages.find(c => c.well && was.has(c)); if (c) bucketPh.set(c, 0.02); // the first bucket goes down at once
+    if (c && LV.cottageMood(S, c) === 'happy') { if (RESCUE.seed !== S.seed) { RESCUE.seed = S.seed; RESCUE.n = 0; } RESCUE.n++; st.rescues = RESCUE.n; msg = 'A well for a thirsty cottage! It drinks fresh water and is happy again'; } }
+  hint(msg); statT = 0;
+}
 function setTool(id) { st.tool = id; updUI(); hint(TOOLS.find(t => t[0] === id)[2]); }
 function updUI() {
   for (const [id] of TOOLS) $('t-' + id).classList.toggle('on', st.tool === id);
@@ -1650,12 +1691,14 @@ function rasterSkaters(T, data) {
     }
   });
 }
+const SNOW_ROOF = 0.02; // snow around a cottage (3x3 max) above this whitens its roof and frosts its window
+const bucketPh = new WeakMap(), BUCKET_SPEED = 1 / 9; // a haul every 9 s
 // little cottages, rasterised into the tilt buffer back to front (after the trees, so they stand
 // in their cleared gardens): cream walls, a sun-lit gable roof, a door and a window that glows when
 // the cottage is happy. Flooded cottages get blue water up the walls, ruins are low broken walls.
 function rasterCottages(T, data) {
   const S = st.S, N = S.N, ow = T.ow, oh = T.oh, pick = T.pick, cp = T.cp; let n = 0;
-  const list = S.cottages.map(c => [c, LV.cottageCell(S, c)]).sort((a, b) => a[1] - b[1]); st.wellsDrawn = 0; st.wins = []; st.lamps = []; st.snowmenDrawn = 0;
+  const list = S.cottages.map(c => [c, LV.cottageCell(S, c)]).sort((a, b) => a[1] - b[1]); st.wellsDrawn = 0; st.bucketsDrawn = 0; st.bucketsMoving = 0; st.bucketsDown = 0; st.bucketYs = []; st.bucketDt = Math.max(0, Math.min(0.25, st.time - (st.bucketT == null ? st.time : st.bucketT))); st.bucketT = st.time; st.wins = []; st.lamps = []; st.snowmenDrawn = 0; st.roofsSnowy = 0; st.icicles = 0;
   const put = (px, py, r, g, b) => { if (px < 0 || py < 0 || px >= ow || py >= oh) return; const q = (py * ow + px) * 4; data[q] = r; data[q + 1] = g; data[q + 2] = b; data[q + 3] = 255; };
   for (const [c, i] of list) {
     const x = i % N, y = (i / N) | 0, sc = persp(y, N), hz = 0.22 * (1 - y / N) * (1 - y / N);
@@ -1674,9 +1717,10 @@ function rasterCottages(T, data) {
       }
       n++; continue;
     }
+    // snow lying around the cottage (the most in its 3x3 patch): snowmen, a snowy roof, frosted windows
+    let sn = 0; if (S.snow) for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) { const j = i + dy * N + dx; if (j >= 0 && j < S.snow.length) sn = Math.max(sn, S.snow[j]); }
     // a snowman in the garden when snow lies around the cottage (about 3 cottages in 5, picked by place)
     if (S.snow && Math.abs(Math.sin(c.x * 127.1 + c.y * 311.7) * 43758.5) % 1 < 0.6) {
-      let sn = 0; for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) { const j = i + dy * N + dx; if (j >= 0 && j < S.snow.length) sn = Math.max(sn, S.snow[j]); }
       if (sn > 0.04) {
         const rb = Math.max(1.5, u * 0.5), rh2 = Math.max(1, rb * 0.62), sx = bx - hw - Math.round(u * 1.3), sy = by + Math.round(u * 0.35);
         const ball = (cx, cy, r) => { for (let py = Math.floor(cy - r); py <= Math.ceil(cy + r); py++) for (let px = Math.floor(cx - r); px <= Math.ceil(cx + r); px++) { const dx = px - cx, dy = py - cy; if (dx * dx + dy * dy <= r * r + 0.3) { const lt = dx < r * 0.25; put(px, py, lt ? 250 : 206, lt ? 252 : 218, lt ? 255 : 236); } } };
@@ -1702,12 +1746,20 @@ function rasterCottages(T, data) {
     const wsz = Math.max(1, Math.round(u * 0.32)), wy = by - Math.round(wh * 0.7), wx = bx - Math.round(hw * 0.6);
     const lit = mood === 'happy' ? [255, 214, 90] : [92, 104, 120];
     for (let py = wy; py < wy + wsz; py++) for (let px = wx; px < wx + wsz; px++) put(px, py, lit[0], lit[1], lit[2]);
-    if (mood === 'happy') st.wins.push([wx + wsz / 2, wy + wsz / 2, u, c.x]);
-    // gable roof with a little overhang, chimney on the east side
-    const top = by - wh - rh;
-    for (let py = top; py <= by - wh; py++) { const f = (py - top) / Math.max(1, rh), w = Math.round((hw + 1.5) * f); for (let px = bx - w; px <= bx + w; px++) put(px, py, px <= bx ? rr : rs, px <= bx ? rg : rgs, px <= bx ? rb : rbs); }
-    const chx = bx + Math.round(hw * 0.5), cw = Math.max(1, Math.round(u * 0.25));
-    for (let py = top + Math.round(rh * 0.2); py <= top + Math.round(rh * 0.6); py++) for (let px = chx; px < chx + cw; px++) put(px, py, rs * 0.8, rgs * 0.8, rbs * 0.8);
+    if (mood === 'happy') st.wins.push([wx + wsz / 2, wy + wsz / 2, u, c.x, sn > SNOW_ROOF ? Math.min(1, sn / 0.1) : 0]);
+    // gable roof with a little overhang, chimney on the east side. Under snow the roof turns white from the ridge
+    // down (all of it in deep snow, a lumpy lower edge, a thin strip of eave still showing), the chimney gets a cap.
+    const top = by - wh - rh, cov = sn > SNOW_ROOF ? Math.min(1, 0.35 + sn / 0.08) : 0, [s1, s2, s3] = H(246, 249, 255), [d1, d2, d3] = H(196, 210, 232);
+    if (cov) st.roofsSnowy++;
+    for (let py = top; py <= by - wh; py++) { const f = (py - top) / Math.max(1, rh), w = Math.round((hw + 1.5) * f); for (let px = bx - w; px <= bx + w; px++) {
+      const lump = (Math.abs(Math.sin(px * 12.99 + c.x * 78.2) * 437.5) % 1) * 0.22, white = cov && py < by - wh && f <= cov - lump;
+      if (white) put(px, py, px <= bx ? s1 : d1, px <= bx ? s2 : d2, px <= bx ? s3 : d3); else put(px, py, px <= bx ? rr : rs, px <= bx ? rg : rgs, px <= bx ? rb : rbs); } }
+    const chx = bx + Math.round(hw * 0.5), cw = Math.max(1, Math.round(u * 0.25)), cht = top + Math.round(rh * 0.2);
+    for (let py = cht; py <= top + Math.round(rh * 0.6); py++) for (let px = chx; px < chx + cw; px++) put(px, py, rs * 0.8, rgs * 0.8, rbs * 0.8);
+    if (cov) for (let px = chx - (cw > 1 ? 1 : 0); px < chx + cw + (cw > 1 ? 1 : 0); px++) put(px, cht, s1, s2, s3); // a snow cap on the chimney
+    if (cov > 0.6) { const ew = Math.round(hw + 1.5); // icicles along the eaves (every other pixel, 1-2 long, picked by place)
+      for (let px = bx - ew; px <= bx + ew; px += 2) { const L = 1 + ((Math.abs(Math.sin(px * 7.13 + c.y * 51.7) * 917.3) % 1) < 0.45 ? 1 : 0) * Math.max(1, Math.round(u * 0.25));
+        for (let k = 1; k <= L; k++) put(px, by - wh + k, 176, 214, 246); st.icicles++; } }
     if (c.well) { // a little stone well beside the house (south-west, in front): stone ring, water, two posts and a roof
       const wr0 = Math.max(2, Math.round(u * 0.55)), wcx = bx - hw - wr0 - 1, wby = by + Math.max(1, Math.round(u * 0.35)), rimH = Math.max(2, Math.round(u * 0.5)), dryW = mood !== 'happy';
       const [sr, sg, sb] = H(178, 170, 158), [sd, sgd, sbd] = H(128, 120, 110);
@@ -1716,9 +1768,21 @@ function rasterCottages(T, data) {
       const postT = wby - rimH - Math.round(u * 1.1);
       for (let py = postT; py < wby - rimH; py++) { put(wcx - wr0, py, 110, 76, 48); put(wcx + wr0, py, 110, 76, 48); }
       for (let px = wcx - wr0; px <= wcx + wr0; px++) put(px, postT + 1, 122, 86, 56); // the crank beam
-      put(wcx, postT + 2, 120, 120, 120); put(wcx, postT + 3, 104, 72, 46);
+      // the bucket: a happy well hauls water now and then (down into the shaft, back up full and dripping,
+      // the crank handle turning); a dry well's bucket hangs still. Only rope above the water line shows.
+      { let ph = bucketPh.get(c); if (ph == null) ph = Math.abs(Math.sin(c.x * 91.7 + c.y * 37.3) * 9157.1) % 1;
+        if (!dryW && !st.paused) ph = (ph + st.bucketDt * BUCKET_SPEED) % 1; bucketPh.set(c, ph); if (dryW) ph = 0.8;
+        const bw = Math.max(1, Math.round(u * 0.3)), bh = Math.max(1, Math.round(u * 0.32)), top = postT + 3, low = wby - rimH + bh + 2;
+        const k = ph < 0.2 ? ph / 0.2 : ph < 0.3 ? 1 : ph < 0.55 ? 1 - (ph - 0.3) / 0.25 : 0, e = k * k * (3 - 2 * k), byk = Math.round(top + (low - top) * e), full = ph >= 0.2 && ph < 0.75 && !dryW;
+        for (let py = postT + 2; py < Math.min(byk, wby - rimH); py++) put(wcx, py, 120, 120, 120); // the rope
+        for (let py = byk; py < byk + bh && py < wby - rimH; py++) for (let px = wcx - (bw >> 1); px <= wcx - (bw >> 1) + bw - 1 + (bw === 1 ? 1 : 0); px++) put(px, py, px <= wcx ? 128 : 96, px <= wcx ? 90 : 64, px <= wcx ? 54 : 38);
+        if (full && byk < wby - rimH) { for (let px = wcx - (bw >> 1); px <= wcx - (bw >> 1) + bw - 1 + (bw === 1 ? 1 : 0); px++) put(px, byk, 70, 160, 225); // water in the bucket
+          const dp = ((ph * 9) % 1), dy = byk + bh + Math.round(dp * u * 0.9); if (ph > 0.33 && dy < wby - rimH) put(wcx, dy, 120, 190, 240); } // a drip
+        const cr = Math.round(u * 0.35), ca = (dryW ? 0 : ph * 6.283 * 3), hx = wcx + wr0 + 1 + Math.round(Math.cos(ca) * cr * 0.4), hy = postT + 1 + Math.round(Math.sin(ca) * cr);
+        put(wcx + wr0 + 1, postT + 1, 92, 64, 40); put(hx, hy, 150, 110, 70); // the crank handle
+        st.bucketsDrawn++; if (!dryW) { st.bucketsMoving++; st.bucketYs.push(byk - top); if (byk >= wby - rimH) st.bucketsDown++; } }
       const rH = Math.max(2, Math.round(u * 0.6));
-      for (let py = postT - rH; py <= postT; py++) { const w = Math.round((wr0 + 1) * (py - postT + rH) / rH); for (let px = wcx - w; px <= wcx + w; px++) put(px, py, px <= wcx ? rr : rs, px <= wcx ? rg : rgs, px <= wcx ? rb : rbs); }
+      for (let py = postT - rH; py <= postT; py++) { const w = Math.round((wr0 + 1) * (py - postT + rH) / rH), wht = cov && py < postT - (cov > 0.7 ? 0 : 1); for (let px = wcx - w; px <= wcx + w; px++) if (wht) put(px, py, px <= wcx ? s1 : d1, px <= wcx ? s2 : d2, px <= wcx ? s3 : d3); else put(px, py, px <= wcx ? rr : rs, px <= wcx ? rg : rgs, px <= wcx ? rb : rbs); } // the well's little roof, snowy too
       // a little lantern hanging from the crank beam (lit from the evening on)
       lantern(put, wcx + wr0, postT + 2, u, c.x * 7.3 + c.y);
       st.wellsDrawn++;
@@ -1976,13 +2040,41 @@ function drawRainCloud(g, rad, t) {
 function drawWindowGlow(t) {
   const T = tilt, W = st.wins; st.glowDrawn = 0; if (LT.glow < 0.02 || !W || !W.length || !T) return;
   cx.save(); cx.globalCompositeOperation = 'lighter';
-  for (const [wx, wy, u, seed] of W) {
+  const frost = [];
+  for (const [wx, wy, u, seed, fr] of W) {
     const x = T.sx + wx * T.s, y = T.sy + wy * T.s, r = Math.max(5, u * T.s * 2.6), fl = 0.88 + 0.12 * Math.sin(t * 9 + seed * 50) * Math.sin(t * 5.3 + seed * 31);
-    const a = LT.glow * fl, g = cx.createRadialGradient(x, y, 0, x, y, r);
-    g.addColorStop(0, `rgba(255,210,110,${0.85 * a})`); g.addColorStop(0.25, `rgba(255,170,60,${0.4 * a})`); g.addColorStop(1, 'rgba(255,150,40,0)');
+    const a = LT.glow * fl, ha = fr > 0 ? a * 0.6 : a, g = cx.createRadialGradient(x, y, 0, x, y, r); // a frosted pane lets out a softer halo
+    g.addColorStop(0, `rgba(255,210,110,${0.85 * ha})`); g.addColorStop(0.25, `rgba(255,170,60,${0.4 * ha})`); g.addColorStop(1, 'rgba(255,150,40,0)');
     cx.fillStyle = g; cx.fillRect(x - r, y - r, r * 2, r * 2);
-    cx.fillStyle = `rgba(255,236,160,${a})`; const q = Math.max(1.2, u * T.s * 0.32); cx.fillRect(x - q / 2, y - q / 2, q, q);
+    const q = Math.max(1.2, u * T.s * 0.32); cx.fillStyle = `rgba(255,236,160,${a})`; cx.fillRect(x - q / 2, y - q / 2, q, q);
+    if (fr > 0 && a > 0.15) frost.push([x, y, Math.max(3, q * 1.15), fr * Math.min(1, a * 1.4), seed]);
     st.glowDrawn++;
+  }
+  cx.restore();
+  drawFrost(frost);
+}
+// frost flowers: on a snowy winter night the lit panes frost over: a pale ice-blue rim around a softer warm
+// centre, a tiny twinkle, and where the pane is big enough on screen (8 px and up) feathery ice ferns from its corners.
+// So the windows look cold outside and cosy inside.
+function drawFrost(F) {
+  st.frostDrawn = 0; st.frostFerns = 0; if (!F.length) return;
+  cx.save(); cx.lineCap = 'round';
+  for (const [x, y, q0, a, seed] of F) {
+    const q = Math.max(5, q0 * 1.4), h = q / 2, rim = Math.max(1, q * 0.16);
+    cx.fillStyle = `rgba(196,224,255,${0.9 * a})`; cx.fillRect(x - h, y - h, q, q); // the frosted glass
+    cx.fillStyle = `rgba(255,226,150,${0.95 * a})`; cx.fillRect(x - h + rim, y - h + rim, q - 2 * rim, q - 2 * rim); // the warm light through the middle
+    if (q >= 8) { cx.strokeStyle = `rgba(244,250,255,${0.85 * a})`; cx.lineWidth = Math.max(0.7, q * 0.07); cx.beginPath();
+      for (let k = 0; k < 3; k++) { // a fern from three corners (picked by place), each a stem with two pairs of side fronds
+        const cn = (Math.floor(Math.abs(seed * 13.7)) + k) % 4, sx = cn & 1 ? 1 : -1, sy = cn & 2 ? 1 : -1, ox = x + sx * h, oy = y + sy * h;
+        const L = q * (0.4 + 0.08 * k), ex = ox - sx * L * 0.8, ey = oy - sy * L * 0.6;
+        cx.moveTo(ox, oy); cx.lineTo(ex, ey);
+        for (const f of [0.45, 0.75]) { const mx = ox + (ex - ox) * f, my = oy + (ey - oy) * f, l = L * 0.28 * (1.1 - f * 0.5);
+          cx.moveTo(mx, my); cx.lineTo(mx - sx * l, my + sy * l * 0.2); cx.moveTo(mx, my); cx.lineTo(mx + sx * l * 0.2, my - sy * l); }
+      }
+      cx.stroke(); st.frostFerns++; }
+    const tw = 0.5 + 0.5 * Math.sin(performance.now() / 700 + seed * 9), sp = Math.max(1, q * 0.18); // a tiny twinkle on the ice
+    cx.fillStyle = `rgba(255,255,255,${a * tw})`; cx.fillRect(x - h - sp * 0.3, y - h - sp * 0.3, sp, sp);
+    st.frostDrawn++;
   }
   cx.restore();
 }
@@ -2143,13 +2235,14 @@ function skyHints() {
   // ice-jam flood: the sim records each break-up (S.jam); a fresh one (not an old one from a loaded save) gets its own hint
   const jam = !!(S.jam && S.jam.t !== st.jamSeen && S.time - S.jam.t < 10); if (S.jam) st.jamSeen = S.jam.t; if (jam) st.iceN = 0;
   if (jam && S.jamPts) { const c = floeSpawn(S, S.jamPts); S.jamPts = null; sndBreakup(c ? fxPan(c[0]) : 0, Math.min(1, 0.55 + S.jam.cells / 1500)); } // floes drift off, the ice cracks and rumbles
-  yearTurn(S);
+  yearTurn(S); const firstSnow = snowWatch(S);
   const now = { ice: st.iceN > 25, dry: (S.dryNow || 0) > 0.05, storm: LV.weatherEvent(S) === 'storm', rain: (S.rainNow || 0) > 0.05, eve: LT.glow > 0.5 && LT.h > 12, morn: LT.h >= 6.5 && LT.h < 12, sea: S.P.seasons ? LV.season(S) : '' };
   if (skyPrev && st.wake <= 0) {
     if (jam) { st.jams = (st.jams || 0) + 1; hint(st.iceHint = st.jamHint = 'The ice breaks up! A spring flood rushes down the river'); }
     else if (now.dry && !skyPrev.dry) hint(st.dryHint = 'Drought: a long dry spell. Rivers shrink; cottages need a well');
     else if (!now.dry && skyPrev.dry) hint(st.dryHint = 'The drought is over: rain will come again');
     else if (now.sea !== skyPrev.sea && now.sea) { st.seasonHint = SEASON_HINT[now.sea]; hint(st.seasonHint); }
+    else if (firstSnow) { st.firstSnows = (st.firstSnows || 0) + 1; hint(st.snowHint = 'First snow! The peaks turn white ❄ Winter is on its way'); }
     else if (now.ice && !skyPrev.ice) hint(st.iceHint = 'Frost: the still lakes freeze over (the rivers keep flowing)');
     else if (!now.ice && skyPrev.ice) hint(st.iceHint = 'The ice breaks up: the lakes flow again');
     else if (now.storm && !skyPrev.storm) hint(st.rainHint = 'A storm rolls in from the ' + (S.wx.vx > 0 ? 'west' : 'east') + '! Heavy rain: low cottages may flood');
@@ -2162,6 +2255,19 @@ function skyHints() {
   if (skyPrev && skyPrev.rain && !now.rain && LT.elev > 0.2 && LT.night < 0.1 && st.shower <= 0) { st.rainbow = RAINBOW_T; st.rainbows = (st.rainbows || 0) + 1; if (st.wake <= 0 && !now.dry) hint(st.bowHint = 'A rainbow over the valley!'); }
   skyPrev = now;
 }
+// first snow of the year: snow starts falling at y 0.6 and the peaks turn white a little later (y ~0.66). The count of
+// white cells is noted when the snow begins (summer glaciers on the highest peaks stay white all year), and the first
+// clear rise over it gets a hint, once per year. A valley first seen after y 0.64 (a loaded save, a calendar jump)
+// just waits for next year. Counted twice a second, only while snow is falling and not yet hinted.
+function snowWatch(S) {
+  const f = S.P.seasons ? LV.snowFalling(S) : null; if (!f) return false;
+  const key = S.seed + ':' + LV.yearNum(S) + ':' + (S.yearOff || 0), w = st.snowW;
+  if (!w || w.S !== S || w.key !== key) { st.snowW = { S, key, n0: f.y < 0.64 ? snowCells(S) : -1, done: f.y >= 0.64, t: performance.now() }; return false; }
+  const now = performance.now(); if (w.done || now - w.t < 500) return false; w.t = now;
+  const n = snowCells(S); if (n - w.n0 < Math.max(16, S.N * S.N / 400)) return false;
+  w.done = true; return st.wake <= 0;
+}
+function snowCells(S) { let n = 0; const a = S.snow, d = S.d; for (let i = 0; i < a.length; i++) if (a[i] > 0.02 && d[i] < 0.05) n++; return n; }
 const RAINBOW_T = 16; // real seconds a rainbow stays
 // new year: when the calendar rolls over by itself (not a loaded save, a new valley or a calendar jump), a small
 // birthday toast in the wish-toast style ("Daisy Glacier 5 turns 1!"). st.yearSeen remembers the valley object and its
@@ -2550,7 +2656,9 @@ const WISHES = [
   { id: 'rainbow', icon: '🌈', name: 'Rainbow hunter', tip: 'When the rain stops on a sunny day, look up', tiers: [1, 2, 3], unit: 'rainbows seen' },
   { id: 'skate', icon: '⛸️', name: 'Skaters on the ice', tip: 'In winter a frozen lake near cottages draws skaters', tiers: [1, 2, 3], unit: 'skating spots' },
   { id: 'harvest', icon: '🌾', name: 'A golden harvest', tip: 'Happy cottages sow fields; a turning mill ripens them faster', tiers: [20, 80, 240], unit: 'fields brought in' },
-  { id: 'snowman', icon: '⛄', name: 'Snowmen in the gardens', tip: 'When winter snow reaches the village, the children build snowmen', tiers: [1, 3, 6], unit: 'snowmen' }
+  { id: 'snowman', icon: '⛄', name: 'Snowmen in the gardens', tip: 'When winter snow reaches the village, the children build snowmen', tiers: [1, 3, 6], unit: 'snowmen' },
+  { id: 'thirsty', icon: '🪣', name: 'A well for a thirsty cottage', tip: 'A cottage far from water gets thirsty: dig it a well in the lowland (droughts make more)', tiers: [1, 3, 6], unit: 'thirsty cottages saved' },
+  { id: 'waterfall', icon: '💦', name: 'A waterfall', tip: 'Dig a steep drop right below a fast stream: the water pours over the edge (storms make wild ones)', tiers: [12, 25, 45], unit: 'm tall waterfall' }
 ];
 const W = { stars: {}, val: {}, live: {}, forced: {}, granted: 0, toasts: [], evals: 0, ms: 0, open: false, storm: { on: false, set: null, wet: false, S: null, best: 0 }, rainbows0: 0 };
 for (const w of WISHES) { W.stars[w.id] = 0; W.val[w.id] = 0; }
@@ -2580,7 +2688,8 @@ function wishValues() {
   o.lake = lakeCells(S) / N2; o.forest = L.trees / N2; o.village = V.cottages; o.mill = V.mills;
   o.storm = stormWatch(S); o.rainbow = Math.max(0, (st.rainbows || 0) - W.rainbows0);
   o.skate = st.skatersDrawn > 0 && st.skateSpots ? st.skateSpots.length : 0;
-  o.harvest = V.harvested || 0; o.snowman = st.snowmenDrawn || 0;
+  o.harvest = V.harvested || 0; o.snowman = st.snowmenDrawn || 0; o.thirsty = RESCUE.seed === S.seed ? RESCUE.n : 0;
+  st.falls = LV.waterfalls(S); o.waterfall = st.falls.best / S.N * LV.FALL_M; // the tallest fall right now, in metres
   for (const k in W.forced) o[k] = W.forced[k];
 }
 const starsOf = (w, v) => w.tiers.reduce((a, t) => a + (v >= t - 1e-9 ? 1 : 0), 0);
