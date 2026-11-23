@@ -17,7 +17,8 @@ find its way: lakes fill, rivers spill over ridges, carve gullies and drop sand.
   water, and **flooded** (blue waves) when water stands on it. A cottage that stays flooded
   turns into a ruin; tap the ruin with the Cottage tool to rebuild it.
   Happy cottages sow **fields** around them (a patchwork of wheat, barley, rapeseed and cabbage
-  plots that ripen from green to gold, are harvested and sown again) and tread **footpaths** to
+  plots that ripen from green to gold, are harvested and sown again; golden stooks stand in the ripe
+  grain, and a freshly brought-in wheat or barley plot gets a round haystack for a while) and tread **footpaths** to
   their neighbours and down to the water. After a while a happy cottage with room around it
   builds a new cottage next to it, so a village grows by itself along a good river (up to 24
   new cottages per valley). Sad cottages let their fields go fallow; a flood wipes them out.

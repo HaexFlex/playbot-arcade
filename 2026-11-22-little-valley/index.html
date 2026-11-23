@@ -1572,6 +1572,21 @@ function renderTilt(t) {
         cx.fillStyle = 'rgba(255,255,255,.22)'; cx.beginPath(); cx.arc(mx + ox, by - 2 + oy, r, 0, 7); cx.fill(); } }
   }
 }
+// haystacks: when a wheat or barley plot is brought in (its ripeness drops from golden back to 0), a round haystack
+// stands on the stubble for HAY_T s of sim time (still while paused), then shrinks away as it is carted off.
+// App-side only, not saved: a loaded valley starts without haystacks.
+const HAY_T = 50; const HAY = { S: null, prev: null, at: null, n: 0 };
+function hayWatch(S) {
+  const N = S.N, P = LV.plotSize(N), n = Math.ceil(N / P), rp = S.ripe, fl = S.field;
+  if (HAY.S !== S || !HAY.prev || HAY.n !== n || !cropK || cropK.length !== N * N) { HAY.S = S; HAY.n = n; HAY.prev = new Float32Array(n * n).fill(-1); HAY.at = new Float64Array(n * n).fill(-1e9); }
+  let live = 0;
+  for (let ky = 0; ky < n; ky++) for (let kx = 0; kx < n; kx++) {
+    const k = ky * n + kx, x = Math.min(N - 2, kx * P + (P >> 1)), y = Math.min(N - 2, ky * P + (P >> 1)), i = y * N + x, r = rp[i];
+    if (HAY.prev[k] > 1.1 && r < 0.3 && fl[i] > 0.6 && S.d[i] <= 0.03 && cropK && cropK[i] <= 1) HAY.at[k] = S.time; // brought in (a flood also zeroes the crop, but under deep water)
+    HAY.prev[k] = r; const age = S.time - HAY.at[k]; if (age >= 0 && age < HAY_T) live++;
+  }
+  st.hayPlots = live;
+}
 // little pine trees on forest cells, rasterised straight into the tilt buffer (back to front),
 // only where the cell itself is visible (pick buffer), so ridges hide the trees behind them
 function rasterTrees(T, data) {
@@ -1616,6 +1631,25 @@ function rasterTrees(T, data) {
     }
   }
   st.sheavesDrawn = ns;
+  let nh = 0; // haystacks on freshly harvested plots: a straw dome, lit from the west, with a darker band of rope
+  if (cp >= 1.4 && st.hayPlots && HAY.S === S) {
+    const P = LV.plotSize(N), n = HAY.n;
+    for (let ky = 0; ky < n; ky++) for (let kx = 0; kx < n; kx++) {
+      const k = ky * n + kx, age = S.time - HAY.at[k]; if (!(age >= 0 && age < HAY_T)) continue;
+      const x = Math.min(N - 2, kx * P + (P >> 1)), y = Math.min(N - 2, ky * P + (P >> 1)), i = y * N + x; if (x < 1 || y < 1 || S.d[i] > 0.03 || S.snow[i] > 0.01) continue;
+      const g = Math.min(1, (HAY_T - age) / (HAY_T * 0.2), 0.35 + age * 0.65), sc = persp(y, N); // grows as it is stacked, shrinks as it is carted off
+      const ox = (x + 0.5 - N / 2) * cp * sc + ow / 2, oy = baseY(T, y + 0.5, N) - surf[i] * cp * T.hEx * sc;
+      const bx = ox | 0, by = oy | 0, hgt = Math.max(2, Math.round(cp * sc * 1.25 * g)), hw = Math.max(1, Math.round(cp * sc * 0.8 * g));
+      if (bx < hw + 2 || by < hgt + 2 || bx >= ow - hw - 2 || by >= oh - 2) continue;
+      const pc = pick[(by + 1) * ow + bx]; if (pc < 0 || Math.abs(pc % N - x) > 2 || Math.abs(((pc / N) | 0) - y) > 2) continue;
+      const hz = 0.22 * (1 - y / N) * (1 - y / N), C = [234, 190, 84], band = Math.round(hgt * 0.55);
+      for (let r = 0; r <= hgt; r++) { const e = (hgt - r) / (hgt + 0.6), w = Math.round(hw * Math.sqrt(Math.max(0, 1 - e * e))), row = (by - hgt + r) * ow;
+        for (let dx = -w; dx <= w; dx++) { const k2 = (r === band && hgt >= 3 ? 0.66 : r === hgt ? 0.72 : 1) * (dx < -w / 3 ? 1.1 : dx > w / 3 ? 0.78 : 0.95), q = (row + bx + dx) * 4;
+          data[q] = Math.min(255, C[0] * k2) + (215 - Math.min(255, C[0] * k2)) * hz; data[q + 1] = C[1] * k2 + (232 - C[1] * k2) * hz; data[q + 2] = C[2] * k2 + (245 - C[2] * k2) * hz; } }
+      nh++;
+    }
+  }
+  st.hayDrawn = nh;
   const stride = N > 120 ? 2 : 1;
   if (cp * stride < 1.5) return;
   let n = 0, nl = 0;
@@ -2422,6 +2456,7 @@ function frame(now) {
     while (n < want) { LV.step(S, 1); n++; if (performance.now() - ts > cap) break; }
     st.stepsLast = n;
   }
+  hayWatch(S);
   if (st.wake > 0) st.wake -= dtReal;
   updLight(); skyHints();
   const tc0 = performance.now(); computeColours(st.time); st.colMs = (st.colMs || 0) * 0.9 + (performance.now() - tc0) * 0.1;
@@ -2988,7 +3023,7 @@ addEventListener('pagehide', () => autoSave('pagehide'));
 window.LV_AUTO = { AS, save: autoSave, get: asGet, put: asPut, clear: asClear, restore: autoRestore };
 
 
-window.__lv = { st, AU, updSound, LV, LT, leaf: LS, clockText, wheelAng, get col() { return [colR, colG, colB]; }, get tilt() { return tilt; }, get area() { return area; }, setTool, newWorld, unproj, proj, get S() { return st.S; }, floes, breakup: sndBreakup, yearTurn, flourT, SACK_T, carts, CART_LOAD, cartTarget, bakeT, FLOUR, smokeRGB };
+window.__lv = { st, AU, updSound, LV, LT, leaf: LS, clockText, wheelAng, get col() { return [colR, colG, colB]; }, get tilt() { return tilt; }, get area() { return area; }, setTool, newWorld, unproj, proj, get S() { return st.S; }, floes, breakup: sndBreakup, yearTurn, flourT, SACK_T, carts, CART_LOAD, cartTarget, bakeT, FLOUR, smokeRGB, HAY, HAY_T };
 updUI(); updSound();
 const rawHash = (location.hash || '').slice(1);
 let fromHash = ''; try { fromHash = decodeURIComponent(rawHash); } catch (e) { fromHash = ''; }
