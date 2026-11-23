@@ -2385,10 +2385,10 @@ function adapt(dt) {
 // and thunder after lightning, wind (stronger in winter and storms), birds by day in the forest, crickets on
 // summer evenings, an owl at night, the creak and clack of turning mill wheels, cowbells near the village.
 // window.LV_AUDIO holds the levels (0..1) and gains so tests can check them without listening.
-const AU = { want: false, on: false, started: false, state: 'none', nodes: 0, live: 0, L: {}, G: {}, ev: { chirp: 0, cricket: 0, owl: 0, clack: 0, creak: 0, bell: 0, thunder: 0, plop: 0, slurp: 0, splash: 0, knock: 0, well: 0, rustle: 0, rumble: 0 }, flow: 0, riverPan: 0, veg: 0, ticks: 0, vol: 1, snowCover: 0, rainMuffle: 0, rainCut: 9000, masterT: 0 };
+const AU = { want: false, on: false, started: false, state: 'none', nodes: 0, live: 0, L: {}, G: {}, ev: { chirp: 0, cricket: 0, owl: 0, clack: 0, creak: 0, bell: 0, thunder: 0, plop: 0, slurp: 0, splash: 0, knock: 0, well: 0, rustle: 0, rumble: 0, drip: 0 }, flow: 0, riverPan: 0, veg: 0, ticks: 0, vol: 1, snowCover: 0, rainMuffle: 0, rainCut: 9000, masterT: 0, melt: 0, meltPan: 0 };
 window.LV_AUDIO = AU;
 const AU_KEY = 'lv-sound', AU_MASTER = 0.45, AU_DT = 0.25;
-const AU_MAX = { river: 0.55, rain: 0.42, wind: 0.2, birds: 0.42, crickets: 0.13, owl: 0.38, mill: 0.42, cows: 0.26, thunder: 0.85 }; // full-level gain per layer
+const AU_MAX = { river: 0.55, rain: 0.42, wind: 0.2, birds: 0.42, crickets: 0.13, owl: 0.38, mill: 0.42, cows: 0.26, thunder: 0.85, melt: 0.3 }; // full-level gain per layer
 for (const k in AU_MAX) { AU.L[k] = 0; AU.G[k] = 0; }
 try { AU.want = localStorage.getItem(AU_KEY) === '1'; } catch (e) { /* private mode */ }
 const VOL_KEY = 'lv-volume'; try { const v = parseInt(localStorage.getItem(VOL_KEY), 10); if (v >= 0 && v <= 150) AU.vol = v / 100; } catch (e) { /* private mode */ }
@@ -2426,6 +2426,9 @@ function auGraph(ac) {
   chain(loop(g.pink), filt('lowpass', 1600), gain(0.6), g.bus.rain);
   // wind: band-passed pink noise; centre and gusts wander in the tick
   g.windF = filt('bandpass', 380, 1.1); g.gust = gain(1); chain(loop(g.pink), g.windF, g.gust, g.bus.wind);
+  // meltwater: a thin, bright trickle (narrow band of pink noise that wanders) under the drips, panned to where the snow melts
+  g.trickleF = filt('bandpass', 2600, 6); g.trickle = gain(0.7); chain(loop(g.pink), g.trickleF, g.trickle, g.bus.melt);
+  if (ac.createStereoPanner) { g.meltP = node(ac.createStereoPanner()); g.bus.melt.disconnect(); g.bus.melt.connect(g.meltP); g.meltP.connect(g.master); }
   g.base = made; return g;
 }
 function auStart() { // called from a user gesture
@@ -2504,6 +2507,11 @@ function thunder(t, k) { // a crack, then a long rumble that rolls over the hill
   for (let b = 0; b < 3; b++) { const a = t + 0.6 + b * (0.6 + Math.random() * 0.8); e.gain.setTargetAtTime(0.55 * k * (1 - b * 0.25), a, 0.12); e.gain.setTargetAtTime(0, a + 0.3, 0.7); }
   AU.ev.thunder++;
 }
+function drip(t, pan) { // one meltwater drop: a tiny high 'plink' (into the melt layer, so it follows the thaw)
+  const f = 1500 + Math.random() * 1300, e = auVoice('melt', t, 0.16, pan), o = osc('sine', f, t, 0.16, e); o.frequency.exponentialRampToValueAtTime(f * 1.6, t + 0.05);
+  e.gain.setValueAtTime(0, t); e.gain.linearRampToValueAtTime(0.5, t + 0.003); e.gain.setTargetAtTime(0, t + 0.008, 0.022);
+  AU.ev.drip++;
+}
 function sndBreakup(pan, k) { // spring break-up: sharp cracks over a deep, slow rumble of shifting ice (fx bus, so mute and volume apply)
   if (!fxOn()) return; const t = AG.ac.currentTime + 0.03;
   const { e, fl } = noiseHit('fx', AG.brown, t, 3.6, 'lowpass', 260, 0.8, 0.75 * k, pan * 0.6, 1.1); fl.frequency.setValueAtTime(260, t); fl.frequency.exponentialRampToValueAtTime(70, t + 2.8);
@@ -2569,9 +2577,14 @@ function fxBrush(S, g, x) { // while a brush is held: splash or slurp now and th
 const clamp01 = v => v < 0 ? 0 : v > 1 ? 1 : v;
 function auLevels() {
   const S = st.S, N = S.N, d = S.d, u = S.u, v = S.v, L = AU.L, sn = S.snow, ice = S.ice; let f = 0, fx = 0, fy = 0, cov = 0, n = 0;
-  for (let i = 0; i < d.length; i += 2) { const w = d[i]; n++; if (sn[i] > 0.03 || (ice && ice[i] > 0.5)) cov++; if (w > 0.03) { const s = Math.abs(u[i]) + Math.abs(v[i]); if (s > 0.2) { const q = Math.min(w, 2) * Math.min(s, 4); f += q; fx += q * (i % N); fy += q * ((i / N) | 0); } } }
+  // melting snow: snow lying below the snow line (or under water) melts into water in the sim (snowStep), so it trickles
+  const sea0 = S.P.seasons, mH = S.N * 0.27, mLine = sea0 ? LV.snowLine(LV.yearFrac(S)) * mH : 1e9; let melt = 0, mx = 0, my = 0;
+  for (let i = 0; i < d.length; i += 2) { const w = d[i]; n++; if (sn[i] > 0.03 || (ice && ice[i] > 0.5)) cov++;
+    if (sn[i] > 0.004 && (S.h[i] <= mLine || w >= 0.05)) { melt++; mx += i % N; my += (i / N) | 0; } if (w > 0.03) { const s = Math.abs(u[i]) + Math.abs(v[i]); if (s > 0.2) { const q = Math.min(w, 2) * Math.min(s, 4); f += q; fx += q * (i % N); fy += q * ((i / N) | 0); } } }
   AU.flow = f * 2 / (N * N);
   // snow (or ice) on the ground muffles the rain: a soft hush instead of a hiss
+  AU.melt = n && !st.paused ? melt / n : 0; // share of the valley that is thawing right now (silent while paused: nothing melts)
+  if (melt) { const q = proj(mx / melt, my / melt); if (q && innerWidth > 0) AU.meltPan = Math.max(-0.6, Math.min(0.6, (q[0] / innerWidth) * 1.2 - 0.6)); }
   AU.snowCover = n ? cov / n : 0; AU.rainMuffle = clamp01((AU.snowCover - 0.05) / 0.45); AU.rainCut = 9000 * Math.pow(1100 / 9000, AU.rainMuffle);
   // where the river runs: the flow-weighted middle of the moving water, projected to the screen, pans the murmur (gently, at most 0.6)
   let pan = 0; if (f > 0) { const q = proj(fx / f, fy / f); if (q && innerWidth > 0) pan = Math.max(-0.6, Math.min(0.6, (q[0] / innerWidth) * 1.2 - 0.6)); } AU.riverPan = pan;
@@ -2592,6 +2605,7 @@ function auLevels() {
   L.mill = mills ? clamp01(0.55 + 0.15 * mills) : 0;
   L.cows = V.cottages ? clamp01(day * (1 - winter) * (1 - 0.85 * rain) * (0.35 + V.cottages / 10)) : 0;
   L.thunder = 1;
+  L.melt = AU.melt > 0.01 ? clamp01(Math.pow((AU.melt - 0.01) / 0.06, 0.6)) * (1 - 0.6 * rain) : 0; // a meltwater trickle in the thaw (the rain drowns it a little)
 }
 function auTick(dt) {
   if (!AG || !AU.want || document.hidden) { AU.on = false; return; }
@@ -2605,6 +2619,9 @@ function auTick(dt) {
   AG.gurgle.frequency.setTargetAtTime(700 + 500 * R() + 400 * L.river, t, 0.5);
   AG.windF.frequency.setTargetAtTime(260 + 380 * R() + 200 * L.wind, t, 1.2); AG.gust.gain.setTargetAtTime(0.6 + 0.6 * R(), t, 1);
   const at = () => t + 0.05 + R() * AU_DT;
+  if (AG.meltP) AG.meltP.pan.setTargetAtTime(AU.meltPan, t, 0.8);
+  AG.trickleF.frequency.setTargetAtTime(2000 + 1400 * R(), t, 0.15); AG.trickle.gain.setTargetAtTime(0.35 + 0.65 * R(), t, 0.1); // it babbles
+  if (L.melt > 0.02) for (let k = 0, m = 1 + Math.round(2 * L.melt); k < m; k++) if (R() < 0.55) drip(at(), Math.max(-0.8, Math.min(0.8, AU.meltPan + (R() - 0.5) * 0.7)));
   if (L.birds > 0.02) for (let k = 0; k < 2; k++) if (R() < 1.5 * L.birds * AU_DT) chirp(at());
   if (L.crickets > 0.02) for (let k = 0; k < 3; k++) if (R() < 0.75) cricket(at(), 4300 + k * 230, k - 1);
   if (L.owl > 0.05 && t - (AU.owlT || -99) > 6 && R() < 0.06 * L.owl * AU_DT) { owl(at()); AU.owlT = t; }

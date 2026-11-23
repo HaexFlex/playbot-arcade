@@ -117,7 +117,8 @@ on summer evenings, turning mill wheels creak and clack (silent when paused or t
 and distant cowbells ring near the village by day. Winter and rain hush the birds; the sound fades
 out when the tab is hidden. The river murmur sits where the water flows on your screen (a river
 on the left side of the valley sounds from the left). When snow (or ice) lies on the valley, rain sounds
-muffled: a soft hush instead of a hiss. `window.LV_AUDIO` shows the current layer levels for testing.
+muffled: a soft hush instead of a hiss. In the spring thaw, where the snow melts below the climbing snow
+line, you hear a thin meltwater trickle and little drips, from the side where the snow is melting. `window.LV_AUDIO` shows the current layer levels for testing.
 
 **Volume**: hold the speaker button (or right-click it) for a small slider from 0 to 150%; on a keyboard
 **+** and **-** turn it up or down by 10%, Escape closes it. The volume is remembered on this device, and
