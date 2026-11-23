@@ -111,16 +111,19 @@ canvas{display:block;width:100vw;height:100vh;touch-action:none}
     return Math.min(pd(a, c, d), pd(b, c, d), pd(c, a, b), pd(d, a, b));
   }
   function crowds(L, leaves, gap = 12) { return leaves.some(M => segDist([L.x1, L.y1], [L.x2, L.y2], [M.x1, M.y1], [M.x2, M.y2]) < gap); }
-  function compose(steps, x0, y0, rnd, maxY = 520, tries = 400, why = null, fixed = [], others = [], fallK = 1, xlo = 20, xhi = 980) {
+  function compose(steps, x0, y0, rnd, maxY = 520, tries = 400, why = null, fixed = [], others = [], fallK = 1, xlo = 20, xhi = 980, fillY = 0, until = 0) {
+    // until: a Date.now() deadline (0 = none), so the app never freezes long on a hard tune
+    // fillY (tall fields): spread the falls so the last leaf lands near fillY instead of bunching at the top
     // fixed: leaves already placed by other voices; others: [[x,y,hits]] their drops must keep ringing the same leaves
     const F = fixed.length;
     for (let k = 0; k < tries; k++) {
+      if (until && Date.now() > until) return null;
       const leaves = fixed.slice(); let ok = true;
       for (let n = 0; n < steps.length && ok; n++) {
         const { path } = trace(leaves, x0, y0, maxY + 40);
         // where the drop is after its last bounce: start looking a little below that
         let lastY = y0; for (let j = 0; j < path.length; j += 4) if (path[j + 3] < 0 && path[j + 1] > lastY) lastY = path[j + 1];
-        const fall = (45 + rnd() * 50) * fallK, want = lastY + fall; let pj = -1;
+        const r0 = rnd(), base = (45 + r0 * 50) * fallK, fill = fillY > lastY ? (fillY - lastY) / (steps.length - n) * (0.8 + r0 * 0.35) : 0, fall = Math.max(base, fill), want = lastY + fall; let pj = -1;
         for (let j = 0; j < path.length; j += 4) if (path[j + 3] > 0 && path[j + 1] >= want) { pj = j; break; }
         if (pj < 0) { ok = false; if (why) why.nofall = (why.nofall || 0) + 1; break; }
         const px = path[pj], py = path[pj + 1], vx = path[pj + 2];
@@ -128,7 +131,8 @@ canvas{display:block;width:100vw;height:100vh;touch-action:none}
         // slope: send the drop back toward the middle when it drifts out, otherwise keep its direction
         let dir = Math.abs(vx) < 20 ? (rnd() < 0.5 ? 1 : -1) : Math.sign(vx);
         if (px < xlo + 200) dir = 1; else if (px > xhi - 200) dir = -1;
-        const a = (0.18 + rnd() * 0.32) * dir, ux = Math.cos(a), uy = Math.sin(a); // dir 1 = right end lower
+        const a = (0.18 + rnd() * 0.32) * dir * Math.max(0.55, Math.sqrt(base / fall)), // long falls: flatter leaves, so the faster drop is not flung out of its lane
+          ux = Math.cos(a), uy = Math.sin(a); // dir 1 = right end lower
         const L = { x1: px - ux * len * f, y1: py - uy * len * f, x2: px + ux * len * (1 - f), y2: py + uy * len * (1 - f) };
         if (Math.min(L.x1, L.x2) < xlo || Math.max(L.x1, L.x2) > xhi || Math.max(L.y1, L.y2) > maxY) { ok = false; if (why) why[Math.max(L.y1, L.y2) > maxY ? 'deep' : 'side'] = (why[Math.max(L.y1, L.y2) > maxY ? 'deep' : 'side'] || 0) + 1; break; }
         if (crowds(L, leaves)) { ok = false; if (why) why.cross = (why.cross || 0) + 1; break; }
@@ -143,12 +147,15 @@ canvas{display:block;width:100vw;height:100vh;touch-action:none}
   }
   // each cloud keeps to its own lane, so there is always room to recompose one voice later
   function laneOf(x, n) { if (n < 2) return [20, 980]; const w = 960 / n, i = Math.max(0, Math.min(n - 1, Math.floor((x - 20) / w))); return [Math.max(20, 20 + i * w - 70), Math.min(980, 20 + (i + 1) * w + 70)]; }
-  function composePiece(voices, seed = 1, maxY = 520, fallK = 1) {
+  function composePiece(voices, seed = 1, maxY = 520, fallK = 1, fill = 0, until = 0) {
+    // fill 0..1: each voice spreads its leaves down to fill*maxY (0 = the old short falls)
     let sd = seed >>> 0 || 1; const rnd = () => (sd = (sd * 16807) % 2147483647) / 2147483647;
     const all = [], others = [];
     for (const v of voices) {
       const [lo, hi] = laneOf(v.x, voices.length);
-      const L = compose(v.steps, v.x, v.y, rnd, maxY, 600, null, all, others, fallK, lo, hi);
+      let L = null; // tall field: try the full spread first, then gentler ones (very long falls can fling a drop out of its lane)
+      for (const f of fill ? [1, 0.9, 0.8, 0.7, 0.6, 0.5, 0] : [0]) if (!L) L = compose(v.steps, v.x, v.y, rnd, maxY, f ? 250 : 600, null, all, others, fallK, lo, hi, f * fill * maxY, until);
+      if (!L && until && Date.now() > until) return null;
       if (!L) return null;
       others.push([v.x, v.y, L.map((_, i) => all.length + i)]); all.push(...L);
     }
@@ -304,7 +311,9 @@ function loadPiece(ix) {
   const P = PIECES[ix], HOME = HOMES[P.voices.length], prevN = st.clouds.length;
   setCloudCount(P.voices.length); st.clouds.forEach((c, i) => { c.x = HOME[i][0]; c.y = HOME[i][1]; c.every = [2, 3, 4][i]; c.off = i; });
   const voices = P.voices.map((steps, i) => ({ x: HOME[i][0], y: HOME[i][1] + 22, steps }));
-  let L = null; for (let seed = 1; seed <= 12 && !L; seed++) L = RO.composePiece(voices, seed, Math.min(FH - 30, 1400), fallK());
+  const FILL = FH > 900 ? 0.9 : 0; // tall portrait field: spread each voice down the whole field, not only its top half (wide fields keep the classic layout)
+  let L = null; for (let seed = 1; seed <= 12 && !L; seed++) L = RO.composePiece(voices, seed, Math.min(FH - 30, 1970), fallK(), FILL);
+  for (let seed = 1; seed <= 12 && !L; seed++) L = RO.composePiece(voices, seed, Math.min(FH - 30, 1400), fallK());
   for (let seed = 1; seed <= 12 && !L; seed++) L = RO.composePiece(voices, seed);
   if (!L) { setCloudCount(prevN); return false; }
   let n0 = 0; st.leaves = L.map(l => makeLeaf(l.x1, l.y1, l.x2, l.y2)); P.voices.forEach((v, k) => { for (let i = 0; i < v.length; i++) st.leaves[n0 + i].voice = k; n0 += v.length; }); st.drops = []; pieceIx = ix; save(); return true;
@@ -329,9 +338,22 @@ function buildVoice(k, steps) {
   const others = st.clouds.map((o, j) => j === k ? null : [o.x, o.y + 22, RO.trace(keep, o.x, o.y + 22, FH + 40).hits]).filter(Boolean);
   let sd = 1 + steps.reduce((a, s) => a * 31 + s, 7) % 9973; const rnd = () => (sd = (sd * 16807) % 2147483647) / 2147483647;
   const [lo, hi] = RO.laneOf(c.x, st.clouds.length), my = Math.min(FH - 30, 1400);
-  let L = RO.compose(steps, c.x, c.y + 22, rnd, my, 700, null, keep, others, fallK(), lo, hi);
-  if (!L) L = RO.compose(steps, c.x, c.y + 22, rnd, my, 700, null, keep, others, 1, lo, hi);
-  if (!L) L = RO.compose(steps, c.x, c.y + 22, rnd, my, 700, null, keep, others, 1);
+  const tall = FH > 900, fy = Math.min(FH - 30, 1970);
+  let L = null; // tall field: first try to spread the tune down the field (the other clouds' leaves stay where they are)
+  if (tall) for (const f of [0.9, 0.6]) if (!L) L = RO.compose(steps, c.x, c.y + 22, rnd, fy, 120, null, keep, others, fallK(), lo, hi, f * fy);
+  if (tall && !L && keep.length && keep.every(K => K.voice >= 0)) { // tall field, only composed leaves around: lay out every cloud again, each keeps its tune and material
+    const tunes = st.clouds.map((o, j) => j === k ? steps : RO.trace(keep, o.x, o.y + 22, FH + 40).hits.map(i => keep[i].note.step));
+    const mats = st.clouds.map((o, j) => j === k ? st.mat : ((keep.find(K => K.voice === j) || {}).mat | 0));
+    const voices = st.clouds.map((o, j) => ({ x: o.x, y: o.y + 22, steps: tunes[j] })).filter(v => v.steps.length);
+    const until = Date.now() + 1200; let A = null; // spread layout if it is found quickly, else the classic (top) layout
+    for (let seed = 1; seed <= 3 && !A && Date.now() < until; seed++) A = RO.composePiece(voices, seed, fy, fallK(), 0.9, until);
+    for (let seed = 1; seed <= 3 && !A; seed++) A = RO.composePiece(voices, seed, my, fallK(), 0, Date.now() + 800);
+    if (A) { let n0 = 0; const out = []; st.clouds.forEach((o, j) => { if (!tunes[j].length) return; for (let i = 0; i < tunes[j].length; i++) { const l = A[n0 + i]; out.push(Object.assign(makeLeaf(l.x1, l.y1, l.x2, l.y2, mats[j]), { voice: j })); } n0 += tunes[j].length; });
+      st.leaves = out; for (const d of st.drops) d.rang = []; save(); return true; }
+  }
+  if (!L) L = RO.compose(steps, c.x, c.y + 22, rnd, my, tall ? 300 : 700, null, keep, others, fallK(), lo, hi);
+  if (!L) L = RO.compose(steps, c.x, c.y + 22, rnd, my, tall ? 300 : 700, null, keep, others, 1, lo, hi);
+  if (!L) L = RO.compose(steps, c.x, c.y + 22, rnd, my, tall ? 300 : 700, null, keep, others, 1);
   if (!L) return false;
   st.leaves = keep.concat(L.map(l => Object.assign(makeLeaf(l.x1, l.y1, l.x2, l.y2, st.mat), { voice: k })));
   for (const d of st.drops) d.rang = []; save(); return true;

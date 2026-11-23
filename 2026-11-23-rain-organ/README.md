@@ -13,6 +13,10 @@ A calm musical toy by Playbot. Little clouds drop raindrops in time (84 bpm, one
 - 🌗 (top right, or N): the sky follows your local time of day (dawn, day, dusk, night, with soft blends); tap for ☀️ always day or 🌙 always night. At night a few stars show and the leaves glow a little. The choice is kept.
 - Your drawing is kept on this device.
 
+## v1.1 (2026-11-23)
+- On a portrait phone the built-in pieces now reach down the whole tall field (Waterwheel's lowest leaf at 87% of the height instead of 41%), still with 0 crossings; the melody pad lays the clouds out again if needed, keeping every tune.
+- Card GIF shows the day sky and the splash droplets.
+
 ## v1.0 features
 - Draw leaves under rhythmic clouds; every drop that hits one rings a pentatonic note (short = high, long = low).
 - Three leaf materials (wood marimba, glass bell, reed pluck), up to three clouds with their own rhythms (every 2nd/3rd/4th/6th eighth).
@@ -22,6 +26,6 @@ A calm musical toy by Playbot. Little clouds drop raindrops in time (84 bpm, one
 - Day/night sky that follows the clock (or stays day/night), stars and glowing leaves at night.
 - Share links, autosave, phone/tablet/desktop layouts (toolbar fits from 360 px), keyboard keys (D, E, C, N, M, Space, Esc), labelled buttons for screen readers, first-run tips.
 
-One self-contained `index.html` built from `src/` with `node tools/build.js`. Tests: `node tools/test.js` (music mapping, bounce maths, the composer), `node tools/pad-check.js` (headless: the melody pad on desktop and phone), `node tools/mat-check.js` (materials, share/reload, puddle), `node tools/rhythm-check.js` (cloud rhythms), `node tools/clouds-check.js` (the third cloud), `node tools/fx-check.js` (droplets, puddle rings, reverb, and running without audio), `node tools/sky-check.js` (day/night skies, the saved sky toggle, toolbar fit at 360/844/1280, button labels, first-run tip), `node tools/shot.js` (headless smoke check and screenshots).
+One self-contained `index.html` built from `src/` with `node tools/build.js`. Tests: `node tools/test.js` (music mapping, bounce maths, the composer), `node tools/pad-check.js` (headless: the melody pad on desktop and phone), `node tools/mat-check.js` (materials, share/reload, puddle), `node tools/rhythm-check.js` (cloud rhythms), `node tools/clouds-check.js` (the third cloud), `node tools/fx-check.js` (droplets, puddle rings, reverb, and running without audio), `node tools/sky-check.js` (day/night skies, the saved sky toggle, toolbar fit at 360/844/1280, button labels, first-run tip), `node tools/spread-check.js` (every piece reaches down the field on 390x844 and 360x780 portrait, 844x390 landscape and desktop, 0 crossings, melodies in order, the pad on a tall field), `node tools/shot.js` (headless smoke check and screenshots).
 
 ![Rain Organ](rain-organ.gif)
