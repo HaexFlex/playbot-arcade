@@ -3253,7 +3253,7 @@ function drawBullfinches(t) {
       if (near) { let best = -1, bd = 1e9; for (let k = 0; k < nc; k++) { const d = Math.hypot(C[k * 3] - near[0], C[k * 3 + 1] - near[1]); if (d > RS * 1.8 && d < bd) { bd = d; best = k; } } // the nearest crown well away from it
         bfLeaveFeeder(b); b.shy = 6; BF.fled++;
         if (best >= 0) { const pt = bfPerch([C[best * 3], C[best * 3 + 1], C[best * 3 + 2]]); b.at = { cr: best, c: [C[best * 3], C[best * 3 + 1], C[best * 3 + 2]] }; bfFly(b, pt[0], pt[1], true); } else { b.st = 'away'; b.x0 = b.x; b.y0 = b.y; b.x1 = b.x; b.y1 = b.y - 160 / s; b.ft = 0; b.fd = 1.4; b.arc = 0; }
-        b.flushed = now; } }
+        b.flushed = now; st.bfFleeX = T.sx + b.x * s; } }
     if (b.st === 'fly' || b.st === 'hop' || b.st === 'away') { b.ft += dt; const f = Math.min(1, b.ft / b.fd), e = b.st === 'hop' ? f : f * f * (3 - 2 * f);
       b.x = b.x0 + (b.x1 - b.x0) * e; b.y = b.y0 + (b.y1 - b.y0) * e - Math.sin(Math.PI * f) * b.arc - (b.st === 'fly' ? Math.abs(Math.sin(b.ph * 9)) * 1.5 / s : 0);
       if (f >= 1 && b.st !== 'away') { b.st = 'sit'; b.tm = b.at && b.at.f ? 2 + Math.random() * 3.5 : 1.2 + Math.random() * 3; } }
@@ -3676,7 +3676,7 @@ function adapt(dt) {
 // and thunder after lightning, wind (stronger in winter and storms), birds by day in the forest, crickets on
 // summer evenings, an owl at night, the creak and clack of turning mill wheels, cowbells near the village.
 // window.LV_AUDIO holds the levels (0..1) and gains so tests can check them without listening.
-const AU = { want: false, on: false, started: false, state: 'none', nodes: 0, live: 0, L: {}, G: {}, ev: { chirp: 0, cricket: 0, owl: 0, clack: 0, creak: 0, bell: 0, thunder: 0, plop: 0, slurp: 0, splash: 0, knock: 0, well: 0, rustle: 0, rumble: 0, drip: 0, squeak: 0, thump: 0, crunch: 0, skate: 0, icicle: 0, puddle: 0, peep: 0, twit: 0, bat: 0 }, flow: 0, riverPan: 0, veg: 0, ticks: 0, vol: 1, snowCover: 0, rainMuffle: 0, rainCut: 9000, masterT: 0, melt: 0, meltPan: 0 };
+const AU = { want: false, on: false, started: false, state: 'none', nodes: 0, live: 0, L: {}, G: {}, ev: { chirp: 0, cricket: 0, owl: 0, clack: 0, creak: 0, bell: 0, thunder: 0, plop: 0, slurp: 0, splash: 0, knock: 0, well: 0, rustle: 0, rumble: 0, drip: 0, squeak: 0, thump: 0, crunch: 0, skate: 0, icicle: 0, puddle: 0, peep: 0, twit: 0, bat: 0, pipe: 0, whirr: 0 }, flow: 0, riverPan: 0, veg: 0, ticks: 0, vol: 1, snowCover: 0, rainMuffle: 0, rainCut: 9000, masterT: 0, melt: 0, meltPan: 0 };
 window.LV_AUDIO = AU;
 const AU_KEY = 'lv-sound', AU_MASTER = 0.45, AU_DT = 0.25;
 const AU_MAX = { river: 0.55, rain: 0.42, wind: 0.2, birds: 0.42, crickets: 0.13, owl: 0.38, mill: 0.42, cows: 0.26, thunder: 0.85, melt: 0.3 }; // full-level gain per layer
@@ -3908,6 +3908,18 @@ function sndBat(pan, k) { // a bat: an extremely faint, very high tick or two (f
     o.frequency.exponentialRampToValueAtTime(f0 * 0.7, t + 0.02); g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.008 * k, t + 0.003); g.gain.linearRampToValueAtTime(0, t + 0.022); }
   AU.ev.bat++;
 }
+function sndPipe(pan, k) { // a bullfinch calls: a soft, low, slightly sad whistled 'pew' (one, now and then two), fx bus
+  if (!fxOn()) return; const t0 = AG.ac.currentTime + 0.02 + Math.random() * 0.2, n = Math.random() < 0.3 ? 2 : 1, f0 = 1250 + Math.random() * 260;
+  for (let j = 0; j < n; j++) { const t = t0 + j * (0.42 + Math.random() * 0.15), d = 0.26 + Math.random() * 0.06, g = auVoice('fx', t, d + 0.05, pan), o = osc('sine', f0 * 1.06, t, d + 0.05, g);
+    o.frequency.linearRampToValueAtTime(f0 * 1.12, t + d * 0.25); o.frequency.exponentialRampToValueAtTime(f0 * 0.86, t + d);
+    g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.034 * k, t + d * 0.3); g.gain.linearRampToValueAtTime(0.02 * k, t + d * 0.7); g.gain.linearRampToValueAtTime(0, t + d); }
+  AU.ev.pipe++;
+}
+function sndWhirr(pan, k) { // the flock flies up: a quick soft whirr of small wings (a few flutters of filtered noise), fx bus
+  if (!fxOn()) return; const t = AG.ac.currentTime + 0.02, n = 5 + (Math.random() * 4 | 0);
+  for (let q = 0; q < n; q++) { const a = t + q * (0.035 + Math.random() * 0.02); noiseHit('fx', AG.pink, a, 0.06, 'bandpass', 900 + Math.random() * 700, 1.1, (0.09 - q * 0.007) * k, pan, 0.012); }
+  AU.ev.whirr++;
+}
 function sndPeep(pan, k) { // a duckling: two or three tiny soft peeps (fx bus, so mute and volume apply)
   if (!fxOn()) return; const t0 = AG.ac.currentTime + 0.02 + Math.random() * 0.15, n = 2 + (Math.random() < 0.4 ? 1 : 0), f0 = 3000 + Math.random() * 600;
   for (let j = 0; j < n; j++) { const t = t0 + j * (0.13 + Math.random() * 0.05), g = auVoice('fx', t, 0.12, pan), o = osc('sine', f0 * 1.08, t, 0.12, g);
@@ -3995,6 +4007,11 @@ function auTick(dt) {
   if (st.swallowsDrawn > 0 && st.swallowAt && t - (AU.twitT || -9) > 2.5 && R() < 0.2) { sndTwit(fxPan(st.swallowAt[0]), 0.7 + 0.3 * R()); AU.twitT = t; }
   // bats over the water (while drawn): an extremely faint high tick now and then, at most one per 3 s, panned to the first bat
   if (st.batsDrawn > 0 && st.batAt && t - (AU.batT || -9) > 3 && R() < 0.15) { sndBat(fxPan(st.batAt[0]), 0.7 + 0.3 * R()); AU.batT = t; }
+  // bullfinches (while drawn): a soft piping call now and then, at most one per 2.2 s, panned to a sitting bird;
+  // when they are flushed, a quick whirr of wings (at most one per 0.8 s), panned to where they flew up
+  if (st.bfSit > 0 && st.bfAt && st.bfAt.length && t - (AU.pipeT || -9) > 2.2 && R() < 0.22) { sndPipe(fxPan(st.bfAt[(R() * st.bfAt.length) | 0][0]), 0.7 + 0.3 * R()); AU.pipeT = t; }
+  if ((st.bfFled || 0) > (AU.fled || 0) && t - (AU.whirrT || -9) > 0.8) { sndWhirr(fxPan(st.bfFleeX), 0.8 + 0.2 * R()); AU.whirrT = t; }
+  AU.fled = st.bfFled || 0;
   if (st.ducklingsDrawn > 0 && st.duckPx && t - (AU.peepT || -9) > 1.4 && R() < 0.3) { sndPeep(fxPan(st.duckPx[0]), 0.7 + 0.3 * R()); AU.peepT = t; }
   // icicles dripping in the sun (while drawn): a soft plip now and then, at most one per 0.6 s, panned to a dripping cottage
   if (st.dripsDrawn > 0 && performance.now() - (st.dripsAt || 0) < 600 && t - (AU.icT || -9) > 0.6 && R() < Math.min(0.7, 0.3 + 0.04 * st.dripsDrawn)) {

@@ -104,7 +104,8 @@ breasts, black caps, grey backs, and a soft grey-buff hen or two) hops about in 
 tree to tree. Every cottage puts out a little bird feeder with a snow-capped roof (two on a big screen, one on a
 phone), and the birds come down to peck at the seeds. When the fox or a skater comes near they all fly up at once
 to a tree further away and keep off the feeder for a while. They go to roost before dusk and stay away at night,
-in heavy snowfall and storms, and in the map view. (`screenshot-bullfinch.png`: bullfinches at the feeder.)
+in heavy snowfall and storms, and in the map view. With the sound on they call softly now and then (a low
+whistled *pew*) and fly up with a whirr of wings. (`screenshot-bullfinch.png`: bullfinches at the feeder.)
 
 **Snowmen**: when the snow reaches the village, little snowmen with red scarves and dark hats
 appear in the cottage gardens, and they melt with the snow in spring.
@@ -160,7 +161,8 @@ softly as it rolls (a little lighter on the way home), and the sacks come off wi
 In winter, digging or raising dry snow crunches softly under the spade, and the little skaters on a
 frozen lake push off now and then with a soft swish of their blades. When spring sun thaws a snowy roof, the icicles
 on the eaves drip: little drops swell, fall and splash with a soft plip, then the icicles shrink away (they
-freeze again at night).
+freeze again at night). On winter days the bullfinches in the bare trees call now and then with a soft,
+low, slightly wistful whistled *pew*, and when the fox or a skater sends them up you hear a quick whirr of small wings.
 
 ## Valley wishes
 Tap the **Wishes** star for a small panel of twelve gentle goals, each with three stars:
