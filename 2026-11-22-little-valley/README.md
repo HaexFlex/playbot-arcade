@@ -194,3 +194,5 @@ slumping of steep slopes. Rendering is a software-drawn tilted 3D view on a 2D c
 See `PLAN.md` for where it is going.
 
 **Always day:** hold the 🔊 speaker button and tap "☀️ Always day" if you prefer the valley without nights. Only the light changes; time, seasons and weather run as usual. The choice is remembered.
+
+**Footpaths** now find their way: the villagers walk around hills instead of straight over them (a small A* search that dislikes climbing and likes old paths).

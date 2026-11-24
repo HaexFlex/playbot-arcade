@@ -378,6 +378,51 @@ function wearLine(S, x0, y0, x1, y1, amt, stopAtWater) {
     S.path[i] += (1 - S.path[i]) * amt;
   }
 }
+// footpaths bend around slopes: a small A* inside a box around both ends (8 neighbours). Climbing costs
+// extra (1 + ROUTE_CLIMB * slope^2 per cell walked), steep rock is closed, a ford costs ROUTE_FORD more, and
+// trodden ground is a little cheaper, so the walkers keep to their old paths. Deterministic (pure function of the
+// grids); scratch buffers are reused. Returns the cells after the start (to the goal) or null.
+const ROUTE_CLIMB = 4, ROUTE_FORD = 3, ROUTE_TROD = 0.8, RT = { cap: 0 };
+function findRoute(S, x0, y0, x1, y1, toWater) {
+  const N = S.N, h = S.h, d = S.d, pa = S.path, dist = Math.hypot(x1 - x0, y1 - y0), m = Math.max(4, Math.round(dist * 0.6));
+  const bx0 = Math.max(1, Math.min(x0, x1) - m), by0 = Math.max(1, Math.min(y0, y1) - m), bx1 = Math.min(N - 2, Math.max(x0, x1) + m), by1 = Math.min(N - 2, Math.max(y0, y1) + m);
+  const W = bx1 - bx0 + 1, n = W * (by1 - by0 + 1);
+  if (RT.cap < n) { RT.cap = n; RT.g = new Float32Array(n); RT.from = new Int32Array(n); RT.seen = new Uint32Array(n); RT.shut = new Uint32Array(n); RT.hn = new Int32Array(n * 8 + 8); RT.hk = new Float32Array(n * 8 + 8); RT.stamp = 0; }
+  const g = RT.g, from = RT.from, seen = RT.seen, shut = RT.shut, hn = RT.hn, hk = RT.hk, st = ++RT.stamp;
+  const li = (x, y) => (y - by0) * W + (x - bx0), start = li(x0, y0), goal = li(x1, y1);
+  const hx = (x, y) => { const ax = Math.abs(x - x1), ay = Math.abs(y - y1); return ROUTE_TROD * (Math.max(ax, ay) + 0.41421356 * Math.min(ax, ay)); };
+  let hs = 0;
+  const push = (k, v) => { let c = hs++; while (c > 0) { const p = (c - 1) >> 1; if (hk[p] <= k) break; hk[c] = hk[p]; hn[c] = hn[p]; c = p; } hk[c] = k; hn[c] = v; };
+  const pop = () => { const v = hn[0], k = hk[--hs], nv = hn[hs]; let c = 0; for (;;) { let l = 2 * c + 1; if (l >= hs) break; if (l + 1 < hs && hk[l + 1] < hk[l]) l++; if (hk[l] >= k) break; hk[c] = hk[l]; hn[c] = hn[l]; c = l; } hk[c] = k; hn[c] = nv; return v; };
+  g[start] = 0; seen[start] = st; from[start] = -1; push(hx(x0, y0), start);
+  let found = false;
+  while (hs > 0) {
+    const a = pop(); if (shut[a] === st) continue; shut[a] = st;
+    if (a === goal) { found = true; break; }
+    const ax = a % W + bx0, ay = ((a / W) | 0) + by0, ia = ay * N + ax;
+    for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+      if (!dx && !dy) continue; const x = ax + dx, y = ay + dy; if (x < bx0 || x > bx1 || y < by0 || y > by1) continue;
+      const b = li(x, y); if (shut[b] === st) continue;
+      const j = y * N + x, L = dx && dy ? 1.41421356 : 1, isGoal = b === goal;
+      let c;
+      if (!isGoal) {
+        const gx = 0.5 * (h[j + 1] - h[j - 1]), gy = 0.5 * (h[j + N] - h[j - N]); if (gx * gx + gy * gy > 2) continue; // steep rock
+        if (d[j] > 0.15 && toWater) continue; // the way to the water ends at the shore
+        const sl = (h[j] - h[ia]) / L; c = L * (1 + ROUTE_CLIMB * sl * sl) * (pa[j] > 0.3 ? ROUTE_TROD : 1) + (d[j] > 0.15 ? ROUTE_FORD : 0);
+      } else c = L;
+      const ng = g[a] + c;
+      if (seen[b] === st && ng >= g[b]) continue;
+      seen[b] = st; g[b] = ng; from[b] = a; push(ng + hx(x, y), b);
+    }
+  }
+  if (!found) return null;
+  const out = []; for (let a = goal; a !== start; a = from[a]) out.push((((a / W) | 0) + by0) * N + a % W + bx0);
+  return out.reverse();
+}
+function wearRoute(S, x0, y0, x1, y1, amt, toWater) {
+  const r = findRoute(S, x0, y0, x1, y1, toWater); if (!r) { wearLine(S, x0, y0, x1, y1, amt, toWater); return; }
+  for (let k = 0; k < r.length - 1; k++) { const i = r[k]; if (S.d[i] > 0.15) { if (toWater) return; continue; } S.path[i] += (1 - S.path[i]) * amt; }
+}
 function nearestWater(S, x, y, R) {
   const N = S.N; let best = null, bd = R * R;
   for (let yy = Math.max(1, Math.floor(y - R)); yy <= Math.min(N - 2, Math.ceil(y + R)); yy++) for (let xx = Math.max(1, Math.floor(x - R)); xx <= Math.min(N - 2, Math.ceil(x + R)); xx++) {
@@ -435,8 +480,8 @@ function villageStep(S, tl) {
       const amt = happy ? 0.12 : 0.05, near = [];
       for (const o of S.cottages) { if (o === c || o.ruin) continue; const dd = Math.hypot(o.x * N - x, o.y * N - y); if (dd < N * 0.1) near.push([dd, o]); }
       near.sort((a, b) => a[0] - b[0]);
-      for (let k = 0; k < Math.min(2, near.length); k++) { const o = near[k][1]; wearLine(S, x, y, Math.round(o.x * N), Math.round(o.y * N), amt, false); }
-      const w = nearestWater(S, x, y, Math.max(5, N * 0.06)); if (w) wearLine(S, x, y, w[0], w[1], amt, true);
+      for (let k = 0; k < Math.min(2, near.length); k++) { const o = near[k][1]; wearRoute(S, x, y, Math.round(o.x * N), Math.round(o.y * N), amt, false); }
+      const w = nearestWater(S, x, y, Math.max(5, N * 0.06)); if (w) wearRoute(S, x, y, w[0], w[1], amt, true);
     }
     if (happy && c.happyT > GROW_T && (c.kids || 0) < KIDS_MAX && S.grown < (S.P.growMax != null ? S.P.growMax : GROW_MAX) && S.cottages.length < COTTAGE_MAX) {
       c.happyT = 0; growVillage(S, ci);
@@ -1130,7 +1175,7 @@ function unpackShare(bytes, seed, opts) {
   if (hasNaN(S)) throw new Error('share link has broken numbers');
   return S;
 }
-const API = { waterfalls, FALL_DROP, FALL_Q, FALL_M, packState, unpackState, packShare, unpackShare, initLife,  iceStep, iceJam, totalIce, ICE_HOLD, JAM_MIN, JAM_Y, FLOE_PTS, eventRain, droughtOf, droughtAt, weatherEvent, STORM_AMP, yearFrac, yearFracAt, yearLen, yearNum, season, snowLine, snowFalling, leafState, snowStep, totalSnow, SEASONS, clockHour, dayFrac, planRain, rainCell, weatherStep, mulberry32, hashStr, makeNoise, randomSeedName, generateTerrain, create, seedLife, step, applyTool, totalWater, totalTerrain, resample, lifeStep, countTrees, countLife, leafy, treeHappy, cottageMood, cottageCell, countVillage, waterNear, wellYield, WELL_MIN, WELL_HIGH, MILL_T, MILL_RIPEN, FLOOD_RUIN, GROW_MAX, KIDS_MAX, GROW_T, plotSize, plotOf, plotCrop, hasNaN, DEFAULTS };
+const API = { findRoute, ROUTE_CLIMB, waterfalls, FALL_DROP, FALL_Q, FALL_M, packState, unpackState, packShare, unpackShare, initLife,  iceStep, iceJam, totalIce, ICE_HOLD, JAM_MIN, JAM_Y, FLOE_PTS, eventRain, droughtOf, droughtAt, weatherEvent, STORM_AMP, yearFrac, yearFracAt, yearLen, yearNum, season, snowLine, snowFalling, leafState, snowStep, totalSnow, SEASONS, clockHour, dayFrac, planRain, rainCell, weatherStep, mulberry32, hashStr, makeNoise, randomSeedName, generateTerrain, create, seedLife, step, applyTool, totalWater, totalTerrain, resample, lifeStep, countTrees, countLife, leafy, treeHappy, cottageMood, cottageCell, countVillage, waterNear, wellYield, WELL_MIN, WELL_HIGH, MILL_T, MILL_RIPEN, FLOOD_RUIN, GROW_MAX, KIDS_MAX, GROW_T, plotSize, plotOf, plotCrop, hasNaN, DEFAULTS };
 if (typeof module !== 'undefined' && module.exports) module.exports = API; else root.LV = API;
 })(typeof window !== 'undefined' ? window : globalThis);
 </script>
