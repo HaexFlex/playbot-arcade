@@ -1606,6 +1606,7 @@ function renderTilt(t) {
   if (st.trees !== false) { const t0 = performance.now(); rasterTrees(T, data); st.treeMs = (st.treeMs || 0) * 0.9 + (performance.now() - t0) * 0.1; }
   rasterCottages(T, data);
   rasterSkaters(T, data);
+  rasterSplash(T, data);
   T.ctx.putImageData(T.img, 0, 0);
   tintOver(T.ctx, 0, 0, ow, oh, 'source-atop');
   // place on screen
@@ -1848,6 +1849,59 @@ function rasterSkaters(T, data) {
       st.skatersDrawn++;
     }
   });
+}
+// children splashing in the puddles: on a spring day (about 9:00-18:00) while the puddles are wet and open (not iced
+// over) and no heavy rain falls, a few little children (at most 4, 2 on a phone) come out of the nearest cottages, walk
+// to the nearest puddle and hop in it; at each landing a few droplets fly up in a short arc. None at night, on ice,
+// without puddles or in the map view. Hooks: st.splashKids (drawn), st.splashHopping (in a puddle), st.splashDrops
+// (droplet px this frame), st.splashSpots (children on their way or splashing), st.splashPuds (puddle cells in use),
+// st.splashAt (tilt-buffer px of the first child in a puddle).
+const KIDS_MAX = isPhone ? 2 : 4, KID = { S: null, t: -1e9, t0: 0, on: false, list: [] };
+const KID_C = [[214, 64, 56], [240, 190, 40], [58, 116, 206], [226, 112, 168]]; // red, yellow, blue, pink raincoats
+function splashOK() { return st.puddleWet > 0.1 && st.puddleIce < 0.1 && LT.h >= 9 && LT.h < 18 && LT.rain < 0.3 && LT.storm < 0.2; }
+function rasterSplash(T, data) {
+  const S = st.S, N = S.N, ow = T.ow, oh = T.oh, pick = T.pick, cp = T.cp; st.splashKids = 0; st.splashHopping = 0; st.splashDrops = 0; st.splashPuds = [];
+  if (!splashOK() || !st.puddlesDrawn || PUD.S !== S || !PUD.list.length) { KID.on = false; st.splashSpots = 0; return; }
+  if (!KID.on) { KID.on = true; KID.t0 = st.time; KID.t = -1e9; } // they set off when the puddles open up
+  if (KID.S !== S || st.time - KID.t > 3 || st.time < KID.t) { // each cottage's nearest open puddle (within ~12% of the valley)
+    KID.S = S; KID.t = st.time; const R = Math.max(6, Math.round(N * 0.12)), L = [];
+    for (const c of S.cottages) {
+      if (c.mood === 'ruin') continue; const ci = LV.cottageCell(S, c), cx = ci % N, cy = (ci / N) | 0; let best = -1, bd = R * R;
+      for (const i of PUD.list) { if (S.d[i] > 0.03 || S.snow[i] > 0.02 || S.tree[i] + S.tree[i - 1] + S.tree[i + 1] + S.tree[i - N] + S.tree[i + N] > 0.2) continue; /* open ground, not under the trees */ const dx = i % N - cx, dy = ((i / N) | 0) - cy, dd = dx * dx + dy * dy; if (dd >= 2 && dd < bd) { bd = dd; best = i; } }
+      if (best >= 0 && L.filter(q => q[2] === best).length < 2) L.push([bd, ci, best, Math.abs(Math.sin(c.x * 127.1 + c.y * 311.7) * 43758.5) % 1]);
+    }
+    KID.list = L.sort((a, b) => a[0] - b[0] || a[1] - b[1]).slice(0, KIDS_MAX);
+  }
+  st.splashSpots = KID.list.length;
+  const put = (px, py, r, g, b) => { if (px < 0 || py < 0 || px >= ow || py >= oh) return; const q = (py * ow + px) * 4; data[q] = r; data[q + 1] = g; data[q + 2] = b; data[q + 3] = 255; };
+  const now = st.time, pairs = KID.list.map((e, k) => [e, k]).sort((a, b) => a[0][2] - b[0][2]); // back to front
+  for (const [[dd, ci, pi, hs], k] of pairs) {
+    const start = KID.t0 + k * 1.3 + hs * 1.5, walk = Math.min(9, 0.6 + Math.sqrt(dd) / 2.2), a = now - start; if (a < 0) continue; // still indoors
+    const p = Math.min(1, a / walk), side = k % 2 ? 0.28 : -0.28;
+    const gx = ci % N + 0.5 + (pi % N + side - ci % N) * p, gy = ((ci / N) | 0) + 0.9 + (((pi / N) | 0) + 0.55 - ((ci / N) | 0) - 0.9) * p;
+    const x = Math.floor(gx), y = Math.floor(gy), i = y * N + x; if (x < 1 || y < 1 || x >= N - 1 || y >= N - 1) continue;
+    const sc = persp(gy, N), ox = Math.round((gx - N / 2) * cp * sc + ow / 2), oy = Math.round(baseY(T, gy, N) - (S.h[i] + S.d[i]) * cp * T.hEx * sc);
+    if (ox < 3 || oy < 6 || ox >= ow - 3 || oy >= oh - 1) continue;
+    const pc = pick[(oy + 1) * ow + ox]; if (pc < 0 || Math.abs(pc % N - x) > 3 || Math.abs(((pc / N) | 0) - y) > 4) continue;
+    const u = Math.max(2, Math.round(cp * sc)), C = KID_C[k % 4];
+    let lift = 0, f = 0, hop = p >= 1;
+    if (hop) { const ph = (a - walk) * 1.7 + hs; f = ph % 1; lift = f < 0.6 ? Math.round(Math.sin(Math.PI * f / 0.6) * u * 1.4) : 0; }
+    else lift = Math.floor(a * 6) % 2; // a little bob as they trot along
+    const fy = oy - lift, legs = Math.max(1, Math.round(u * 0.5)), coat = Math.round(u * 1.1), head = Math.max(2, Math.round(u * 0.8)), x0 = ox - (u >> 1);
+    for (let py = fy - legs + 1; py <= fy; py++) { put(x0, py, 60, 54, 70); if (u > 2) put(x0 + u - 1, py, 60, 54, 70); } // legs (boots)
+    for (let py = fy - legs - coat + 1; py <= fy - legs; py++) for (let px = x0; px < x0 + u; px++) put(px, py, C[0] * (px === x0 ? 1.08 : 0.92), C[1] * (px === x0 ? 1.08 : 0.92), C[2] * (px === x0 ? 1.08 : 0.92));
+    for (let py = fy - legs - coat - head + 1; py <= fy - legs - coat; py++) for (let px = x0; px < x0 + u; px++) put(px, py, 246, 214, 186);
+    put(x0 + (k % 2 ? u - 1 : 0), fy - legs - coat - head, C[0] * 0.7, C[1] * 0.7, C[2] * 0.7); // a cap or a tuft
+    st.splashKids++;
+    if (!hop) continue;
+    st.splashHopping++; if (!st.splashPuds.includes(pi)) st.splashPuds.push(pi); if (st.splashHopping === 1) st.splashAt = [ox, oy];
+    if (f >= 0.6) { // landed: droplets fly up and out in a short arc, a ring of ripples round the boots
+      const s = (f - 0.6) / 0.4;
+      for (let j = 0; j < 4; j++) { const vx = (j - 1.5) * u * (0.8 + 0.25 * ((j + k) % 2)), dx = Math.round(ox + vx * s), dy = Math.round(oy - u * 2.4 * s + u * 2.6 * s * s - (j % 2));
+        if (dx < 0 || dy < 0 || dx >= ow || dy >= oh) continue; put(dx, dy, 214, 234, 250); st.splashDrops++; }
+      if (s < 0.5) { put(ox - u, oy + 1, 170, 196, 214); put(ox + u, oy + 1, 170, 196, 214); }
+    }
+  }
 }
 const ICE_LINGER = 30, DRIP_MAX = 48, icy = new WeakMap(); // icicles outlast the roof snow by ~30 sim s of sunny thaw, then are gone; at most 48 dripping tips drawn
 const SNOW_ROOF = 0.02; // snow around a cottage (3x3 max) above this whitens its roof and frosts its window
@@ -2693,7 +2747,7 @@ function frame(now) {
   const tc0 = performance.now(); computeColours(st.time); st.colMs = (st.colMs || 0) * 0.9 + (performance.now() - tc0) * 0.1;
   cx.setTransform(dpr, 0, 0, dpr, 0, 0);
   if (st.view === 'tilt') { tiltGeom(); drawSky(st.time, dtReal); renderTilt(st.time); }
-  else { drawSky(st.time, dtReal); renderTop(st.time); drawCottagesTop(); drawWindowGlowTop(st.time); st.petalsDrawn = 0; st.mistDrawn = 0; st.mistDrift = 0; st.puddlesDrawn = 0; st.icyPuddles = 0; st.puddleIcePx = 0; } // no petals in the map view (seen from far above they would be specks of dust)
+  else { drawSky(st.time, dtReal); renderTop(st.time); drawCottagesTop(); drawWindowGlowTop(st.time); st.petalsDrawn = 0; st.mistDrawn = 0; st.mistDrift = 0; st.puddlesDrawn = 0; st.icyPuddles = 0; st.puddleIcePx = 0; st.splashKids = 0; st.splashHopping = 0; st.splashDrops = 0; st.splashSpots = 0; st.splashPuds = []; KID.on = false; } // no petals in the map view (seen from far above they would be specks of dust)
   floeStep(S, dtReal); drawFloes();
   drawCottageBadges(st.time);
   drawNaturalRain(st.time); drawOverlays(st.time); drawShower(st.time);
@@ -2735,7 +2789,7 @@ function adapt(dt) {
 // and thunder after lightning, wind (stronger in winter and storms), birds by day in the forest, crickets on
 // summer evenings, an owl at night, the creak and clack of turning mill wheels, cowbells near the village.
 // window.LV_AUDIO holds the levels (0..1) and gains so tests can check them without listening.
-const AU = { want: false, on: false, started: false, state: 'none', nodes: 0, live: 0, L: {}, G: {}, ev: { chirp: 0, cricket: 0, owl: 0, clack: 0, creak: 0, bell: 0, thunder: 0, plop: 0, slurp: 0, splash: 0, knock: 0, well: 0, rustle: 0, rumble: 0, drip: 0, squeak: 0, thump: 0, crunch: 0, skate: 0, icicle: 0 }, flow: 0, riverPan: 0, veg: 0, ticks: 0, vol: 1, snowCover: 0, rainMuffle: 0, rainCut: 9000, masterT: 0, melt: 0, meltPan: 0 };
+const AU = { want: false, on: false, started: false, state: 'none', nodes: 0, live: 0, L: {}, G: {}, ev: { chirp: 0, cricket: 0, owl: 0, clack: 0, creak: 0, bell: 0, thunder: 0, plop: 0, slurp: 0, splash: 0, knock: 0, well: 0, rustle: 0, rumble: 0, drip: 0, squeak: 0, thump: 0, crunch: 0, skate: 0, icicle: 0, puddle: 0 }, flow: 0, riverPan: 0, veg: 0, ticks: 0, vol: 1, snowCover: 0, rainMuffle: 0, rainCut: 9000, masterT: 0, melt: 0, meltPan: 0 };
 window.LV_AUDIO = AU;
 const AU_KEY = 'lv-sound', AU_MASTER = 0.45, AU_DT = 0.25;
 const AU_MAX = { river: 0.55, rain: 0.42, wind: 0.2, birds: 0.42, crickets: 0.13, owl: 0.38, mill: 0.42, cows: 0.26, thunder: 0.85, melt: 0.3 }; // full-level gain per layer
@@ -2949,6 +3003,12 @@ function sndSkate(pan, k) { // a skater pushes off: a long, soft 'shhk' of a bla
   g.gain.setValueAtTime(0, t + dur * 0.9); g.gain.linearRampToValueAtTime(0.012 * k, t + dur * 0.9 + 0.004); g.gain.setTargetAtTime(0, t + dur * 0.9 + 0.01, 0.05); void o;
   AU.ev.skate++;
 }
+function sndPuddle(pan, k) { // a child lands in a puddle: a small wet slap and a low bloop (fx bus, so mute and volume apply)
+  if (!fxOn()) return; const t = AG.ac.currentTime + 0.02 + Math.random() * 0.12;
+  noiseHit('fx', AG.white, t, 0.22, 'bandpass', 1300 + Math.random() * 700, 1.1, 0.08 * k, pan, 0.045);
+  drop(t + 0.025, 520 + Math.random() * 260, 0.3 * k, pan);
+  AU.ev.puddle++;
+}
 function fxBrush(S, g, x) { // while a brush is held: splash or slurp now and then where there is water under the finger (Plant rustles on land)
   if (!fxOn() || !g) return; const tool = st.tool;
   if (tool === 'plant') { const now = st.time; if (now - (AU.fxT || -9) < 0.3) return; const N = S.N, i = Math.round(g[1]) * N + Math.round(g[0]); if (!(i >= 0 && i < N * N) || S.d[i] > 0.3) return; AU.fxT = now + Math.random() * 0.12; sndRustle(x); return; }
@@ -3021,6 +3081,10 @@ function auTick(dt) {
   if (st.skatersDrawn > 0 && st.skateSpots && st.skateSpots.length && t - (AU.skateT || -9) > 0.9 && R() < Math.min(0.8, 0.35 + 0.1 * st.skatersDrawn)) {
     const S = st.S, N = S.N, i0 = st.skateSpots[(R() * st.skateSpots.length) | 0], q = proj(i0 % N, (i0 / N) | 0);
     sndSkate(q && innerWidth > 0 ? Math.max(-0.7, Math.min(0.7, (q[0] / innerWidth) * 1.4 - 0.7)) : 0, 0.8 + 0.2 * R()); AU.skateT = t; }
+  // children hopping in the puddles (while drawn): a soft splash now and then, at most one per 0.7 s, panned to the puddle
+  if (st.splashHopping > 0 && st.splashPuds && st.splashPuds.length && t - (AU.splT || -9) > 0.7 && R() < Math.min(0.7, 0.3 + 0.12 * st.splashHopping)) {
+    const S = st.S, N = S.N, i0 = st.splashPuds[(R() * st.splashPuds.length) | 0], q = proj(i0 % N, (i0 / N) | 0);
+    sndPuddle(q && innerWidth > 0 ? Math.max(-0.7, Math.min(0.7, (q[0] / innerWidth) * 1.4 - 0.7)) : 0, 0.7 + 0.3 * R()); AU.splT = t; }
   // icicles dripping in the sun (while drawn): a soft plip now and then, at most one per 0.6 s, panned to a dripping cottage
   if (st.dripsDrawn > 0 && performance.now() - (st.dripsAt || 0) < 600 && t - (AU.icT || -9) > 0.6 && R() < Math.min(0.7, 0.3 + 0.04 * st.dripsDrawn)) {
     const dd = st.drips[(R() * st.drips.length) | 0], T = tilt, x = T ? T.sx + dd[0] * T.s : null; sndIcicle(fxPan(x), 0.7 + 0.3 * R()); AU.icT = t; }
@@ -3295,7 +3359,7 @@ addEventListener('pagehide', () => autoSave('pagehide'));
 window.LV_AUTO = { AS, save: autoSave, get: asGet, put: asPut, clear: asClear, restore: autoRestore };
 
 
-window.__lv = { st, AU, updSound, LV, LT, leaf: LS, clockText, wheelAng, get col() { return [colR, colG, colB]; }, get tilt() { return tilt; }, get area() { return area; }, setTool, newWorld, unproj, proj, get S() { return st.S; }, floes, breakup: sndBreakup, yearTurn, flourT, SACK_T, carts, CART_LOAD, cartTarget, bakeT, FLOUR, smokeRGB, HAY, HAY_T };
+window.__lv = { st, AU, updSound, LV, LT, leaf: LS, clockText, wheelAng, get col() { return [colR, colG, colB]; }, get tilt() { return tilt; }, get area() { return area; }, setTool, newWorld, unproj, proj, get S() { return st.S; }, floes, breakup: sndBreakup, yearTurn, flourT, SACK_T, carts, CART_LOAD, cartTarget, bakeT, FLOUR, smokeRGB, HAY, HAY_T, PUD, KID };
 updUI(); updSound();
 const rawHash = (location.hash || '').slice(1);
 let fromHash = ''; try { fromHash = decodeURIComponent(rawHash); } catch (e) { fromHash = ''; }
