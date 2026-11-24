@@ -137,7 +137,9 @@ gets three hammer taps and a tiny house-warming bell, and a new well drops its b
 with a splash far below (a dull knock if the ground is dry or rocky). The flour cart's wooden wheel squeaks
 softly as it rolls (a little lighter on the way home), and the sacks come off with two dull thumps.
 In winter, digging or raising dry snow crunches softly under the spade, and the little skaters on a
-frozen lake push off now and then with a soft swish of their blades.
+frozen lake push off now and then with a soft swish of their blades. When spring sun thaws a snowy roof, the icicles
+on the eaves drip: little drops swell, fall and splash with a soft plip, then the icicles shrink away (they
+freeze again at night).
 
 ## Valley wishes
 Tap the **Wishes** star for a small panel of twelve gentle goals, each with three stars:

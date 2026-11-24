@@ -1611,6 +1611,7 @@ function renderTilt(t) {
   cx.imageSmoothingEnabled = true; cx.imageSmoothingQuality = 'high';
   cx.drawImage(T.canvas, T.sx, T.sy, T.wCss, oh * s);
   drawWindowGlow(t);
+  drawIcicleDrips(t);
   drawLanterns(t);
   drawFireflies(t);
   // mist where the river falls off the front edge
@@ -1776,6 +1777,7 @@ function rasterSkaters(T, data) {
     }
   });
 }
+const ICE_LINGER = 30, DRIP_MAX = 48, icy = new WeakMap(); // icicles outlast the roof snow by ~30 sim s of sunny thaw, then are gone; at most 48 dripping tips drawn
 const SNOW_ROOF = 0.02; // snow around a cottage (3x3 max) above this whitens its roof and frosts its window
 const bucketPh = new WeakMap(), BUCKET_SPEED = 1 / 9; // a haul every 9 s
 const flourT = new WeakMap(), SACK_T = 15, SACK_MAX = 3; // a turning mill fills a flour sack every 15 s of grinding (sim time at 1x), up to 3 by the door
@@ -1784,8 +1786,10 @@ const flourT = new WeakMap(), SACK_T = 15, SACK_MAX = 3; // a turning mill fills
 // the cottage is happy. Flooded cottages get blue water up the walls, ruins are low broken walls.
 function rasterCottages(T, data) {
   const S = st.S, N = S.N, ow = T.ow, oh = T.oh, pick = T.pick, cp = T.cp; let n = 0;
-  const list = S.cottages.map(c => [c, LV.cottageCell(S, c)]).sort((a, b) => a[1] - b[1]); st.wellsDrawn = 0; st.bucketsDrawn = 0; st.bucketsMoving = 0; st.bucketsDown = 0; st.bucketYs = []; st.bucketDt = Math.max(0, Math.min(0.25, st.time - (st.bucketT == null ? st.time : st.bucketT))); st.bucketT = st.time; st.wins = []; st.lamps = []; st.snowmenDrawn = 0; st.roofsSnowy = 0; st.icicles = 0; st.sacksDrawn = 0; st.sackMills = 0; st.sackFull = 0;
+  const list = S.cottages.map(c => [c, LV.cottageCell(S, c)]).sort((a, b) => a[1] - b[1]); st.wellsDrawn = 0; st.bucketsDrawn = 0; st.bucketsMoving = 0; st.bucketsDown = 0; st.bucketYs = []; st.bucketDt = Math.max(0, Math.min(0.25, st.time - (st.bucketT == null ? st.time : st.bucketT))); st.bucketT = st.time; st.wins = []; st.lamps = []; st.snowmenDrawn = 0; st.roofsSnowy = 0; st.icicles = 0; st.drips = []; st.iceMelting = 0; st.sacksDrawn = 0; st.sackMills = 0; st.sackFull = 0;
   const put = (px, py, r, g, b) => { if (px < 0 || py < 0 || px >= ow || py >= oh) return; const q = (py * ow + px) * 4; data[q] = r; data[q + 1] = g; data[q + 2] = b; data[q + 3] = 255; };
+  // thaw: by day in sun (no storm), snow on a cottage below the snow line is melting, so its icicles drip
+  const sunny = LT.night < 0.35 && LT.storm < 0.5, thawH = S.P.seasons ? LV.snowLine(LV.yearFrac(S)) * N * 0.27 : 1e9;
   for (const [c, i] of list) {
     const x = i % N, y = (i / N) | 0, sc = persp(y, N), hz = 0.22 * (1 - y / N) * (1 - y / N);
     const ox = (x + 0.5 - N / 2) * cp * sc + ow / 2, oy = baseY(T, y, N) - S.h[i] * cp * T.hEx * sc;
@@ -1843,9 +1847,15 @@ function rasterCottages(T, data) {
     const chx = bx + Math.round(hw * 0.5), cw = Math.max(1, Math.round(u * 0.25)), cht = top + Math.round(rh * 0.2);
     for (let py = cht; py <= top + Math.round(rh * 0.6); py++) for (let px = chx; px < chx + cw; px++) put(px, py, rs * 0.8, rgs * 0.8, rbs * 0.8);
     if (cov) for (let px = chx - (cw > 1 ? 1 : 0); px < chx + cw + (cw > 1 ? 1 : 0); px++) put(px, cht, s1, s2, s3); // a snow cap on the chimney
-    if (cov > 0.6) { const ew = Math.round(hw + 1.5); // icicles along the eaves (every other pixel, 1-2 long, picked by place)
-      for (let px = bx - ew; px <= bx + ew; px += 2) { const L = 1 + ((Math.abs(Math.sin(px * 7.13 + c.y * 51.7) * 917.3) % 1) < 0.45 ? 1 : 0) * Math.max(1, Math.round(u * 0.25));
-        for (let k = 1; k <= L; k++) put(px, by - wh + k, 176, 214, 246); st.icicles++; } }
+    // icicles along the eaves (every other pixel, 1-2 long, picked by place). They remember the snow: once the roof is
+    // bare they shrink over ~30 s of sunny thaw (frozen at night). While the cottage thaws by day, the long ones drip.
+    let ic = icy.get(c);
+    if (cov > 0.6) { if (!ic) icy.set(c, ic = { m: 1, t: S.time }); ic.m = 1; }
+    else if (ic) { if (sunny) ic.m -= Math.max(0, Math.min(5, S.time - ic.t)) / ICE_LINGER; if (ic.m <= 0) { icy.delete(c); ic = null; } }
+    if (ic) { ic.t = S.time; const ew = Math.round(hw + 1.5), thaw = sunny && (cov <= 0.6 || S.h[i] <= thawH); let nd = 0; if (thaw) st.iceMelting++;
+      for (let px = bx - ew; px <= bx + ew; px += 2) { const long = (Math.abs(Math.sin(px * 7.13 + c.y * 51.7) * 917.3) % 1) < 0.45, L = Math.max(1, Math.ceil((1 + (long ? 1 : 0) * Math.max(1, Math.round(u * 0.25))) * ic.m));
+        for (let k = 1; k <= L; k++) put(px, by - wh + k, 176, 214, 246); st.icicles++;
+        if (thaw && nd < 3 && st.drips.length < DRIP_MAX && ((px - bx + ew) >> 1) % 2 === 0) { st.drips.push([px, by - wh + L + 1, u, (Math.abs(Math.sin(px * 3.7 + c.x * 91.3) * 531.7) % 1), wh - L, c.x]); nd++; } } }
     if (c.well) { // a little stone well beside the house (south-west, in front): stone ring, water, two posts and a roof
       const wr0 = Math.max(2, Math.round(u * 0.55)), wcx = bx - hw - wr0 - 1, wby = by + Math.max(1, Math.round(u * 0.35)), rimH = Math.max(2, Math.round(u * 0.5)), dryW = mood !== 'happy';
       const [sr, sg, sb] = H(178, 170, 158), [sd, sgd, sbd] = H(128, 120, 110);
@@ -2204,6 +2214,21 @@ function drawRainCloud(g, rad, t) {
   cx.restore();
   drawCloud(c[0], cy, w, 0.95, 3);
 }
+// icicle drips in the spring sun: at each dripping tip a drop swells, lets go and falls down past the wall with a glint
+// (on the screen canvas, so it stays crisp on a phone). Each tip keeps its own slow rhythm.
+function drawIcicleDrips(t) {
+  const T = tilt, D = st.drips; st.dripsDrawn = 0; st.dropsFalling = 0; if (!D || !D.length || !T) return; st.dripsAt = performance.now();
+  cx.save();
+  for (const [px, py, u, seed, fall] of D) {
+    const P = 1.4 + seed * 1.6, ph = (t / P + seed * 7) % 1, x = T.sx + (px + 0.5) * T.s, y0 = T.sy + py * T.s, r = Math.max(1.1, Math.min(2.6, u * T.s * 0.14));
+    st.dripsDrawn++; // a dripping tip (between two drops it is briefly bare)
+    let y = y0, rr = r * (0.35 + 0.65 * Math.min(1, ph / 0.62)), a = 0.9;
+    if (ph > 0.62) { const f = (ph - 0.62) / 0.26, gy = y0 + Math.max(4, fall * T.s); if (f > 1) { if (f < 1.35) { const k = (f - 1) / 0.35; cx.strokeStyle = `rgba(220,240,255,${0.7 * (1 - k)})`; cx.lineWidth = 0.8; cx.beginPath(); cx.ellipse(x, gy, r * (1 + 2.2 * k), r * (0.4 + 0.8 * k), 0, 0, 7); cx.stroke(); } continue; } /* a tiny splash ring where it lands */ y = y0 + f * f * (gy - y0); rr = r * 0.85; a = 0.9 * (1 - f * 0.5); st.dropsFalling++; }
+    cx.fillStyle = `rgba(196,228,255,${a})`; cx.beginPath(); cx.ellipse(x, y, rr * 0.8, rr * (ph > 0.62 ? 1.25 : 1), 0, 0, 7); cx.fill();
+    cx.fillStyle = `rgba(255,255,255,${a})`; cx.fillRect(x - rr * 0.45, y - rr * 0.5, Math.max(0.8, rr * 0.45), Math.max(0.8, rr * 0.45)); // a glint of sun
+  }
+  cx.restore();
+}
 // evening and night: happy cottages light their windows (a warm glow added on top of the tinted valley)
 function drawWindowGlow(t) {
   const T = tilt, W = st.wins; st.glowDrawn = 0; if (LT.glow < 0.02 || !W || !W.length || !T) return;
@@ -2555,7 +2580,7 @@ function adapt(dt) {
 // and thunder after lightning, wind (stronger in winter and storms), birds by day in the forest, crickets on
 // summer evenings, an owl at night, the creak and clack of turning mill wheels, cowbells near the village.
 // window.LV_AUDIO holds the levels (0..1) and gains so tests can check them without listening.
-const AU = { want: false, on: false, started: false, state: 'none', nodes: 0, live: 0, L: {}, G: {}, ev: { chirp: 0, cricket: 0, owl: 0, clack: 0, creak: 0, bell: 0, thunder: 0, plop: 0, slurp: 0, splash: 0, knock: 0, well: 0, rustle: 0, rumble: 0, drip: 0, squeak: 0, thump: 0, crunch: 0, skate: 0 }, flow: 0, riverPan: 0, veg: 0, ticks: 0, vol: 1, snowCover: 0, rainMuffle: 0, rainCut: 9000, masterT: 0, melt: 0, meltPan: 0 };
+const AU = { want: false, on: false, started: false, state: 'none', nodes: 0, live: 0, L: {}, G: {}, ev: { chirp: 0, cricket: 0, owl: 0, clack: 0, creak: 0, bell: 0, thunder: 0, plop: 0, slurp: 0, splash: 0, knock: 0, well: 0, rustle: 0, rumble: 0, drip: 0, squeak: 0, thump: 0, crunch: 0, skate: 0, icicle: 0 }, flow: 0, riverPan: 0, veg: 0, ticks: 0, vol: 1, snowCover: 0, rainMuffle: 0, rainCut: 9000, masterT: 0, melt: 0, meltPan: 0 };
 window.LV_AUDIO = AU;
 const AU_KEY = 'lv-sound', AU_MASTER = 0.45, AU_DT = 0.25;
 const AU_MAX = { river: 0.55, rain: 0.42, wind: 0.2, birds: 0.42, crickets: 0.13, owl: 0.38, mill: 0.42, cows: 0.26, thunder: 0.85, melt: 0.3 }; // full-level gain per layer
@@ -2754,6 +2779,12 @@ function sndCrunch(x, k) { // Raise, Dig or Smooth in dry snow: a soft, granular
   noiseHit('fx', AG.brown, t, 0.22, 'lowpass', 420, 0.7, 0.16 * k, pan, 0.05); // the body of the snow giving way
   AU.ev.crunch++;
 }
+function sndIcicle(pan, k) { // an icicle drop lands: a soft, round 'plip' with a tiny echo (fx bus, so mute and volume apply)
+  if (!fxOn()) return; const t = AG.ac.currentTime + 0.02 + Math.random() * 0.2;
+  for (let q = 0; q < 2; q++) { const a = t + q * 0.07, f = (q ? 1900 : 1100) + Math.random() * 500, e = auVoice('fx', a, 0.14, pan), o = osc('sine', f, a, 0.14, e); o.frequency.exponentialRampToValueAtTime(f * 1.45, a + 0.04);
+    e.gain.setValueAtTime(0, a); e.gain.linearRampToValueAtTime((q ? 0.025 : 0.06) * k, a + 0.003); e.gain.setTargetAtTime(0, a + 0.006, 0.02); }
+  AU.ev.icicle++;
+}
 function sndSkate(pan, k) { // a skater pushes off: a long, soft 'shhk' of a blade on the ice, with a tiny ring of steel
   if (!fxOn()) return; const t = AG.ac.currentTime + 0.03 + Math.random() * 0.15, dur = 0.42 + Math.random() * 0.25;
   const { e, fl } = noiseHit('fx', AG.white, t, dur + 0.1, 'bandpass', 5200, 2.2, 0, pan, 0.1);
@@ -2835,6 +2866,9 @@ function auTick(dt) {
   if (st.skatersDrawn > 0 && st.skateSpots && st.skateSpots.length && t - (AU.skateT || -9) > 0.9 && R() < Math.min(0.8, 0.35 + 0.1 * st.skatersDrawn)) {
     const S = st.S, N = S.N, i0 = st.skateSpots[(R() * st.skateSpots.length) | 0], q = proj(i0 % N, (i0 / N) | 0);
     sndSkate(q && innerWidth > 0 ? Math.max(-0.7, Math.min(0.7, (q[0] / innerWidth) * 1.4 - 0.7)) : 0, 0.8 + 0.2 * R()); AU.skateT = t; }
+  // icicles dripping in the sun (while drawn): a soft plip now and then, at most one per 0.6 s, panned to a dripping cottage
+  if (st.dripsDrawn > 0 && performance.now() - (st.dripsAt || 0) < 600 && t - (AU.icT || -9) > 0.6 && R() < Math.min(0.7, 0.3 + 0.04 * st.dripsDrawn)) {
+    const dd = st.drips[(R() * st.drips.length) | 0], T = tilt, x = T ? T.sx + dd[0] * T.s : null; sndIcicle(fxPan(x), 0.7 + 0.3 * R()); AU.icT = t; }
   const bolts = st.bolts || 0; if (bolts > (AU.bolts || 0)) { thunder(t + 0.5 + R() * 1.8, 0.6 + 0.4 * clamp01(LT.storm)); } AU.bolts = bolts;
   AU.nodes = AG.base + AU.live;
 }
