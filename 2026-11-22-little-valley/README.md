@@ -57,7 +57,7 @@ valley gets the same rain.
 
 **Seasons**: a year lasts four valley days (one per season, about 7 minutes at 1x) and starts in
 spring; the season shows as an emoji in the title pill (🌸 🌻 🍂 ❄️). In early spring the leafy trees
-blossom white and pink while their first leaves come (on the map too), for about a third of the spring, and a few petals drift off them on the wind (further in a storm). After rain in early spring a few puddles stand along the paths and river banks; on cold nights they get a thin pale ice skin that the morning sun thaws. In autumn the leafy trees
+blossom white and pink while their first leaves come (on the map too), for about a third of the spring, and a few petals drift off them on the wind (further in a storm). After rain in early spring a few puddles stand along the paths and river banks; on cold nights they get a thin pale ice skin that the morning sun thaws. On cool spring and autumn mornings soft mist hangs low over the river and lakes at dawn and lifts off as the sun climbs. In autumn the leafy trees
 turn orange, red and gold, then lose their leaves. From late autumn snow falls on the peaks and the
 snow line creeps down the mountains through the winter until only the low valley floor stays green.
 The snow is real: it is water stored on the ground, and in spring, as the snow line climbs back up,

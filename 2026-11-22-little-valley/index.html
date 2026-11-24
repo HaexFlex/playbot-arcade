@@ -1618,6 +1618,7 @@ function renderTilt(t) {
   cx.drawImage(T.canvas, T.sx, T.sy, T.wCss, oh * s);
   drawWindowGlow(t);
   drawIcicleDrips(t);
+  drawMist(t);
   drawPetals(t);
   drawLanterns(t);
   drawFireflies(t);
@@ -2327,6 +2328,62 @@ function drawPetals(t) {
   }
   cx.restore(); if (st.petalsDrawn) { st.petalDrift = sdx / st.petalsDrawn; st.petalFall = sdy / st.petalsDrawn; } // mean drift and drop (in cells) of the petals in the air
 }
+// morning mist: on cool spring and autumn mornings, most after a clear calm night, soft low wisps hang over the water
+// (river and lakes) at dawn; the morning sun lifts and thins them and they are gone by late morning. None in summer
+// heat, at midday or in the map view; rain thins them, wind thins them and drifts them along. Cheap: up to MIST_MAX
+// pre-blurred blobs drawn with drawImage, sources picked from the water every 3 s. Hooks: st.mistAmt, st.mistDrawn,
+// st.mistWind, st.mistDrift (mean drift in cells), st.mistLift (0 dawn .. 1 lifted), st.mistSrc; st.windTest (test-only extra wind).
+const MIST_MAX = isPhone ? 22 : 36, MIST = { S: null, N: 0, t: -1e9, list: [], blob: null };
+function mistWind() { const S = st.S, W = S.wx, dir = W && W.vx < 0 ? -1 : 1, r = S.rainNow || 0, sto = W && W.storm ? r : 0; return dir * (0.12 + 0.8 * r + 1.6 * sto + (st.windTest || 0) + 0.08 * Math.sin(st.time * 0.19)); }
+function updMist() {
+  const S = st.S, h = LT.h, y = S.P.seasons ? LV.yearFrac(S) : -1;
+  const sea = y < 0 ? 0.4 : Math.max(0.8 * smooth(0, 0.04, y) * (1 - smooth(0.16, 0.23, y)), smooth(0.5, 0.56, y) * (1 - smooth(0.72, 0.78, y)));
+  const dawn = h < 4 || h > 10.5 ? 0 : h < 6 ? smooth(4, 6, h) : 1 - smooth(7.2, 10.5, h);
+  const day = S.P.dayLen || 720, clear = smooth(0.15, 0.5, Math.max(0, S.time - (st.puddleRainT == null ? -1e9 : st.puddleRainT)) / day); // a clear night: no rain for a while
+  const w = mistWind(), calm = 1 / (1 + 2.2 * Math.max(0, Math.abs(w) - 0.3));
+  st.mistWind = w; st.mistLift = smooth(6.4, 10.5, h);
+  st.mistAmt = sea * dawn * (0.55 + 0.45 * clear) * calm * (1 - Math.min(1, LT.rain * 1.6)) * (1 - LT.dry);
+}
+function mistSpots(S) {
+  const N = S.N, d = S.d, ice = S.ice, out = [], st2 = Math.max(1, N >> 6); let n = 0;
+  for (let y = 3; y < N - 3; y += st2) for (let x = 2; x < N - 2; x += st2) { const i = y * N + x; if (d[i] > 0.05 && !(ice && ice[i] > 0.3)) { n++; out.push(x, y); } }
+  // keep an even spread of at most 3 x MIST_MAX water cells
+  const k = out.length / 2, m = Math.min(k, MIST_MAX * 3), res = [];
+  for (let j = 0; j < m; j++) { const q = Math.floor((j + 0.5) * k / m) * 2; res.push(out[q], out[q + 1]); }
+  return res;
+}
+function mistBlob() {
+  if (MIST.blob) return MIST.blob; const c = document.createElement('canvas'); c.width = c.height = 64; const g = c.getContext('2d');
+  const gr = g.createRadialGradient(32, 32, 0, 32, 32, 32); gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(0.35, 'rgba(255,255,255,.8)'); gr.addColorStop(0.7, 'rgba(255,255,255,.3)'); gr.addColorStop(1, 'rgba(255,255,255,0)');
+  g.fillStyle = gr; g.fillRect(0, 0, 64, 64); return MIST.blob = c;
+}
+function drawMist(t) {
+  const T = tilt, S = st.S, a0 = st.mistAmt || 0; st.mistDrawn = 0; st.mistDrift = 0; st.mistSrc = 0;
+  if (!T || a0 < 0.03) return;
+  if (MIST.S !== S || MIST.N !== S.N || st.time - MIST.t > 3 || st.time < MIST.t) { MIST.S = S; MIST.N = S.N; MIST.t = st.time; MIST.list = mistSpots(S); }
+  const L = MIST.list, nS = L.length / 2; st.mistSrc = nS; if (nS < 2) return;
+  const N = S.N, w = st.mistWind || 0, lift = st.mistLift || 0, blob = mistBlob();
+  const n = Math.min(MIST_MAX, Math.round(MIST_MAX * Math.min(1, a0 * 1.2) * Math.min(1, nS / 8 + 0.3)));
+  const dim = 1 - LT.night * 0.5, r = 236 * dim + 60 * (1 - dim), g = 240 * dim + 70 * (1 - dim), b = 246 * dim + 96 * (1 - dim);
+  cx.save(); let sd = 0;
+  // the blob is white; tint it with a colour wash on a small cached canvas only when the light changes a lot
+  const key = (r | 0) + ',' + (g | 0) + ',' + (b | 0); if (MIST.key !== key) { MIST.key = key; const c = MIST.tint || (MIST.tint = document.createElement('canvas')); c.width = c.height = 64; const q = c.getContext('2d'); q.drawImage(blob, 0, 0); q.globalCompositeOperation = 'source-atop'; q.fillStyle = `rgb(${key})`; q.fillRect(0, 0, 64, 64); }
+  for (let j = 0; j < n; j++) {
+    const Lf = 9 + ((j * 0.618) % 1) * 6, f = t / Lf + j * 0.41, cyc = Math.floor(f), ph = f - cyc;
+    const hsh = Math.abs(Math.sin(j * 91.7 + cyc * 233.1) * 43758.5453), k = (Math.floor(hsh) % nS) * 2, h2 = hsh % 1;
+    const drift = w * ph * Lf * 0.22; // cells along the wind over one life
+    const gx = L[k] + (h2 - 0.5) * 1.5 + drift, gy = L[k + 1];
+    const p = projTilt(Math.max(0, Math.min(N - 1, gx)), gy); if (!p) continue;
+    const u = Math.max(1.5, T.cp * T.s * persp(gy, N));
+    const x = p[0] + (gx - Math.max(0, Math.min(N - 1, gx))) * u + Math.sin(t * 0.35 + j * 1.3) * u * 0.6, yv = p[1] - u * (0.4 + lift * 2.2 + ph * (0.5 + lift));
+    if (x < -60 || x > innerWidth + 60 || yv < -40 || yv > innerHeight + 40) continue;
+    const a = a0 * (0.5 - 0.2 * lift) * Math.min(1, ph * 4) * (1 - smooth(0.7, 1, ph)); if (a < 0.006) continue;
+    const rx = u * (7 + 4 * h2) * (1 + 0.5 * lift) * (1 + 0.15 * Math.min(2, Math.abs(w))), ry = rx * (0.3 - 0.06 * Math.min(1, Math.abs(w)));
+    cx.globalAlpha = Math.min(0.55, a); cx.drawImage(MIST.tint, x - rx, yv - ry, rx * 2, ry * 2);
+    if (!st.mistDrawn) st.mistAt = [x, yv]; st.mistDrawn++; sd += drift;
+  }
+  cx.restore(); if (st.mistDrawn) st.mistDrift = sd / st.mistDrawn;
+}
 // evening and night: happy cottages light their windows (a warm glow added on top of the tinted valley)
 function drawWindowGlow(t) {
   const T = tilt, W = st.wins; st.glowDrawn = 0; if (LT.glow < 0.02 || !W || !W.length || !T) return;
@@ -2632,11 +2689,11 @@ function frame(now) {
   }
   hayWatch(S);
   if (st.wake > 0) st.wake -= dtReal;
-  updLight(); skyHints(); updPuddles();
+  updLight(); skyHints(); updPuddles(); updMist();
   const tc0 = performance.now(); computeColours(st.time); st.colMs = (st.colMs || 0) * 0.9 + (performance.now() - tc0) * 0.1;
   cx.setTransform(dpr, 0, 0, dpr, 0, 0);
   if (st.view === 'tilt') { tiltGeom(); drawSky(st.time, dtReal); renderTilt(st.time); }
-  else { drawSky(st.time, dtReal); renderTop(st.time); drawCottagesTop(); drawWindowGlowTop(st.time); st.petalsDrawn = 0; st.puddlesDrawn = 0; st.icyPuddles = 0; st.puddleIcePx = 0; } // no petals in the map view (seen from far above they would be specks of dust)
+  else { drawSky(st.time, dtReal); renderTop(st.time); drawCottagesTop(); drawWindowGlowTop(st.time); st.petalsDrawn = 0; st.mistDrawn = 0; st.mistDrift = 0; st.puddlesDrawn = 0; st.icyPuddles = 0; st.puddleIcePx = 0; } // no petals in the map view (seen from far above they would be specks of dust)
   floeStep(S, dtReal); drawFloes();
   drawCottageBadges(st.time);
   drawNaturalRain(st.time); drawOverlays(st.time); drawShower(st.time);
