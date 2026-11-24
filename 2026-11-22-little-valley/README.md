@@ -99,6 +99,13 @@ When the sun is up, little sparkles wander over the frosted crowns, and the fros
 (gone by late morning). None after a cloudy or snowy night, in rain, snowfall or storms, or in the map view.
 (`screenshot-frost.png`: a white-rimed winter morning.)
 
+**Bullfinches**: on winter days, when the leafy trees are bare, a little flock of round bullfinches (rose-red
+breasts, black caps, grey backs, and a soft grey-buff hen or two) hops about in the bare crowns and flits from
+tree to tree. Every cottage puts out a little bird feeder with a snow-capped roof (two on a big screen, one on a
+phone), and the birds come down to peck at the seeds. When the fox or a skater comes near they all fly up at once
+to a tree further away and keep off the feeder for a while. They go to roost before dusk and stay away at night,
+in heavy snowfall and storms, and in the map view. (`screenshot-bullfinch.png`: bullfinches at the feeder.)
+
 **Snowmen**: when the snow reaches the village, little snowmen with red scarves and dark hats
 appear in the cottage gardens, and they melt with the snow in spring.
 

@@ -1633,6 +1633,7 @@ function renderTilt(t) {
   { const t0 = performance.now(); drawWebs(t); st.webMs = (st.webMs || 0) * 0.9 + (performance.now() - t0) * 0.1; }
   { const t0 = performance.now(); drawHoarFrost(t); st.frostMs = (st.frostMs || 0) * 0.9 + (performance.now() - t0) * 0.1; }
   { const t0 = performance.now(); drawFox(t); st.foxMs = (st.foxMs || 0) * 0.9 + (performance.now() - t0) * 0.1; }
+  { const t0 = performance.now(); drawBullfinches(t); st.bfMs = (st.bfMs || 0) * 0.9 + (performance.now() - t0) * 0.1; }
   { const t0 = performance.now(); drawGlowworms(t); st.glowwormMs = (st.glowwormMs || 0) * 0.9 + (performance.now() - t0) * 0.1; }
   drawLanterns(t);
   drawFireflies(t);
@@ -1781,6 +1782,7 @@ function rasterTrees(T, data) {
   }
   st.hayDrawn = nh;
   const stride = N > 120 ? 2 : 1; const PS = st.petalSrc = []; // blossoming crowns that let petals go (drawPetals)
+  const BFC = BF.crowns = []; // bare leafy crowns where the bullfinches sit (drawBullfinches)
   FR.src = []; st.frostTrees = 0; if (cp * stride < 1.5) return;
   let n = 0, nl = 0, nb = 0, npx = 0; const qbl = LS.blossom;
   const fk = FR.amt, FS = FR.src = [], fRim = fk > 0.2; let nfr = 0, pl = 0, np = 0; // hoar frost: crowns blend to rime white, a white rim on the edges; glint spots for drawHoarFrost
@@ -1817,6 +1819,7 @@ function rasterTrees(T, data) {
           if (fRim && (px === x0 || px === x1 || py === Math.max(0, Math.round(ccy - rad)))) { const sh = lit > -0.2 ? 1 : 0.84; data[q] = 250 * sh; data[q + 1] = 252 * sh; data[q + 2] = 255 * sh; data[q + 3] = 255; continue; }
           if (lit > 0.05) { data[q] = lr; data[q + 1] = lg; data[q + 2] = lb; } else { data[q] = dr; data[q + 1] = dg; data[q + 2] = db; } data[q + 3] = 255; }
       }
+      if (twig && sad < 0.6 && BFC.length < 900 && ((x * 3 + y * 5) % 4) === 0) BFC.push(ox, ccy, rad);
       nl++; if (bl) { nb++; if (bl > 30 && PS.length < 180 && ((x * 7 + y * 13) % 3) === 0) PS.push(ccx, ccy, rad); }
     } else {
       const hgt = cp * sc * (1.5 + 1.5 * tv) * (0.85 + grain[i + N] * 0.5), w = hgt * 0.36;
@@ -1842,7 +1845,7 @@ function rasterTrees(T, data) {
 // (a red or blue coat, a pale face). The ice spot of each cottage is looked up every couple of seconds.
 const SKATE_C = [[200, 50, 50], [40, 80, 180], [40, 140, 90], [220, 150, 30]];
 function rasterSkaters(T, data) {
-  const S = st.S, N = S.N, ow = T.ow, oh = T.oh, pick = T.pick, cp = T.cp, ice = S.ice; st.skatersDrawn = 0;
+  const S = st.S, N = S.N, ow = T.ow, oh = T.oh, pick = T.pick, cp = T.cp, ice = S.ice; st.skatersDrawn = 0; BF.skaters = [];
   if (!ice || !(st.iceN > 10) || LT.night > 0.6) { st.skateSpots = null; return; }
   if (!st.skateSpots || st.time - (st.skateT || 0) > 2) {
     st.skateT = st.time; const R = Math.max(4, Math.round(N * 0.07)), sp = [];
@@ -1866,7 +1869,7 @@ function rasterSkaters(T, data) {
       for (let py = oy - 3 * u; py <= oy; py++) for (let px = ox - Math.floor(u / 2); px <= ox + Math.floor((u - 1) / 2); px++) { const f = (oy - py) / (3 * u); put(px + Math.round(lean * f), py, py > oy - u ? 50 : C[0], py > oy - u ? 50 : C[1], py > oy - u ? 70 : C[2]); }
       for (let py = oy - 4 * u; py < oy - 3 * u; py++) for (let px = ox - Math.floor(u / 2); px <= ox + Math.floor((u - 1) / 2); px++) put(px + lean, py, 246, 214, 186);
       put(ox - u, oy + 1, 120, 150, 175); put(ox + u, oy + 1, 120, 150, 175); // a little scratch on the ice
-      st.skatersDrawn++;
+      st.skatersDrawn++; if (m === 0) BF.skaters.push(ox, oy - 2 * u); // the bullfinches keep away from them
     }
   });
 }
@@ -3147,6 +3150,131 @@ function drawFox(t) {
       cx.drawImage(spr.fox[fr][left ? 1 : 0], p[0] - w / 2, p[1] - hh * 0.9, w, hh); st.foxDrawn = 1; st.foxAt = [p[0], p[1]]; void sy; } }
   cx.restore();
 }
+// bullfinches: on winter days (the leafy crowns bare), a little flock of round rose-breasted bullfinches (7 desk / 4 phone;
+// cocks with a rose-red breast, black cap and grey back, about one hen in three in soft buff-grey) hops about in the bare
+// leafy crowns: they sit a while, hop to another twig of the same crown, flit to a neighbour crown in a bounding arc and
+// now and then visit a little bird feeder (a post with a tray and a snow-capped roof, hung out by up to 2 cottages / 1 on a
+// phone each winter) where they peck. When the fox or a skater comes near (or anything at the test hook st.bfScare, screen
+// px) every bird within reach flies up at once to a crown away from it and keeps off the feeder a few seconds. They come
+// at about 7:30 and go to roost by ~17:30; none at night, in heavy snowfall or a storm, outside the bare season, without
+// bare leafy crowns or in the map view. Positions live in tilt-buffer px (screen = T.sx + b * T.s), pre-rendered sprites.
+// Hooks: st.bfDrawn, st.bfSit, st.bfFlying, st.bfAtFeeder, st.bfFeeders, st.bfFled (birds flushed, total), st.bfHops,
+// st.bfCrowns, st.bfAt (screen px of drawn birds), st.bfFem, st.bfFeederAt, st.bfOn, st.bfMs.
+const BF_MAX = isPhone ? 4 : 7, BF_FEED = isPhone ? 1 : 2;
+const BF = { birds: [], spr: null, last: -1, crowns: [], feeders: [], fT: -1e9, fKey: '', home: null, spawn: 0, fled: 0, hops: 0, skaters: [], nid: 0 };
+function bfSprites() {
+  if (BF.spr) return BF.spr;
+  const mk = (fem, fr, flip) => { const W = 24, Hh = 20, c = document.createElement('canvas'); c.width = W; c.height = Hh; const g = c.getContext('2d');
+    if (flip) { g.translate(W, 0); g.scale(-1, 1); }
+    const breast = fem ? '#b8a08c' : '#e4506a', back = fem ? '#8f8478' : '#8b9099', fly = fr >= 2, peck = fr === 1;
+    // body faces right: tail on the left
+    g.fillStyle = '#1d1d22'; g.beginPath(); g.moveTo(6, fly ? 10 : 11); g.lineTo(0.5, fly ? 9 : 14.5); g.lineTo(2, fly ? 12.5 : 16); g.lineTo(7, 13); g.fill(); // black tail
+    g.fillStyle = '#f4f2ee'; g.beginPath(); g.ellipse(7, 11.5, 2.2, 2, 0, 0, 6.283); g.fill(); // white rump
+    g.fillStyle = back; g.beginPath(); g.ellipse(12, 10.5, 6.4, 5, peck ? 0.35 : -0.1, 0, 6.283); g.fill(); // round body
+    g.fillStyle = breast; g.beginPath(); g.ellipse(14, 12.6, 4.8, 4, peck ? 0.4 : 0, 0, 6.283); g.fill(); // rose breast
+    const hx = peck ? 18.5 : 17.2, hy = peck ? 11.5 : 6.6;
+    g.fillStyle = breast; g.beginPath(); g.ellipse(hx - 0.6, hy + 2, 2.8, 2.4, 0, 0, 6.283); g.fill(); // cheek
+    g.fillStyle = '#16161a'; g.beginPath(); g.ellipse(hx, hy, 3.1, 2.4, peck ? 0.5 : 0, Math.PI * 0.95, Math.PI * 2.1); g.fill(); // black cap
+    g.beginPath(); g.moveTo(hx + 2.4, hy + 0.6); g.lineTo(hx + 4.6, hy + 1.8); g.lineTo(hx + 2.4, hy + 2.9); g.fill(); // stubby black bill
+    if (!fly) { g.fillStyle = '#26262c'; g.beginPath(); g.ellipse(10.6, 10.6, 4.2, 2.3, -0.15, 0, 6.283); g.fill(); // folded black wing
+      g.fillStyle = '#e8e6e2'; g.fillRect(9, 9.6, 4.2, 1); // white wing bar
+      g.strokeStyle = '#3b3028'; g.lineWidth = 1; g.beginPath(); g.moveTo(12, 15); g.lineTo(11.6, 18); g.moveTo(14, 15); g.lineTo(14.2, 18); g.stroke(); } // legs
+    else { const up = fr === 2; g.fillStyle = '#26262c'; g.beginPath(); g.moveTo(9, 9.5); g.lineTo(up ? 7 : 8, up ? 1 : 18.5); g.lineTo(up ? 13 : 14, up ? 2 : 17.5); g.lineTo(14, 10); g.fill(); // wing up / down
+      g.fillStyle = '#e8e6e2'; g.beginPath(); g.moveTo(10, up ? 6 : 13.5); g.lineTo(13.6, up ? 6.5 : 13); g.lineTo(13.6, up ? 7.6 : 14.2); g.lineTo(9.6, up ? 7.2 : 14.6); g.fill(); }
+    return c; };
+  const feeder = () => { const c = document.createElement('canvas'); c.width = 24; c.height = 32; const g = c.getContext('2d');
+    g.fillStyle = '#6b4a2e'; g.fillRect(11, 12, 2.4, 20); // post
+    g.fillStyle = '#8a6240'; g.fillRect(3, 14, 18, 2.6); g.fillStyle = '#5e3f26'; g.fillRect(3, 16.4, 18, 1.2); // tray
+    g.fillStyle = '#c9a36a'; for (const x of [6, 9, 14, 17]) { g.beginPath(); g.arc(x, 13.6, 1, 0, 6.283); g.fill(); } // seeds
+    g.fillStyle = '#7a5434'; g.fillRect(5, 7, 1.6, 7); g.fillRect(17.4, 7, 1.6, 7); // corner posts
+    g.fillStyle = '#9b4a32'; g.beginPath(); g.moveTo(1, 8); g.lineTo(12, 1.5); g.lineTo(23, 8); g.lineTo(23, 9.6); g.lineTo(1, 9.6); g.fill(); // little roof
+    g.fillStyle = '#f6f8fc'; g.beginPath(); g.moveTo(2, 7.6); g.lineTo(12, 1.6); g.lineTo(22, 7.6); g.lineTo(17, 6.2); g.lineTo(12, 4.4); g.lineTo(6, 6.6); g.fill(); // snow cap
+    return c; };
+  return BF.spr = { b: [0, 1].map(fem => [0, 1, 2, 3].map(fr => [mk(fem, fr, false), mk(fem, fr, true)])), feeder: feeder() };
+}
+function bfFeeders(S, T) { // up to BF_FEED feeders, each one cell to the front-right of a standing cottage, on dry open ground (buffer px)
+  const N = S.N, H = N * 0.27, out = [];
+  for (const c of S.cottages) { if (out.length >= BF_FEED) break; if (c.mood === 'ruin' || c.ruin) continue; const ci = LV.cottageCell(S, c), x0 = ci % N, y0 = (ci / N) | 0;
+    for (const [dx, dy] of [[3, 2], [-3, 2], [3, 1], [-3, 1], [2, 3], [-2, 3], [4, 0], [-4, 0]]) { const x = x0 + dx, y = y0 + dy; if (x < 3 || y < 3 || x > N - 4 || y > N - 4) continue; const i = y * N + x;
+      if (S.d[i] > 0.02 || S.tree[i] > 0.3 || (S.ice && S.ice[i] > 0.3) || S.cottages.some(o => o !== c && LV.cottageCell(S, o) === i)) continue;
+      const p = foxProj(T, S, x + 0.5, y + 0.5); if (!p) continue; out.push({ bx: (p[0] - T.sx) / T.s, by: (p[1] - T.sy) / T.s, u: p[2], gx: x, gy: y, used: [0, 0, 0] }); break; } }
+  void H; return out;
+}
+function bfPerch(cr) { return [cr[0] + (Math.random() - 0.5) * cr[2] * 1.3, cr[1] - cr[2] * (0.05 + Math.random() * 0.6)]; }
+function bfFly(b, x1, y1, fast) { const d = Math.hypot(x1 - b.x, y1 - b.y); b.st = 'fly'; b.x0 = b.x; b.y0 = b.y; b.x1 = x1; b.y1 = y1; b.ft = 0; b.fd = Math.max(0.35, d / (fast ? BF.spd * 1.7 : BF.spd)); b.arc = Math.min(40 / BF.s, d * 0.28 + 4 / BF.s) * (fast ? 1.6 : 1); if (Math.abs(x1 - b.x) > 0.5) b.face = x1 > b.x ? 1 : -1; }
+function bfHop(b, x1, y1) { b.st = 'hop'; b.x0 = b.x; b.y0 = b.y; b.x1 = x1; b.y1 = y1; b.ft = 0; b.fd = 0.22 + Math.random() * 0.1; b.arc = 3 / BF.s; if (Math.abs(x1 - b.x) > 0.3) b.face = x1 > b.x ? 1 : -1; BF.hops++; }
+function bfLeaveFeeder(b) { if (b.at && b.at.f) b.at.f.used[b.at.k] = 0; b.at = null; }
+function bfPool() { // crowns near the flock's home crown (buffer px)
+  const C = BF.crowns, n = C.length / 3, R = (isPhone ? 110 : 170) / BF.s, h = BF.home, out = [];
+  for (let k = 0; k < n; k++) { const x = C[k * 3], y = C[k * 3 + 1]; if (!h || Math.hypot(x - h[0], y - h[1]) < R) out.push(k); }
+  return out;
+}
+function drawBullfinches(t) {
+  const T = tilt, S = st.S, now = performance.now() / 1000, dt = Math.max(0, Math.min(0.1, now - BF.last)); BF.last = now; void t;
+  st.bfDrawn = 0; st.bfSit = 0; st.bfFlying = 0; st.bfAtFeeder = 0; st.bfFeeders = 0; st.bfAt = []; st.bfFem = 0; st.bfFeederAt = [];
+  if (!T || T.s == null || !T.pick) return;
+  const N = S.N, C = BF.crowns, nc = C.length / 3; st.bfCrowns = nc; BF.s = T.s; BF.spd = (isPhone ? 70 : 95) / T.s;
+  const season = LS.bare > 0.5 && st.trees !== false, h = LT.h;
+  const day = smooth(7.2, 8, h) * (1 - smooth(17, 17.6, h)) * (1 - LT.night);
+  const on = st.bfOn = season && day > 0.3 && LT.rain < 0.25 && LT.storm < 0.02 && nc >= 3;
+  // feeders: hung out all through the bare season, looked up every 2 s (or when the view moves)
+  const key = T.sx + ',' + T.sy + ',' + T.s + ',' + T.ow + ',' + N;
+  if (!season) BF.feeders = [];
+  else if (now - BF.fT > 2 || now < BF.fT || key !== BF.fKey) { BF.fT = now; if (key !== BF.fKey) { BF.birds = []; BF.home = null; } BF.fKey = key; const old = BF.feeders; BF.feeders = bfFeeders(S, T);
+    for (const f of BF.feeders) { const o = old.find(q => q.gx === f.gx && q.gy === f.gy); if (o) f.used = o.used; }
+    for (const b of BF.birds) if (b.at && b.at.f && !BF.feeders.some(f => f.gx === b.at.f.gx && f.gy === b.at.f.gy)) { b.at = null; if (b.st !== 'fly' && b.st !== 'away') b.st = 'fly0'; }
+      else if (b.at && b.at.f) { const f = BF.feeders.find(q => q.gx === b.at.f.gx && q.gy === b.at.f.gy); b.at.f = f; } }
+  if (!BF.feeders.length && !BF.birds.length && !on) return;
+  const spr = bfSprites(), s = T.s; cx.save();
+  for (const f of BF.feeders) { const fh = (isPhone ? 16 : 22) * Math.max(0.8, Math.min(1.3, f.u / 5)), fw = fh * 0.75, X = T.sx + f.bx * s, Y = T.sy + f.by * s; f.fh = fh / s;
+    cx.globalAlpha = 1; cx.drawImage(spr.feeder, X - fw / 2, Y - fh, fw, fh); st.bfFeeders++; st.bfFeederAt.push([X, Y]); }
+  // the home crown: nearest to a feeder if there is one, else a random crown; renewed when it is gone
+  if (on && (!BF.home || !(nc > 0))) { let best = null;
+    if (BF.feeders.length) { let bd = 1e9; const f = BF.feeders[(Math.random() * BF.feeders.length) | 0]; for (let k = 0; k < nc; k++) { const d = Math.hypot(C[k * 3] - f.bx, C[k * 3 + 1] - f.by); if (d < bd) { bd = d; best = [C[k * 3], C[k * 3 + 1]]; } } }
+    if (!best && nc) { const k = (Math.random() * nc) | 0; best = [C[k * 3], C[k * 3 + 1]]; } BF.home = best; }
+  const pool = on ? bfPool() : [];
+  // scarers: the fox, the skaters, the test hook (all in buffer px)
+  const sc = []; const fx = FOX.fox; if (fx && fx.al > 0.3) { const p = foxProj(T, S, fx.x, fx.y); if (p) sc.push([(p[0] - T.sx) / s, (p[1] - T.sy) / s]); }
+  for (let k = 0; k < BF.skaters.length; k += 2) sc.push([BF.skaters[k], BF.skaters[k + 1]]);
+  if (st.bfScare) sc.push([(st.bfScare[0] - T.sx) / s, (st.bfScare[1] - T.sy) / s]);
+  const RS = (isPhone ? 55 : 75) / s;
+  // arrivals: one bird every ~0.35 s flies in from above the home crown
+  if (on && pool.length) { BF.spawn -= dt; if (BF.birds.length < BF_MAX && BF.spawn <= 0) { BF.spawn = 0.25 + Math.random() * 0.3; const fem = Math.random() < 0.34 ? 1 : 0, cr = pool[(Math.random() * pool.length) | 0], pt = bfPerch([C[cr * 3], C[cr * 3 + 1], C[cr * 3 + 2]]);
+      const b = { id: BF.nid++, fem, x: BF.home[0] + (Math.random() - 0.5) * 220 / s, y: BF.home[1] - (90 + Math.random() * 60) / s, st: 'fly', face: 1, al: 0, at: { cr, c: [C[cr * 3], C[cr * 3 + 1], C[cr * 3 + 2]] }, tm: 0, shy: 0, ph: Math.random() * 6 }; bfFly(b, pt[0], pt[1], false); BF.birds.push(b); } }
+  const next = [];
+  for (const b of BF.birds) {
+    b.shy = Math.max(0, b.shy - dt); b.ph += dt;
+    if (!on && b.st !== 'away') { bfLeaveFeeder(b); b.st = 'away'; b.x0 = b.x; b.y0 = b.y; b.x1 = b.x + (Math.random() - 0.5) * 200 / s; b.y1 = b.y - 160 / s; b.ft = 0; b.fd = 1.6; b.arc = 20 / s; b.face = b.x1 > b.x ? 1 : -1; }
+    b.al += ((b.st === 'away' ? 0 : 1) - b.al) * Math.min(1, dt * (b.st === 'away' ? 1.5 : 4));
+    if (b.st === 'away' && (b.al < 0.03 || b.ft >= b.fd)) continue;
+    if (b.st === 'fly0') { const cr = pool.length ? pool[(Math.random() * pool.length) | 0] : -1; if (cr < 0) { b.st = 'away'; b.ft = 0; b.fd = 1.4; b.x0 = b.x; b.y0 = b.y; b.x1 = b.x; b.y1 = b.y - 150 / s; b.arc = 0; } else { const pt = bfPerch([C[cr * 3], C[cr * 3 + 1], C[cr * 3 + 2]]); b.at = { cr, c: [C[cr * 3], C[cr * 3 + 1], C[cr * 3 + 2]] }; bfFly(b, pt[0], pt[1], false); } }
+    // flush: anything scary near a sitting / hopping bird (or one on its way down to the feeder)
+    if (b.st !== 'away' && (b.st !== 'fly' || (b.at && b.at.f)) && sc.length && pool.length) { let near = null; for (const q of sc) if (Math.hypot(q[0] - b.x, q[1] - b.y) < RS) { near = q; break; }
+      if (near) { let best = -1, bd = 1e9; for (let k = 0; k < nc; k++) { const d = Math.hypot(C[k * 3] - near[0], C[k * 3 + 1] - near[1]); if (d > RS * 1.8 && d < bd) { bd = d; best = k; } } // the nearest crown well away from it
+        bfLeaveFeeder(b); b.shy = 6; BF.fled++;
+        if (best >= 0) { const pt = bfPerch([C[best * 3], C[best * 3 + 1], C[best * 3 + 2]]); b.at = { cr: best, c: [C[best * 3], C[best * 3 + 1], C[best * 3 + 2]] }; bfFly(b, pt[0], pt[1], true); } else { b.st = 'away'; b.x0 = b.x; b.y0 = b.y; b.x1 = b.x; b.y1 = b.y - 160 / s; b.ft = 0; b.fd = 1.4; b.arc = 0; }
+        b.flushed = now; } }
+    if (b.st === 'fly' || b.st === 'hop' || b.st === 'away') { b.ft += dt; const f = Math.min(1, b.ft / b.fd), e = b.st === 'hop' ? f : f * f * (3 - 2 * f);
+      b.x = b.x0 + (b.x1 - b.x0) * e; b.y = b.y0 + (b.y1 - b.y0) * e - Math.sin(Math.PI * f) * b.arc - (b.st === 'fly' ? Math.abs(Math.sin(b.ph * 9)) * 1.5 / s : 0);
+      if (f >= 1 && b.st !== 'away') { b.st = 'sit'; b.tm = b.at && b.at.f ? 2 + Math.random() * 3.5 : 1.2 + Math.random() * 3; } }
+    else if (b.st === 'sit') { b.tm -= dt;
+      if (b.tm <= 0 && on) { const r = Math.random(), atF = b.at && b.at.f;
+        if (atF || r > 0.82 || !(b.at && b.at.c)) { // fly to another crown near home
+          bfLeaveFeeder(b); const cr = pool[(Math.random() * pool.length) | 0]; if (cr != null) { const pt = bfPerch([C[cr * 3], C[cr * 3 + 1], C[cr * 3 + 2]]); b.at = { cr, c: [C[cr * 3], C[cr * 3 + 1], C[cr * 3 + 2]] }; bfFly(b, pt[0], pt[1], false); } else b.tm = 1; }
+        else if (r > 0.52 && !b.shy && BF.feeders.length) { // down to the feeder (a free slot on the tray or the roof)
+          const f = BF.feeders.reduce((a, q) => !a || Math.hypot(q.bx - b.x, q.by - b.y) < Math.hypot(a.bx - b.x, a.by - b.y) ? q : a, null), k = f.used.indexOf(0);
+          if (k >= 0 && Math.hypot(f.bx - b.x, f.by - b.y) < 260 / s) { f.used[k] = 1; b.at = { f, k }; const fh = f.fh || 15 / s, off = [[-0.42, -0.5], [0.42, -0.5], [0, -1.04]][k]; bfFly(b, f.bx + off[0] * fh, f.by + off[1] * fh, false); } else b.tm = 0.6; }
+        else { const pt = bfPerch(b.at.c); if (Math.hypot(pt[0] - b.x, pt[1] - b.y) < 0.3 || Math.hypot(pt[0] - b.x, pt[1] - b.y) > b.at.c[2] * 1.6 + 2) b.tm = 0.5; else bfHop(b, pt[0], pt[1]); b.tm = 0.9 + Math.random() * 2.2; if (b.st !== 'hop') b.st = 'sit'; } } }
+    next.push(b);
+    // draw
+    const fly = b.st === 'fly' || b.st === 'away', atF = b.st === 'sit' && b.at && b.at.f, fr = fly ? (Math.sin(b.ph * 26) > 0 ? 2 : 3) : atF && Math.sin(b.ph * 7) > 0.3 ? 1 : 0;
+    const w = isPhone ? 11.5 : 15, hh = w * 20 / 24, X = T.sx + b.x * s, Y = T.sy + b.y * s;
+    cx.globalAlpha = Math.min(1, b.al); cx.drawImage(spr.b[b.fem][fr][b.face < 0 ? 1 : 0], X - w / 2, Y - hh * 0.92, w, hh);
+    st.bfDrawn++; st.bfAt.push([X, Y]); if (b.fem) st.bfFem++; if (fly) st.bfFlying++; else { st.bfSit++; if (atF) st.bfAtFeeder++; }
+  }
+  BF.birds = next; st.bfFled = BF.fled; st.bfHops = BF.hops;
+  cx.restore();
+}
 function mistWind() { const S = st.S, W = S.wx, dir = W && W.vx < 0 ? -1 : 1, r = S.rainNow || 0, sto = W && W.storm ? r : 0; return dir * (0.12 + 0.8 * r + 1.6 * sto + (st.windTest || 0) + 0.08 * Math.sin(st.time * 0.19)); }
 function updMist() {
   const S = st.S, h = LT.h, y = S.P.seasons ? LV.yearFrac(S) : -1;
@@ -3506,7 +3634,7 @@ function frame(now) {
   const tc0 = performance.now(); computeColours(st.time); st.colMs = (st.colMs || 0) * 0.9 + (performance.now() - tc0) * 0.1;
   cx.setTransform(dpr, 0, 0, dpr, 0, 0);
   if (st.view === 'tilt') { tiltGeom(); drawSky(st.time, dtReal); renderTilt(st.time); }
-  else { drawSky(st.time, dtReal); renderTop(st.time); drawCottagesTop(); drawWindowGlowTop(st.time); st.websDrawn = 0; st.webAt = []; st.webCells = []; st.webGlints = 0; WEB.webs.forEach(w => { w.a = 0; }); st.frostTrees = 0; st.frostGlints = 0; st.frostGlintAt = []; FR.src = []; FR.gl.forEach(g => { g.age = g.life; }); st.foxTracks = 0; st.foxPrints = 0; st.foxPrintCells = []; st.foxDrawn = 0; st.foxAt = null; if (FOX.fox) { FOX.fox = null; FOX.rest = 5; } FOX.last = st.time; st.glowwormsDrawn = 0; st.glowwormAt = []; st.glowwormCells = []; st.glowwormLvl = []; GW.worms.forEach(w => { w.a = 0; }); st.petalsDrawn = 0; st.mistDrawn = 0; st.mistDrift = 0; st.puddlesDrawn = 0; st.icyPuddles = 0; st.puddleIcePx = 0; st.splashKids = 0; st.splashHopping = 0; st.splashDrops = 0; st.splashSpots = 0; st.splashPuds = []; KID.on = false; st.batsDrawn = 0; st.batAt = null; st.midgesDrawn = 0; st.midgeSpecks = 0; st.midgeGlints = 0; st.midgeCols = []; MID.last = st.time; st.dragonfliesDrawn = 0; st.dfAt = null; st.dfHover = 0; DF.last = st.time; st.duckFams = 0; st.ducksDrawn = 0; st.ducklingsDrawn = 0; st.duckLine = null; DUCK.last = null; st.swallowsDrawn = 0; st.swallowRings = 0; st.swallowAt = null; SW.last = st.time; } // no petals in the map view (seen from far above they would be specks of dust)
+  else { drawSky(st.time, dtReal); renderTop(st.time); drawCottagesTop(); drawWindowGlowTop(st.time); st.websDrawn = 0; st.webAt = []; st.webCells = []; st.webGlints = 0; WEB.webs.forEach(w => { w.a = 0; }); st.frostTrees = 0; st.frostGlints = 0; st.frostGlintAt = []; FR.src = []; FR.gl.forEach(g => { g.age = g.life; }); st.foxTracks = 0; st.foxPrints = 0; st.foxPrintCells = []; st.foxDrawn = 0; st.foxAt = null; if (FOX.fox) { FOX.fox = null; FOX.rest = 5; } FOX.last = st.time; st.glowwormsDrawn = 0; st.glowwormAt = []; st.glowwormCells = []; st.glowwormLvl = []; GW.worms.forEach(w => { w.a = 0; }); st.petalsDrawn = 0; st.mistDrawn = 0; st.mistDrift = 0; st.puddlesDrawn = 0; st.icyPuddles = 0; st.puddleIcePx = 0; st.splashKids = 0; st.splashHopping = 0; st.splashDrops = 0; st.splashSpots = 0; st.splashPuds = []; KID.on = false; st.batsDrawn = 0; st.batAt = null; st.midgesDrawn = 0; st.midgeSpecks = 0; st.midgeGlints = 0; st.midgeCols = []; MID.last = st.time; st.dragonfliesDrawn = 0; st.dfAt = null; st.dfHover = 0; DF.last = st.time; st.duckFams = 0; st.ducksDrawn = 0; st.ducklingsDrawn = 0; st.duckLine = null; DUCK.last = null; st.swallowsDrawn = 0; st.swallowRings = 0; st.swallowAt = null; SW.last = st.time; st.bfDrawn = 0; st.bfSit = 0; st.bfFlying = 0; st.bfAtFeeder = 0; st.bfFeeders = 0; st.bfAt = []; st.bfFeederAt = []; BF.birds = []; BF.feeders = []; BF.home = null; BF.crowns = []; } // no petals in the map view (seen from far above they would be specks of dust)
   floeStep(S, dtReal); drawFloes();
   drawCottageBadges(st.time);
   drawNaturalRain(st.time); drawOverlays(st.time); drawShower(st.time);
@@ -4142,7 +4270,7 @@ addEventListener('pagehide', () => autoSave('pagehide'));
 window.LV_AUTO = { AS, save: autoSave, get: asGet, put: asPut, clear: asClear, restore: autoRestore };
 
 
-window.__lv = { st, FR, FOX, foxEvening, AU, SW, updSound, LV, LT, leaf: LS, clockText, wheelAng, get col() { return [colR, colG, colB]; }, get tilt() { return tilt; }, get area() { return area; }, setTool, newWorld, unproj, proj, get S() { return st.S; }, floes, breakup: sndBreakup, yearTurn, flourT, SACK_T, carts, CART_LOAD, cartTarget, bakeT, FLOUR, smokeRGB, HAY, HAY_T, PUD, KID, DUCK };
+window.__lv = { st, FR, FOX, foxEvening, BF, AU, SW, updSound, LV, LT, leaf: LS, clockText, wheelAng, get col() { return [colR, colG, colB]; }, get tilt() { return tilt; }, get area() { return area; }, setTool, newWorld, unproj, proj, get S() { return st.S; }, floes, breakup: sndBreakup, yearTurn, flourT, SACK_T, carts, CART_LOAD, cartTarget, bakeT, FLOUR, smokeRGB, HAY, HAY_T, PUD, KID, DUCK };
 updUI(); updSound();
 const rawHash = (location.hash || '').slice(1);
 let fromHash = ''; try { fromHash = decodeURIComponent(rawHash); } catch (e) { fromHash = ''; }
