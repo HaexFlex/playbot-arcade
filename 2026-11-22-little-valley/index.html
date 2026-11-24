@@ -1623,6 +1623,7 @@ function renderTilt(t) {
   drawMist(t);
   drawPetals(t);
   { const t0 = performance.now(); drawSwallows(t); st.swallowMs = (st.swallowMs || 0) * 0.9 + (performance.now() - t0) * 0.1; }
+  { const t0 = performance.now(); drawBats(t); st.batMs = (st.batMs || 0) * 0.9 + (performance.now() - t0) * 0.1; }
   drawLanterns(t);
   drawFireflies(t);
   // mist where the river falls off the front edge
@@ -2580,6 +2581,79 @@ function drawSwallows(t) {
   cx.restore();
   st.swallowAlt = st.swallowsDrawn ? sa / st.swallowsDrawn : 0; st.swallowDips = SW.dips; st.swallowMoved = SW.moved;
 }
+// bats: on summer and early-autumn nights (yearFrac ~0.23-0.65), from dusk after the swallows leave (about 20:30) to
+// about 23:30, and a few again before dawn (about 4:30-5:30), a capped handful of small dark bats (6 desk / 4 phone)
+// hunt low over the river and lakes and along the tree edges. Jerky, erratic flight: each bat holds a heading for a
+// fraction of a second and then snaps to a new one (quick zigzags) while drifting towards a target picked from visible
+// water and tree-edge cells (refreshed every 3 s); the wings flicker between two silhouette frames (up / down). None in
+// rain or storms, in a strong wind, in winter and spring, by day (so also not in the always-day mode) or in the map
+// view; fewer on cold nights (the cool edges of the season and the small hours). Hooks: st.batsDrawn, st.batAmt,
+// st.batCold (0 warm .. 1 cold), st.batAlt (mean height in cells), st.batMoved (cells flown by the first bat),
+// st.batTurns (heading snaps so far), st.batAt (screen px of the first), st.batOverWater (share over water), st.batMs.
+const BAT_MAX = isPhone ? 4 : 6, BAT = { S: null, N: 0, t: -1e9, src: [], bats: [], last: -1, moved: 0, turns: 0 };
+function batAmt() {
+  const S = st.S, y = S.P.seasons ? LV.yearFrac(S) : 0.4, h = LT.h;
+  const sea = smooth(0.22, 0.26, y) * (1 - smooth(0.62, 0.66, y));
+  const dusk = smooth(20.2, 20.9, h) * (1 - smooth(23.0, 23.6, h)), dawn = 0.5 * smooth(4.2, 4.6, h) * (1 - smooth(5.3, 5.7, h));
+  const cold = st.batCold = Math.min(1, 0.6 * (1 - smooth(0.22, 0.3, y)) + 0.6 * smooth(0.55, 0.65, y) + (h < 6 ? 0.25 : 0));
+  const w = Math.abs(mistWind()), calm = 1 - smooth(0.7, 1.1, w);
+  return sea * Math.max(dusk, dawn) * (1 - 0.55 * cold) * calm * (1 - smooth(0.05, 0.15, LT.rain)) * (LT.storm > 0.02 ? 0 : 1);
+}
+function batSpots(S, T) { // visible open water and tree-edge cells, low in the valley
+  const N = S.N, H = N * 0.27, out = [], s2 = Math.max(1, N >> 5);
+  for (let y = 4; y < N - 4; y += s2) for (let x = 4; x < N - 4; x += s2) { const i = y * N + x, wet = S.d[i] > 0.05 && !(S.ice && S.ice[i] > 0.3);
+    if (S.h[i] / H > 0.45) continue;
+    const edge = !wet && S.tree[i] < 0.3 && (S.tree[i - s2] > 0.45 || S.tree[i + s2] > 0.45 || S.tree[i - s2 * N] > 0.45 || S.tree[i + s2 * N] > 0.45);
+    if ((wet || edge) && duckSeen(T, S, x, y)) out.push([x, y, wet ? 1 : 0]); }
+  return out;
+}
+function drawBats(t) {
+  const T = tilt, S = st.S, N = S.N; st.batsDrawn = 0; st.batAt = null;
+  const amt = st.batAmt = batAmt(), dt = Math.max(0, Math.min(0.1, t - BAT.last)); BAT.last = t;
+  if (!T || T.s == null) return;
+  if (BAT.S !== S || BAT.N !== N) { BAT.S = S; BAT.N = N; BAT.bats = []; BAT.t = -1e9; }
+  if (amt < 0.02 && !BAT.bats.some(b => b.a > 0.02)) { BAT.bats.forEach(b => { b.a = 0; }); return; }
+  if (st.time - BAT.t > 3 || st.time < BAT.t) { BAT.t = st.time; BAT.src = batSpots(S, T); }
+  st.batSrc = BAT.src.length; if (BAT.src.length < 2) return;
+  const L0 = BAT.src, n = Math.round(BAT_MAX * Math.min(1, amt)), V0 = Math.max(5, N * 0.055);
+  const pick = b => { let best = L0[0], bs = -1e9; for (let k = 0; k < 3; k++) { const q = L0[(Math.random() * L0.length) | 0], dd = Math.hypot(q[0] - b.x, q[1] - b.y), sc = (dd > 3 && dd < 16 ? 6 : 0) + q[2] * 4 + Math.random() * 3; if (sc > bs) { bs = sc; best = q; } }
+    b.tx = best[0] + Math.random() - 0.5; b.ty = best[1] + Math.random() - 0.5; b.tt = t + 2 + Math.random() * 3; };
+  while (BAT.bats.length < BAT_MAX) BAT.bats.push({ x: 0, y: 0, th: 0, a: 0, alt: 1.5, tx: 0, ty: 0, tt: 0, nt: 0, ph: Math.random() * 6.28, f: 0.8 + Math.random() * 0.4 });
+  const cp = T.cp, ow = T.ow, oh = T.oh, s = T.s, col = litC(14, 10, 18), rim = litC(120, 110, 140);
+  let sa = 0, nw = 0; cx.save(); cx.lineJoin = 'round';
+  for (let j = 0; j < BAT_MAX; j++) {
+    const b = BAT.bats[j], want = j < n ? 1 : 0;
+    if (want && b.a < 0.02) { const q = L0[(Math.random() * L0.length) | 0]; b.x = q[0] + Math.random() * 4 - 2; b.y = q[1] + Math.random() * 4 - 2; b.th = Math.random() * 6.28; pick(b); b.nt = t; }
+    b.a += (want - b.a) * Math.min(1, dt * (want ? 1.0 : 1.5)); if (b.a < 0.02) continue;
+    if (Math.hypot(b.tx - b.x, b.ty - b.y) < 2 || t > b.tt) pick(b);
+    if (t >= b.nt) { // snap to a new heading: towards the target, plus a sharp zigzag
+      let to = Math.atan2(b.ty - b.y, b.tx - b.x); to += (Math.random() < 0.5 ? -1 : 1) * (0.5 + Math.random() * 1.1);
+      b.th = to; b.nt = t + 0.12 + Math.random() * 0.3; if (j === 0) BAT.turns++; }
+    const v = V0 * (0.8 + 0.4 * Math.sin(t * 3.1 * b.f + b.ph));
+    b.x = Math.max(2, Math.min(N - 3, b.x + Math.cos(b.th) * v * dt)); b.y = Math.max(2, Math.min(N - 3, b.y + Math.sin(b.th) * v * dt));
+    if (j === 0) BAT.moved += v * dt;
+    const ci = (b.y | 0) * N + (b.x | 0), wet = S.d[ci] > 0.05; if (wet) nw++;
+    const altT = 1.2 + 0.7 * Math.sin(t * 1.7 * b.f + b.ph) + 0.35 * Math.sin(t * 5.3 + b.ph * 2); b.alt += (altT - b.alt) * Math.min(1, dt * 4);
+    const x0 = Math.min(N - 2, b.x | 0), y0 = Math.min(N - 2, b.y | 0), fx = b.x - x0, fy = b.y - y0, k0 = y0 * N + x0;
+    const hs = surf[k0] * (1 - fx) * (1 - fy) + surf[k0 + 1] * fx * (1 - fy) + surf[k0 + N] * (1 - fx) * fy + surf[k0 + N + 1] * fx * fy;
+    const sc = persp(b.y, N), ox = (b.x + 0.5 - N / 2) * cp * sc + ow / 2, oyB = baseY(T, b.y, N) - hs * cp * T.hEx * sc - b.alt * cp * sc;
+    const px = Math.round(ox), py = Math.round(oyB); if (px < 0 || px >= ow || py >= oh) continue;
+    if (py >= 0) { const pc = T.pick[py * ow + px]; if (pc >= 0 && ((pc / N) | 0) > b.y + 3) continue; }
+    const x = T.sx + ox * s, y = T.sy + oyB * s, u = cp * sc * s, W = Math.max(isPhone ? 11 : 15, u * 3.4);
+    const up = Math.sin(t * 22 * b.f + b.ph) > 0; // two frames: wings up (a V) / wings down (a flat ^ with scalloped tips)
+    cx.globalAlpha = b.a * 0.9; cx.fillStyle = col; cx.strokeStyle = rim; cx.lineWidth = 1;
+    cx.beginPath();
+    if (up) { cx.moveTo(x, y + W * 0.08); cx.lineTo(x - W * 0.55, y - W * 0.42); cx.lineTo(x - W * 0.3, y - W * 0.12); cx.lineTo(x - W * 0.12, y - W * 0.16); cx.lineTo(x, y - W * 0.05);
+      cx.lineTo(x + W * 0.12, y - W * 0.16); cx.lineTo(x + W * 0.3, y - W * 0.12); cx.lineTo(x + W * 0.55, y - W * 0.42); }
+    else { cx.moveTo(x, y - W * 0.12); cx.lineTo(x - W * 0.6, y + W * 0.12); cx.lineTo(x - W * 0.42, y + W * 0.1); cx.lineTo(x - W * 0.3, y + W * 0.2); cx.lineTo(x - W * 0.15, y + W * 0.08); cx.lineTo(x, y + W * 0.14);
+      cx.lineTo(x + W * 0.15, y + W * 0.08); cx.lineTo(x + W * 0.3, y + W * 0.2); cx.lineTo(x + W * 0.42, y + W * 0.1); cx.lineTo(x + W * 0.6, y + W * 0.12); }
+    cx.closePath(); cx.globalAlpha = b.a * 0.35; cx.stroke(); cx.globalAlpha = b.a * 0.92; cx.fill();
+    cx.beginPath(); cx.ellipse(x, y, W * 0.09, W * 0.16, 0, 0, 7); cx.fill(); // body
+    if (!st.batsDrawn) st.batAt = [x, y]; st.batsDrawn++; sa += b.alt;
+  }
+  cx.restore();
+  st.batAlt = st.batsDrawn ? sa / st.batsDrawn : 0; st.batOverWater = st.batsDrawn ? nw / st.batsDrawn : 0; st.batMoved = BAT.moved; st.batTurns = BAT.turns;
+}
 // morning mist: on cool spring and autumn mornings, most after a clear calm night, soft low wisps hang over the water
 // (river and lakes) at dawn; the morning sun lifts and thins them and they are gone by late morning. None in summer
 // heat, at midday or in the map view; rain thins them, wind thins them and drifts them along. Cheap: up to MIST_MAX
@@ -2945,7 +3019,7 @@ function frame(now) {
   const tc0 = performance.now(); computeColours(st.time); st.colMs = (st.colMs || 0) * 0.9 + (performance.now() - tc0) * 0.1;
   cx.setTransform(dpr, 0, 0, dpr, 0, 0);
   if (st.view === 'tilt') { tiltGeom(); drawSky(st.time, dtReal); renderTilt(st.time); }
-  else { drawSky(st.time, dtReal); renderTop(st.time); drawCottagesTop(); drawWindowGlowTop(st.time); st.petalsDrawn = 0; st.mistDrawn = 0; st.mistDrift = 0; st.puddlesDrawn = 0; st.icyPuddles = 0; st.puddleIcePx = 0; st.splashKids = 0; st.splashHopping = 0; st.splashDrops = 0; st.splashSpots = 0; st.splashPuds = []; KID.on = false; st.duckFams = 0; st.ducksDrawn = 0; st.ducklingsDrawn = 0; st.duckLine = null; DUCK.last = null; st.swallowsDrawn = 0; st.swallowRings = 0; st.swallowAt = null; SW.last = st.time; } // no petals in the map view (seen from far above they would be specks of dust)
+  else { drawSky(st.time, dtReal); renderTop(st.time); drawCottagesTop(); drawWindowGlowTop(st.time); st.petalsDrawn = 0; st.mistDrawn = 0; st.mistDrift = 0; st.puddlesDrawn = 0; st.icyPuddles = 0; st.puddleIcePx = 0; st.splashKids = 0; st.splashHopping = 0; st.splashDrops = 0; st.splashSpots = 0; st.splashPuds = []; KID.on = false; st.batsDrawn = 0; st.batAt = null; st.duckFams = 0; st.ducksDrawn = 0; st.ducklingsDrawn = 0; st.duckLine = null; DUCK.last = null; st.swallowsDrawn = 0; st.swallowRings = 0; st.swallowAt = null; SW.last = st.time; } // no petals in the map view (seen from far above they would be specks of dust)
   floeStep(S, dtReal); drawFloes();
   drawCottageBadges(st.time);
   drawNaturalRain(st.time); drawOverlays(st.time); drawShower(st.time);
@@ -2987,7 +3061,7 @@ function adapt(dt) {
 // and thunder after lightning, wind (stronger in winter and storms), birds by day in the forest, crickets on
 // summer evenings, an owl at night, the creak and clack of turning mill wheels, cowbells near the village.
 // window.LV_AUDIO holds the levels (0..1) and gains so tests can check them without listening.
-const AU = { want: false, on: false, started: false, state: 'none', nodes: 0, live: 0, L: {}, G: {}, ev: { chirp: 0, cricket: 0, owl: 0, clack: 0, creak: 0, bell: 0, thunder: 0, plop: 0, slurp: 0, splash: 0, knock: 0, well: 0, rustle: 0, rumble: 0, drip: 0, squeak: 0, thump: 0, crunch: 0, skate: 0, icicle: 0, puddle: 0, peep: 0, twit: 0 }, flow: 0, riverPan: 0, veg: 0, ticks: 0, vol: 1, snowCover: 0, rainMuffle: 0, rainCut: 9000, masterT: 0, melt: 0, meltPan: 0 };
+const AU = { want: false, on: false, started: false, state: 'none', nodes: 0, live: 0, L: {}, G: {}, ev: { chirp: 0, cricket: 0, owl: 0, clack: 0, creak: 0, bell: 0, thunder: 0, plop: 0, slurp: 0, splash: 0, knock: 0, well: 0, rustle: 0, rumble: 0, drip: 0, squeak: 0, thump: 0, crunch: 0, skate: 0, icicle: 0, puddle: 0, peep: 0, twit: 0, bat: 0 }, flow: 0, riverPan: 0, veg: 0, ticks: 0, vol: 1, snowCover: 0, rainMuffle: 0, rainCut: 9000, masterT: 0, melt: 0, meltPan: 0 };
 window.LV_AUDIO = AU;
 const AU_KEY = 'lv-sound', AU_MASTER = 0.45, AU_DT = 0.25;
 const AU_MAX = { river: 0.55, rain: 0.42, wind: 0.2, birds: 0.42, crickets: 0.13, owl: 0.38, mill: 0.42, cows: 0.26, thunder: 0.85, melt: 0.3 }; // full-level gain per layer
@@ -3213,6 +3287,12 @@ function sndTwit(pan, k) { // a swallow: a quick, faint, high twitter of 3-5 chi
     o.frequency.exponentialRampToValueAtTime(f * (j % 2 ? 1.25 : 0.8), t + 0.045); g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.018 * k, t + 0.008); g.gain.linearRampToValueAtTime(0, t + 0.055); }
   AU.ev.twit++;
 }
+function sndBat(pan, k) { // a bat: an extremely faint, very high tick or two (fx bus, so mute and volume apply)
+  if (!fxOn()) return; const t0 = AG.ac.currentTime + 0.02 + Math.random() * 0.1, n = 1 + (Math.random() < 0.5 ? 1 : 0), f0 = 7800 + Math.random() * 1400;
+  for (let j = 0; j < n; j++) { const t = t0 + j * (0.05 + Math.random() * 0.03), g = auVoice('fx', t, 0.03, pan), o = osc('sine', f0, t, 0.03, g);
+    o.frequency.exponentialRampToValueAtTime(f0 * 0.7, t + 0.02); g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.008 * k, t + 0.003); g.gain.linearRampToValueAtTime(0, t + 0.022); }
+  AU.ev.bat++;
+}
 function sndPeep(pan, k) { // a duckling: two or three tiny soft peeps (fx bus, so mute and volume apply)
   if (!fxOn()) return; const t0 = AG.ac.currentTime + 0.02 + Math.random() * 0.15, n = 2 + (Math.random() < 0.4 ? 1 : 0), f0 = 3000 + Math.random() * 600;
   for (let j = 0; j < n; j++) { const t = t0 + j * (0.13 + Math.random() * 0.05), g = auVoice('fx', t, 0.12, pan), o = osc('sine', f0 * 1.08, t, 0.12, g);
@@ -3298,6 +3378,8 @@ function auTick(dt) {
   // ducklings on the water (while drawn): a soft peep now and then, at most one per 1.4 s, panned to the first family
   // swallows overhead (while drawn): a faint twitter now and then, at most one per 2.5 s, panned to the first bird
   if (st.swallowsDrawn > 0 && st.swallowAt && t - (AU.twitT || -9) > 2.5 && R() < 0.2) { sndTwit(fxPan(st.swallowAt[0]), 0.7 + 0.3 * R()); AU.twitT = t; }
+  // bats over the water (while drawn): an extremely faint high tick now and then, at most one per 3 s, panned to the first bat
+  if (st.batsDrawn > 0 && st.batAt && t - (AU.batT || -9) > 3 && R() < 0.15) { sndBat(fxPan(st.batAt[0]), 0.7 + 0.3 * R()); AU.batT = t; }
   if (st.ducklingsDrawn > 0 && st.duckPx && t - (AU.peepT || -9) > 1.4 && R() < 0.3) { sndPeep(fxPan(st.duckPx[0]), 0.7 + 0.3 * R()); AU.peepT = t; }
   // icicles dripping in the sun (while drawn): a soft plip now and then, at most one per 0.6 s, panned to a dripping cottage
   if (st.dripsDrawn > 0 && performance.now() - (st.dripsAt || 0) < 600 && t - (AU.icT || -9) > 0.6 && R() < Math.min(0.7, 0.3 + 0.04 * st.dripsDrawn)) {
