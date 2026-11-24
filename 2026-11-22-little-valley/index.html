@@ -1625,6 +1625,7 @@ function renderTilt(t) {
   { const t0 = performance.now(); drawSwallows(t); st.swallowMs = (st.swallowMs || 0) * 0.9 + (performance.now() - t0) * 0.1; }
   { const t0 = performance.now(); drawBats(t); st.batMs = (st.batMs || 0) * 0.9 + (performance.now() - t0) * 0.1; }
   { const t0 = performance.now(); drawMidges(t); st.midgeMs = (st.midgeMs || 0) * 0.9 + (performance.now() - t0) * 0.1; }
+  { const t0 = performance.now(); drawGlowworms(t); st.glowwormMs = (st.glowwormMs || 0) * 0.9 + (performance.now() - t0) * 0.1; }
   drawLanterns(t);
   drawFireflies(t);
   // mist where the river falls off the front edge
@@ -2730,6 +2731,64 @@ function drawMidges(t) {
   st.midgeAlt = st.midgesDrawn ? sa / st.midgesDrawn : 0; st.midgeOverWater = st.midgesDrawn ? nw / st.midgesDrawn : 0;
   st.midgeSpread = loose; st.midgeDrift = st.midgesDrawn ? sd / st.midgesDrawn : 0;
 }
+// glow-worms: on warm early-summer nights (yearFrac ~0.30-0.45, about 22:00-02:00) a capped number of tiny steady
+// greenish-yellow lights (24 desk / 12 phone) sit low in the grass where a meadow meets the forest (open grass cells
+// with a wooded cell within 2 cells; not water, snow, fields, paths or bare rock). They do not move: each glows softly
+// and slowly swells and fades, and now and then one dims right down for a while and comes back (a female switching off).
+// Distinct from the fireflies (those blink and drift over the open meadows earlier in the evening). None by day, in rain
+// or storms, outside the season, on snow, in the always-day mode (its hour never reaches the night) or in the map view;
+// fewer in a drought. Cheap: one pre-rendered glow sprite drawn with drawImage, spots picked every 4 s.
+// Hooks: st.glowwormsDrawn, st.glowwormAmt, st.glowwormSrc, st.glowwormAt (screen px of the lit ones),
+// st.glowwormCells (their grid cells), st.glowwormLvl (their brightness 0..1), st.glowwormOff (present but dimmed),
+// st.glowwormEdge (share drawn next to the forest), st.glowwormMs.
+const GLOW_MAX = isPhone ? 12 : 24, GW = { S: null, N: 0, t: -1e9, src: [], worms: [], last: -1, blob: null };
+function glowwormAmt() {
+  const S = st.S, y = S.P.seasons ? LV.yearFrac(S) : 0.36, h = LT.h;
+  const sea = smooth(0.29, 0.32, y) * (1 - smooth(0.43, 0.46, y));
+  const nt = h >= 12 ? smooth(21.5, 22.2, h) : 1 - smooth(1.5, 2.2, h);
+  return sea * nt * (1 - smooth(0.03, 0.1, LT.rain)) * (LT.storm > 0.02 ? 0 : 1) * (1 - 0.6 * (LT.dry || 0));
+}
+function glowOk(S, i, H) { return S.d[i] < 0.02 && S.snow[i] < 0.02 && !(S.ice && S.ice[i] > 0.3) && S.tree[i] < 0.3 && S.veg[i] > 0.4 && S.field[i] < 0.3 && S.path[i] < 0.4 && S.h[i] / H < 0.5; }
+function glowEdge(S, i) { const N = S.N, t = S.tree; for (let r = 1; r <= 2; r++) if (t[i - r] > 0.45 || t[i + r] > 0.45 || t[i - r * N] > 0.45 || t[i + r * N] > 0.45) return true; return false; }
+function glowSpots(S, T) { // visible grass cells at the forest edge, low in the valley
+  const N = S.N, H = N * 0.27, out = [], s2 = Math.max(1, N >> 6);
+  for (let y = 4; y < N - 4; y += s2) for (let x = 4; x < N - 4; x += s2) { const i = y * N + x;
+    if (glowOk(S, i, H) && glowEdge(S, i) && duckSeen(T, S, x, y)) out.push([x, y]); }
+  return out;
+}
+function drawGlowworms(t) {
+  const T = tilt, S = st.S, N = S.N; st.glowwormsDrawn = 0; st.glowwormOff = 0; st.glowwormAt = []; st.glowwormCells = []; st.glowwormLvl = [];
+  const amt = st.glowwormAmt = glowwormAmt(), dt = Math.max(0, Math.min(0.1, t - GW.last)); GW.last = t;
+  if (!T || T.s == null || !T.pick) return;
+  if (GW.S !== S || GW.N !== N) { GW.S = S; GW.N = N; GW.worms = []; GW.t = -1e9; }
+  if (amt < 0.02 && !GW.worms.some(w => w.a > 0.02)) { GW.worms.forEach(w => { w.a = 0; }); return; }
+  if (st.time - GW.t > 4 || st.time < GW.t) { GW.t = st.time; GW.src = glowSpots(S, T); }
+  st.glowwormSrc = GW.src.length; if (!GW.src.length && !GW.worms.some(w => w.a > 0.02)) return;
+  if (!GW.blob) { const c = document.createElement('canvas'); c.width = c.height = 32; const g = c.getContext('2d'), gr = g.createRadialGradient(16, 16, 0, 16, 16, 16);
+    gr.addColorStop(0, 'rgba(225,255,130,0.95)'); gr.addColorStop(0.22, 'rgba(180,250,90,0.5)'); gr.addColorStop(0.55, 'rgba(130,220,60,0.14)'); gr.addColorStop(1, 'rgba(100,200,40,0)'); g.fillStyle = gr; g.fillRect(0, 0, 32, 32); GW.blob = c; }
+  const n = Math.min(GLOW_MAX, Math.round(GLOW_MAX * Math.min(1, amt * 1.1))), H = N * 0.27, cp = T.cp, ow = T.ow, oh = T.oh, s = T.s;
+  while (GW.worms.length < GLOW_MAX) GW.worms.push({ x: 0, y: 0, i: -1, a: 0, l: 1, ph: Math.random() * 6.28, f: 0.35 + Math.random() * 0.45, id: GW.worms.length * 7.31 + Math.random() });
+  let ne = 0; cx.save(); cx.globalCompositeOperation = 'lighter';
+  for (let j = 0; j < GLOW_MAX; j++) {
+    const w = GW.worms[j]; let want = j < n ? 1 : 0, gone = false;
+    if (w.i >= 0 && w.a > 0.02 && !glowOk(S, w.i, H)) { want = 0; gone = true; } // flooded, snowed over or grown into a field: it goes dark
+    if (want && w.a < 0.02 && GW.src.length) { // a fresh worm in an edge cell, not on top of another
+      let best = null; for (let k = 0; k < 6 && !best; k++) { const q = GW.src[(Math.random() * GW.src.length) | 0]; if (!GW.worms.some(o => o !== w && o.a > 0.02 && Math.abs(o.x - q[0] - 0.5) < 0.9 && Math.abs(o.y - q[1] - 0.5) < 0.9)) best = q; }
+      if (!best) continue; w.x = best[0] + 0.2 + Math.random() * 0.6; w.y = best[1] + 0.2 + Math.random() * 0.6; w.i = best[1] * N + best[0]; w.l = 0; }
+    w.a += (want - w.a) * Math.min(1, dt * (want ? 0.6 : gone ? 4 : 1.2)); if (w.a < 0.02) continue;
+    const win = Math.floor(t / 9 + w.id), hz = Math.sin(win * 12.9898 + w.id * 78.233) * 43758.5453, off = hz - Math.floor(hz) < 0.18; // now and then one dims right down for a while
+    w.l += ((off ? 0.04 : 1) - w.l) * Math.min(1, dt * 0.7); if (w.l < 0.12) st.glowwormOff++;
+    const lv = w.a * w.l * (0.62 + 0.38 * Math.sin(t * w.f + w.ph)); if (lv < 0.03) continue;
+    const xi = w.x | 0, yi = w.y | 0, ci = yi * N + xi, sc = persp(w.y, N), ox = (w.x - N / 2) * cp * sc + ow / 2, oyB = baseY(T, w.y, N) - (surf[ci] + 0.12) * cp * T.hEx * sc;
+    const px = Math.round(ox), py = Math.round(oyB) + 1; if (px < 0 || px >= ow || py < 0 || py >= oh) continue;
+    { const pc = T.pick[py * ow + px]; if (pc < 0 || Math.abs(pc % N - xi) > 3 || Math.abs(((pc / N) | 0) - yi) > 4) continue; } // behind a ridge
+    const X = T.sx + ox * s, Y = T.sy + oyB * s, u = cp * sc * s, r = Math.max(isPhone ? 5.5 : 7, u * 1.9);
+    cx.globalAlpha = Math.min(1, lv); cx.drawImage(GW.blob, X - r, Y - r, r * 2, r * 2);
+    cx.fillStyle = 'rgb(236,255,170)'; cx.globalAlpha = Math.min(1, lv * 1.1); cx.fillRect(X - 1.1, Y - 1.1, 2.2, 2.2);
+    if (glowEdge(S, w.i)) ne++; st.glowwormAt.push([X, Y]); st.glowwormCells.push([xi, yi]); st.glowwormLvl.push(lv); st.glowwormsDrawn++;
+  }
+  cx.restore(); st.glowwormEdge = st.glowwormsDrawn ? ne / st.glowwormsDrawn : 0;
+}
 function mistWind() { const S = st.S, W = S.wx, dir = W && W.vx < 0 ? -1 : 1, r = S.rainNow || 0, sto = W && W.storm ? r : 0; return dir * (0.12 + 0.8 * r + 1.6 * sto + (st.windTest || 0) + 0.08 * Math.sin(st.time * 0.19)); }
 function updMist() {
   const S = st.S, h = LT.h, y = S.P.seasons ? LV.yearFrac(S) : -1;
@@ -3089,7 +3148,7 @@ function frame(now) {
   const tc0 = performance.now(); computeColours(st.time); st.colMs = (st.colMs || 0) * 0.9 + (performance.now() - tc0) * 0.1;
   cx.setTransform(dpr, 0, 0, dpr, 0, 0);
   if (st.view === 'tilt') { tiltGeom(); drawSky(st.time, dtReal); renderTilt(st.time); }
-  else { drawSky(st.time, dtReal); renderTop(st.time); drawCottagesTop(); drawWindowGlowTop(st.time); st.petalsDrawn = 0; st.mistDrawn = 0; st.mistDrift = 0; st.puddlesDrawn = 0; st.icyPuddles = 0; st.puddleIcePx = 0; st.splashKids = 0; st.splashHopping = 0; st.splashDrops = 0; st.splashSpots = 0; st.splashPuds = []; KID.on = false; st.batsDrawn = 0; st.batAt = null; st.midgesDrawn = 0; st.midgeSpecks = 0; st.midgeGlints = 0; st.midgeCols = []; MID.last = st.time; st.duckFams = 0; st.ducksDrawn = 0; st.ducklingsDrawn = 0; st.duckLine = null; DUCK.last = null; st.swallowsDrawn = 0; st.swallowRings = 0; st.swallowAt = null; SW.last = st.time; } // no petals in the map view (seen from far above they would be specks of dust)
+  else { drawSky(st.time, dtReal); renderTop(st.time); drawCottagesTop(); drawWindowGlowTop(st.time); st.glowwormsDrawn = 0; st.glowwormAt = []; st.glowwormCells = []; st.glowwormLvl = []; GW.worms.forEach(w => { w.a = 0; }); st.petalsDrawn = 0; st.mistDrawn = 0; st.mistDrift = 0; st.puddlesDrawn = 0; st.icyPuddles = 0; st.puddleIcePx = 0; st.splashKids = 0; st.splashHopping = 0; st.splashDrops = 0; st.splashSpots = 0; st.splashPuds = []; KID.on = false; st.batsDrawn = 0; st.batAt = null; st.midgesDrawn = 0; st.midgeSpecks = 0; st.midgeGlints = 0; st.midgeCols = []; MID.last = st.time; st.duckFams = 0; st.ducksDrawn = 0; st.ducklingsDrawn = 0; st.duckLine = null; DUCK.last = null; st.swallowsDrawn = 0; st.swallowRings = 0; st.swallowAt = null; SW.last = st.time; } // no petals in the map view (seen from far above they would be specks of dust)
   floeStep(S, dtReal); drawFloes();
   drawCottageBadges(st.time);
   drawNaturalRain(st.time); drawOverlays(st.time); drawShower(st.time);
