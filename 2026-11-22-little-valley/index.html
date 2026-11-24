@@ -1624,6 +1624,7 @@ function renderTilt(t) {
   drawPetals(t);
   { const t0 = performance.now(); drawSwallows(t); st.swallowMs = (st.swallowMs || 0) * 0.9 + (performance.now() - t0) * 0.1; }
   { const t0 = performance.now(); drawBats(t); st.batMs = (st.batMs || 0) * 0.9 + (performance.now() - t0) * 0.1; }
+  { const t0 = performance.now(); drawMidges(t); st.midgeMs = (st.midgeMs || 0) * 0.9 + (performance.now() - t0) * 0.1; }
   drawLanterns(t);
   drawFireflies(t);
   // mist where the river falls off the front edge
@@ -2660,6 +2661,75 @@ function drawBats(t) {
 // pre-blurred blobs drawn with drawImage, sources picked from the water every 3 s. Hooks: st.mistAmt, st.mistDrawn,
 // st.mistWind, st.mistDrift (mean drift in cells), st.mistLift (0 dawn .. 1 lifted), st.mistSrc; st.windTest (test-only extra wind).
 const MIST_MAX = isPhone ? 22 : 36, MIST = { S: null, N: 0, t: -1e9, list: [], blob: null };
+// midges: on calm summer evenings (yearFrac ~0.25-0.55, about 18:00-20:30, while the low sun is warm) a few small
+// soft clouds of tiny specks (cap 4 desk / 2 phone) dance in loose columns just above open water next to the bank.
+// Each column slowly rises and falls; each speck bobs on its own little orbit inside it and catches the warm low sun
+// (golden specks, a few twinkling brighter glints), with a faint warm haze behind the column so the swarm reads
+// against the water. A light wind drifts the columns downwind and loosens them; a stronger wind breaks them up (they
+// spread, thin and are gone above ~0.8). None in rain or storms, by day or at night, outside summer or in the map view;
+// a drought halves them. The always-day mode never reaches the evening hour (its look runs ~7:30-17:30), so no midges
+// there. Hooks: st.midgesDrawn (columns), st.midgeSpecks, st.midgeGlints, st.midgeCols (screen px), st.midgeAmt,
+// st.midgeAlt (mean column height in cells), st.midgeRise (first column's height, rising and falling),
+// st.midgeOverWater, st.midgeSpread (1 calm .. looser), st.midgeDrift (mean downwind drift in cells), st.midgeMs.
+const MIDGE_MAX = isPhone ? 2 : 4, MIDGE_N = isPhone ? 16 : 22, MID = { S: null, N: 0, t: -1e9, src: [], cols: [], last: -1, drift: 0 };
+function midgeAmt() {
+  const S = st.S, y = S.P.seasons ? LV.yearFrac(S) : 0.4, h = LT.h;
+  const sea = smooth(0.23, 0.27, y) * (1 - smooth(0.53, 0.57, y)), eve = smooth(17.6, 18.2, h) * (1 - smooth(20.2, 20.7, h));
+  const w = Math.abs(mistWind()); st.midgeWind = w;
+  return sea * eve * (1 - smooth(0.5, 0.85, w)) * (1 - smooth(0.04, 0.12, LT.rain)) * (LT.storm > 0.02 ? 0 : 1) * (1 - 0.5 * (LT.dry || 0));
+}
+function midgeSpots(S, T) { // visible open water cells right next to the bank, low in the valley
+  const N = S.N, H = N * 0.27, out = [], s2 = Math.max(1, N >> 6), open = i => S.d[i] > 0.05 && !(S.ice && S.ice[i] > 0.3);
+  for (let y = 4; y < N - 4; y += s2) for (let x = 4; x < N - 4; x += s2) { const i = y * N + x;
+    if (!open(i) || S.h[i] / H > 0.5) continue;
+    if (!(S.d[i - 2] < 0.02 || S.d[i + 2] < 0.02 || S.d[i - 2 * N] < 0.02 || S.d[i + 2 * N] < 0.02)) continue;
+    if (duckSeen(T, S, x, y)) out.push([x, y]); }
+  return out;
+}
+function drawMidges(t) {
+  const T = tilt, S = st.S, N = S.N; st.midgesDrawn = 0; st.midgeSpecks = 0; st.midgeGlints = 0; st.midgeCols = [];
+  const amt = st.midgeAmt = midgeAmt(), dt = Math.max(0, Math.min(0.1, t - MID.last)); MID.last = t;
+  if (!T || T.s == null) return;
+  if (MID.S !== S || MID.N !== N) { MID.S = S; MID.N = N; MID.cols = []; MID.t = -1e9; }
+  if (amt < 0.02 && !MID.cols.some(c => c.a > 0.02)) { MID.cols.forEach(c => { c.a = 0; }); return; }
+  if (st.time - MID.t > 4 || st.time < MID.t) { MID.t = st.time; MID.src = midgeSpots(S, T); }
+  st.midgeSrc = MID.src.length; if (!MID.src.length) return;
+  const n = Math.round(MIDGE_MAX * Math.min(1, amt * 1.15)), wv = mistWind(), w = Math.abs(wv), dir = wv < 0 ? -1 : 1;
+  const loose = 1 + 2.4 * smooth(0.18, 0.75, w), driftT = dir * Math.min(2.5, 4.5 * Math.max(0, w - 0.22));
+  while (MID.cols.length < MIDGE_MAX) { const sp = []; for (let k = 0; k < MIDGE_N; k++) sp.push([Math.random() * 6.28, 0.3 + Math.random() * 0.7, 1.6 + Math.random() * 2.6, Math.random() * 2 - 1, 1.1 + Math.random() * 1.8, Math.random() * 6.28, 2 + Math.random() * 5]);
+    MID.cols.push({ x: 0, y: 0, a: 0, ox: 0, ph: Math.random() * 6.28, f: 0.7 + Math.random() * 0.6, sp }); }
+  const cp = T.cp, ow = T.ow, oh = T.oh, s = T.s, gold = litC(255, 206, 112), glint = litC(255, 246, 210), haze = litC(255, 214, 140), hazeM = litC(255, 214, 140, 0.45), haze0 = litC(255, 214, 140, 0);
+  let sa = 0, nw = 0, sd = 0; cx.save();
+  for (let j = 0; j < MIDGE_MAX; j++) {
+    const c = MID.cols[j], want = j < n ? 1 : 0;
+    if (want && c.a < 0.02) { // a fresh column over a bank cell, away from the others
+      let best = null, bs = -1; for (let k = 0; k < 8; k++) { const q = MID.src[(Math.random() * MID.src.length) | 0]; let dm = 99; for (const o of MID.cols) if (o !== c && o.a > 0.02) dm = Math.min(dm, Math.hypot(o.x - q[0], o.y - q[1])); if (dm > bs) { bs = dm; best = q; } }
+      c.x = best[0] + 0.5; c.y = best[1] + 0.5; c.ox = 0; }
+    c.a += (want - c.a) * Math.min(1, dt * (want ? 0.8 : 1.4)); if (c.a < 0.02) continue;
+    c.ox += (driftT - c.ox) * Math.min(1, dt * 0.5);
+    const gx = Math.max(2, Math.min(N - 3, c.x + c.ox)), gy = c.y, ci = (gy | 0) * N + (gx | 0); if (S.d[ci] > 0.05) nw++;
+    const x0 = Math.min(N - 2, gx | 0), y0 = Math.min(N - 2, gy | 0), fx = gx - x0, fy = gy - y0, k0 = y0 * N + x0;
+    const hs = surf[k0] * (1 - fx) * (1 - fy) + surf[k0 + 1] * fx * (1 - fy) + surf[k0 + N] * (1 - fx) * fy + surf[k0 + N + 1] * fx * fy;
+    const sc = persp(gy, N), ox = (gx - N / 2) * cp * sc + ow / 2, oyB = baseY(T, gy, N) - hs * cp * T.hEx * sc;
+    const px = Math.round(ox), py = Math.round(oyB); if (px < 0 || px >= ow || py < 0 || py >= oh) continue;
+    { const pc = T.pick[py * ow + px]; if (pc >= 0 && ((pc / N) | 0) > gy + 3) continue; }
+    const u = Math.max(isPhone ? 3.2 : 4, cp * sc * s), X = T.sx + ox * s, Y0 = T.sy + oyB * s;
+    const rise = 1.6 + 0.55 * Math.sin(t * 0.55 * c.f + c.ph) + 0.25 * Math.sin(t * 1.3 + c.ph * 2); // the column rises and falls
+    const Yc = Y0 - rise * u - (isPhone ? 6 : 8), R = Math.max(isPhone ? 6 : 8, u * 1.4) * loose, Hh = Math.max(isPhone ? 9 : 12, u * 2) * (0.6 + 0.4 * loose), fade = c.a * (1 - 0.6 * smooth(0.35, 0.8, w));
+    { const rx = R * 1.4, ry = Hh * 1.3; cx.save(); cx.translate(X, Yc); cx.scale(rx / ry, 1); const g = cx.createRadialGradient(0, 0, 0, 0, 0, ry); g.addColorStop(0, haze); g.addColorStop(0.45, hazeM); g.addColorStop(1, haze0); cx.globalAlpha = 0.16 * fade; cx.fillStyle = g; cx.beginPath(); cx.arc(0, 0, ry, 0, 7); cx.fill(); cx.restore(); } // soft glow, no hard rim
+    for (const [p0, r0, om, v0, vf, gp, gf] of c.sp) { // each speck: its own little orbit plus a vertical bob
+      const an = p0 + t * om * c.f, sx = X + Math.cos(an) * r0 * R + dir * Math.max(0, w - 0.22) * u * 0.6 * Math.sin(t * 0.9 + p0);
+      const sy = Yc + v0 * Hh + Math.sin(t * vf * 2.2 + p0) * Hh * 0.18 + Math.sin(an) * r0 * R * 0.25;
+      const tw = Math.sin(t * gf + gp); // twinkle: catching the sun now and then
+      if (tw > 0.82) { cx.globalAlpha = fade; cx.fillStyle = glint; cx.fillRect(sx - 1.2, sy - 1.2, 2.6, 2.6); cx.globalAlpha = fade * 0.45; cx.fillRect(sx - 2.6, sy - 0.4, 5.4, 1); cx.fillRect(sx - 0.4, sy - 2.6, 1, 5.4); st.midgeGlints++; }
+      else { cx.globalAlpha = fade * (0.55 + 0.35 * tw); cx.fillStyle = gold; cx.fillRect(sx - 0.9, sy - 0.9, 1.8, 1.8); }
+      st.midgeSpecks++; }
+    if (!st.midgesDrawn) st.midgeRise = rise; st.midgeCols.push([X, Yc]); st.midgesDrawn++; sa += rise; sd += c.ox;
+  }
+  cx.restore();
+  st.midgeAlt = st.midgesDrawn ? sa / st.midgesDrawn : 0; st.midgeOverWater = st.midgesDrawn ? nw / st.midgesDrawn : 0;
+  st.midgeSpread = loose; st.midgeDrift = st.midgesDrawn ? sd / st.midgesDrawn : 0;
+}
 function mistWind() { const S = st.S, W = S.wx, dir = W && W.vx < 0 ? -1 : 1, r = S.rainNow || 0, sto = W && W.storm ? r : 0; return dir * (0.12 + 0.8 * r + 1.6 * sto + (st.windTest || 0) + 0.08 * Math.sin(st.time * 0.19)); }
 function updMist() {
   const S = st.S, h = LT.h, y = S.P.seasons ? LV.yearFrac(S) : -1;
@@ -3019,7 +3089,7 @@ function frame(now) {
   const tc0 = performance.now(); computeColours(st.time); st.colMs = (st.colMs || 0) * 0.9 + (performance.now() - tc0) * 0.1;
   cx.setTransform(dpr, 0, 0, dpr, 0, 0);
   if (st.view === 'tilt') { tiltGeom(); drawSky(st.time, dtReal); renderTilt(st.time); }
-  else { drawSky(st.time, dtReal); renderTop(st.time); drawCottagesTop(); drawWindowGlowTop(st.time); st.petalsDrawn = 0; st.mistDrawn = 0; st.mistDrift = 0; st.puddlesDrawn = 0; st.icyPuddles = 0; st.puddleIcePx = 0; st.splashKids = 0; st.splashHopping = 0; st.splashDrops = 0; st.splashSpots = 0; st.splashPuds = []; KID.on = false; st.batsDrawn = 0; st.batAt = null; st.duckFams = 0; st.ducksDrawn = 0; st.ducklingsDrawn = 0; st.duckLine = null; DUCK.last = null; st.swallowsDrawn = 0; st.swallowRings = 0; st.swallowAt = null; SW.last = st.time; } // no petals in the map view (seen from far above they would be specks of dust)
+  else { drawSky(st.time, dtReal); renderTop(st.time); drawCottagesTop(); drawWindowGlowTop(st.time); st.petalsDrawn = 0; st.mistDrawn = 0; st.mistDrift = 0; st.puddlesDrawn = 0; st.icyPuddles = 0; st.puddleIcePx = 0; st.splashKids = 0; st.splashHopping = 0; st.splashDrops = 0; st.splashSpots = 0; st.splashPuds = []; KID.on = false; st.batsDrawn = 0; st.batAt = null; st.midgesDrawn = 0; st.midgeSpecks = 0; st.midgeGlints = 0; st.midgeCols = []; MID.last = st.time; st.duckFams = 0; st.ducksDrawn = 0; st.ducklingsDrawn = 0; st.duckLine = null; DUCK.last = null; st.swallowsDrawn = 0; st.swallowRings = 0; st.swallowAt = null; SW.last = st.time; } // no petals in the map view (seen from far above they would be specks of dust)
   floeStep(S, dtReal); drawFloes();
   drawCottageBadges(st.time);
   drawNaturalRain(st.time); drawOverlays(st.time); drawShower(st.time);
