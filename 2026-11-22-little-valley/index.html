@@ -1625,6 +1625,7 @@ function renderTilt(t) {
   { const t0 = performance.now(); drawSwallows(t); st.swallowMs = (st.swallowMs || 0) * 0.9 + (performance.now() - t0) * 0.1; }
   { const t0 = performance.now(); drawBats(t); st.batMs = (st.batMs || 0) * 0.9 + (performance.now() - t0) * 0.1; }
   { const t0 = performance.now(); drawMidges(t); st.midgeMs = (st.midgeMs || 0) * 0.9 + (performance.now() - t0) * 0.1; }
+  { const t0 = performance.now(); drawDragonflies(t); st.dfMs = (st.dfMs || 0) * 0.9 + (performance.now() - t0) * 0.1; }
   { const t0 = performance.now(); drawGlowworms(t); st.glowwormMs = (st.glowwormMs || 0) * 0.9 + (performance.now() - t0) * 0.1; }
   drawLanterns(t);
   drawFireflies(t);
@@ -2731,6 +2732,90 @@ function drawMidges(t) {
   st.midgeAlt = st.midgesDrawn ? sa / st.midgesDrawn : 0; st.midgeOverWater = st.midgesDrawn ? nw / st.midgesDrawn : 0;
   st.midgeSpread = loose; st.midgeDrift = st.midgesDrawn ? sd / st.midgesDrawn : 0;
 }
+// dragonflies: on hot summer afternoons (yearFrac ~0.28-0.55, about 12:00-18:00) a capped few dragonflies (6 desk /
+// 3 phone) patrol low over open water right next to the bank. Each one hovers in place (a tiny wobble, wings a blur),
+// then shoots off in a quick straight dash to a new spot near its home stretch of bank and stops dead, with a sudden
+// change of direction for the next dash. A long thin body (blue, or green-bronze), a round head and two pairs of
+// translucent shimmering wings that catch the sun; a faint shadow dot on the water below. None in rain or storms, in a
+// strong wind, at night, in the morning or evening, outside summer, on ice or without open water, or in the map view;
+// a drought halves them. The always-day mode follows its own hour (its look runs ~7:30-17:30) like every other
+// creature, so in that mode they come out during its afternoon part only. Hooks: st.dragonfliesDrawn, st.dfAmt,
+// st.dfAt (screen px of the first), st.dfMoved (cells flown by the first), st.dfDashes (dashes so far), st.dfHover
+// (flies hovering now), st.dfAlt (mean height above the water in cells), st.dfOverWater, st.dfLen (body px),
+// st.dfBlue / st.dfGreen (colours drawn), st.dfSrc, st.dfMs.
+const DF_MAX = isPhone ? 3 : 6, DF = { S: null, N: 0, t: -1e9, src: [], flies: [], last: -1, moved: 0, dashes: 0 };
+function dfAmt() {
+  const S = st.S, y = S.P.seasons ? LV.yearFrac(S) : 0.4, h = LT.h;
+  const sea = smooth(0.26, 0.3, y) * (1 - smooth(0.53, 0.57, y)), aft = smooth(11.5, 12.2, h) * (1 - smooth(17.6, 18.2, h));
+  const w = Math.abs(mistWind()); st.dfWind = w;
+  return sea * aft * (1 - smooth(0.45, 0.75, w)) * (1 - smooth(0.04, 0.12, LT.rain)) * (LT.storm > 0.02 ? 0 : 1) * (1 - 0.5 * (LT.dry || 0));
+}
+function dfOpen(S, i) { return S.d[i] > 0.05 && !(S.ice && S.ice[i] > 0.3); }
+function drawDragonflies(t) {
+  const T = tilt, S = st.S, N = S.N; st.dragonfliesDrawn = 0; st.dfAt = null; st.dfHover = 0; st.dfBlue = 0; st.dfGreen = 0;
+  const amt = st.dfAmt = dfAmt(), dt = Math.max(0, Math.min(0.1, t - DF.last)); DF.last = t;
+  st.dfMoved = DF.moved; st.dfDashes = DF.dashes;
+  if (!T || T.s == null) return;
+  if (DF.S !== S || DF.N !== N) { DF.S = S; DF.N = N; DF.flies = []; DF.t = -1e9; }
+  if (amt < 0.02 && !DF.flies.some(f => f.a > 0.02)) { DF.flies.forEach(f => { f.a = 0; }); return; }
+  if (st.time - DF.t > 6 || st.time < DF.t) { DF.t = st.time; DF.src = midgeSpots(S, T); } // same bank-water cells as the midges
+  st.dfSrc = DF.src.length; if (!DF.src.length) { DF.flies.forEach(f => { f.a = 0; }); return; }
+  const n = Math.round(DF_MAX * Math.min(1, amt * 1.1)), pu = Math.max(0.5, T.cp * T.s), V = Math.max(18, N * 0.2, 130 / pu), R = Math.max(1, 5 / pu); // dashes at least ~130 px/s and ~20 px long on screen
+  while (DF.flies.length < DF_MAX) DF.flies.push({ x: 0, y: 0, hx: 0, hy: 0, tx: 0, ty: 0, a: 0, dash: false, until: 0, alt: 0.9, ang: Math.random() * 6.28, sa: 0, ph: Math.random() * 6.28, blue: DF.flies.length % 3 !== 1 });
+  const pickT = f => { // a new spot a short dash away, over open water near home, in a clearly new direction
+    for (let k = 0; k < 14; k++) { const an = f.ang + (Math.random() < 0.5 ? -1 : 1) * (0.8 + Math.random() * 1.9), d = Math.min(12, (2.5 + Math.random() * 3.5) * R) * (1 - k / 18); // shorter tries on a narrow stream
+      let x = f.x + Math.cos(an) * d, y = f.y + Math.sin(an) * d; if (Math.hypot(x - f.hx, y - f.hy) > 7 * R) { x = f.hx + (x - f.hx) * 0.4; y = f.hy + (y - f.hy) * 0.4; }
+      x = Math.max(3, Math.min(N - 4, x)); y = Math.max(3, Math.min(N - 4, y));
+      if (dfOpen(S, (y | 0) * N + (x | 0))) { f.tx = x; f.ty = y; f.ang = Math.atan2(y - f.y, x - f.x); return true; } }
+    let q = null; for (let k = 0; k < 12; k++) { const c = DF.src[(Math.random() * DF.src.length) | 0], dd = Math.hypot(c[0] + 0.5 - f.x, c[1] + 0.5 - f.y); if (dd > 1.5 && dd < 9 * R) { q = c; break; } } // else: to another bank cell nearby
+    if (q) { f.tx = q[0] + 0.5; f.ty = q[1] + 0.5; f.hx = f.tx; f.hy = f.ty; } else { f.tx = f.hx; f.ty = f.hy; } f.ang = Math.atan2(f.ty - f.y, f.tx - f.x); return true; };
+  const cp = T.cp, ow = T.ow, oh = T.oh, s = T.s, blueB = litC(46, 128, 214), blueD = litC(22, 60, 120), grnB = litC(92, 150, 58), grnD = litC(96, 70, 30);
+  const eye = litC(30, 40, 50), wingC = litC(225, 240, 255), wingE = litC(255, 255, 255), wingR = litC(70, 90, 110), shad = 'rgba(10,30,40,0.22)';
+  let sa = 0, nw = 0; cx.save(); cx.lineCap = 'round';
+  for (let j = 0; j < DF_MAX; j++) {
+    const f = DF.flies[j], want = j < n ? 1 : 0;
+    if (want && f.a < 0.02) { // a fresh one over a bank cell, away from the others
+      let best = null, bs = -1; for (let k = 0; k < 8; k++) { const q = DF.src[(Math.random() * DF.src.length) | 0]; let dm = 99; for (const o of DF.flies) if (o !== f && o.a > 0.02) dm = Math.min(dm, Math.hypot(o.hx - q[0], o.hy - q[1])); if (dm > bs) { bs = dm; best = q; } }
+      f.hx = f.x = best[0] + 0.5; f.hy = f.y = best[1] + 0.5; f.dash = false; f.until = t + 0.3 + Math.random() * 1.2; }
+    f.a += (want - f.a) * Math.min(1, dt * (want ? 1.2 : 1.6)); if (f.a < 0.02) continue;
+    if (f.dash) { const dx = f.tx - f.x, dy = f.ty - f.y, d = Math.hypot(dx, dy), st1 = V * dt;
+      if (d <= st1) { f.x = f.tx; f.y = f.ty; f.dash = false; f.until = t + 0.4 + Math.random() * 1.1; if (j === 0) DF.moved += d; } // stop dead and hover
+      else { f.x += dx / d * st1; f.y += dy / d * st1; if (j === 0) DF.moved += st1; } }
+    else if (t >= f.until) { if (Math.random() < 0.08 && DF.src.length) { const q = DF.src[(Math.random() * DF.src.length) | 0]; if (Math.hypot(q[0] - f.hx, q[1] - f.hy) < 10) { f.hx = q[0] + 0.5; f.hy = q[1] + 0.5; } }
+      pickT(f); f.dash = true; DF.dashes++; }
+    const altT = f.dash ? 0.75 : 0.9 + 0.12 * Math.sin(t * 2.3 + f.ph); f.alt += (altT - f.alt) * Math.min(1, dt * 5);
+    const wob = f.dash ? 0 : 0.06; // hovering: a tiny wobble
+    const gx = f.x + wob * Math.sin(t * 7.1 + f.ph), gy = f.y + wob * Math.cos(t * 5.3 + f.ph * 2), ci = (gy | 0) * N + (gx | 0); if (S.d[ci] > 0.05) nw++;
+    const x0 = Math.min(N - 2, gx | 0), y0 = Math.min(N - 2, gy | 0), fx = gx - x0, fy = gy - y0, k0 = y0 * N + x0;
+    const hs = surf[k0] * (1 - fx) * (1 - fy) + surf[k0 + 1] * fx * (1 - fy) + surf[k0 + N] * (1 - fx) * fy + surf[k0 + N + 1] * fx * fy;
+    const sc = persp(gy, N), ox = (gx - N / 2) * cp * sc + ow / 2, oyW = baseY(T, gy, N) - hs * cp * T.hEx * sc, oyB = oyW - f.alt * cp * sc;
+    const px = Math.round(ox), py = Math.round(oyW); if (px < 0 || px >= ow || py < 0 || py >= oh) continue;
+    { const pc = T.pick[py * ow + px]; if (pc >= 0 && ((pc / N) | 0) > gy + 3) continue; }
+    const u = Math.max(isPhone ? 3.2 : 4, cp * sc * s), X = T.sx + ox * s, Y = T.sy + oyB * s, Yw = T.sy + oyW * s;
+    // heading on screen: the dash direction (the ground y axis is squashed by the tilt)
+    const sAng = Math.atan2(Math.sin(f.ang) * 0.6, Math.cos(f.ang)); let dA = sAng - f.sa; dA = Math.atan2(Math.sin(dA), Math.cos(dA)); f.sa += dA * Math.min(1, dt * (f.dash ? 30 : 12));
+    const L = Math.max(isPhone ? 16 : 22, u * 2.6), c = Math.cos(f.sa), sn = Math.sin(f.sa), fade = f.a;
+    cx.globalAlpha = fade; cx.fillStyle = shad; cx.beginPath(); cx.ellipse(X, Yw + 1, L * 0.35, L * 0.1, 0, 0, 7); cx.fill(); // shadow on the water
+    // wings: two pairs, just behind the head, a translucent shimmering blur
+    const wx = X + c * L * 0.22, wy = Y + sn * L * 0.22, wl = L * 0.5, ww = Math.max(1.8, L * 0.09), sh = 0.5 + 0.5 * Math.sin(t * 38 + f.ph), fl = 0.1 * Math.sin(t * 45 + f.ph);
+    cx.beginPath(); // all four wings in one path: the front pair swept a little forward, the hind pair a little back
+    for (const [off, sw, sz] of [[L * 0.06, -0.32, 1], [-L * 0.1, 0.32, 0.92]]) for (const side of [-1, 1]) {
+      const bx = wx + c * off, by = wy + sn * off, an = f.sa + side * (Math.PI / 2 + sw + fl), r = wl * sz * 0.5;
+      cx.moveTo(bx + Math.cos(an) * r * 2, by + Math.sin(an) * r * 2); cx.ellipse(bx + Math.cos(an) * r, by + Math.sin(an) * r, r, ww, an, 0, 6.2832); }
+    cx.globalAlpha = fade * (0.42 + 0.2 * sh); cx.fillStyle = wingC; cx.fill();
+    cx.globalAlpha = fade * (0.35 + 0.35 * sh); cx.strokeStyle = wingR; cx.lineWidth = 0.8; cx.stroke(); // a thin dark rim so they read against bright water
+    if (sh > 0.93) { cx.globalAlpha = fade * 0.8; cx.fillStyle = wingE; cx.fillRect(wx - 1.2, wy - 1.2, 2.4, 2.4); } // the sun catches a wing
+    // body: long thin abdomen behind, thorax, round head in front
+    const bB = f.blue ? blueB : grnB, bD = f.blue ? blueD : grnD, tailX = X - c * L * 0.62, tailY = Y - sn * L * 0.62;
+    cx.globalAlpha = fade; cx.strokeStyle = bD; cx.lineWidth = Math.max(1.6, L * 0.1); cx.beginPath(); cx.moveTo(X + c * L * 0.18, Y + sn * L * 0.18); cx.lineTo(tailX, tailY); cx.stroke();
+    cx.strokeStyle = bB; cx.lineWidth = Math.max(1, L * 0.06); cx.beginPath(); cx.moveTo(X + c * L * 0.16, Y + sn * L * 0.16); cx.lineTo(tailX + c * 1, tailY + sn * 1); cx.stroke();
+    cx.fillStyle = bD; cx.beginPath(); cx.ellipse(X + c * L * 0.24, Y + sn * L * 0.24, L * 0.11, L * 0.08, f.sa, 0, 7); cx.fill(); // thorax
+    cx.fillStyle = eye; cx.beginPath(); cx.arc(X + c * L * 0.38, Y + sn * L * 0.38, Math.max(1.3, L * 0.075), 0, 7); cx.fill(); // head with big eyes
+    if (!st.dragonfliesDrawn) st.dfAt = [X, Y]; st.dragonfliesDrawn++; if (f.blue) st.dfBlue++; else st.dfGreen++; if (!f.dash) st.dfHover++; sa += f.alt; st.dfLen = L;
+  }
+  cx.restore();
+  st.dfAlt = st.dragonfliesDrawn ? sa / st.dragonfliesDrawn : 0; st.dfOverWater = st.dragonfliesDrawn ? nw / st.dragonfliesDrawn : 0;
+}
 // glow-worms: on warm early-summer nights (yearFrac ~0.30-0.45, about 22:00-02:00) a capped number of tiny steady
 // greenish-yellow lights (24 desk / 12 phone) sit low in the grass where a meadow meets the forest (open grass cells
 // with a wooded cell within 2 cells; not water, snow, fields, paths or bare rock). They do not move: each glows softly
@@ -3148,7 +3233,7 @@ function frame(now) {
   const tc0 = performance.now(); computeColours(st.time); st.colMs = (st.colMs || 0) * 0.9 + (performance.now() - tc0) * 0.1;
   cx.setTransform(dpr, 0, 0, dpr, 0, 0);
   if (st.view === 'tilt') { tiltGeom(); drawSky(st.time, dtReal); renderTilt(st.time); }
-  else { drawSky(st.time, dtReal); renderTop(st.time); drawCottagesTop(); drawWindowGlowTop(st.time); st.glowwormsDrawn = 0; st.glowwormAt = []; st.glowwormCells = []; st.glowwormLvl = []; GW.worms.forEach(w => { w.a = 0; }); st.petalsDrawn = 0; st.mistDrawn = 0; st.mistDrift = 0; st.puddlesDrawn = 0; st.icyPuddles = 0; st.puddleIcePx = 0; st.splashKids = 0; st.splashHopping = 0; st.splashDrops = 0; st.splashSpots = 0; st.splashPuds = []; KID.on = false; st.batsDrawn = 0; st.batAt = null; st.midgesDrawn = 0; st.midgeSpecks = 0; st.midgeGlints = 0; st.midgeCols = []; MID.last = st.time; st.duckFams = 0; st.ducksDrawn = 0; st.ducklingsDrawn = 0; st.duckLine = null; DUCK.last = null; st.swallowsDrawn = 0; st.swallowRings = 0; st.swallowAt = null; SW.last = st.time; } // no petals in the map view (seen from far above they would be specks of dust)
+  else { drawSky(st.time, dtReal); renderTop(st.time); drawCottagesTop(); drawWindowGlowTop(st.time); st.glowwormsDrawn = 0; st.glowwormAt = []; st.glowwormCells = []; st.glowwormLvl = []; GW.worms.forEach(w => { w.a = 0; }); st.petalsDrawn = 0; st.mistDrawn = 0; st.mistDrift = 0; st.puddlesDrawn = 0; st.icyPuddles = 0; st.puddleIcePx = 0; st.splashKids = 0; st.splashHopping = 0; st.splashDrops = 0; st.splashSpots = 0; st.splashPuds = []; KID.on = false; st.batsDrawn = 0; st.batAt = null; st.midgesDrawn = 0; st.midgeSpecks = 0; st.midgeGlints = 0; st.midgeCols = []; MID.last = st.time; st.dragonfliesDrawn = 0; st.dfAt = null; st.dfHover = 0; DF.last = st.time; st.duckFams = 0; st.ducksDrawn = 0; st.ducklingsDrawn = 0; st.duckLine = null; DUCK.last = null; st.swallowsDrawn = 0; st.swallowRings = 0; st.swallowAt = null; SW.last = st.time; } // no petals in the map view (seen from far above they would be specks of dust)
   floeStep(S, dtReal); drawFloes();
   drawCottageBadges(st.time);
   drawNaturalRain(st.time); drawOverlays(st.time); drawShower(st.time);
