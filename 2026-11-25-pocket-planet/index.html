@@ -1,0 +1,1659 @@
+<!doctype html>
+<html lang="de-CH">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#070b14">
+<meta name="description" content="Taschenplanet: ein kleiner Planet zum Drehen. Forme Land, Wasser, Klima und Leben.">
+<title>Taschenplanet</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect fill='%23070b14' width='32' height='32' rx='7'/%3E%3Ccircle cx='16' cy='16' r='10' fill='%233a7ec4'/%3E%3Cpath fill='%236ea84a' d='M8 15c2-4 6-6 10-5 1 2-1 4-3 5-3 1-5 1-7 0z'/%3E%3Ccircle cx='24' cy='8' r='2.2' fill='%23efe8d4'/%3E%3C/svg%3E">
+<style>
+  :root { color-scheme: dark; --bar-h: 76px; }
+  html, body { margin: 0; height: 100%; background: #070b14; overflow: hidden; color: #e7eef6;
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif; -webkit-user-select: none; user-select: none;
+    -webkit-tap-highlight-color: transparent; overscroll-behavior: none; touch-action: none; }
+  canvas { display: block; width: 100vw; height: 100vh; touch-action: none; }
+  button { font: inherit; color: #e7eef6; background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.16);
+    border-radius: 10px; cursor: pointer; }
+  button:focus-visible { outline: 2px solid #f0d78c; outline-offset: 2px; }
+  button.on { background: rgba(143,208,176,.22); border-color: rgba(184,236,206,.7); }
+  button:disabled { opacity: .4; cursor: default; }
+  #top { position: fixed; z-index: 4; left: max(12px, env(safe-area-inset-left)); top: max(10px, env(safe-area-inset-top));
+    pointer-events: none; text-shadow: 0 1px 8px rgba(0,0,0,.7); max-width: calc(100vw - 92px); }
+  #top b { display: block; font-size: 18px; font-weight: 680; letter-spacing: .01em; color: #f3e6c4; }
+  #top span { display: block; margin-top: 1px; font-size: 13px; opacity: .8; }
+  #bSound { position: fixed; z-index: 6; right: max(10px, env(safe-area-inset-right)); top: max(8px, env(safe-area-inset-top));
+    min-width: 44px; min-height: 44px; padding: 8px 12px; font-size: 15px; }
+  #pass { position: fixed; z-index: 4; box-sizing: border-box; background: rgba(8,14,26,.82);
+    border: 1px solid rgba(243,230,196,.22); border-radius: 14px; padding: 10px 12px 8px;
+    backdrop-filter: blur(8px); box-shadow: 0 10px 30px rgba(0,0,0,.28); overflow: auto; -webkit-overflow-scrolling: touch; }
+  #pass header { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+  #pass header b { font-size: 15px; color: #f3e6c4; letter-spacing: .02em; }
+  #pass header span, #pLife, #pKlima, #pName { font-size: 12.5px; opacity: .88; }
+  #pName { margin-top: 2px; color: #d5ecff; }
+  #pLife, #pKlima { margin-top: 2px; }
+  #pBiomes { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column; gap: 3px; }
+  #pBiomes li { display: grid; grid-template-columns: 12px 1fr auto; gap: 6px; align-items: center; font-size: 12.5px; }
+  #pBiomes i { width: 10px; height: 10px; border-radius: 3px; display: block; }
+  #pBiomes .bar { grid-column: 2 / span 2; height: 3px; border-radius: 3px; background: rgba(255,255,255,.08); overflow: hidden; }
+  #pBiomes .bar span { display: block; height: 100%; background: rgba(243,230,196,.55); }
+  #hint { position: fixed; z-index: 4; left: 50%; transform: translateX(-50%);
+    bottom: calc(var(--bar-h) + max(8px, env(safe-area-inset-bottom)));
+    max-width: min(540px, calc(100vw - 16px)); text-align: center; font-size: 13.5px; line-height: 1.35;
+    color: #d5e4f6; background: rgba(7,12,22,.55); border-radius: 10px; padding: 6px 10px; pointer-events: none; }
+  #toast { position: fixed; z-index: 7; left: 50%; top: max(58px, calc(env(safe-area-inset-top) + 52px));
+    transform: translateX(-50%); background: rgba(8,14,26,.92); border: 1px solid rgba(243,230,196,.35);
+    border-radius: 999px; padding: 8px 14px; font-size: 14px; opacity: 0; pointer-events: none;
+    transition: opacity .35s; max-width: min(92vw, 460px); text-align: center; }
+  #toast.show { opacity: 1; }
+  #bar { position: fixed; z-index: 5; left: 50%; bottom: max(8px, env(safe-area-inset-bottom)); transform: translateX(-50%);
+    display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; padding: 6px;
+    width: max-content; max-width: calc(100vw - 12px); box-sizing: border-box; border-radius: 14px;
+    background: rgba(7,12,22,.78); border: 1px solid rgba(255,255,255,.08); backdrop-filter: blur(8px); }
+  #bar button { min-height: 44px; padding: 8px 10px; font-size: 14px; }
+  #ask { position: fixed; z-index: 8; left: 50%; top: 50%; transform: translate(-50%, -50%);
+    width: min(420px, calc(100vw - 24px)); box-sizing: border-box; background: rgba(8,14,26,.96);
+    border: 1px solid rgba(243,230,196,.35); border-radius: 16px; padding: 16px; box-shadow: 0 16px 50px rgba(0,0,0,.5); }
+  #ask[hidden] { display: none; }
+  #ask p { margin: 0 0 8px; line-height: 1.4; }
+  #ask .row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+  #ask .row button { min-height: 44px; padding: 8px 12px; }
+  @media (min-width: 760px) {
+    #pass { left: max(12px, env(safe-area-inset-left)); top: max(56px, calc(env(safe-area-inset-top) + 48px));
+      width: 250px; max-height: calc(100vh - 80px); }
+  }
+  @media (max-width: 759px) {
+    #pass { left: max(10px, env(safe-area-inset-left)); right: max(10px, env(safe-area-inset-right));
+      top: calc(max(10px, env(safe-area-inset-top)) + 46px); width: auto; max-height: 32vh; }
+    #top b { font-size: 16px; }
+  }
+  @media (max-height: 520px) {
+    #hint { display: none; }
+    #pass { max-height: calc(100vh - 16px); }
+    #pBiomes .bar { display: none; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    #toast { transition: none; }
+  }
+</style>
+</head>
+<body>
+<canvas id="c" aria-label="Taschenplanet. Eine Kugel im All. Ziehen dreht sie, Werkzeuge formen Land und Leben."></canvas>
+<div id="top"><b>Taschenplanet</b><span id="sub">ein kleiner Planet</span></div>
+<button type="button" id="bSound" aria-pressed="false" aria-label="Ton ist aus" title="Ton an oder aus (M)">Ton</button>
+<aside id="pass" aria-label="Planetenpass">
+  <header><b>Planetenpass</b><span id="pAge">Alter: frisch</span></header>
+  <div id="pName"></div>
+  <div id="pLife">Leben: 0</div>
+  <div id="pKlima">Klima: mild</div>
+  <ul id="pBiomes"></ul>
+</aside>
+<div id="hint" role="status">Zieh die Kugel, oder wähle ein Werkzeug.</div>
+<div id="toast" role="status" aria-live="polite"></div>
+<div id="ask" hidden role="dialog" aria-labelledby="askTitle">
+  <p id="askTitle"><b>Neuen Planeten formen?</b></p>
+  <p>Die jetzige Kugel geht verloren. Ein geteilter Link bleibt gültig.</p>
+  <div class="row">
+    <button type="button" id="askYes">Neu formen</button>
+    <button type="button" id="askNo">Abbrechen</button>
+  </div>
+</div>
+<div id="bar" role="toolbar" aria-label="Werkzeuge">
+  <button type="button" data-tool="drehen" class="on" title="Drehen (1)">Drehen</button>
+  <button type="button" data-tool="heben" title="Heben (2)">Heben</button>
+  <button type="button" data-tool="senken" title="Senken (3)">Senken</button>
+  <button type="button" data-tool="wasser" title="Wasser (4)">Wasser</button>
+  <button type="button" data-tool="saat" title="Saat (5)">Saat</button>
+  <button type="button" data-tool="wolke" title="Wolke (6)">Wolke</button>
+  <button type="button" data-tool="dorf" title="Dorf (7)">Dorf</button>
+  <button type="button" id="bWarm" title="Wärmer (+)">Wärmer</button>
+  <button type="button" id="bCool" title="Kühler (-)">Kühler</button>
+  <button type="button" id="bShare" title="Teilen (S)">Teilen</button>
+  <button type="button" id="bNew" title="Neu (N)">Neu</button>
+</div>
+<script>
+(function () {
+  "use strict";
+  const TAU = Math.PI * 2;
+  const GW = 128;
+  const GH = 64;
+  const MASK = GW - 1;
+  const N = GW * GH;
+  const KEY = "playbot-pocket-planet-v1";
+  const MAX_EDITS = 1800;
+  const SUN = norm3(0.62, 0.28, 0.73);
+  const BIOMES = [
+    { id: "fels", name: "Fels", rgb: [141, 115, 100] },
+    { id: "ozean", name: "Ozean", rgb: [30, 120, 200] },
+    { id: "eis", name: "Eis", rgb: [220, 240, 250] },
+    { id: "wueste", name: "Wüste", rgb: [214, 170, 86] },
+    { id: "wiese", name: "Wiese", rgb: [124, 176, 70] },
+    { id: "wald", name: "Wald", rgb: [28, 110, 58] }
+  ];
+  const NAMES = ["Kiesel", "Funke", "Tropfen", "Nebel", "Keim", "Hafen", "Garten", "Stein", "Licht", "Hügel", "Quelle", "Insel", "Bach", "Perle", "Staub", "Mond"];
+  const HINTS = {
+    drehen: "Zieh, um die Kugel zu drehen.",
+    heben: "Zieh über die Kugel, um Berge zu heben.",
+    senken: "Zieh, um Täler zu graben.",
+    wasser: "Tippe und zieh. Wasser sammelt sich in den Tiefen.",
+    saat: "Tippe auf mildes, feuchtes Land.",
+    wolke: "Tippe, um eine Wolke zu setzen. Regen breitet Pflanzen aus.",
+    dorf: "Tippe nahe bei Wasser und Wald."
+  };
+  const TOOL_CODE = { heben: 1, senken: 2, wasser: 3, saat: 4, wolke: 5, dorf: 6 };
+  const CODE_TOOL = { 1: "heben", 2: "senken", 3: "wasser", 4: "saat", 5: "wolke", 6: "dorf" };
+  const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  const canvas = document.getElementById("c");
+  const ctx = canvas.getContext("2d", { alpha: false });
+  const elPass = document.getElementById("pass");
+  const elBar = document.getElementById("bar");
+  const elHint = document.getElementById("hint");
+  const elToast = document.getElementById("toast");
+  const elAge = document.getElementById("pAge");
+  const elLife = document.getElementById("pLife");
+  const elKlima = document.getElementById("pKlima");
+  const elName = document.getElementById("pName");
+  const elSub = document.getElementById("sub");
+  const elSound = document.getElementById("bSound");
+  const elAsk = document.getElementById("ask");
+  const elBiomes = document.getElementById("pBiomes");
+
+  const height = new Uint8Array(N);
+  const water = new Uint16Array(N);
+  const waterNext = new Uint16Array(N);
+  const plant = new Uint8Array(N);
+  const plantAdd = new Int16Array(N);
+  const rain = new Uint8Array(N);
+  const albedo = new Uint8Array(N * 3);
+  const flags = new Uint8Array(N);
+  const vmark = new Uint8Array(N);
+  const tideRow = new Float32Array(GH);
+  const tideCol = new Float32Array(GW);
+  const rowW = new Float32Array(GH);
+  const edits = [];
+  const villages = [];
+  const animals = [];
+  const clouds = [];
+  const drops = [];
+  const pickForest = [];
+  const pickOcean = [];
+  const stars = [];
+  const frameMs = [];
+
+  const state = {
+    seed: 1, temp: 56, age: 0, yaw: 0.55, pitch: 0.28,
+    tool: "drehen", sound: null, moon: 1.15
+  };
+  let silent = false;
+  let classDirty = true;
+  let toastTimer = 0;
+  let capTold = false;
+  let saveTimer = 0;
+  let lastHash = "";
+  let growStep = 0;
+  let idle = 0;
+  let dpr = 1;
+  let cssW = 1, cssH = 1, cx = 0, cy = 0, R = 100;
+  let discN = 0, discNx, discNy, discNz, discOx, discOy, discDiam = 0;
+  let off = null, octx = null, img = null, pix = null;
+  let cYaw = 1, sYaw = 0, cPit = 1, sPit = 0;
+  let moonOrbit = 1.5;
+  let forestRaw = 0, oceanRaw = 0;
+  const biomeW = [0, 0, 0, 0, 0, 0];
+  const biomePct = [0, 0, 0, 0, 0, 0];
+  let audio = null;
+  let noteAt = 0;
+  let noteI = 0;
+
+  for (let row = 0; row < GH; row++) {
+    const lat0 = (row / GH - 0.5) * Math.PI;
+    const lat1 = ((row + 1) / GH - 0.5) * Math.PI;
+    rowW[row] = Math.max(0.0001, Math.sin(lat1) - Math.sin(lat0));
+    const lat = (row / (GH - 1) - 0.5) * Math.PI;
+    tideRow[row] = Math.cos(lat);
+  }
+
+  BIOMES.forEach(function (b) {
+    const li = document.createElement("li");
+    li.innerHTML = '<i></i><span class="nm"></span><span class="pct"></span><span class="bar"><span></span></span>';
+    li.querySelector("i").style.background = "rgb(" + b.rgb.join(",") + ")";
+    li.querySelector(".nm").textContent = b.name;
+    elBiomes.appendChild(li);
+  });
+
+  function clamp(v, a, b) { return v < a ? a : v > b ? b : v; }
+  function norm3(x, y, z) {
+    const m = Math.hypot(x, y, z) || 1;
+    return { x: x / m, y: y / m, z: z / m };
+  }
+  function mulberry32(seed) {
+    let a = seed >>> 0;
+    return function () {
+      a |= 0; a = a + 0x6D2B79F5 | 0;
+      let t = Math.imul(a ^ a >>> 15, 1 | a);
+      t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+      return ((t ^ t >>> 14) >>> 0) / 4294967296;
+    };
+  }
+  function fastAtan2(y, x) {
+    const ax = Math.abs(x), ay = Math.abs(y);
+    const a = Math.min(ax, ay) / (Math.max(ax, ay) + 1e-9);
+    const s = a * a;
+    let r = ((-0.0464964749 * s + 0.15931422) * s - 0.327622764) * s * a + a;
+    if (ay > ax) r = 1.57079637 - r;
+    if (x < 0) r = 3.14159274 - r;
+    if (y < 0) r = -r;
+    return r;
+  }
+  function planetName(seed) {
+    return NAMES[seed % NAMES.length] + " " + ((seed % 89) + 11);
+  }
+  function toast(msg) {
+    if (silent) return;
+    elToast.textContent = msg;
+    elToast.classList.add("show");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { elToast.classList.remove("show"); }, 2400);
+  }
+  function syncCam() {
+    cYaw = Math.cos(state.yaw); sYaw = Math.sin(state.yaw);
+    cPit = Math.cos(state.pitch); sPit = Math.sin(state.pitch);
+  }
+  function projectVec(wx, wy, wz) {
+    const x1 = wx * cYaw - wz * sYaw;
+    const z1 = wx * sYaw + wz * cYaw;
+    const y2 = wy * cPit - z1 * sPit;
+    const z2 = wy * sPit + z1 * cPit;
+    return { x: x1, y: y2, z: z2 };
+  }
+  function viewToWorld(nx, ny, nz) {
+    const wy = ny * cPit + nz * sPit;
+    const z1 = nz * cPit - ny * sPit;
+    const wx = nx * cYaw + z1 * sYaw;
+    const wz = z1 * cYaw - nx * sYaw;
+    return { wx: wx, wy: wy, wz: wz };
+  }
+  function cellOf(row, col) { return row * GW + (col & MASK); }
+  function rowOf(i) { return (i / GW) | 0; }
+  function colOf(i) { return i & MASK; }
+  function latOfRow(row) { return (row / (GH - 1) - 0.5) * Math.PI; }
+  function lonOfCol(col) { return ((col + 0.5) / GW) * TAU - Math.PI; }
+  function cellLatLon(i) {
+    const row = rowOf(i), col = colOf(i);
+    return { row: row, col: col, lat: latOfRow(row), lon: lonOfCol(col) };
+  }
+  function latLonToCell(lat, lon) {
+    let row = Math.round((lat / Math.PI + 0.5) * (GH - 1));
+    row = clamp(row, 0, GH - 1);
+    let col = Math.round(((lon + Math.PI) / TAU) * GW);
+    col = ((col % GW) + GW) % GW;
+    return { row: row, col: col, i: cellOf(row, col) };
+  }
+  function neighbor(i, dir) {
+    const row = rowOf(i), col = colOf(i);
+    if (dir === 0) return cellOf(row, col + 1);
+    if (dir === 1) return cellOf(row, col - 1);
+    if (dir === 2) return row > 0 ? i - GW : -1;
+    return row < GH - 1 ? i + GW : -1;
+  }
+  function tempAt(i) {
+    const row = rowOf(i);
+    const latAbs = Math.abs(row / (GH - 1) - 0.5) * 2;
+    const elev = height[i] / 255;
+    return state.temp - latAbs * 48 - Math.max(0, elev - 0.52) * 26;
+  }
+  function syncTide() {
+    const m = state.moon;
+    for (let col = 0; col < GW; col++) tideCol[col] = Math.cos(lonOfCol(col) - m) * 6;
+  }
+  function tideOf(row, col) { return tideRow[row] * tideCol[col]; }
+  function wetAt(i) {
+    const row = rowOf(i), col = colOf(i);
+    const tide = tideOf(row, col);
+    if (water[i] > 0) {
+      const damp = water[i] < 16 ? 1 : water[i] < 36 ? 0.4 : 0.15;
+      return water[i] + tide * damp;
+    }
+    let best = 0;
+    for (let d = 0; d < 4; d++) {
+      const j = neighbor(i, d);
+      if (j < 0 || water[j] < 3) continue;
+      const flood = tide - (height[i] - (height[j] + water[j]));
+      if (flood > best) best = flood;
+    }
+    return best;
+  }
+
+  function makeNoise(seed) {
+    const rand = mulberry32(seed);
+    const perm = new Uint8Array(512);
+    const p = new Uint8Array(256);
+    for (let i = 0; i < 256; i++) p[i] = i;
+    for (let i = 255; i > 0; i--) {
+      const j = (rand() * (i + 1)) | 0;
+      const t = p[i]; p[i] = p[j]; p[j] = t;
+    }
+    for (let i = 0; i < 512; i++) perm[i] = p[i & 255];
+    function fade(t) { return t * t * t * (t * (t * 6 - 15) + 10); }
+    function lerp(a, b, t) { return a + (b - a) * t; }
+    function grad(hash, x, y, z) {
+      const h = hash & 15;
+      const u = h < 8 ? x : y;
+      const v = h < 4 ? y : (h === 12 || h === 14) ? x : z;
+      return ((h & 1) ? -u : u) + ((h & 2) ? -v : v);
+    }
+    function noise(x, y, z) {
+      const X = Math.floor(x) & 255, Y = Math.floor(y) & 255, Z = Math.floor(z) & 255;
+      x -= Math.floor(x); y -= Math.floor(y); z -= Math.floor(z);
+      const u = fade(x), v = fade(y), w = fade(z);
+      const A = perm[X] + Y, AA = perm[A] + Z, AB = perm[A + 1] + Z;
+      const B = perm[X + 1] + Y, BA = perm[B] + Z, BB = perm[B + 1] + Z;
+      return lerp(
+        lerp(
+          lerp(grad(perm[AA], x, y, z), grad(perm[BA], x - 1, y, z), u),
+          lerp(grad(perm[AB], x, y - 1, z), grad(perm[BB], x - 1, y - 1, z), u), v),
+        lerp(
+          lerp(grad(perm[AA + 1], x, y, z - 1), grad(perm[BA + 1], x - 1, y, z - 1), u),
+          lerp(grad(perm[AB + 1], x, y - 1, z - 1), grad(perm[BB + 1], x - 1, y - 1, z - 1), u), v),
+        w);
+    }
+    return function fbm(x, y, z) {
+      let n = 0, a = 1, f = 0.95, s = 0;
+      for (let o = 0; o < 4; o++) {
+        n += a * noise(x * f, y * f, z * f);
+        s += a; a *= 0.5; f *= 2;
+      }
+      return n / s;
+    };
+  }
+  function buildHeight(seed) {
+    const fbm = makeNoise(seed >>> 0);
+    let lo = 255, hi = 0;
+    for (let row = 0; row < GH; row++) {
+      const lat = latOfRow(row);
+      const cl = Math.cos(lat), sl = Math.sin(lat);
+      for (let col = 0; col < GW; col++) {
+        const lon = lonOfCol(col);
+        const x = cl * Math.sin(lon);
+        const y = sl;
+        const z = cl * Math.cos(lon);
+        const n = fbm(x * 1.15 + 2.2, y * 1.15 + 1.4, z * 1.15 + 3.1);
+        let h = 126 + n * 74 + Math.pow(Math.abs(sl), 1.45) * 38;
+        h = clamp(h, 0, 255) | 0;
+        height[row * GW + col] = h;
+        if (h < lo) lo = h;
+        if (h > hi) hi = h;
+      }
+    }
+    state.heightSpan = [lo, hi];
+  }
+  function clearDynamic() {
+    water.fill(0); plant.fill(0); rain.fill(0); vmark.fill(0);
+    villages.length = 0; animals.length = 0; clouds.length = 0; drops.length = 0;
+    edits.length = 0;
+  }
+
+  function pushEdit(code, row, col, radius, strength) {
+    if (silent) return;
+    if (edits.length / 4 >= MAX_EDITS) {
+      if (!capTold) { capTold = true; toast("Die Kugel merkt sich nicht mehr jede Geste."); }
+      return;
+    }
+    const param = ((radius & 15) << 4) | (strength & 15);
+    edits.push(code & 255, row & 255, col & 255, param);
+    scheduleSave();
+  }
+  function brush(kind, row, col, radius, strength, record) {
+    radius = clamp(radius | 0, 0, 15);
+    strength = clamp(strength | 0, 1, 15);
+    const code = TOOL_CODE[kind];
+    if (kind === "dorf") {
+      if (tryVillage(row, col, false) && record) pushEdit(code, row, col, 0, 1);
+      classDirty = true;
+      return;
+    }
+    if (kind === "wolke") {
+      applyCloud(row, col, radius || 8, record);
+      classDirty = true;
+      return;
+    }
+    const r2 = radius * radius || 0.01;
+    let hostile = false;
+    let planted = false;
+    for (let dy = -radius; dy <= radius; dy++) {
+      const rr = row + dy;
+      if (rr < 0 || rr >= GH) continue;
+      for (let dx = -radius; dx <= radius; dx++) {
+        const d2 = dx * dx + dy * dy;
+        if (d2 > r2) continue;
+        const i = cellOf(rr, col + dx);
+        const k = 1 - Math.sqrt(d2) / (radius + 0.001);
+        if (kind === "heben") height[i] = clamp(Math.round(height[i] + strength * 1.45 * k), 0, 255);
+        else if (kind === "senken") height[i] = clamp(Math.round(height[i] - strength * 1.7 * k), 0, 255);
+        else if (kind === "wasser") water[i] = Math.min(5000, water[i] + Math.max(1, Math.round(strength * 3.4 * k)));
+        else if (kind === "saat") {
+          const t = tempAt(i);
+          const mild = t >= 18 && t <= 60;
+          const moist = water[i] > 0 || rain[i] > 0 || nearWater(i, 2);
+          if (mild && moist && water[i] < 18) {
+            plant[i] = Math.max(plant[i], clamp(Math.round(150 + 90 * k), 0, 255));
+            planted = true;
+          } else if (water[i] < 18) {
+            plant[i] = Math.max(plant[i], clamp(Math.round(28 * k), 0, 255));
+            hostile = true;
+          }
+        }
+      }
+    }
+    if (kind === "saat" && hostile && !planted) toast("Pflanzen brauchen Wasser und mildes Wetter.");
+    if (record) pushEdit(code, row, col, radius, strength);
+    classDirty = true;
+  }
+  function nearWater(i, rad) {
+    const row = rowOf(i), col = colOf(i);
+    for (let dy = -rad; dy <= rad; dy++) {
+      const rr = row + dy;
+      if (rr < 0 || rr >= GH) continue;
+      for (let dx = -rad; dx <= rad; dx++) {
+        if (dx * dx + dy * dy > rad * rad) continue;
+        if (water[cellOf(rr, col + dx)] > 4) return true;
+      }
+    }
+    return false;
+  }
+  function hasNear(row, col, rad, pred) {
+    for (let dy = -rad; dy <= rad; dy++) {
+      const rr = row + dy;
+      if (rr < 0 || rr >= GH) continue;
+      for (let dx = -rad; dx <= rad; dx++) {
+        if (dx * dx + dy * dy > rad * rad) continue;
+        if (pred(cellOf(rr, col + dx))) return true;
+      }
+    }
+    return false;
+  }
+  function tryVillage(row, col, force) {
+    const i = cellOf(row, col);
+    if (!force) {
+      if (water[i] > 12) { toast("Das Dorf braucht festes Land."); return false; }
+      if (tempAt(i) < 16) { toast("Zu kalt für ein Dorf."); return false; }
+      const wet = hasNear(row, col, 7, function (j) { return water[j] > 6; });
+      const wood = hasNear(row, col, 7, function (j) { return plant[j] > 110 && water[j] < 16; });
+      if (!wet || !wood) { toast("Dörfer wachsen nur nahe bei Wasser und Wald."); return false; }
+    }
+    for (let v = 0; v < villages.length; v++) {
+      const g = villages[v];
+      const dc = Math.min(Math.abs(g.col - col), GW - Math.abs(g.col - col));
+      if (Math.abs(g.row - row) <= 3 && dc <= 3) { g.grow = Math.min(24, g.grow + 5); return true; }
+    }
+    if (villages.length >= 18) { toast("Mehr Dörfer passen nicht auf die Kugel."); return false; }
+    villages.push({ row: row, col: col & MASK, grow: force ? Math.min(18, state.age * 0.25) : 0 });
+    return true;
+  }
+  function applyCloud(row, col, radius, record) {
+    const r2 = radius * radius;
+    let snow = true;
+    for (let dy = -radius; dy <= radius; dy++) {
+      const rr = row + dy;
+      if (rr < 0 || rr >= GH) continue;
+      for (let dx = -radius; dx <= radius; dx++) {
+        const d2 = dx * dx + dy * dy;
+        if (d2 > r2) continue;
+        const i = cellOf(rr, col + dx);
+        const k = 1 - Math.sqrt(d2) / (radius + 0.001);
+        const t = tempAt(i);
+        if (t >= 16) snow = false;
+        water[i] = Math.min(5000, water[i] + Math.max(1, Math.round(5 + 14 * k)));
+        rain[i] = 160;
+        if (t >= 16 && t <= 70) plant[i] = Math.min(255, plant[i] + Math.round(36 + 100 * k));
+      }
+    }
+    if (snow) toast("Hier wird der Regen zu Schnee.");
+    const ll = cellLatLon(cellOf(row, col));
+    clouds.push({ lat: ll.lat, lon: ll.lon, life: 10, phase: (edits.length % 7) + 0.4 });
+    if (clouds.length > 4) clouds.shift();
+    if (record) pushEdit(5, row, col, radius, 8);
+  }
+  function replayEdit(code, row, col, param) {
+    const kind = CODE_TOOL[code];
+    if (!kind) return;
+    const radius = (param >> 4) & 15;
+    const strength = param & 15;
+    if (kind === "dorf") { tryVillage(row, col, true); return; }
+    brush(kind, row, col, radius || (kind === "wolke" ? 8 : 1), strength || 1, false);
+  }
+
+  function settleOnce() {
+    waterNext.set(water);
+    let moved = 0;
+    for (let row = 0; row < GH; row++) {
+      const base = row * GW;
+      for (let col = 0; col < GW; col++) {
+        const i = base + col;
+        const wv = water[i];
+        if (wv < 1) continue;
+        const surf = height[i] + wv;
+        let best = -1;
+        let bestS = surf - 2;
+        const c1 = base + ((col + 1) & MASK);
+        const c0 = base + ((col + MASK) & MASK);
+        let s = height[c1] + water[c1];
+        if (s <= bestS) { bestS = s; best = c1; }
+        s = height[c0] + water[c0];
+        if (s <= bestS) { bestS = s; best = c0; }
+        if (row > 0) {
+          const j = i - GW;
+          s = height[j] + water[j];
+          if (s <= bestS) { bestS = s; best = j; }
+        }
+        if (row < GH - 1) {
+          const j = i + GW;
+          s = height[j] + water[j];
+          if (s <= bestS) { bestS = s; best = j; }
+        }
+        if (best < 0) continue;
+        let flow = (surf - bestS) >> 1;
+        if (flow > wv) flow = wv;
+        if (flow < 1) continue;
+        if (waterNext[best] > 4800) continue;
+        waterNext[i] -= flow;
+        waterNext[best] += flow;
+        moved++;
+      }
+    }
+    water.set(waterNext);
+    return moved;
+  }
+  function settleUntil(max) {
+    let moved = 1;
+    let n = 0;
+    while (moved && n < max) { moved = settleOnce(); n++; }
+    classDirty = true;
+    return n;
+  }
+  function growOnce() {
+    growStep++;
+    plantAdd.fill(0);
+    for (let i = 0; i < N; i++) {
+      if (rain[i] > 12) rain[i] -= 12;
+      else rain[i] = 0;
+      if (!plant[i] && rain[i] < 40) continue;
+      if (water[i] > 20) { plantAdd[i] -= 50; continue; }
+      const t = tempAt(i);
+      const mild = t >= 18 && t <= 59;
+      let moist = water[i] > 0 || rain[i] > 0;
+      if (!moist) {
+        for (let d = 0; d < 4; d++) {
+          const j = neighbor(i, d);
+          if (j >= 0 && water[j] > 6) { moist = true; break; }
+        }
+      }
+      if (plant[i] > 0) {
+        if (mild && moist) plantAdd[i] += 12;
+        else plantAdd[i] -= mild ? 6 : 16;
+        if (plant[i] > 130 && mild && moist) {
+          const j = neighbor(i, (growStep + i) & 3);
+          if (j >= 0 && water[j] < 16) plantAdd[j] += rain[i] > 0 ? 18 : 9;
+        }
+      }
+    }
+    for (let i = 0; i < N; i++) {
+      if (!plantAdd[i] && plant[i] === 0) continue;
+      let p = plant[i] + plantAdd[i];
+      if (p < 0) p = 0;
+      if (p > 255) p = 255;
+      plant[i] = p;
+    }
+    classDirty = true;
+  }
+
+  function markVillages() {
+    vmark.fill(0);
+    for (let v = 0; v < villages.length; v++) {
+      const g = villages[v];
+      const level = g.grow > 16 ? 3 : g.grow > 6 ? 2 : 1;
+      const rad = level + 1;
+      for (let dy = -rad; dy <= rad; dy++) {
+        const rr = g.row + dy;
+        if (rr < 0 || rr >= GH) continue;
+        for (let dx = -rad; dx <= rad; dx++) {
+          if (dx * dx + dy * dy > rad * rad) continue;
+          vmark[cellOf(rr, g.col + dx)] = level;
+        }
+      }
+    }
+  }
+  function classify() {
+    syncTide();
+    markVillages();
+    forestRaw = 0; oceanRaw = 0;
+    pickForest.length = 0; pickOcean.length = 0;
+    for (let b = 0; b < 6; b++) biomeW[b] = 0;
+    for (let row = 0; row < GH; row++) {
+      const wrow = rowW[row];
+      const base = row * GW;
+      for (let col = 0; col < GW; col++) {
+        const i = base + col;
+        const wet = wetAt(i);
+        const t = tempAt(i);
+        const p = plant[i];
+        const h = height[i];
+        let biome = 0;
+        let r, g, b;
+        const latAbs = Math.abs(row / (GH - 1) - 0.5) * 2;
+        const icy = t < 14 && (wet > 1 || h > 168 || latAbs > 0.72);
+        if (icy) biome = 2;
+        else if (wet > 8) biome = 1;
+        else if (p > 120 && t >= 18 && t <= 59 && water[i] < 18) biome = 5;
+        else if (p > 34 && t >= 16 && t <= 64 && water[i] < 18) biome = 4;
+        else if (t > 66 && p < 36) biome = 3;
+        else biome = 0;
+        if (biome === 5) {
+          forestRaw++;
+          if (pickForest.length < 48) pickForest.push(i);
+        } else if (biome === 1) {
+          oceanRaw++;
+          if (pickOcean.length < 48) pickOcean.push(i);
+        }
+        biomeW[biome] += wrow;
+        const hl = height[base + ((col + MASK) & MASK)];
+        const hr = height[base + ((col + 1) & MASK)];
+        const hu = row > 0 ? height[i - GW] : h;
+        const hd = row < GH - 1 ? height[i + GW] : h;
+        const slope = Math.min(1, (Math.abs(hr - hl) + Math.abs(hd - hu)) / 36);
+        let relief = (1 - slope * 0.45) * clamp(0.82 + (hl - hr) * 0.018 + (hu - hd) * 0.012, 0.62, 1.18);
+        const grit = ((row * 13 + col * 7) & 15) - 7;
+        if (biome === 1) {
+          const depthT = clamp(wet / 48, 0, 1);
+          r = 78 + (10 - 78) * depthT;
+          g = 188 + (48 - 188) * depthT;
+          b = 206 + (120 - 206) * depthT;
+          relief = 0.9 + 0.1 * relief;
+        } else if (biome === 2) {
+          r = 214; g = 236; b = 248;
+        } else if (biome === 5) {
+          const d = p / 255;
+          r = 48 + (16 - 48) * d;
+          g = 132 + (78 - 132) * d;
+          b = 62 + (40 - 62) * d;
+        } else if (biome === 4) {
+          r = 116; g = 168; b = 64;
+        } else if (biome === 3) {
+          r = 214; g = 174; b = 92;
+        } else if (water[i] > 0 && wet < 2) {
+          r = 196; g = 176; b = 132;
+        } else {
+          const ht = h / 255;
+          r = 96 + ht * 100;
+          g = 80 + ht * 96;
+          b = 72 + ht * 84;
+        }
+        r = r * relief + grit;
+        g = g * relief + grit * 0.6;
+        b = b * relief + grit * 0.4;
+        if (vmark[i] && biome !== 1 && biome !== 2) {
+          r = 196; g = 96; b = 58;
+          flags[i] = 4;
+        } else {
+          flags[i] = biome === 1 ? 1 : biome === 2 ? 2 : 0;
+        }
+        const o = i * 3;
+        albedo[o] = clamp(r, 0, 255);
+        albedo[o + 1] = clamp(g, 0, 255);
+        albedo[o + 2] = clamp(b, 0, 255);
+      }
+    }
+    // soft cloud shadows
+    for (let c = 0; c < clouds.length; c++) {
+      const cl = clouds[c];
+      const cell = latLonToCell(cl.lat, cl.lon);
+      const rad = 7;
+      const shade = 0.72 + 0.28 * (1 - cl.life / 10);
+      for (let dy = -rad; dy <= rad; dy++) {
+        const rr = cell.row + dy;
+        if (rr < 0 || rr >= GH) continue;
+        for (let dx = -rad; dx <= rad; dx++) {
+          const d2 = dx * dx + dy * dy;
+          if (d2 > rad * rad) continue;
+          const i = cellOf(rr, cell.col + dx);
+          const k = 1 - Math.sqrt(d2) / rad;
+          const m = 1 - (1 - shade) * k * Math.min(1, cl.life / 3);
+          const o = i * 3;
+          albedo[o] = albedo[o] * m;
+          albedo[o + 1] = albedo[o + 1] * m;
+          albedo[o + 2] = albedo[o + 2] * m;
+        }
+      }
+    }
+    let sum = 0;
+    for (let b = 0; b < 6; b++) sum += biomeW[b];
+    for (let b = 0; b < 6; b++) biomePct[b] = sum ? Math.round(biomeW[b] / sum * 1000) / 10 : 0;
+    classDirty = false;
+  }
+  function ensureClass() { if (classDirty) classify(); }
+  function syncLife() {
+    ensureClass();
+    function count(kind) {
+      let n = 0;
+      for (let i = 0; i < animals.length; i++) if (animals[i].kind === kind) n++;
+      return n;
+    }
+    function ensure(kind, want, pool) {
+      let n = count(kind);
+      while (n < want && pool.length) {
+        const i = pool[(n * 5) % pool.length];
+        const p = cellLatLon(i);
+        const speed = kind === "bird" ? 0.42 : kind === "fish" ? 0.2 : 0.24;
+        animals.push({ kind: kind, lat: p.lat, lon: p.lon, phase: n * 1.7 + kind.length, speed: speed });
+        n++;
+      }
+    }
+    function cull(kind) {
+      for (let i = 0; i < animals.length; i++) if (animals[i].kind === kind) { animals.splice(i, 1); return; }
+    }
+    if (forestRaw >= 40) {
+      ensure("deer", Math.min(8, 2 + (forestRaw / 50 | 0)), pickForest);
+      ensure("bird", Math.min(6, 1 + (forestRaw / 60 | 0)), pickForest);
+    } else if (forestRaw < 18) { cull("deer"); cull("bird"); }
+    if (oceanRaw >= 70) ensure("fish", Math.min(8, 2 + (oceanRaw / 90 | 0)), pickOcean);
+    else if (oceanRaw < 28) cull("fish");
+  }
+
+  function bytesOfState() {
+    const count = edits.length / 4;
+    const bytes = new Uint8Array(21 + count * 4);
+    const view = new DataView(bytes.buffer);
+    bytes[0] = 0x50; bytes[1] = 0x50; bytes[2] = 1; bytes[3] = 0xA5;
+    view.setUint32(4, state.seed >>> 0, true);
+    bytes[8] = clamp(Math.round(state.temp), 0, 100);
+    view.setUint32(9, Math.max(0, Math.round(state.age * 100)), true);
+    const yaw = Math.atan2(Math.sin(state.yaw), Math.cos(state.yaw));
+    view.setInt16(13, clamp(Math.round(yaw * 1000), -32768, 32767), true);
+    view.setInt16(15, clamp(Math.round(state.pitch * 1000), -32768, 32767), true);
+    const moon = ((state.moon % TAU) + TAU) % TAU;
+    view.setUint16(17, Math.round(moon / TAU * 65535) & 65535, true);
+    view.setUint16(19, count, true);
+    for (let i = 0; i < edits.length; i++) bytes[21 + i] = edits[i] & 255;
+    return bytes;
+  }
+  function toB64(bytes) {
+    let bin = "";
+    for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+    return btoa(bin).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+  }
+  function fromB64(s) {
+    s = String(s).replace(/-/g, "+").replace(/_/g, "/");
+    while (s.length % 4) s += "=";
+    const bin = atob(s);
+    const out = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i) & 255;
+    return out;
+  }
+  function applyBytes(bytes) {
+    if (bytes.length < 21 || bytes[0] !== 0x50 || bytes[1] !== 0x50 || bytes[2] !== 1 || bytes[3] !== 0xA5) {
+      throw new Error("bad planet");
+    }
+    const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+    const seed = view.getUint32(4, true);
+    const temp = bytes[8];
+    const age = view.getUint32(9, true) / 100;
+    const yaw = view.getInt16(13, true) / 1000;
+    const pitch = view.getInt16(15, true) / 1000;
+    const moon = view.getUint16(17, true) / 65535 * TAU;
+    const count = view.getUint16(19, true);
+    if (bytes.length !== 21 + count * 4 || count > MAX_EDITS) throw new Error("bad length");
+    silent = true;
+    state.seed = seed;
+    state.temp = temp;
+    state.age = age;
+    state.yaw = yaw;
+    state.pitch = clamp(pitch, -0.7, 0.7);
+    state.moon = moon;
+    buildHeight(seed);
+    buildStars(seed);
+    clearDynamic();
+    for (let e = 0; e < count; e++) {
+      const o = 21 + e * 4;
+      edits.push(bytes[o], bytes[o + 1], bytes[o + 2], bytes[o + 3]);
+      replayEdit(bytes[o], bytes[o + 1], bytes[o + 2], bytes[o + 3]);
+    }
+    // replayEdit with record false still pushed nothing; but brush for non-dorf doesn't push when record false.
+    // Clouds were spawned during replay. Clear the visual ones so a shared planet is not stuck raining.
+    clouds.length = 0;
+    drops.length = 0;
+    settleUntil(160);
+    const steps = Math.min(12, Math.floor(state.age / 0.25));
+    for (let s = 0; s < steps; s++) growOnce();
+    silent = false;
+    classDirty = true;
+    syncLife();
+    capTold = edits.length / 4 >= MAX_EDITS;
+    syncPass(true);
+    syncTitle();
+  }
+  function encodeHash() { return toB64(bytesOfState()); }
+  function scheduleSave() {
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(saveNow, 250);
+  }
+  function saveNow() {
+    try { localStorage.setItem(KEY, encodeHash()); } catch (e) { /* storage full or blocked */ }
+  }
+  function fresh(seed) {
+    silent = true;
+    state.seed = seed >>> 0;
+    state.temp = 56;
+    state.age = 0;
+    state.yaw = 0.55;
+    state.pitch = 0.28;
+    state.moon = 1.15;
+    buildHeight(state.seed);
+    buildStars(state.seed);
+    clearDynamic();
+    silent = false;
+    classDirty = true;
+    capTold = false;
+    syncLife();
+    syncPass(true);
+    syncTitle();
+    saveNow();
+  }
+  function buildStars(seed) {
+    const rnd = mulberry32((seed ^ 0xA5A5A5A5) >>> 0);
+    stars.length = 0;
+    for (let i = 0; i < 240; i++) {
+      stars.push({ x: rnd(), y: rnd(), z: 0.4 + rnd() * 1.6, p: rnd() * TAU, warm: rnd() });
+    }
+  }
+  function loadHashString(s) {
+    applyBytes(fromB64(s));
+    lastHash = s;
+    saveNow();
+  }
+
+  function klimaWord(t) {
+    if (t < 34) return "eisig";
+    if (t < 46) return "kühl";
+    if (t < 60) return "mild";
+    if (t < 72) return "warm";
+    return "heiss";
+  }
+  function syncTitle() {
+    const name = planetName(state.seed);
+    elSub.textContent = name;
+    elName.textContent = name;
+  }
+  function syncPass(force) {
+    ensureClass();
+    const days = state.age / 22;
+    const ageText = days < 0.12 ? "Alter: frisch" : (Math.round(Math.max(1, days)) === 1 ? "Alter: 1 Tag" : "Alter: " + Math.round(days) + " Tage");
+    const nAni = animals.length;
+    const nVil = villages.length;
+    const tier = nAni === 1 ? "1 Tier" : nAni + " Tiere";
+    const dorf = nVil === 1 ? "1 Dorf" : nVil + " Dörfer";
+    const lifeText = "Leben: " + (nAni + nVil) + " · " + tier + " · " + dorf;
+    const klimaText = "Klima: " + klimaWord(state.temp);
+    if (force || elAge.textContent !== ageText) elAge.textContent = ageText;
+    if (force || elLife.textContent !== lifeText) elLife.textContent = lifeText;
+    if (force || elKlima.textContent !== klimaText) elKlima.textContent = klimaText;
+    const rows = elBiomes.children;
+    for (let i = 0; i < 6; i++) {
+      const pct = biomePct[i].toFixed(1) + "%";
+      const el = rows[i];
+      const p = el.querySelector(".pct");
+      if (p.textContent !== pct) p.textContent = pct;
+      el.querySelector(".bar span").style.width = biomePct[i] + "%";
+    }
+  }
+  function setTool(name) {
+    state.tool = name;
+    const buttons = elBar.querySelectorAll("[data-tool]");
+    for (let i = 0; i < buttons.length; i++) {
+      const on = buttons[i].getAttribute("data-tool") === name;
+      buttons[i].classList.toggle("on", on);
+      buttons[i].setAttribute("aria-pressed", on ? "true" : "false");
+    }
+    elHint.textContent = HINTS[name] || HINTS.drehen;
+  }
+  function shiftTemp(delta) {
+    const next = clamp(state.temp + delta, 22, 86);
+    if (next === state.temp) {
+      toast(delta > 0 ? "Es ist schon sehr heiss." : "Es ist schon sehr kühl.");
+      return;
+    }
+    state.temp = next;
+    classDirty = true;
+    toast(delta > 0 ? "Es wird wärmer. Eis schmilzt, trockene Zonen können wachsen." : "Es wird kühler. Eiskappen wachsen.");
+    scheduleSave();
+    syncPass(true);
+  }
+
+  function syncSoundButton() {
+    const on = state.sound === "on";
+    elSound.textContent = on ? "Ton an" : "Ton";
+    elSound.setAttribute("aria-pressed", on ? "true" : "false");
+    elSound.setAttribute("aria-label", on ? "Ton ist an" : "Ton ist aus");
+  }
+  function startAudio() {
+    try {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) { toast("Ton ist hier nicht verfügbar."); return false; }
+      if (!audio) {
+        const actx = new AC();
+        const master = actx.createGain();
+        master.gain.value = 0;
+        master.connect(actx.destination);
+        const filter = actx.createBiquadFilter();
+        filter.type = "lowpass";
+        filter.frequency.value = 360;
+        filter.Q.value = 0.4;
+        const bus = actx.createGain();
+        bus.gain.value = 0.2;
+        filter.connect(bus); bus.connect(master);
+        function tone(freq, type, gain) {
+          const o = actx.createOscillator();
+          const g = actx.createGain();
+          o.type = type; o.frequency.value = freq; g.gain.value = gain;
+          o.connect(g); g.connect(filter); o.start();
+          return g;
+        }
+        const a = tone(98, "sine", 0.45);
+        const b = tone(146.83, "sine", 0.22);
+        const c = tone(196, "triangle", 0.0);
+        const sr = actx.sampleRate;
+        const len = sr * 2;
+        const buf = actx.createBuffer(1, len, sr);
+        const data = buf.getChannelData(0);
+        let last = 0;
+        for (let i = 0; i < len; i++) {
+          const white = Math.random() * 2 - 1;
+          last = last * 0.96 + white * 0.04;
+          data[i] = last;
+        }
+        const src = actx.createBufferSource();
+        src.buffer = buf; src.loop = true;
+        const bp = actx.createBiquadFilter();
+        bp.type = "lowpass"; bp.frequency.value = 700;
+        const ng = actx.createGain(); ng.gain.value = 0;
+        src.connect(bp); bp.connect(ng); ng.connect(master); src.start();
+        audio = { actx: actx, master: master, filter: filter, a: a, b: b, c: c, noise: ng };
+        noteAt = actx.currentTime + 0.4;
+      }
+      if (audio.actx.state === "suspended") audio.actx.resume();
+      return true;
+    } catch (e) {
+      toast("Ton ist hier nicht verfügbar.");
+      return false;
+    }
+  }
+  function applyMute() {
+    if (!audio) return;
+    const t = audio.actx.currentTime;
+    audio.master.gain.cancelScheduledValues(t);
+    audio.master.gain.setTargetAtTime(state.sound === "on" && !document.hidden ? 0.55 : 0, t, 0.05);
+  }
+  function lifeFactor() {
+    const forest = Math.min(1, (biomePct[5] || 0) / 14);
+    const sea = Math.min(1, (biomePct[1] || 0) / 28);
+    const critters = Math.min(1, animals.length / 8);
+    const towns = Math.min(1, villages.length / 3);
+    return Math.min(1, forest * 0.46 + critters * 0.28 + towns * 0.16 + sea * 0.1);
+  }
+  function music(nowSec) {
+    if (state.sound !== "on" || !audio) return;
+    const t = audio.actx.currentTime;
+    const life = lifeFactor();
+    audio.filter.frequency.setTargetAtTime(life < 0.08 ? 340 : 880 + life * 2100, t, 0.5);
+    audio.c.gain.setTargetAtTime(life * 0.16, t, 0.6);
+    audio.noise.gain.setTargetAtTime(clouds.length ? 0.045 : 0.008 + (biomePct[1] || 0) * 0.00035, t, 0.4);
+    if (life < 0.08) return;
+    if (t < noteAt) return;
+    const scale = [0, 2, 4, 7, 9, 7, 4, 2];
+    const degree = scale[noteI % scale.length];
+    noteI++;
+    const midi = 60 + degree + (life > 0.62 && noteI % 3 === 0 ? 12 : 0);
+    const freq = 440 * Math.pow(2, (midi - 69) / 12);
+    pluck(freq, 0.05 + life * 0.05, 1.1 + life * 0.6);
+    if (life > 0.45 && noteI % 2 === 0) {
+      const midi2 = 64 + scale[(noteI + 2) % scale.length];
+      pluck(440 * Math.pow(2, (midi2 - 69) / 12), 0.03, 0.8);
+    }
+    noteAt = t + (1.55 - life * 0.85);
+    if (nowSec) { /* keep the signature stable for the scheduler */ }
+  }
+  function pluck(freq, peak, dur) {
+    const t = audio.actx.currentTime;
+    const o = audio.actx.createOscillator();
+    const g = audio.actx.createGain();
+    o.type = "sine";
+    o.frequency.value = freq;
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(Math.max(0.0002, peak), t + 0.03);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g); g.connect(audio.filter);
+    o.start(t); o.stop(t + dur + 0.05);
+  }
+  function toggleSound() {
+    if (state.sound !== "on") {
+      state.sound = "on";
+      if (!startAudio()) { state.sound = "off"; syncSoundButton(); return; }
+    } else state.sound = "off";
+    applyMute();
+    syncSoundButton();
+  }
+  function firstGesture() {
+    if (state.sound == null) {
+      state.sound = "on";
+      startAudio();
+      applyMute();
+      syncSoundButton();
+    }
+  }
+
+  function layout() {
+    dpr = Math.min(window.devicePixelRatio || 1, 2);
+    cssW = window.innerWidth; cssH = window.innerHeight;
+    canvas.width = Math.max(1, Math.round(cssW * dpr));
+    canvas.height = Math.max(1, Math.round(cssH * dpr));
+    const barH = elBar.getBoundingClientRect().height;
+    document.documentElement.style.setProperty("--bar-h", barH + "px");
+    const wide = cssW >= 760;
+    const pass = elPass.getBoundingClientRect();
+    if (wide) {
+      const left = pass.right + 8;
+      const availW = cssW - left - 8;
+      const availH = cssH - barH - 12;
+      R = Math.max(72, Math.min(availW, availH) * 0.46);
+      cx = left + availW * 0.5;
+      cy = availH * 0.5 + 4;
+    } else {
+      const top = pass.bottom + 6;
+      const availH = cssH - barH - top;
+      R = Math.max(64, Math.min(cssW - 16, availH) * 0.46);
+      cx = cssW * 0.5;
+      cy = top + Math.max(0, availH) * 0.5;
+    }
+    const room = Math.min(cx, cssW - cx, cy, cssH - cy) - 12;
+    const cap = room / 1.52;
+    if (R > cap) R = Math.max(58, cap);
+    moonOrbit = clamp((room - R * 0.16) / Math.max(1, R), 1.18, 1.58);
+    const gap = (cssH - barH) - (cy + R);
+    elHint.style.visibility = gap < 26 ? "hidden" : "visible";
+    const target = Math.min(380, Math.max(150, Math.round(R * 2)));
+    ensureDisc(target);
+  }
+  function ensureDisc(diam) {
+    diam = diam | 0;
+    if (diam === discDiam && off) return;
+    discDiam = diam;
+    off = document.createElement("canvas");
+    off.width = off.height = diam;
+    octx = off.getContext("2d", { alpha: true });
+    img = octx.createImageData(diam, diam);
+    pix = img.data;
+    const Rpx = diam * 0.5;
+    const tmp = [];
+    for (let y = 0; y < diam; y++) {
+      const ny = -((y + 0.5 - Rpx) / Rpx);
+      for (let x = 0; x < diam; x++) {
+        const nx = (x + 0.5 - Rpx) / Rpx;
+        const r2 = nx * nx + ny * ny;
+        if (r2 > 1) continue;
+        tmp.push(nx, ny, Math.sqrt(1 - r2), x, y);
+      }
+    }
+    discN = tmp.length / 5;
+    discNx = new Float32Array(discN);
+    discNy = new Float32Array(discN);
+    discNz = new Float32Array(discN);
+    discOx = new Uint16Array(discN);
+    discOy = new Uint16Array(discN);
+    for (let i = 0; i < discN; i++) {
+      discNx[i] = tmp[i * 5];
+      discNy[i] = tmp[i * 5 + 1];
+      discNz[i] = tmp[i * 5 + 2];
+      discOx[i] = tmp[i * 5 + 3];
+      discOy[i] = tmp[i * 5 + 4];
+    }
+  }
+
+  const latLut = new Float32Array(1025);
+  for (let i = 0; i <= 1024; i++) {
+    const wy = i / 1024 * 2 - 1;
+    const lat = Math.asin(clamp(wy, -1, 1));
+    latLut[i] = (lat / Math.PI + 0.5) * (GH - 1);
+  }
+
+  function renderSphere(time) {
+    ensureClass();
+    const data = pix;
+    const diam = discDiam;
+    const inv = GW / TAU;
+    const sx = SUN.x, sy = SUN.y, sz = SUN.z;
+    const latN = latLut;
+    for (let p = 0; p < discN; p++) {
+      const nx = discNx[p], ny = discNy[p], nz = discNz[p];
+      const wy0 = ny * cPit + nz * sPit;
+      const z1 = nz * cPit - ny * sPit;
+      const wx = nx * cYaw + z1 * sYaw;
+      const wz = z1 * cYaw - nx * sYaw;
+      const L = wx * sx + wy0 * sy + wz * sz;
+      let col = ((fastAtan2(wx, wz) + Math.PI) * inv) | 0;
+      if (col < 0) col = 0;
+      else if (col > MASK) col = MASK;
+      let li = (wy0 + 1) * 512;
+      if (li < 0) li = 0;
+      else if (li > 1024) li = 1024;
+      let row = latN[li | 0] + 0.5 | 0;
+      if (row < 0) row = 0;
+      else if (row >= GH) row = GH - 1;
+      const ti = (row * GW + col) * 3;
+      const flag = flags[row * GW + col];
+      let r = albedo[ti];
+      let g = albedo[ti + 1];
+      let b = albedo[ti + 2];
+      const shade = L > 0.05 ? 0.2 + 0.95 * L : 0.11 + 0.06 * (L + 1);
+      r *= shade; g *= shade; b *= shade;
+      if (L < 0) { r = r * 0.7 + 7; g = g * 0.76 + 12; b = b * 0.9 + 26; }
+      if ((flag & 4) && L < 0.2) {
+        const tw = 0.62 + 0.38 * Math.sin(time * 2.4 + row * 0.7 + col);
+        const glow = L < 0 ? tw : tw * (1 - L / 0.2);
+        r = r * (1 - glow) + 255 * glow;
+        g = g * (1 - glow) + 176 * glow;
+        b = b * (1 - glow) + 82 * glow;
+      } else if ((flag & 1) && L > 0.72 && nz > 0.55) {
+        const glint = (L * nz - 0.45) / 0.55;
+        if (glint > 0) {
+          const s = glint * glint * glint * 70;
+          r += s; g += s; b += s;
+        }
+      } else if ((flag & 2) && L > 0.45) {
+        r += L * 24; g += L * 28; b += L * 32;
+      }
+      const rim = (1 - nz) * (1 - nz);
+      const day = L > 0 ? L : 0;
+      r += rim * (26 + day * 80);
+      g += rim * (48 + day * 100);
+      b += rim * (86 + day * 120);
+      if (r > 255) r = 255;
+      if (g > 255) g = 255;
+      if (b > 255) b = 255;
+      let a = nz < 0.045 ? (nz / 0.045) * 255 : 255;
+      const o = (discOy[p] * diam + discOx[p]) * 4;
+      data[o] = r; data[o + 1] = g; data[o + 2] = b; data[o + 3] = a;
+    }
+    octx.putImageData(img, 0, 0);
+  }
+
+  function occluded(p) {
+    const r2 = p.x * p.x + p.y * p.y;
+    if (r2 >= 0.985) return false;
+    return p.z < Math.sqrt(1 - r2);
+  }
+  function drawBackground(time) {
+    const g = ctx.createLinearGradient(0, 0, 0, cssH);
+    g.addColorStop(0, "#050814");
+    g.addColorStop(1, "#12182c");
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, cssW, cssH);
+    const sv = projectVec(SUN.x, SUN.y, SUN.z);
+    if (sv.z > -0.2) {
+      const gx = cx + sv.x * R * 1.35;
+      const gy = cy - sv.y * R * 1.35;
+      const glow = ctx.createRadialGradient(gx, gy, 8, gx, gy, R * 1.5);
+      const a = clamp(sv.z, 0, 1);
+      glow.addColorStop(0, "rgba(255,214,150," + (0.18 * a) + ")");
+      glow.addColorStop(1, "rgba(255,214,150,0)");
+      ctx.fillStyle = glow;
+      ctx.fillRect(0, 0, cssW, cssH);
+    }
+    for (let i = 0; i < stars.length; i++) {
+      const s = stars[i];
+      const tw = reduce ? 0.7 : 0.45 + 0.55 * (0.5 + 0.5 * Math.sin(time * 1.3 + s.p));
+      const x = s.x * cssW;
+      const y = ((s.y + (reduce ? 0 : time * 0.004)) % 1) * cssH;
+      ctx.fillStyle = s.warm > 0.86 ? "rgba(255,226,190," + tw + ")" : s.warm < 0.08 ? "rgba(190,214,255," + tw + ")" : "rgba(255,255,255," + tw + ")";
+      ctx.fillRect(x, y, s.z > 1.5 ? 2 : 1, s.z > 1.5 ? 2 : 1);
+    }
+  }
+  function drawMoon() {
+    const mLat = Math.sin(state.moon * 0.45) * 0.32;
+    const mLon = state.moon;
+    const orbit = moonOrbit;
+    const wx = Math.cos(mLat) * Math.sin(mLon) * orbit;
+    const wy = Math.sin(mLat) * orbit;
+    const wz = Math.cos(mLat) * Math.cos(mLon) * orbit;
+    const p = projectVec(wx, wy, wz);
+    if (occluded(p)) return;
+    const sx = cx + p.x * R;
+    const sy = cy - p.y * R;
+    const mr = Math.max(7, R * 0.145);
+    const sunV = projectVec(SUN.x, SUN.y, SUN.z);
+    const illum = (wx * SUN.x + wy * SUN.y + wz * SUN.z) / orbit;
+    const lx = sx + sunV.x * mr * 0.55;
+    const ly = sy - sunV.y * mr * 0.55;
+    const grd = ctx.createRadialGradient(lx, ly, mr * 0.15, sx, sy, mr * 1.15);
+    const lit = clamp(0.35 + illum * 0.65, 0.15, 1);
+    grd.addColorStop(0, "rgba(255,250,240," + lit + ")");
+    grd.addColorStop(0.55, "rgb(214,208,196)");
+    grd.addColorStop(1, "#1a2130");
+    ctx.beginPath();
+    ctx.fillStyle = grd;
+    ctx.arc(sx, sy, mr, 0, TAU);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(sx, sy, mr, 0, TAU);
+    ctx.strokeStyle = "rgba(255,255,255,0.28)";
+    ctx.lineWidth = 1;
+    ctx.stroke();
+  }
+  function drawClouds() {
+    for (let i = 0; i < clouds.length; i++) {
+      const c = clouds[i];
+      const rad = 1.045;
+      const wx = Math.cos(c.lat) * Math.sin(c.lon) * rad;
+      const wy = Math.sin(c.lat) * rad;
+      const wz = Math.cos(c.lat) * Math.cos(c.lon) * rad;
+      const p = projectVec(wx, wy, wz);
+      if (occluded(p)) continue;
+      const sx = cx + p.x * R;
+      const sy = cy - p.y * R;
+      const a = Math.min(0.72, c.life / 6) * (0.35 + 0.65 * Math.max(0, p.z));
+      const rw = R * 0.16, rh = R * 0.07;
+      ctx.fillStyle = "rgba(255,255,255," + a + ")";
+      ctx.beginPath();
+      ctx.ellipse(sx, sy, rw, rh, 0, 0, TAU);
+      ctx.ellipse(sx - rw * 0.45, sy + rh * 0.2, rw * 0.7, rh * 0.85, 0, 0, TAU);
+      ctx.ellipse(sx + rw * 0.5, sy + rh * 0.15, rw * 0.62, rh * 0.8, 0, 0, TAU);
+      ctx.fill();
+    }
+    ctx.strokeStyle = "rgba(190,220,255,0.45)";
+    ctx.lineWidth = 1;
+    for (let i = 0; i < drops.length; i++) {
+      const d = drops[i];
+      const fall = 1 - d.t / 0.45;
+      const lat = d.lat - fall * 0.02;
+      const wx = Math.cos(lat) * Math.sin(d.lon);
+      const wy = Math.sin(lat);
+      const wz = Math.cos(lat) * Math.cos(d.lon);
+      const p = projectVec(wx, wy, wz);
+      if (p.z < 0.05 || occluded(p)) continue;
+      const sx = cx + p.x * R;
+      const sy = cy - p.y * R;
+      ctx.beginPath();
+      ctx.moveTo(sx, sy);
+      ctx.lineTo(sx + 0.4, sy + 5 + fall * 4);
+      ctx.stroke();
+    }
+  }
+  function drawAnimals() {
+    for (let i = 0; i < animals.length; i++) {
+      const a = animals[i];
+      const lift = a.kind === "bird" ? 1.05 : 1.004;
+      const wx = Math.cos(a.lat) * Math.sin(a.lon) * lift;
+      const wy = Math.sin(a.lat) * lift;
+      const wz = Math.cos(a.lat) * Math.cos(a.lon) * lift;
+      const p = projectVec(wx, wy, wz);
+      if (p.z < 0.06 || occluded(p)) continue;
+      const sx = cx + p.x * R;
+      const sy = cy - p.y * R;
+      const s = Math.max(1.6, R * 0.016);
+      if (a.kind === "fish") {
+        ctx.fillStyle = "rgba(220,246,255,0.92)";
+        ctx.beginPath();
+        ctx.ellipse(sx, sy, s * 1.7, s * 0.62, Math.sin(a.phase), 0, TAU);
+        ctx.fill();
+      } else if (a.kind === "deer") {
+        ctx.fillStyle = "#d7a15a";
+        ctx.fillRect(sx - s * 0.5, sy - s * 0.5, s * 1.3, s);
+      } else {
+        const f = Math.sin(a.phase * 7) * s;
+        ctx.strokeStyle = "rgba(255,255,255,0.92)";
+        ctx.lineWidth = Math.max(1, s * 0.35);
+        ctx.beginPath();
+        ctx.moveTo(sx - s * 1.4, sy);
+        ctx.lineTo(sx, sy + f);
+        ctx.lineTo(sx + s * 1.4, sy);
+        ctx.stroke();
+      }
+    }
+  }
+  function drawAtmosphere() {
+    ctx.beginPath();
+    ctx.arc(cx, cy, R * 1.015, 0, TAU);
+    ctx.strokeStyle = "rgba(150,196,255,0.28)";
+    ctx.lineWidth = Math.max(2, R * 0.035);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(cx, cy, R * 1.04, 0, TAU);
+    ctx.strokeStyle = "rgba(120,170,255,0.12)";
+    ctx.lineWidth = Math.max(6, R * 0.07);
+    ctx.stroke();
+  }
+
+  let passAcc = 0, lifeAcc = 0, saveAcc = 0, growAcc = 0, tideAcc = 0;
+  let lastNow = performance.now();
+  function loop(now) {
+    const ms = now - lastNow;
+    lastNow = now;
+    if (frameMs.length > 180) frameMs.shift();
+    frameMs.push(ms);
+    const dt = Math.min(0.05, ms / 1000);
+    state.age += dt;
+    idle += dt;
+    if (!reduce && idle > 1.1 && pointers.size === 0 && elAsk.hidden) state.yaw += dt * 0.085;
+    state.moon += dt * (TAU / 58);
+    if (state.moon > TAU * 8) state.moon -= TAU * 8;
+    if (settleOnce()) classDirty = true;
+    tideAcc += dt;
+    if (tideAcc > 0.12) { tideAcc = 0; classDirty = true; }
+    growAcc += dt;
+    const growEvery = 0.25;
+    if (growAcc >= growEvery) { growAcc -= growEvery; growOnce(); }
+    for (let i = villages.length - 1; i >= 0; i--) {
+      const g = villages[i];
+      const ok = hasNear(g.row, g.col, 7, function (j) { return water[j] > 6; }) &&
+        hasNear(g.row, g.col, 7, function (j) { return plant[j] > 110 && water[j] < 18; });
+      g.grow = ok ? Math.min(24, g.grow + dt) : Math.max(0, g.grow - dt * 0.3);
+    }
+    for (let i = animals.length - 1; i >= 0; i--) {
+      const a = animals[i];
+      a.phase += dt * (a.kind === "bird" ? 2.4 : 1);
+      const nlat = a.lat + Math.cos(a.phase * 0.8) * dt * a.speed * 0.45;
+      const nlon = a.lon + Math.sin(a.phase) * dt * a.speed;
+      const cell = latLonToCell(clamp(nlat, -1.45, 1.45), nlon);
+      const bad = (a.kind === "fish" && water[cell.i] < 8) ||
+        (a.kind === "deer" && (water[cell.i] > 16 || plant[cell.i] < 20)) ||
+        (a.kind === "bird" && plant[cell.i] < 16 && water[cell.i] > 20);
+      if (bad) a.phase += 1.7;
+      else { a.lat = clamp(nlat, -1.45, 1.45); a.lon = nlon; }
+      if (a.lon > Math.PI) a.lon -= TAU;
+      if (a.lon < -Math.PI) a.lon += TAU;
+    }
+    for (let i = clouds.length - 1; i >= 0; i--) {
+      const c = clouds[i];
+      c.life -= dt;
+      c.lon += dt * 0.012;
+      c.lat += Math.sin(c.phase + c.life) * dt * 0.004;
+      if (!reduce && Math.random() < dt * 10 && drops.length < 48) {
+        drops.push({ lat: c.lat + (Math.random() - 0.5) * 0.08, lon: c.lon + (Math.random() - 0.5) * 0.08, t: 0.45 });
+      }
+      if (c.life <= 0) clouds.splice(i, 1);
+    }
+    for (let i = drops.length - 1; i >= 0; i--) {
+      drops[i].t -= dt;
+      if (drops[i].t <= 0) drops.splice(i, 1);
+    }
+    lifeAcc += dt;
+    if (lifeAcc > 0.5) { lifeAcc = 0; syncLife(); }
+    passAcc += dt;
+    if (passAcc > 0.35) { passAcc = 0; syncPass(false); }
+    saveAcc += dt;
+    if (saveAcc > 5) { saveAcc = 0; saveNow(); }
+    music(now / 1000);
+    if (cssW !== window.innerWidth || cssH !== window.innerHeight) layout();
+    renderFrame(now / 1000);
+    requestAnimationFrame(loop);
+  }
+  function renderFrame(time) {
+    syncCam();
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.imageSmoothingEnabled = false;
+    drawBackground(time);
+    renderSphere(time);
+    ctx.drawImage(off, cx - R, cy - R, R * 2, R * 2);
+    drawMoon();
+    drawClouds();
+    drawAnimals();
+    drawAtmosphere();
+  }
+
+  function screenCell(sx, sy) {
+    syncCam();
+    const nx = (sx - cx) / R;
+    const ny = -(sy - cy) / R;
+    if (nx * nx + ny * ny > 1) return null;
+    const nz = Math.sqrt(1 - nx * nx - ny * ny);
+    const w = viewToWorld(nx, ny, nz);
+    const lat = Math.asin(clamp(w.wy, -1, 1));
+    const lon = Math.atan2(w.wx, w.wz);
+    return latLonToCell(lat, lon);
+  }
+  const pointers = new Map();
+  let painting = false;
+  let stroke = null;
+  function toolRadius() {
+    if (state.tool === "wasser" || state.tool === "senken") return 5;
+    if (state.tool === "wolke") return 5;
+    return 4;
+  }
+  function toolStrength() {
+    if (state.tool === "wasser") return 6;
+    if (state.tool === "heben" || state.tool === "senken") return 4;
+    return 6;
+  }
+  function paintAt(cell) {
+    if (!cell) return;
+    const key = cell.i;
+    if (stroke && stroke.has(key)) return;
+    if (stroke) stroke.add(key);
+    brush(state.tool, cell.row, cell.col, toolRadius(), toolStrength(), true);
+    syncLife();
+  }
+  canvas.addEventListener("pointerdown", function (e) {
+    canvas.setPointerCapture(e.pointerId);
+    pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    idle = 0;
+    firstGesture();
+    if (pointers.size >= 2) { painting = false; stroke = null; return; }
+    const cell = screenCell(e.clientX, e.clientY);
+    if (state.tool === "drehen" || !cell) { painting = false; return; }
+    painting = true;
+    stroke = new Set();
+    if (state.tool === "wolke" || state.tool === "dorf") {
+      brush(state.tool, cell.row, cell.col, toolRadius(), toolStrength(), true);
+      syncLife();
+      syncPass(true);
+      painting = false;
+    } else paintAt(cell);
+    e.preventDefault();
+  });
+  canvas.addEventListener("pointermove", function (e) {
+    const prev = pointers.get(e.pointerId);
+    if (!prev) return;
+    const dx = e.clientX - prev.x;
+    const dy = e.clientY - prev.y;
+    pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    idle = 0;
+    if (pointers.size >= 2 || !painting) {
+      state.yaw += dx * 0.006;
+      state.pitch = clamp(state.pitch + dy * 0.0045, -0.7, 0.7);
+      return;
+    }
+    paintAt(screenCell(e.clientX, e.clientY));
+  });
+  function endPointer(e) {
+    pointers.delete(e.pointerId);
+    if (!pointers.size) { painting = false; stroke = null; syncPass(true); }
+  }
+  canvas.addEventListener("pointerup", endPointer);
+  canvas.addEventListener("pointercancel", endPointer);
+
+  elBar.addEventListener("click", function (e) {
+    const btn = e.target.closest("[data-tool]");
+    if (!btn) return;
+    firstGesture();
+    setTool(btn.getAttribute("data-tool"));
+  });
+  document.getElementById("bWarm").addEventListener("click", function () { firstGesture(); shiftTemp(6); });
+  document.getElementById("bCool").addEventListener("click", function () { firstGesture(); shiftTemp(-6); });
+  elSound.addEventListener("click", function () { toggleSound(); });
+  document.getElementById("bShare").addEventListener("click", function () { firstGesture(); share(); });
+  document.getElementById("bNew").addEventListener("click", function () { elAsk.hidden = false; });
+  document.getElementById("askNo").addEventListener("click", function () { elAsk.hidden = true; });
+  document.getElementById("askYes").addEventListener("click", function () {
+    elAsk.hidden = true;
+    const seed = (Math.random() * 4294967295) >>> 0;
+    fresh(seed || 1);
+    if (location.hash) {
+      lastHash = "";
+      history.replaceState(null, "", location.pathname + location.search);
+    }
+    toast("Neuer Planet geformt.");
+  });
+
+  function share() {
+    const h = encodeHash();
+    lastHash = h;
+    if (location.hash.replace(/^#/, "") !== h) location.hash = h;
+    const url = location.href;
+    const done = function (ok) { toast(ok ? "Link kopiert." : "Link steht in der Adresszeile."); };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(url).then(function () { done(true); }, function () { done(false); });
+    } else done(false);
+  }
+  window.addEventListener("hashchange", function () {
+    const h = location.hash.replace(/^#/, "");
+    if (h === lastHash) return;
+    if (!h) { lastHash = ""; return; }
+    try { loadHashString(h); toast(planetName(state.seed)); }
+    catch (e) { toast("Dieser Link enthält keinen Planeten."); }
+  });
+
+  window.addEventListener("keydown", function (e) {
+    if (e.key === "Escape") { elAsk.hidden = true; return; }
+    if (e.key === "1") setTool("drehen");
+    else if (e.key === "2") setTool("heben");
+    else if (e.key === "3") setTool("senken");
+    else if (e.key === "4") setTool("wasser");
+    else if (e.key === "5") setTool("saat");
+    else if (e.key === "6") setTool("wolke");
+    else if (e.key === "7") setTool("dorf");
+    else if (e.key === "+" || e.key === "=") shiftTemp(6);
+    else if (e.key === "-" || e.key === "_") shiftTemp(-6);
+    else if (e.key === "m" || e.key === "M") toggleSound();
+    else if ((e.key === "s" || e.key === "S") && !e.metaKey && !e.ctrlKey) { e.preventDefault(); share(); }
+    else if (e.key === "n" || e.key === "N") elAsk.hidden = false;
+    else if (e.key === "ArrowLeft") state.yaw -= 0.12;
+    else if (e.key === "ArrowRight") state.yaw += 0.12;
+    else if (e.key === "ArrowUp") state.pitch = clamp(state.pitch - 0.08, -0.7, 0.7);
+    else if (e.key === "ArrowDown") state.pitch = clamp(state.pitch + 0.08, -0.7, 0.7);
+    else return;
+    idle = 0;
+  });
+  window.addEventListener("resize", layout);
+  if (window.visualViewport) window.visualViewport.addEventListener("resize", layout);
+  document.addEventListener("visibilitychange", applyMute);
+
+  function boot() {
+    // Camera roundtrip: a bad transform would hide the whole toy.
+    state.yaw = 0.4; state.pitch = -0.25; syncCam();
+    const lat = 0.4, lon = 1.1, cl = Math.cos(lat);
+    const wx = cl * Math.sin(lon), wy = Math.sin(lat), wz = cl * Math.cos(lon);
+    const p = projectVec(wx, wy, wz);
+    const w = viewToWorld(p.x, p.y, p.z);
+    if (Math.hypot(w.wx - wx, w.wy - wy, w.wz - wz) > 1e-4) console.error("Taschenplanet: Kamera stimmt nicht.");
+    const hashed = location.hash.replace(/^#/, "");
+    let loaded = false;
+    if (hashed.length > 8) {
+      try { loadHashString(hashed); loaded = true; }
+      catch (e) { toast("Dieser Link enthält keinen Planeten."); }
+    }
+    if (!loaded) {
+      let stored = null;
+      try { stored = localStorage.getItem(KEY); } catch (e) { stored = null; }
+      if (stored) {
+        try { loadHashString(stored); loaded = true; }
+        catch (e) { loaded = false; }
+      }
+    }
+    if (!loaded) fresh(0xC0FFEE ^ ((Math.random() * 0xffffffff) >>> 0));
+    setTool(state.tool);
+    syncSoundButton();
+    layout();
+    setTimeout(layout, 250);
+    requestAnimationFrame(loop);
+    window.__pocket = api();
+  }
+  function frameStats() {
+    const a = frameMs.slice().sort(function (x, y) { return x - y; });
+    if (!a.length) return { median: 0, p95: 0, n: 0 };
+    return { median: a[a.length >> 1], p95: a[Math.min(a.length - 1, (a.length * 0.95) | 0)], n: a.length };
+  }
+  function api() {
+    return {
+      ready: true,
+      grid: { w: GW, h: GH },
+      stats: function () {
+        ensureClass();
+        syncLife();
+        return {
+          seed: state.seed >>> 0,
+          temp: state.temp,
+          age: state.age,
+          edits: edits.length / 4,
+          animals: animals.length,
+          deer: animals.filter(function (a) { return a.kind === "deer"; }).length,
+          birds: animals.filter(function (a) { return a.kind === "bird"; }).length,
+          fish: animals.filter(function (a) { return a.kind === "fish"; }).length,
+          villages: villages.length,
+          forestCells: forestRaw,
+          oceanCells: oceanRaw,
+          biomes: {
+            fels: biomePct[0], ozean: biomePct[1], eis: biomePct[2],
+            wueste: biomePct[3], wiese: biomePct[4], wald: biomePct[5]
+          },
+          sound: state.sound,
+          tool: state.tool,
+          moon: state.moon,
+          heightSpan: state.heightSpan
+        };
+      },
+      hash: encodeHash,
+      loadHash: function (h) { loadHashString(h); },
+      dab: function (kind, row, col, radius, strength) {
+        brush(kind, row | 0, col | 0, radius == null ? 8 : radius, strength == null ? 5 : strength, true);
+        syncLife();
+      },
+      settle: function (n) { return settleUntil(n || 80); },
+      grow: function (n) { for (let i = 0; i < n; i++) growOnce(); syncLife(); },
+      setTemp: function (t) { state.temp = clamp(t, 22, 86); classDirty = true; syncLife(); },
+      setView: function (yaw, pitch) { state.yaw = yaw; state.pitch = clamp(pitch, -0.7, 0.7); idle = 0; },
+      setMoon: function (m) { state.moon = m; classDirty = true; },
+      setAuto: function (on) { idle = on ? 10 : -1e9; },
+      getView: function () { return { yaw: state.yaw, pitch: state.pitch, cx: cx, cy: cy, r: R }; },
+      cell: function (row, col) {
+        const i = cellOf(row, col);
+        ensureClass();
+        return { h: height[i], w: water[i], p: plant[i], t: tempAt(i), wet: wetAt(i) };
+      },
+      findShore: function () {
+        ensureClass();
+        let best = null;
+        let bestScore = -1e9;
+        for (let row = 2; row < GH - 2; row++) {
+          for (let col = 0; col < GW; col += 2) {
+            const i = cellOf(row, col);
+            if (water[i] > 6 || plant[i] > 90) continue;
+            const t = tempAt(i);
+            if (t < 20 || t > 58) continue;
+            if (!nearWater(i, 2)) continue;
+            const score = 30 - Math.abs(t - 38) - plant[i] * 0.02;
+            if (score > bestScore) { bestScore = score; best = { row: row, col: col }; }
+          }
+        }
+        return best;
+      },
+      frameStats: frameStats,
+      resetFrames: function () { frameMs.length = 0; },
+      refresh: function () { classDirty = true; ensureClass(); syncLife(); syncPass(true); }
+    };
+  }
+
+  try { boot(); }
+  catch (err) { console.error(err); }
+})();
+</script>
+</body>
+</html>
