@@ -1,0 +1,1163 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Kite Day</title>
+<link rel="icon" href="../favicon.svg" type="image/svg+xml">
+<meta name="description" content="Fly a kite over a hillside meadow. Pull the line, ride the gusts, and stay up until sunset.">
+<style>
+html,body{margin:0;height:100%;background:#e7c49a;overflow:hidden;font-family:Palatino,"Palatino Linotype",Georgia,serif;color:#5c3a28;-webkit-user-select:none;user-select:none;touch-action:none}
+canvas{position:fixed;inset:0;width:100%;height:100%;touch-action:none;image-rendering:pixelated;image-rendering:crisp-edges}
+#hud{position:fixed;z-index:2;left:max(10px,env(safe-area-inset-left));top:max(10px,env(safe-area-inset-top));
+  background:rgba(255,246,226,.84);border:2px solid rgba(120,72,40,.38);border-radius:14px;
+  padding:7px 12px 6px;max-width:min(300px,calc(100vw - 76px));box-shadow:0 2px 0 rgba(120,72,40,.12);
+  pointer-events:none;line-height:1.35}
+#hud b{display:block;font-size:18px;font-weight:600;letter-spacing:.2px}
+#hud span{font-variant-numeric:tabular-nums}
+#hud .row{font-size:14px}
+#mute{position:fixed;z-index:3;right:max(10px,env(safe-area-inset-right));top:max(10px,env(safe-area-inset-top));
+  width:46px;height:46px;border-radius:50%;border:2px solid rgba(120,72,40,.45);
+  background:rgba(255,246,226,.92);font-size:20px;line-height:1;cursor:pointer;color:#5c3a28;
+  display:flex;align-items:center;justify-content:center;padding:0}
+#mute:focus-visible{outline:2px solid #c4683a;outline-offset:2px}
+#hint,#toast{position:fixed;z-index:2;left:50%;transform:translateX(-50%);text-align:center;
+  background:rgba(255,246,226,.88);border:2px solid rgba(120,72,40,.28);border-radius:12px;
+  padding:6px 12px;pointer-events:none;max-width:min(440px,92vw)}
+#hint{bottom:max(12px,env(safe-area-inset-bottom));font-size:15px;transition:opacity .8s}
+#hint.hide{opacity:0}
+#toast{bottom:max(56px,calc(env(safe-area-inset-bottom) + 48px));font-size:16px;opacity:0;transition:opacity .35s}
+#toast.show{opacity:1}
+@media (max-width:700px){
+  #hud b{font-size:16px}#hud .row{font-size:13px}
+  #hint,#toast{font-size:13px}
+}
+@media (max-height:420px){
+  #hud{padding:4px 8px}#hud b{font-size:14px}#hud .row{font-size:12px}
+  #hint{bottom:6px;font-size:12px}
+  #toast{bottom:36px}
+}
+@media (prefers-reduced-motion:reduce){#hint,#toast{transition:none}}
+</style>
+</head>
+<body>
+<canvas id="c" aria-label="Kite Day. Hold and drag down to pull the kite line in, drag up to let it out."></canvas>
+<div id="hud" aria-live="polite">
+  <b>Kite Day</b>
+  <div class="row">flight <span id="ft">0:00</span> · best <span id="bf">0:00</span></div>
+  <div class="row">height <span id="ht">0</span> m · best <span id="bh">0</span> m</div>
+  <div class="row" id="extra">a quiet breeze</div>
+</div>
+<button id="mute" type="button" aria-label="Sound is off. Tap to turn on." aria-pressed="false" title="Sound (M)">🔇</button>
+<div id="hint" role="status">Drag down to pull the line in · drag up to let it out</div>
+<div id="toast" role="status"></div>
+<script>
+'use strict';
+(function () {
+  const $ = id => document.getElementById(id);
+  const TAU = Math.PI * 2;
+  const wrap = a => { a %= TAU; if (a > Math.PI) a -= TAU; if (a < -Math.PI) a += TAU; return a; };
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+  const lerp = (a, b, t) => a + (b - a) * t;
+  function hash(i) {
+    let x = Math.imul(i | 0, 374761393) + 668265263 | 0;
+    x = Math.imul(x ^ (x >>> 13), 1274126177);
+    return ((x ^ (x >>> 16)) >>> 0) / 4294967296;
+  }
+  function hex(h) { const n = parseInt(h.slice(1), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; }
+  function rgb(c) { return 'rgb(' + c[0] + ',' + c[1] + ',' + c[2] + ')'; }
+  function mix(a, b, t) {
+    const A = hex(a), B = hex(b), o = [0, 0, 0];
+    for (let i = 0; i < 3; i++) o[i] = Math.round(lerp(A[i], B[i], t));
+    return o;
+  }
+  function shade(c, m) { return [clamp(c[0] + m | 0, 0, 255), clamp(c[1] + m | 0, 0, 255), clamp(c[2] + m | 0, 0, 255)]; }
+
+  const STOPS = [
+    { t: 0.00, top: '#f6d7a4', mid: '#f3c48a', low: '#f8e6c4', hill: '#7d9a46', far: '#c4b07a', grass: '#5c8a32', grass2: '#b7c56a', tree: '#3f6e30', cloud: '#fff6e8', cloud2: '#f0d2b0', sun: '#fff3c4' },
+    { t: 0.22, top: '#8ec8ea', mid: '#d7eef8', low: '#f7ecd0', hill: '#6d9440', far: '#a9c48a', grass: '#4e7e2c', grass2: '#c5d48a', tree: '#3c6830', cloud: '#fffcf6', cloud2: '#e4eef2', sun: '#fff7dc' },
+    { t: 0.46, top: '#f0a15c', mid: '#f7cf8e', low: '#ffe6c2', hill: '#7a8a38', far: '#d2b07a', grass: '#6a822c', grass2: '#d2c27a', tree: '#4a6828', cloud: '#ffe7c8', cloud2: '#f0b48a', sun: '#ffd48a' },
+    { t: 0.64, top: '#e15a48', mid: '#f29a6a', low: '#ffc8a4', hill: '#5e6234', far: '#c48468', grass: '#5a6428', grass2: '#c4a060', tree: '#3e5228', cloud: '#f8c8b0', cloud2: '#e09078', sun: '#ffb060' },
+    { t: 0.78, top: '#3c3560', mid: '#8a5070', low: '#e08a68', hill: '#3c4236', far: '#7a5560', grass: '#343c2c', grass2: '#8a7058', tree: '#2c3c28', cloud: '#c8a8b4', cloud2: '#6a5870', sun: '#ff8a62' },
+    { t: 0.90, top: '#1a1830', mid: '#2a2744', low: '#3c3a58', hill: '#262c26', far: '#3a3a50', grass: '#222822', grass2: '#4a4838', tree: '#1e2a20', cloud: '#34344c', cloud2: '#2a2a40', sun: '#d5def5' },
+    { t: 1.00, top: '#f6d7a4', mid: '#f3c48a', low: '#f8e6c4', hill: '#7d9a46', far: '#c4b07a', grass: '#5c8a32', grass2: '#b7c56a', tree: '#3f6e30', cloud: '#fff6e8', cloud2: '#f0d2b0', sun: '#fff3c4' }
+  ];
+  const KEYS = ['top', 'mid', 'low', 'hill', 'far', 'grass', 'grass2', 'tree', 'cloud', 'cloud2', 'sun'];
+  function palette(phase) {
+    let i = 0;
+    while (i < STOPS.length - 2 && STOPS[i + 1].t < phase) i++;
+    const a = STOPS[i], b = STOPS[i + 1];
+    const t = clamp((phase - a.t) / (b.t - a.t || 1), 0, 1);
+    const p = {};
+    for (const k of KEYS) p[k] = mix(a[k], b[k], t);
+    return p;
+  }
+  function skyAt(y, p) {
+    if (y < 0.55) return mixRgb(p.top, p.mid, y / 0.55);
+    return mixRgb(p.mid, p.low, (y - 0.55) / 0.45);
+  }
+  function mixRgb(a, b, t) { return [lerp(a[0], b[0], t) | 0, lerp(a[1], b[1], t) | 0, lerp(a[2], b[2], t) | 0]; }
+
+  const view = $('c'), vctx = view.getContext('2d', { alpha: false });
+  const buf = document.createElement('canvas'), ctx = buf.getContext('2d', { alpha: false });
+  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  let worldW = 1000, worldH = 600, bw = 480, bh = 300, pixel = 2;
+  let simT = 0, phase = 0.34, acc = 0;
+  let shower = 0, showerOn = false, showerT = 0, nextShower = 46, rainbow = 0;
+  let sawShower = false, sawRainbow = false, gustNow = 0.5;
+  let manual = false, pausedUser = false, ready = false;
+  let bestFlight = 0, bestHeight = 0, savedFlight = 0, savedHeight = 0;
+  let dirty = false, saveT = 0, hudT = 0, hintT = 0, hintGone = false;
+  let steadyT = 0, birdCd = 6, sawBird = false, sawFar = false, sawLoop = false;
+  let heightTold = false, flightTold = false;
+  const birds = [], seeds = [], rains = [], dusts = [], toasts = [];
+  let toastT = 0, toastHold = null;
+  const clouds = [
+    { x: 80, y: 70, r: 34, z: 0.35, p: 0.2 },
+    { x: 280, y: 110, r: 26, z: 0.55, p: 1.4 },
+    { x: 520, y: 64, r: 40, z: 0.28, p: 2.2 },
+    { x: 760, y: 130, r: 22, z: 0.62, p: 0.7 },
+    { x: 940, y: 86, r: 30, z: 0.4, p: 1.1 }
+  ];
+  let dandelions = [];
+  const input = { script: null, impulse: 0, dragging: false, lastY: 0, pointer: null };
+  const keys = new Set();
+
+  let soundOn = false, userChoseMute = false, audioUnlocked = false;
+  let ac = null, master = null, windGain = null, windFilter = null, creakT = 0, noteT = 0, noteI = 0, peepT = 0;
+  try { userChoseMute = localStorage.getItem('playbot-kite-day-mute') === '1'; } catch (e) {}
+  try {
+    const s = JSON.parse(localStorage.getItem('playbot-kite-day') || 'null');
+    if (s && Number.isFinite(+s.bestFlight)) bestFlight = savedFlight = Math.max(0, +s.bestFlight);
+    if (s && Number.isFinite(+s.bestHeight)) bestHeight = savedHeight = Math.max(0, +s.bestHeight | 0);
+  } catch (e) {}
+
+  function groundY(x) {
+    const base = worldH * 0.82;
+    const hill = Math.sin(x * 0.007) * 22 + Math.sin(x * 0.017 + 1.2) * 10;
+    const stand = standX();
+    const play = Math.exp(-Math.pow((x - stand) / 130, 2)) * 14;
+    return base - hill - play;
+  }
+  function standX() { return worldW * (worldW < 520 ? 0.30 : 0.22); }
+  function playerGround(x) {
+    if (!Number.isFinite(x)) return worldH * 0.82;
+    return groundY(clamp(x, -80, worldW + 80));
+  }
+  function farGround(x) { return 30 + Math.sin(x * 0.05) * 2; }
+  function limits(ai) {
+    if (ai) return { min: 72, max: 150 };
+    return { min: 68, max: Math.max(130, Math.min(460, worldH * 0.58, worldW * 0.72)) };
+  }
+
+  function makeKite(ai) {
+    const k = {
+      ai: ai, x: 0, y: 0, vx: 0, vy: 0, len: ai ? 124 : 190,
+      rot: -0.55, spin: 0, state: 'fly', stateT: 0, runX: 0,
+      lacc: 0, lrot: -0.55, flight: 0, loops: 0, crashes: 0, faults: 0,
+      hx: 0, hy: 0, _gust: 0.5, _alt: 0, tail: []
+    };
+    for (let i = 0; i < 12; i++) k.tail.push({ x: 0, y: 0, px: 0, py: 0 });
+    if (ai) { k.hx = 0; k.hy = 0; k.x = 64; k.y = -108; k.vx = 22; k.vy = -8; }
+    return k;
+  }
+  let player = null, far = null;
+
+  function anchorOf(k) {
+    const c = Math.cos(k.rot), s = Math.sin(k.rot), ly = 14;
+    return { x: k.x - ly * s, y: k.y + ly * c };
+  }
+  function reseedTail(k) {
+    const a = anchorOf(k);
+    for (let i = 0; i < k.tail.length; i++) {
+      const p = k.tail[i];
+      p.x = a.x + i * 1.2; p.y = a.y + i * 12; p.px = p.x; p.py = p.y;
+    }
+  }
+  function bufToWorld(px, py) { return { x: px / bw * worldW, y: py / bh * worldH }; }
+  function worldToBuf(x, y) { return [x / worldW * bw, y / worldH * bh]; }
+
+  function kidScale() { return bw < 420 ? 1.15 : 1.35; }
+  function syncHand() {
+    const bx = player.state === 'run' ? player.runX : standX();
+    const feetY = groundY(bx);
+    const fx = bx / worldW * bw, fy = feetY / worldH * bh;
+    const s = kidScale();
+    const w = bufToWorld(fx + 6 * s, fy - 16 * s);
+    player.hx = w.x; player.hy = w.y; player.drawX = bx;
+  }
+  function placeRun(k, u) {
+    const e = u * u * (3 - 2 * u);
+    const rise = Math.max(0, (u - 0.42) / 0.58);
+    if (k.ai) {
+      k.runX = lerp(-46, 0, e);
+      k.hx = 0; k.hy = 0;
+    } else {
+      const home = standX();
+      k.runX = lerp(home - 78, home, e);
+      syncHand();
+    }
+    const gy = k.ai ? farGround(k.runX) : playerGround(k.runX);
+    k.x = k.runX - 28 + rise * 34;
+    k.y = gy - 12 - rise * 76;
+    k.len = 54 + rise * 104;
+    k.rot = 0.35 - rise * 1.15;
+    k.spin = 0; k.vx = 0; k.vy = 0;
+  }
+  function launch(k) {
+    k.state = 'fly'; k.stateT = 0; k.lacc = 0;
+    if (k.ai) { k.hx = 0; k.hy = 0; }
+    else syncHand();
+    k.x = k.hx + (k.ai ? 70 : 100);
+    k.y = k.hy - (k.ai ? 96 : 86);
+    k.vx = k.ai ? 36 : 72;
+    k.vy = k.ai ? -90 : -150;
+    k.len = k.ai ? 120 : 164;
+    k.rot = -0.6; k.spin = 0.35; k.lrot = k.rot;
+    reseedTail(k);
+  }
+  function beginRun(k) {
+    k.state = 'run'; k.stateT = 0; k.spin = 0;
+    placeRun(k, 0);
+    reseedTail(k);
+  }
+
+  function layout() {
+    const cssW = Math.max(2, window.innerWidth), cssH = Math.max(2, window.innerHeight);
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    view.width = Math.round(cssW * dpr);
+    view.height = Math.round(cssH * dpr);
+    vctx.imageSmoothingEnabled = false;
+    pixel = Math.max(2, Math.ceil(Math.max(cssW, cssH) / 560));
+    bw = Math.max(160, Math.round(cssW / pixel));
+    bh = Math.max(160, Math.round(cssH / pixel));
+    if (buf.width !== bw || buf.height !== bh) { buf.width = bw; buf.height = bh; }
+    worldH = 600;
+    worldW = 600 * (bw / bh);
+    if (player) {
+      if (player.state === 'fly') {
+        syncHand();
+        const L = limits(false);
+        player.len = clamp(player.len, L.min, L.max);
+      } else if (player.state === 'run') placeRun(player, Math.min(1, player.stateT / 1.75));
+      dandelions = [];
+      for (let i = 0; i < 5; i++) {
+        const x = worldW * (0.08 + hash(i + 3) * 0.84);
+        dandelions.push({ x: x, y: groundY(x) - 7 });
+      }
+    }
+  }
+
+  function windAt(y, hy, showerAmt) {
+    const s = Math.sin(simT * 0.23) * 0.55 + Math.sin(simT * 0.067 + 1.3) * 0.35 + Math.sin(simT * 0.51) * 0.2;
+    let gust = 0.28 + 0.72 * (0.5 + 0.5 * Math.tanh(s * 1.15));
+    const calm = Math.pow(Math.max(0, Math.sin(simT * 0.11 + 2)), 3);
+    gust *= 1 - 0.75 * calm;
+    gust = clamp(gust, 0.1, 1);
+    const alt = Math.max(0, hy - y);
+    let wx = (40 + 140 * gust) * (1 + Math.min(alt, 260) / 700);
+    let wy = -20 * Math.sin(simT * 0.4) * gust - 6 * gust;
+    const sh = showerAmt || 0;
+    if (sh > 0) { wx *= 1 + sh * 0.3; wy += 55 * sh; gust = Math.min(1, gust + 0.25 * sh); }
+    return { wx: wx, wy: wy, gust: gust };
+  }
+
+  function stepTail(k, dt, w, limp) {
+    const pts = k.tail;
+    const a = anchorOf(k);
+    const ax = w.wx * 0.55, ay = 90 + (limp ? 50 : 0);
+    for (let i = 1; i < pts.length; i++) {
+      const p = pts[i];
+      const nx = p.x + (p.x - p.px) * 0.986 + ax * dt * dt;
+      const ny = p.y + (p.y - p.py) * 0.986 + ay * dt * dt;
+      p.px = p.x; p.py = p.y; p.x = nx; p.y = ny;
+    }
+    pts[0].x = a.x; pts[0].y = a.y; pts[0].px = a.x; pts[0].py = a.y;
+    const seg = 13;
+    for (let n = 0; n < 4; n++) {
+      pts[0].x = a.x; pts[0].y = a.y;
+      for (let i = 1; i < pts.length; i++) {
+        const A = pts[i - 1], B = pts[i];
+        let dx = B.x - A.x, dy = B.y - A.y, d = Math.hypot(dx, dy) || 1e-4;
+        const diff = (d - seg) / d;
+        if (i > 1) { A.x += dx * diff * 0.5; A.y += dy * diff * 0.5; }
+        const m = i === 1 ? 1 : 0.5;
+        B.x -= dx * diff * m; B.y -= dy * diff * m;
+      }
+    }
+    let bad = false, worst = 0;
+    for (const p of pts) {
+      if (!Number.isFinite(p.x) || !Number.isFinite(p.y)) { bad = true; break; }
+      worst = Math.max(worst, Math.hypot(p.x - k.x, p.y - k.y));
+      const gy = k.ai ? farGround(p.x) : playerGround(p.x);
+      if (p.y > gy - 1) { p.y = gy - 1; p.py = Math.min(p.py, p.y); }
+    }
+    if (bad || worst > 240) { k.faults++; reseedTail(k); }
+  }
+
+  function failKite(k) {
+    k.faults++;
+    if (k.ai) { k.hx = 0; k.hy = 0; launch(k); }
+    else beginRun(k);
+  }
+
+  function stepKite(k, dt, reel) {
+    if (![k.x, k.y, k.vx, k.vy, k.len, k.rot, k.spin].every(Number.isFinite)) { failKite(k); return; }
+    const w = windAt(k.y, k.hy, k.ai ? shower * 0.4 : shower);
+    k._gust = w.gust;
+    if (!k.ai) gustNow = w.gust;
+    if (k.state === 'crash') {
+      k.stateT += dt; k.vx = 0; k.vy = 0; k.spin *= Math.exp(-dt * 2); k.rot += dt * 5;
+      const gy = k.ai ? farGround(k.x) : playerGround(k.x);
+      k.y += (gy - 5 - k.y) * Math.min(1, dt * 8);
+      if (k.stateT > 1.15) beginRun(k);
+      stepTail(k, dt, w, true);
+      return;
+    }
+    if (k.state === 'run') {
+      k.stateT += dt;
+      const u = Math.min(1, k.stateT / 1.75);
+      placeRun(k, u);
+      if (u >= 1) launch(k);
+      stepTail(k, dt, w, false);
+      return;
+    }
+    const L = limits(k.ai);
+    if (!k.ai && Math.abs(reel) < 1 && !input.dragging && k.len < Math.min(300, L.max * 0.78) && w.gust > 0.34) reel = 6;
+    k.len = clamp(k.len + reel * dt, L.min, L.max);
+    const rx = w.wx - k.vx, ry = w.wy - k.vy;
+    const sp = Math.hypot(rx, ry) || 1e-4;
+    const diff = wrap(Math.atan2(rx, -ry) - k.rot);
+    const align = Math.cos(diff);
+    const stall = (sp < 30 ? Math.pow(sp / 30, 1.2) : 1) * Math.max(0, align);
+    let ax = rx * 0.42, ay = ry * 0.42 + 36;
+    let px = -ry / sp, py = rx / sp;
+    if (py > 0) { px = -px; py = -py; }
+    const lift = (34 + 100 * w.gust) * stall * Math.min(1.25, sp / 75);
+    ax += px * lift; ay += py * lift;
+    if (align < 0.15) ay += 60;
+    k.vx += ax * dt; k.vy += ay * dt;
+    const dx0 = k.x - k.hx, dy0 = k.y - k.hy, dist0 = Math.hypot(dx0, dy0) || 1;
+    if (dist0 > k.len * 0.86 && reel < -25) {
+      let tx = -dy0 / dist0, ty = dx0 / dist0;
+      if (k.vx * tx + k.vy * ty < 0) { tx = -tx; ty = -ty; }
+      const boost = Math.min(-reel * 0.8, 280);
+      k.vx += tx * boost * dt; k.vy += ty * boost * dt;
+      k.spin += (tx > 0 ? 1 : -1) * Math.min(-reel, 180) * 0.03 * dt * 120;
+    }
+    k.spin += diff * 2.2 * dt * (Math.abs(k.spin) > 4 ? 0.3 : 1);
+    k.spin *= Math.exp(-1.7 * dt);
+    k.spin = clamp(k.spin, -8, 8);
+    k.rot += k.spin * dt;
+    k.x += k.vx * dt; k.y += k.vy * dt;
+    let dx = k.x - k.hx, dy = k.y - k.hy, dist = Math.hypot(dx, dy) || 1;
+    if (dist > k.len && k.len > 1) {
+      const nx = dx / dist, ny = dy / dist, vr = k.vx * nx + k.vy * ny;
+      const txv = k.vx - vr * nx, tyv = k.vy - vr * ny;
+      const tscale = reel < 0 ? Math.min(1.2, Math.pow(dist / k.len, 0.75)) : 1;
+      k.x = k.hx + nx * k.len; k.y = k.hy + ny * k.len;
+      const vr2 = vr > 0 ? 0 : vr * 0.4;
+      k.vx = txv * tscale + vr2 * nx; k.vy = tyv * tscale + vr2 * ny;
+    }
+    const spd = Math.hypot(k.vx, k.vy);
+    if (spd > 460) { k.vx *= 460 / spd; k.vy *= 460 / spd; }
+    const gy = k.ai ? farGround(k.x) : playerGround(k.x);
+    const alt = k.hy - k.y;
+    k._alt = alt;
+    if (k.y > gy - 6 && k.vy > -15) {
+      k.state = 'crash'; k.stateT = 0; k.crashes++;
+      k.y = gy - 5; k.vx = 0; k.vy = 0;
+      if (!k.ai) {
+        burst(k.x, gy - 2, 10);
+        k.flight = 0;
+      }
+    } else if (!k.ai) {
+      if (alt > 15) k.flight += dt;
+      const dr = wrap(k.rot - k.lrot); k.lacc += dr; k.lrot = k.rot;
+      if (Math.abs(k.lacc) > TAU && alt > 45) {
+        k.loops++; k.lacc = 0;
+        if (!sawLoop) { sawLoop = true; toast('A loop!'); }
+        if (soundOn) whoosh();
+      }
+    } else {
+      const dr = wrap(k.rot - k.lrot); k.lacc += dr; k.lrot = k.rot;
+      if (Math.abs(k.lacc) > TAU && alt > 40) { k.loops++; k.lacc = 0; }
+    }
+    stepTail(k, dt, w, stall < 0.25);
+  }
+
+  function farReel() {
+    if (far.state !== 'fly') return 0;
+    if (far.y > -40) return 22;
+    if (far.y < -130) return -6;
+    return 2;
+  }
+
+  function weather(dt) {
+    if (!showerOn && rainbow <= 0 && simT >= nextShower) { showerOn = true; showerT = 0; }
+    if (showerOn) {
+      showerT += dt;
+      const u = showerT;
+      shower = u < 1.6 ? u / 1.6 : u < 10 ? 1 : Math.max(0, 1 - (u - 10) / 2.2);
+      if (shower > 0.45) sawShower = true;
+      if (u > 12.2) {
+        showerOn = false; shower = 0;
+        if (phase < 0.78 || phase > 0.985) {
+          rainbow = 1; sawRainbow = true; toast('A rainbow');
+        }
+        nextShower = simT + 68 + hash((simT * 10) | 0) * 18;
+      }
+    } else if (rainbow > 0) rainbow = Math.max(0, rainbow - dt / 16);
+  }
+
+  function stepBirds(dt) {
+    const alt = player.hy - player.y;
+    const steady = player.state === 'fly' && alt > 100 && Math.hypot(player.vx, player.vy) < 85;
+    if (steady) steadyT = Math.min(8, steadyT + dt);
+    else steadyT = Math.max(0, steadyT - dt * 1.4);
+    birdCd -= dt;
+    if (steadyT > 3.2 && birds.length < (reduce ? 1 : 2) && birdCd <= 0 && player.state === 'fly') {
+      birds.push({
+        x: player.x - 180 - hash(birds.length + simT | 0) * 80,
+        y: player.y - 30, mode: 'come', t: 0, flap: hash(simT * 7 | 0) * TAU,
+        orbit: hash(simT * 3 | 0) * TAU
+      });
+      birdCd = 10;
+      if (!sawBird) { sawBird = true; toast('They came to look'); }
+    }
+    const flap = reduce ? 4 : 10;
+    for (const b of birds) {
+      b.t += dt; b.flap += dt * flap;
+      let tx, ty;
+      if (b.mode === 'leave') { tx = b.x + 120; ty = b.y - 40; if (b.x > worldW + 30) b.dead = true; }
+      else {
+        const a = b.orbit + b.t * (reduce ? 0.6 : 1.25);
+        tx = player.x + Math.cos(a) * 46;
+        ty = player.y + Math.sin(a) * 20 - 18;
+        if (b.mode === 'come' && Math.hypot(b.x - tx, b.y - ty) < 24) { b.mode = 'look'; b.t = 0; }
+        if (b.mode === 'look' && b.t > 8) b.mode = 'leave';
+      }
+      const s = b.mode === 'leave' ? 1.8 : 1.35;
+      b.x += (tx - b.x) * Math.min(1, dt * s);
+      b.y += (ty - b.y) * Math.min(1, dt * s);
+    }
+    for (let i = birds.length - 1; i >= 0; i--) if (birds[i].dead) birds.splice(i, 1);
+  }
+
+  function stepSeeds(dt) {
+    if (gustNow > 0.76 && seeds.length < (reduce ? 8 : 18) && hash((simT * 30) | 0) > 0.72 && dandelions.length) {
+      const p = dandelions[(simT * 3 | 0) % dandelions.length];
+      seeds.push({ x: p.x, y: p.y, vx: 16 + gustNow * 30, vy: -16 - hash(simT * 9 | 0) * 18, life: 1 });
+    }
+    for (const s of seeds) {
+      s.x += s.vx * dt; s.y += s.vy * dt; s.vy -= 4 * dt; s.life -= dt * 0.11;
+      s.vx += Math.sin(simT * 3 + s.y * 0.1) * 10 * dt;
+    }
+    for (let i = seeds.length - 1; i >= 0; i--) if (seeds[i].life <= 0 || seeds[i].x > worldW + 30) seeds.splice(i, 1);
+  }
+
+  function stepRain(dt) {
+    const want = shower > 0.05 ? (reduce ? 28 : 70) : 0;
+    while (rains.length < want) rains.push(spawnDrop());
+    if (rains.length > want) rains.length = want;
+    const wy = 220 + gustNow * 80, wx = 80 + gustNow * 40;
+    for (const r of rains) {
+      r.y += wy * dt; r.x += wx * dt;
+      if (r.y > worldH + 8) { r.x = hash((r.x * 13 + simT * 20) | 0) * worldW; r.y = -10 - hash(r.x | 0) * 40; }
+    }
+  }
+  function spawnDrop() {
+    return { x: hash(rains.length * 17 + 4) * worldW, y: hash(rains.length * 9 + 2) * worldH, n: 4 + (hash(rains.length + 8) * 6 | 0) };
+  }
+  function burst(x, y, n) {
+    for (let i = 0; i < n; i++) dusts.push({ x: x, y: y, vx: (hash(i + simT * 5 | 0) - 0.5) * 70, vy: -20 - hash(i + 3) * 50, life: 0.6 });
+  }
+  function stepDust(dt) {
+    for (const d of dusts) { d.x += d.vx * dt; d.y += d.vy * dt; d.vy += 80 * dt; d.life -= dt; }
+    for (let i = dusts.length - 1; i >= 0; i--) if (dusts[i].life <= 0) dusts.splice(i, 1);
+  }
+
+  function fmt(sec) {
+    sec = Math.max(0, sec | 0);
+    return (sec / 60 | 0) + ':' + String(sec % 60).padStart(2, '0');
+  }
+  function windWord() {
+    if (pausedUser) return 'paused';
+    if (player.state === 'crash') return 'in the grass';
+    if (player.state === 'run') return 'a little run-up';
+    if (shower > 0.4) return 'a short shower';
+    if (rainbow > 0.35) return 'rainbow weather';
+    if (gustNow < 0.28) return 'a lull';
+    if (gustNow < 0.5) return 'a quiet breeze';
+    if (gustNow < 0.75) return 'a steady wind';
+    return 'a gust';
+  }
+  function toast(s) { toasts.push(s); }
+  function tickToast(dt) {
+    const el = $('toast');
+    if (!toasts.length) { el.classList.remove('show'); el.style.opacity = ''; el.style.transition = ''; toastHold = null; toastT = 0; return; }
+    el.style.opacity = ''; el.style.transition = '';
+    if (toastHold !== toasts[0]) { toastHold = toasts[0]; toastT = 0; el.textContent = toasts[0]; el.classList.add('show'); }
+    toastT += dt;
+    if (toastT > 2.5) { toasts.shift(); toastHold = null; }
+  }
+  function updateHud() {
+    const altM = player.state === 'fly' ? Math.max(0, Math.round((player.hy - player.y) / 5.2)) : 0;
+    if (player.state === 'fly' && altM > bestHeight) {
+      bestHeight = altM; dirty = true;
+      if (!heightTold && bestHeight > savedHeight && bestHeight >= 12) { heightTold = true; toast('Highest yet'); }
+    }
+    if (player.flight > bestFlight) {
+      bestFlight = player.flight; dirty = true;
+      if (!flightTold && bestFlight > savedFlight && bestFlight >= 12) { flightTold = true; toast('Longest flight'); }
+    }
+    if (!sawFar && player.flight > 14 && player.state === 'fly') { sawFar = true; toast('A kite on the next hill'); }
+    $('ft').textContent = fmt(player.state === 'fly' ? player.flight : 0);
+    $('bf').textContent = fmt(bestFlight);
+    $('ht').textContent = String(altM);
+    $('bh').textContent = String(bestHeight | 0);
+    const extra = windWord() + (player.loops ? ' · loops ' + player.loops : '');
+    if ($('extra').textContent !== extra) $('extra').textContent = extra;
+  }
+  function save() {
+    dirty = false; saveT = 0;
+    try { localStorage.setItem('playbot-kite-day', JSON.stringify({ bestFlight: +bestFlight.toFixed(1), bestHeight: bestHeight | 0 })); } catch (e) {}
+  }
+
+  function reelRate(dt) {
+    const impulse = input.impulse;
+    input.impulse = 0;
+    if (input.script !== null) return clamp(input.script, -340, 340);
+    let r = 0;
+    if (keys.has('ArrowDown') || keys.has('s') || keys.has('S')) r -= 155;
+    if (keys.has('ArrowUp') || keys.has('w') || keys.has('W')) r += 115;
+    if (dt > 0) r += impulse / dt;
+    return clamp(r, -340, 340);
+  }
+
+  function step(dt) {
+    dt = clamp(dt || 0, 0, 0.05);
+    if (!dt) return;
+    const reel = reelRate(dt);
+    acc += dt;
+    const h = 1 / 120;
+    let n = 0;
+    while (acc >= h && n < 8) {
+      acc -= h; n++;
+      simT += h;
+      phase = (phase + h / 160) % 1;
+      weather(h);
+      if (player.state === 'fly') syncHand();
+      stepKite(player, h, player.state === 'fly' ? reel : 0);
+      stepKite(far, h, farReel());
+    }
+    if (n >= 8) acc = 0;
+    stepBirds(dt); stepSeeds(dt); stepRain(dt); stepDust(dt);
+    for (const c of clouds) {
+      c.x -= (26 + gustNow * 70) * c.z * dt * (1 + shower);
+      if (c.x < -80) c.x = worldW + 40 + hash(c.y | 0) * 40;
+    }
+    hudT += dt;
+    if (hudT > 0.15) { hudT = 0; updateHud(); }
+    if (dirty) { saveT += dt; if (saveT > 2) save(); }
+    tickToast(dt);
+    if (!hintGone) { hintT += dt; if (hintT > 7.5) hideHint(); }
+    syncAudio(reel);
+    maybeNote(dt);
+  }
+
+  function hideHint() { hintGone = true; $('hint').classList.add('hide'); }
+
+  // ---------- sound (quiet until the first tap) ----------
+  const PHRASE = [0, 2, 4, 2, 3, 4, 2, 1, 0, 2, 3, 4, 2, 1, 0];
+  const DEG = [392, 440, 493.88, 587.33, 659.25, 783.99];
+  function startAudio() {
+    if (ac) { if (ac.state === 'suspended') ac.resume().catch(function () {}); return; }
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return;
+    try { ac = new AC(); } catch (e) { ac = null; return; }
+    master = ac.createGain(); master.gain.value = 0; master.connect(ac.destination);
+    const len = ac.sampleRate * 2;
+    const buffer = ac.createBuffer(1, len, ac.sampleRate);
+    const data = buffer.getChannelData(0);
+    let b0 = 0;
+    for (let i = 0; i < len; i++) { const w = Math.random() * 2 - 1; b0 = b0 * 0.98 + w * 0.02; data[i] = b0 * 3.2; }
+    const src = ac.createBufferSource(); src.buffer = buffer; src.loop = true;
+    windFilter = ac.createBiquadFilter(); windFilter.type = 'bandpass'; windFilter.frequency.value = 480; windFilter.Q.value = 0.55;
+    windGain = ac.createGain(); windGain.gain.value = 0;
+    src.connect(windFilter); windFilter.connect(windGain); windGain.connect(master); src.start();
+    if (ac.state === 'suspended') ac.resume().catch(function () {});
+  }
+  function blip(freq, dur, vol, type) {
+    if (!ac || !soundOn) return;
+    const o = ac.createOscillator(), g = ac.createGain();
+    o.type = type || 'triangle'; o.frequency.value = freq;
+    const n = ac.currentTime;
+    g.gain.setValueAtTime(0.0001, n);
+    g.gain.exponentialRampToValueAtTime(Math.max(0.0002, vol), n + 0.03);
+    g.gain.exponentialRampToValueAtTime(0.0001, n + dur);
+    o.connect(g); g.connect(master); o.start(n); o.stop(n + dur + 0.02);
+  }
+  function creak(vol) {
+    if (!ac || !soundOn || ac.currentTime < creakT) return;
+    creakT = ac.currentTime + 0.14;
+    const o = ac.createOscillator(), g = ac.createGain(), f = ac.createBiquadFilter();
+    f.type = 'bandpass'; f.frequency.value = 380 + Math.random() * 220; f.Q.value = 7;
+    o.type = 'sawtooth'; o.frequency.setValueAtTime(90 + Math.random() * 30, ac.currentTime);
+    o.frequency.exponentialRampToValueAtTime(50, ac.currentTime + 0.12);
+    g.gain.setValueAtTime(vol, ac.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.0001, ac.currentTime + 0.12);
+    o.connect(f); f.connect(g); g.connect(master); o.start(); o.stop(ac.currentTime + 0.14);
+  }
+  function whoosh() {
+    if (!ac || !soundOn) return;
+    const o = ac.createOscillator(), g = ac.createGain(), f = ac.createBiquadFilter();
+    f.type = 'bandpass'; f.frequency.setValueAtTime(500, ac.currentTime); f.frequency.exponentialRampToValueAtTime(180, ac.currentTime + 0.25); f.Q.value = 0.7;
+    o.type = 'sawtooth'; o.frequency.value = 90;
+    g.gain.setValueAtTime(0.03, ac.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.0001, ac.currentTime + 0.28);
+    o.connect(f); f.connect(g); g.connect(master); o.start(); o.stop(ac.currentTime + 0.3);
+  }
+  function syncAudio(reel) {
+    if (!ac || !windGain) return;
+    const audible = soundOn && !document.hidden && !pausedUser;
+    master.gain.setTargetAtTime(audible ? 0.8 : 0, ac.currentTime, 0.08);
+    const g = audible ? 0.012 + gustNow * 0.045 + shower * 0.03 : 0;
+    windGain.gain.setTargetAtTime(g, ac.currentTime, 0.25);
+    windFilter.frequency.setTargetAtTime(320 + gustNow * 520 + shower * 80, ac.currentTime, 0.4);
+    if (audible && Math.abs(reel || 0) > 70) creak(Math.min(0.05, Math.abs(reel) / 5000));
+  }
+  function maybeNote(dt) {
+    const high = steadyT > 2.3 && player.state === 'fly' && (player.hy - player.y) > 110;
+    if (!high || !soundOn || !ac || pausedUser || document.hidden) { noteT = Math.min(noteT, 0.2); return; }
+    noteT -= dt;
+    if (noteT > 0) return;
+    noteT = 0.52;
+    const f = DEG[PHRASE[noteI % PHRASE.length]];
+    noteI++;
+    blip(f, 0.62, 0.04, 'triangle');
+    blip(f * 0.5, 0.7, 0.012, 'sine');
+    if (birds.length) { peepT -= dt; if (peepT <= 0) { peepT = 2.4 + hash(noteI) * 2; blip(1700, 0.09, 0.02, 'sine'); } }
+  }
+  function paintMute() {
+    const btn = $('mute');
+    btn.textContent = soundOn ? '🔊' : '🔇';
+    btn.setAttribute('aria-pressed', soundOn ? 'true' : 'false');
+    btn.setAttribute('aria-label', soundOn ? 'Sound is on. Tap to mute.' : 'Sound is off. Tap to turn on.');
+  }
+  function setSound(on) {
+    soundOn = !!on;
+    if (soundOn) startAudio();
+    paintMute();
+    if (ac && master) master.gain.setTargetAtTime(soundOn && !document.hidden ? 0.8 : 0, ac.currentTime, 0.05);
+    try { localStorage.setItem('playbot-kite-day-mute', soundOn ? '0' : '1'); } catch (e) {}
+  }
+  function unlockFromPlay() {
+    audioUnlocked = true;
+    if (!userChoseMute && !soundOn) setSound(true);
+    else if (soundOn) startAudio();
+    else startAudio();
+  }
+  function onMute(e) {
+    if (e) { e.stopPropagation(); e.preventDefault(); }
+    audioUnlocked = true;
+    if (soundOn) { userChoseMute = true; setSound(false); }
+    else { userChoseMute = false; setSound(true); }
+  }
+
+  // ---------- draw ----------
+  function farFeet() {
+    return {
+      x: bw * (bw < bh ? 0.74 : 0.82),
+      y: bh * (bw < bh ? 0.50 : 0.55)
+    };
+  }
+  function farScale() { return clamp(bh / 780, 0.38, 0.62); }
+  function mapFar(lx, ly) {
+    const feet = farFeet(), sc = farScale();
+    const handX = feet.x, handY = feet.y - 12 * (bw < bh ? 0.85 : 1);
+    return [handX + lx * sc, handY + ly * sc];
+  }
+
+  function drawSky(p) {
+    const bands = Math.min(64, bh);
+    for (let i = 0; i < bands; i++) {
+      const y0 = (i * bh / bands) | 0;
+      const y1 = ((i + 1) * bh / bands) | 0;
+      ctx.fillStyle = rgb(skyAt((i + 0.5) / bands, p));
+      ctx.fillRect(0, y0, bw, y1 - y0 + 1);
+    }
+    const night = phase > 0.8 && phase < 0.98 ? Math.sin((phase - 0.8) / 0.18 * Math.PI) : 0;
+    if (phase < 0.84) {
+      const u = phase / 0.84;
+      const sx = bw * (0.08 + 0.84 * u);
+      const sy = bh * (0.72 - Math.sin(u * Math.PI) * 0.54);
+      ctx.fillStyle = rgb(shade(p.sun, 28));
+      ctx.beginPath(); ctx.arc(sx, sy, Math.max(8, bh * 0.045), 0, TAU); ctx.fill();
+      ctx.fillStyle = rgb(p.sun);
+      ctx.beginPath(); ctx.arc(sx, sy, Math.max(6, bh * 0.032), 0, TAU); ctx.fill();
+    }
+    if (night > 0.15) {
+      ctx.fillStyle = 'rgba(232,236,214,' + (0.35 + night * 0.55) + ')';
+      const mx = bw * 0.7, my = bh * 0.14, mr = Math.max(6, bh * 0.028);
+      ctx.beginPath(); ctx.arc(mx, my, mr, 0, TAU); ctx.fill();
+      ctx.globalAlpha = night;
+      ctx.fillStyle = '#f4f0d8';
+      for (let i = 0; i < 36; i++) {
+        const x = hash(i * 5 + 1) * bw, y = hash(i * 5 + 2) * bh * 0.55;
+        const tw = 0.45 + 0.55 * Math.abs(Math.sin(simT * 1.7 + i));
+        ctx.globalAlpha = night * tw;
+        ctx.fillRect(x | 0, y | 0, (i % 5 === 0 ? 2 : 1), 1);
+      }
+      ctx.globalAlpha = 1;
+    }
+  }
+
+  function puff(x, y, r, col) {
+    ctx.fillStyle = col;
+    const rad = Math.max(4, r | 0);
+    for (let iy = -rad; iy <= rad; iy++) {
+      const ww = Math.round(Math.sqrt(Math.max(0, rad * rad - iy * iy)));
+      ctx.fillRect((x - ww) | 0, (y + iy) | 0, ww * 2, 1);
+    }
+  }
+  function drawCloud(c, p, shadeAmt) {
+    const [x, y] = worldToBuf(c.x, c.y + Math.sin(simT * 0.3 + c.p) * 6);
+    const r = c.r / worldH * bh;
+    const body = rgb(mixRgb(p.cloud, p.cloud2, shadeAmt * 0.35));
+    const belly = rgb(shade(mixRgb(p.cloud, p.cloud2, Math.min(1, shadeAmt + 0.35)), -24));
+    puff(x, y + r * 0.22, r * 0.82, belly);
+    puff(x + r * 0.7, y + r * 0.28, r * 0.55, belly);
+    puff(x, y, r, body);
+    puff(x + r * 0.78, y + r * 0.08, r * 0.66, body);
+    puff(x - r * 0.68, y + r * 0.12, r * 0.56, body);
+  }
+
+  function drawFarHill(p) {
+    const feet = farFeet();
+    ctx.fillStyle = rgb(shade(p.far, 16));
+    ctx.beginPath();
+    ctx.moveTo(0, bh);
+    for (let x = 0; x <= bw; x += 3) {
+      const dx = (x - feet.x) / bw;
+      const y = feet.y + dx * dx * bh * 0.85 + Math.sin(x * 0.04 + 1) * 2.2;
+      ctx.lineTo(x, y);
+    }
+    ctx.lineTo(bw, bh); ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = rgb(shade(p.far, 36)); ctx.lineWidth = 2;
+    ctx.beginPath();
+    for (let x = 0; x <= bw; x += 3) {
+      const dx = (x - feet.x) / bw;
+      const y = feet.y + dx * dx * bh * 0.85 + Math.sin(x * 0.04 + 1) * 2.2;
+      if (x === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+    treeAt(feet.x - bw * 0.12, feet.y + 8, bh * 0.07, p);
+    treeAt(feet.x + bw * 0.08, feet.y + 14, bh * 0.05, p);
+    treeAt(feet.x - bw * 0.22, feet.y + 22, bh * 0.045, p);
+  }
+  function treeAt(x, y, h, p) {
+    ctx.fillStyle = '#6b442c';
+    ctx.fillRect(x | 0, (y - h * 0.32) | 0, 3, Math.max(2, (h * 0.36) | 0));
+    ctx.fillStyle = rgb(p.tree);
+    const r = Math.max(4, h * 0.46);
+    ctx.fillRect((x - r * 0.2) | 0, (y - h * 0.95) | 0, Math.max(3, r * 0.7) | 0, (h * 0.28) | 0);
+    ctx.fillRect((x - r * 0.7) | 0, (y - h * 0.72) | 0, (r * 1.5) | 0, (h * 0.28) | 0);
+    ctx.fillRect((x - r) | 0, (y - h * 0.5) | 0, (r * 2) | 0, (h * 0.26) | 0);
+    ctx.fillStyle = rgb(shade(p.tree, 28));
+    ctx.fillRect((x - 1) | 0, (y - h * 0.88) | 0, 2, 2);
+  }
+
+  function drawKid(px, py, sc, running, shirt) {
+    const s = sc;
+    const bob = running ? Math.abs(Math.sin(simT * 12)) * s : 0;
+    const x = px | 0, y = (py - bob) | 0;
+    ctx.fillStyle = 'rgba(80,50,30,0.28)';
+    ctx.fillRect((px - 5 * s) | 0, (py - 1) | 0, (11 * s) | 0, Math.max(1, s | 0));
+    ctx.fillStyle = '#3e4c6e';
+    if (running) {
+      const sw = Math.sin(simT * 13);
+      ctx.fillRect((x + (sw > 0 ? -s : s)) | 0, (y - 6 * s) | 0, Math.max(1, s | 0), (6 * s) | 0);
+      ctx.fillRect((x + (sw > 0 ? 2 * s : -2 * s)) | 0, (y - 6 * s) | 0, Math.max(1, s | 0), (6 * s) | 0);
+    } else {
+      ctx.fillRect(x | 0, (y - 6 * s) | 0, Math.max(1, (2 * s) | 0), (6 * s) | 0);
+      ctx.fillRect((x + 3 * s) | 0, (y - 6 * s) | 0, Math.max(1, (2 * s) | 0), (6 * s) | 0);
+    }
+    ctx.fillStyle = shirt;
+    ctx.fillRect((x - s) | 0, (y - 13 * s) | 0, (7 * s) | 0, (7 * s) | 0);
+    ctx.fillStyle = '#f2c2a4';
+    ctx.fillRect(x | 0, (y - 18 * s) | 0, (5 * s) | 0, (5 * s) | 0);
+    ctx.fillStyle = '#5a3828';
+    ctx.fillRect(x | 0, (y - 19 * s) | 0, (5 * s) | 0, (2 * s) | 0);
+    ctx.fillStyle = '#e25b4a';
+    ctx.fillRect((x + 4 * s) | 0, (y - 19 * s) | 0, (2 * s) | 0, (2 * s) | 0);
+    ctx.fillStyle = '#f2c2a4';
+    ctx.fillRect((x + 5 * s) | 0, (y - 16 * s) | 0, Math.max(1, (2 * s) | 0), (6 * s) | 0);
+    ctx.fillStyle = '#8a5a32';
+    ctx.fillRect((x + 6 * s) | 0, (y - 17 * s) | 0, Math.max(1, (2 * s) | 0), Math.max(1, (2 * s) | 0));
+    return { x: x + 6 * s, y: y - 16 * s };
+  }
+
+  function drawKite(sx, sy, rot, size, c0, c1) {
+    const P = (lx, ly) => {
+      const c = Math.cos(rot), s = Math.sin(rot);
+      return [sx + lx * c - ly * s, sy + lx * s + ly * c];
+    };
+    const nose = P(0, -size), right = P(size * 0.88, size * 0.05), tail = P(0, size * 0.8), left = P(-size * 0.88, size * 0.05);
+    ctx.beginPath(); ctx.moveTo(nose[0], nose[1]); ctx.lineTo(right[0], right[1]); ctx.lineTo(tail[0], tail[1]); ctx.closePath();
+    ctx.fillStyle = c0; ctx.fill();
+    ctx.beginPath(); ctx.moveTo(nose[0], nose[1]); ctx.lineTo(left[0], left[1]); ctx.lineTo(tail[0], tail[1]); ctx.closePath();
+    ctx.fillStyle = c1; ctx.fill();
+    ctx.strokeStyle = '#5c3828'; ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(nose[0], nose[1]); ctx.lineTo(right[0], right[1]); ctx.lineTo(tail[0], tail[1]); ctx.lineTo(left[0], left[1]); ctx.closePath();
+    ctx.moveTo(nose[0], nose[1]); ctx.lineTo(tail[0], tail[1]);
+    ctx.stroke();
+    ctx.strokeStyle = '#e2b14a'; ctx.lineWidth = Math.max(1, size * 0.12);
+    ctx.beginPath(); ctx.moveTo(left[0], left[1]); ctx.lineTo(right[0], right[1]); ctx.stroke();
+    return { bridle: P(0, -size * 0.08), tail: tail };
+  }
+
+  function drawTail(k, map) {
+    const pts = k.tail.map(p => map(p.x, p.y));
+    ctx.strokeStyle = '#f2d38a'; ctx.lineWidth = 2; ctx.lineJoin = 'round';
+    ctx.beginPath(); ctx.moveTo(pts[0][0], pts[0][1]);
+    for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i][0], pts[i][1]);
+    ctx.stroke();
+    const bows = ['#e25b4a', '#fff6e4', '#e2b14a', '#fff6e4'];
+    for (let i = 1; i < pts.length; i++) {
+      ctx.fillStyle = bows[i % bows.length];
+      const bx = pts[i][0], by = pts[i][1];
+      ctx.fillRect((bx - 1) | 0, (by - 1) | 0, 4, 3);
+    }
+  }
+
+  function drawLine(ax, ay, bx, by, slack) {
+    const mx = (ax + bx) / 2, my = (ay + by) / 2 + slack;
+    ctx.strokeStyle = 'rgba(92,58,40,0.9)'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(ax, ay); ctx.quadraticCurveTo(mx, my, bx, by); ctx.stroke();
+  }
+
+  function drawNearHill(p) {
+    ctx.fillStyle = rgb(shade(p.hill, -22));
+    ctx.beginPath(); ctx.moveTo(0, bh + 2);
+    for (let x = 0; x <= bw; x += 2) {
+      const wx = x / bw * worldW;
+      ctx.lineTo(x, groundY(wx) / worldH * bh + 7);
+    }
+    ctx.lineTo(bw, bh + 2); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = rgb(p.hill);
+    ctx.beginPath(); ctx.moveTo(0, bh + 2);
+    for (let x = 0; x <= bw; x += 2) {
+      const wx = x / bw * worldW;
+      ctx.lineTo(x, groundY(wx) / worldH * bh);
+    }
+    ctx.lineTo(bw, bh + 2); ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = rgb(p.grass2); ctx.lineWidth = 2;
+    ctx.beginPath();
+    for (let x = 0; x <= bw; x += 2) {
+      const wx = x / bw * worldW;
+      const y = groundY(wx) / worldH * bh;
+      if (x === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+    for (let i = 0; i < 90; i++) {
+      const x = hash(i * 3) * bw;
+      const gy = groundY(x / bw * worldW) / worldH * bh;
+      const y = gy + 3 + hash(i + 20) * Math.max(0, bh - gy - 4);
+      ctx.fillStyle = hash(i + 8) > 0.55 ? rgb(p.grass) : rgb(shade(p.hill, -16));
+      ctx.fillRect(x | 0, y | 0, hash(i) > 0.8 ? 2 : 1, 1);
+    }
+  }
+
+  function drawMeadow(p) {
+    const n = Math.max(40, bw / 3 | 0);
+    const flowers = ['#fff6e4', '#f2d35a', '#f0a0b8', '#fffaf0', '#e7e07a'];
+    for (let i = 0; i < n; i++) {
+      const wx = (i + 0.35) / n * worldW;
+      const [bx, by] = worldToBuf(wx, groundY(wx));
+      const lean = Math.sin(simT * (reduce ? 0.8 : 2.3) + wx * 0.045) * (1.6 + gustNow * 6.5);
+      const h = 4 + (i % 4) * 1.6;
+      if (i % 7 === 0) {
+        ctx.fillStyle = flowers[i % flowers.length];
+        ctx.fillRect((bx + lean) | 0, (by - h - 1) | 0, 2, 2);
+        ctx.strokeStyle = rgb(p.grass);
+      } else ctx.strokeStyle = rgb(i % 2 ? p.grass : shade(p.grass, 18));
+      ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(bx | 0, by | 0); ctx.lineTo((bx + lean) | 0, (by - h) | 0); ctx.stroke();
+    }
+    for (const d of dandelions) {
+      const [x, y] = worldToBuf(d.x, d.y);
+      const puff = gustNow > 0.72 ? 1 : 0;
+      ctx.fillStyle = puff ? '#fffaf0' : '#f7f1dc';
+      ctx.fillRect((x - 1) | 0, (y - 2) | 0, 3 + puff, 2);
+      ctx.fillStyle = rgb(p.grass);
+      ctx.fillRect(x | 0, y | 0, 1, 3);
+    }
+    const sx = standX();
+    const [px, py] = worldToBuf(sx, groundY(sx));
+    ctx.fillStyle = 'rgba(150,110,60,0.35)';
+    ctx.beginPath(); ctx.ellipse(px, py + 1, 16, 4, 0, 0, TAU); ctx.fill();
+  }
+
+  function drawRainbow(p) {
+    if (rainbow <= 0.02) return;
+    const sunU = phase < 0.84 ? phase / 0.84 : 0.2;
+    const cx = bw * (0.15 + (1 - sunU) * 0.55);
+    const wx = cx / bw * worldW;
+    const cy = groundY(wx) / worldH * bh + 4;
+    const colors = ['#e25b4a', '#f0a04a', '#f2d35a', '#7dae5a', '#6a9ad4'];
+    const R = bh * 0.46;
+    ctx.lineWidth = Math.max(3, bh * 0.02);
+    // Canvas angles grow toward +y (down). Clockwise from west to east passes through the top.
+    for (let i = 0; i < colors.length; i++) {
+      ctx.globalAlpha = rainbow * 0.62;
+      ctx.strokeStyle = colors[i];
+      ctx.beginPath();
+      ctx.arc(cx, cy, R + i * ctx.lineWidth * 1.05, Math.PI, 0, false);
+      ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  function draw() {
+    if (!player) return;
+    const p = palette(phase);
+    drawSky(p);
+    for (const c of clouds) if (c.z < 0.5) drawCloud(c, p, shower * 0.55);
+    drawFarHill(p);
+    const farHandLocalX = far.state === 'run' ? far.runX : 0;
+    const [fhx, fhy] = mapFar(farHandLocalX, 0);
+    drawKid(fhx - 4, fhy + 14, bw < bh ? 0.7 : 0.85, far.state === 'run' && !reduce, '#e6c15a');
+    const farKiteSize = Math.max(7, bh * 0.028);
+    const [fkx, fky] = mapFar(far.x, far.y);
+    drawTail(far, mapFar);
+    const farSlack = far.state === 'fly' ? 4 : 8;
+    const fk = drawKite(fkx, fky, far.rot, farKiteSize, '#f4f7ff', '#6f8fd4');
+    drawLine(fhx, fhy - 2, fk.bridle[0], fk.bridle[1], farSlack);
+    for (const c of clouds) if (c.z >= 0.5) drawCloud(c, p, shower * 0.45);
+    drawRainbow(p);
+    drawNearHill(p);
+    drawMeadow(p);
+    const bx = player.state === 'run' ? player.runX : standX();
+    const [fx, fy] = worldToBuf(bx, groundY(bx));
+    const kid = drawKid(fx, fy, kidScale(), player.state === 'run' && !reduce, '#d4533c');
+    const kSize = clamp(Math.min(bw, bh) * 0.072, 15, 32);
+    const [kx, ky] = worldToBuf(player.x, player.y);
+    drawTail(player, (x, y) => worldToBuf(x, y));
+    const pk = drawKite(kx, ky, player.rot, kSize, '#fff1d4', '#e15a48');
+    const dist = Math.hypot(player.x - player.hx, player.y - player.hy);
+    const slack = player.state === 'fly' ? clamp((player.len - dist) * 0.12, 1, 26) : 6;
+    drawLine(kid.x, kid.y, pk.bridle[0], pk.bridle[1], slack);
+    for (const b of birds) {
+      const [x, y] = worldToBuf(b.x, b.y);
+      const f = Math.sin(b.flap) * 5;
+      ctx.fillStyle = '#2c2428';
+      ctx.fillRect((x - 1) | 0, y | 0, 7, 3);
+      ctx.beginPath(); ctx.moveTo(x, y + 1); ctx.lineTo(x - 9, y - 3 - f); ctx.lineTo(x - 2, y + 2); ctx.fill();
+      ctx.beginPath(); ctx.moveTo(x + 5, y + 1); ctx.lineTo(x + 14, y - 2 + f); ctx.lineTo(x + 6, y + 2); ctx.fill();
+      ctx.fillStyle = '#f2d38a';
+      ctx.fillRect((x + 5) | 0, y | 0, 2, 2);
+    }
+    for (const s of seeds) {
+      const [x, y] = worldToBuf(s.x, s.y);
+      ctx.globalAlpha = clamp(s.life, 0, 1);
+      ctx.fillStyle = '#fffaf0';
+      ctx.fillRect(x | 0, y | 0, 2, 2);
+      ctx.fillRect((x - 2) | 0, (y + 1) | 0, 2, 1);
+    }
+    ctx.globalAlpha = 1;
+    if (shower > 0.05) {
+      ctx.strokeStyle = 'rgba(210,220,230,' + (0.25 + shower * 0.4) + ')';
+      ctx.lineWidth = 1;
+      for (const r of rains) {
+        const [x, y] = worldToBuf(r.x, r.y);
+        ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + 2, y + r.n); ctx.stroke();
+      }
+      ctx.fillStyle = 'rgba(70,80,100,' + (shower * 0.16) + ')';
+      ctx.fillRect(0, 0, bw, bh);
+    }
+    const nightVeil = phase > 0.8 && phase < 0.99 ? Math.sin(clamp((phase - 0.8) / 0.16, 0, 1) * Math.PI) * 0.28 : 0;
+    if (nightVeil > 0.02) { ctx.fillStyle = 'rgba(12,14,32,' + nightVeil + ')'; ctx.fillRect(0, 0, bw, bh); }
+    for (const d of dusts) {
+      const [x, y] = worldToBuf(d.x, d.y);
+      ctx.globalAlpha = clamp(d.life * 1.4, 0, 1);
+      ctx.fillStyle = '#e6d2a4';
+      ctx.fillRect(x | 0, y | 0, 2, 2);
+    }
+    ctx.globalAlpha = 1;
+    vctx.imageSmoothingEnabled = false;
+    vctx.drawImage(buf, 0, 0, view.width, view.height);
+  }
+
+  function snapshot() {
+    let tailOk = true, tailMax = 0;
+    for (const p of player.tail) {
+      if (!Number.isFinite(p.x) || !Number.isFinite(p.y)) tailOk = false;
+      tailMax = Math.max(tailMax, Math.hypot(p.x - player.x, p.y - player.y));
+    }
+    const finite = [player.x, player.y, player.vx, player.vy, player.len, player.rot, player.spin, far.x, far.y, far.len].every(Number.isFinite);
+    return {
+      state: player.state, x: player.x, y: player.y, vx: player.vx, vy: player.vy,
+      len: player.len, rot: player.rot, spin: player.spin,
+      alt: player.hy - player.y, flight: player.flight, bestFlight: bestFlight, bestHeight: bestHeight,
+      loops: player.loops, crashes: player.crashes, faults: player.faults + far.faults,
+      birds: birds.length, sawBird: sawBird, rainbow: rainbow, shower: shower, phase: phase, gust: gustNow,
+      tailOk: tailOk, tailMax: tailMax, finite: finite, farState: far.state, farCrashes: far.crashes,
+      sawShower: sawShower, sawRainbow: sawRainbow, worldW: worldW, worldH: worldH, bw: bw, bh: bh,
+      speed: Math.hypot(player.vx, player.vy), soundOn: soundOn,
+      minL: limits(false).min, maxL: limits(false).max
+    };
+  }
+
+  function reset() {
+    simT = 0; phase = 0.34; acc = 0;
+    shower = 0; showerOn = false; showerT = 0; nextShower = 46; rainbow = 0;
+    sawShower = false; sawRainbow = false; steadyT = 0; birdCd = 5;
+    sawBird = false; sawFar = false; sawLoop = false;
+    birds.length = 0; seeds.length = 0; rains.length = 0; dusts.length = 0;
+    player = makeKite(false); far = makeKite(true);
+    layout();
+    beginRun(player);
+    reseedTail(far);
+    clouds[0].x = worldW * 0.12; clouds[1].x = worldW * 0.34; clouds[2].x = worldW * 0.58; clouds[3].x = worldW * 0.74; clouds[4].x = worldW * 0.9;
+    updateHud();
+  }
+
+  function runPattern(name, secs) {
+    const steps = Math.round(secs * 60);
+    let minAlt = 1e9, maxAlt = -1e9, minFly = 1e9, maxSpeed = 0, maxTail = 0, ok = true;
+    const crashes0 = player.crashes, loops0 = player.loops, faults0 = player.faults + far.faults;
+    for (let i = 0; i < steps; i++) {
+      const tt = i / 60;
+      let reel = 0;
+      if (name === 'gentle') { const p = tt % 9; reel = p < 3 ? 16 : p < 4.2 ? -55 : 4; }
+      else if (name === 'play') {
+        const p = tt % 11;
+        reel = p < 2.5 ? 20 : p < 3.6 ? -160 : p < 6 ? 14 : p < 7.2 ? -90 : 8;
+      }
+      input.script = reel;
+      step(1 / 60);
+      const alt = player.hy - player.y;
+      if (alt < minAlt) minAlt = alt;
+      if (alt > maxAlt) maxAlt = alt;
+      if (player.state === 'fly' && player.flight > 5 && alt < minFly) minFly = alt;
+      maxSpeed = Math.max(maxSpeed, Math.hypot(player.vx, player.vy));
+      const s = snapshot();
+      if (!s.finite || !s.tailOk) ok = false;
+      if (s.tailMax > maxTail) maxTail = s.tailMax;
+      if (i % 15 === 0) draw();
+    }
+    input.script = null;
+    draw();
+    return {
+      minAlt: minAlt, maxAlt: maxAlt, minFly: minFly, maxSpeed: maxSpeed, maxTail: maxTail, ok: ok,
+      crashes: player.crashes - crashes0, loops: player.loops - loops0,
+      faults: player.faults + far.faults - faults0, snap: snapshot()
+    };
+  }
+
+  function pose() {
+    reset();
+    input.script = 0;
+    let i = 0;
+    while (i < 14 * 60 && !((player.state === 'fly') && (player.hy - player.y) > 150)) { step(1 / 60); i++; }
+    input.script = null;
+    phase = 0.58; rainbow = 0.92; shower = 0; showerOn = false;
+    birds.length = 0;
+    birds.push({ x: player.x - 78, y: player.y - 42, mode: 'look', t: 1, flap: 1, orbit: 0.6 });
+    birds.push({ x: player.x + 62, y: player.y - 18, mode: 'look', t: 2, flap: 2.4, orbit: 2.4 });
+    toasts.length = 0; toastHold = null; toastT = 0;
+    const toastEl = $('toast');
+    toastEl.classList.remove('show');
+    toastEl.textContent = '';
+    toastEl.style.transition = 'none';
+    toastEl.style.opacity = '0';
+    if (seeds.length < 6 && dandelions.length) {
+      for (let n = 0; n < 6; n++) seeds.push({ x: dandelions[n % dandelions.length].x + n * 14, y: player.y + 40 + n * 8, vx: 20, vy: -8, life: 0.8 });
+    }
+    hideHint();
+    updateHud();
+    draw();
+  }
+
+  // ---------- input ----------
+  function onDown(e) {
+    if (e.target === $('mute')) return;
+    if (e.button !== undefined && e.button !== 0 && e.pointerType === 'mouse') return;
+    input.dragging = true; input.lastY = e.clientY; input.pointer = e.pointerId;
+    try { view.setPointerCapture(e.pointerId); } catch (err) {}
+    unlockFromPlay();
+    hideHint();
+  }
+  function onMove(e) {
+    if (!input.dragging || (input.pointer !== null && e.pointerId !== input.pointer)) return;
+    const dy = e.clientY - input.lastY;
+    input.lastY = e.clientY;
+    const worldPerPx = worldH / Math.max(1, window.innerHeight);
+    input.impulse += -dy * worldPerPx * 1.35;
+  }
+  function onUp(e) {
+    if (input.pointer !== null && e.pointerId !== undefined && e.pointerId !== input.pointer) return;
+    input.dragging = false; input.pointer = null;
+  }
+  view.addEventListener('pointerdown', onDown);
+  view.addEventListener('pointermove', onMove);
+  view.addEventListener('pointerup', onUp);
+  view.addEventListener('pointercancel', onUp);
+  $('mute').addEventListener('pointerdown', e => e.stopPropagation());
+  $('mute').addEventListener('click', onMute);
+  window.addEventListener('keydown', e => {
+    if (e.key === 'm' || e.key === 'M') { onMute(); return; }
+    if (e.key === ' ') { e.preventDefault(); pausedUser = !pausedUser; updateHud(); return; }
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') e.preventDefault();
+    if (e.repeat) return;
+    keys.add(e.key);
+    unlockFromPlay();
+    hideHint();
+  });
+  window.addEventListener('keyup', e => keys.delete(e.key));
+  window.addEventListener('resize', () => { layout(); draw(); });
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) save();
+    if (ac && master) master.gain.setTargetAtTime(!document.hidden && soundOn && !pausedUser ? 0.8 : 0, ac.currentTime, 0.05);
+  });
+  window.addEventListener('pagehide', save);
+
+  let last = performance.now();
+  function frame(now) {
+    requestAnimationFrame(frame);
+    const dt = Math.min(0.05, Math.max(0, (now - last) / 1000));
+    last = now;
+    if (!manual && !pausedUser && !document.hidden) step(dt);
+    else if (ac && master && (pausedUser || document.hidden)) master.gain.setTargetAtTime(0, ac.currentTime, 0.05);
+    draw();
+  }
+
+  reset();
+  paintMute();
+  updateHud();
+  draw();
+  ready = true;
+  requestAnimationFrame(frame);
+
+  window.KITE = {
+    get ready() { return ready; },
+    get manual() { return manual; },
+    set manual(v) { manual = !!v; },
+    get soundOn() { return soundOn; },
+    step: step,
+    draw: draw,
+    reset: reset,
+    pose: pose,
+    runPattern: runPattern,
+    setReel: function (v) { input.script = v; },
+    setPhase: function (p) { phase = ((p % 1) + 1) % 1; },
+    snapshot: snapshot,
+    unlockFromPlay: unlockFromPlay
+  };
+})();
+</script>
+</body>
+</html>
