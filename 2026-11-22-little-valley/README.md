@@ -107,6 +107,10 @@ to a tree further away and keep off the feeder for a while. They go to roost bef
 in heavy snowfall and storms, and in the map view. With the sound on they call softly now and then (a low
 whistled *pew*) and fly up with a whirr of wings. (`screenshot-bullfinch.png`: bullfinches at the feeder.)
 
+**Wild geese**: in autumn, skeins of wild geese fly south high over the valley, a V of birds (now and then a
+long wavy line) with slow, slightly out-of-step wing beats; in early spring they come back the other way. Only by
+day, not in heavy rain, storms or the map view. With the sound on you hear a faint, far-off honking.
+
 **Snowmen**: when the snow reaches the village, little snowmen with red scarves and dark hats
 appear in the cottage gardens, and they melt with the snow in spring.
 

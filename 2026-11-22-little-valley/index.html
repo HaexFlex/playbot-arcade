@@ -2413,6 +2413,58 @@ function drawSky(t, dt) {
       cx.beginPath(); cx.moveTo(x - w, y - f); cx.quadraticCurveTo(x - w / 2, y - 3, x, y); cx.quadraticCurveTo(x + w / 2, y - 3, x + w, y - f); cx.stroke();
     }
   }
+  { const t0 = performance.now(); drawGeese(dt); st.geeseMs = (st.geeseMs || 0) * 0.9 + (performance.now() - t0) * 0.1; }
+}
+// wild geese: in autumn (yearFrac ~0.55-0.74) skeins of wild geese fly south over the valley, high in the sky: a V of
+// 7-13 birds (5-9 on a phone; now and then a long wavy line instead), slow deep wing beats a little out of step, the
+// arms of the V swaying gently; in early spring (~0.02-0.14) they come back the other way. One skein at a time, the next
+// 25-60 s after one has gone (the first 3-10 s after the season starts). By day only (8:00-18:00), none in heavy rain,
+// a storm, outside the two passages, without seasons or in the map view. With sound on a faint double honk now and then
+// (at most one per 1.6 s). Pre-rendered silhouettes (2 wing frames x 2 directions), drawn in drawSky behind the valley.
+// Hooks: st.geeseDrawn, st.geeseSkein (1 while one is up), st.geeseAt (screen px of the lead goose), st.geeseDir (-1 left,
+// +1 right), st.geeseLine (true for a line), st.geesePts ([x, y, rank]), st.geeseX (lead x, also off screen), st.geeseN, st.geeseTotal (skeins so far), st.geeseForce (test: next one now), st.geeseMs.
+const GEESE_N = isPhone ? [5, 9] : [7, 13];
+const GS = { sk: null, next: -1, spr: null, total: 0, last: -1 };
+function geeseSprites() {
+  if (GS.spr) return GS.spr;
+  const mk = (fr, flip) => { const W = 32, Hh = 20, c = document.createElement('canvas'); c.width = W; c.height = Hh; const g = c.getContext('2d');
+    if (flip) { g.translate(W, 0); g.scale(-1, 1); } // drawn flying right: head on the right
+    g.fillStyle = '#4a4640'; g.beginPath(); g.ellipse(13, 10, 7, 2.6, 0, 0, 6.283); g.fill(); // body
+    g.beginPath(); g.moveTo(18, 9); g.lineTo(26, 8.4); g.lineTo(26, 10); g.lineTo(18, 11.2); g.fill(); // long neck
+    g.fillStyle = '#1e1c1a'; g.beginPath(); g.ellipse(27, 9.1, 2.2, 1.4, 0, 0, 6.283); g.fill(); g.fillRect(28, 8.8, 2.6, 0.9); // head and bill
+    g.fillStyle = '#dcd6cc'; g.fillRect(24.6, 9.6, 1.2, 0.9); // white chin strap
+    g.fillStyle = '#3c3934'; g.beginPath(); g.moveTo(6, 10); g.lineTo(2, 8.6); g.lineTo(2.6, 11.2); g.fill(); // tail
+    g.fillStyle = '#57524a'; g.beginPath(); // wings: up or down
+    if (fr === 0) { g.moveTo(10, 9); g.lineTo(13, 1); g.lineTo(17, 0.5); g.lineTo(16, 9); } else { g.moveTo(10, 11); g.lineTo(12.5, 18.5); g.lineTo(16.5, 19); g.lineTo(16, 11); }
+    g.fill(); return c; };
+  return GS.spr = [0, 1].map(fr => [mk(fr, false), mk(fr, true)]);
+}
+function geeseSeason() { const S = st.S; if (!S.P.seasons) return 0; const y = LV.yearFrac(S); return y >= 0.55 && y < 0.74 ? -1 : y >= 0.02 && y < 0.14 ? 1 : 0; }
+function drawGeese(dtR) {
+  st.geeseDrawn = 0; st.geeseAt = null; st.geeseSkein = 0; st.geesePts = [];
+  const now = performance.now() / 1000, dt = Math.max(0, Math.min(0.1, GS.last < 0 ? 0 : now - GS.last)); GS.last = now;
+  void dtR; const dir = geeseSeason(), h = LT.h, ok = dir !== 0 && h >= 8 && h < 18 && LT.rain < 0.45 && LT.storm < 0.02 && st.view === 'tilt';
+  if (!ok) { if (GS.sk && (st.view !== 'tilt' || dir === 0 || LT.storm >= 0.02 || LT.rain >= 0.45 || h < 7.5 || h >= 18.5)) GS.sk = null; if (!GS.sk) { GS.next = -1; return; } }
+  if (GS.sk && GS.sk.dir !== dir) GS.sk = null; // the season turned (autumn passage to spring return)
+  if (!GS.sk && ok) { if (GS.next < 0) GS.next = now + 3 + Math.random() * 7; if (st.geeseForce) { GS.next = now; st.geeseForce = 0; }
+    if (now >= GS.next) { const lo = GEESE_N[0], hi = GEESE_N[1], n = lo + ((Math.random() * (hi - lo + 1)) | 0), line = Math.random() < 0.2, sz = isPhone ? 11 : 15;
+      GS.sk = { dir, n, line, x: dir < 0 ? vw + sz : -sz, y: vh * (0.08 + Math.random() * 0.12), sp: (isPhone ? 36 : 68) * (0.85 + Math.random() * 0.3), sz, ph: Math.random() * 6, arm: 0.45 + Math.random() * 0.25, bob: [...Array(n)].map(() => Math.random() * 6) };
+      GS.total++; st.geeseTotal = GS.total; } }
+  const k = GS.sk; if (!k) return;
+  k.x += k.dir * k.sp * dt; k.ph += dt;
+  const sz = k.sz, gap = sz * 0.95, span = gap * k.n;
+  if ((k.dir < 0 && k.x < -span - 60) || (k.dir > 0 && k.x > vw + span + 60)) { GS.sk = null; GS.next = now + 25 + Math.random() * 35; return; }
+  const spr = geeseSprites(), a = (1 - LT.night) * (1 - 0.4 * LT.rain); cx.save(); cx.globalAlpha = Math.max(0, Math.min(0.9, a));
+  for (let j = 0; j < k.n; j++) {
+    let dx, dy; // behind the lead goose (j = 0), alternating arms of the V, or one long wavy line
+    if (k.line) { dx = j * gap * 1.05; dy = Math.sin(j * 0.7 + k.ph * 0.6) * sz * 0.35; }
+    else { const r = Math.ceil(j / 2), side = j % 2 ? 1 : -1; dx = r * gap; dy = side * r * gap * k.arm + Math.sin(k.ph * 0.5 + r * 0.6) * sz * 0.12 * r * 0.3; }
+    dy += Math.sin(k.ph * 1.7 + k.bob[j]) * sz * 0.12;
+    const x = k.x - k.dir * dx, y = k.y + dy, fr = Math.sin(k.ph * 4.2 + k.bob[j]) > 0 ? 0 : 1, w = sz * 1.6, hh = w * 20 / 32;
+    if (x < -w || x > vw + w) continue;
+    cx.drawImage(spr[fr][k.dir < 0 ? 1 : 0], x - w / 2, y - hh / 2, w, hh); st.geeseDrawn++; st.geesePts.push([x, y, j]); if (j === 0) st.geeseAt = [x, y];
+  }
+  cx.restore(); st.geeseSkein = 1; st.geeseDir = k.dir; st.geeseLine = k.line; st.geeseX = k.x; st.geeseN = k.n;
 }
 // a rainbow after a rain when the sun is out: opposite the sun, its foot behind the far mountains
 const BOW = [[255, 70, 70], [255, 160, 50], [255, 236, 90], [90, 210, 100], [80, 150, 255], [150, 100, 230]];
@@ -3676,7 +3728,7 @@ function adapt(dt) {
 // and thunder after lightning, wind (stronger in winter and storms), birds by day in the forest, crickets on
 // summer evenings, an owl at night, the creak and clack of turning mill wheels, cowbells near the village.
 // window.LV_AUDIO holds the levels (0..1) and gains so tests can check them without listening.
-const AU = { want: false, on: false, started: false, state: 'none', nodes: 0, live: 0, L: {}, G: {}, ev: { chirp: 0, cricket: 0, owl: 0, clack: 0, creak: 0, bell: 0, thunder: 0, plop: 0, slurp: 0, splash: 0, knock: 0, well: 0, rustle: 0, rumble: 0, drip: 0, squeak: 0, thump: 0, crunch: 0, skate: 0, icicle: 0, puddle: 0, peep: 0, twit: 0, bat: 0, pipe: 0, whirr: 0 }, flow: 0, riverPan: 0, veg: 0, ticks: 0, vol: 1, snowCover: 0, rainMuffle: 0, rainCut: 9000, masterT: 0, melt: 0, meltPan: 0 };
+const AU = { want: false, on: false, started: false, state: 'none', nodes: 0, live: 0, L: {}, G: {}, ev: { chirp: 0, cricket: 0, owl: 0, clack: 0, creak: 0, bell: 0, thunder: 0, plop: 0, slurp: 0, splash: 0, knock: 0, well: 0, rustle: 0, rumble: 0, drip: 0, squeak: 0, thump: 0, crunch: 0, skate: 0, icicle: 0, puddle: 0, peep: 0, twit: 0, bat: 0, pipe: 0, whirr: 0, honk: 0 }, flow: 0, riverPan: 0, veg: 0, ticks: 0, vol: 1, snowCover: 0, rainMuffle: 0, rainCut: 9000, masterT: 0, melt: 0, meltPan: 0 };
 window.LV_AUDIO = AU;
 const AU_KEY = 'lv-sound', AU_MASTER = 0.45, AU_DT = 0.25;
 const AU_MAX = { river: 0.55, rain: 0.42, wind: 0.2, birds: 0.42, crickets: 0.13, owl: 0.38, mill: 0.42, cows: 0.26, thunder: 0.85, melt: 0.3 }; // full-level gain per layer
@@ -3920,6 +3972,14 @@ function sndWhirr(pan, k) { // the flock flies up: a quick soft whirr of small w
   for (let q = 0; q < n; q++) { const a = t + q * (0.035 + Math.random() * 0.02); noiseHit('fx', AG.pink, a, 0.06, 'bandpass', 900 + Math.random() * 700, 1.1, (0.09 - q * 0.007) * k, pan, 0.012); }
   AU.ev.whirr++;
 }
+function sndHonk(pan, k) { // wild geese high overhead: a faint, nasal double honk ('ahng-ahng'), far away (lowpassed), fx bus
+  if (!fxOn()) return; const ac = AG.ac, t0 = ac.currentTime + 0.02 + Math.random() * 0.25, n = Math.random() < 0.35 ? 3 : 2, f0 = 380 + Math.random() * 90;
+  for (let j = 0; j < n; j++) { const t = t0 + j * (0.2 + Math.random() * 0.06), d = 0.13 + Math.random() * 0.04, g = auVoice('fx', t, d + 0.05, pan), fl = ac.createBiquadFilter(); fl.type = 'lowpass'; fl.frequency.value = 1300; fl.Q.value = 2.2; fl.connect(g);
+    const o = osc('sawtooth', f0 * (j % 2 ? 0.94 : 1.04), t, d + 0.05, fl); o.frequency.linearRampToValueAtTime(f0 * (j % 2 ? 0.86 : 0.98), t + d);
+    g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.016 * k, t + 0.02); g.gain.linearRampToValueAtTime(0.011 * k, t + d * 0.7); g.gain.linearRampToValueAtTime(0, t + d);
+    setTimeout(() => fl.disconnect(), (t - ac.currentTime + d) * 1000 + 300); }
+  AU.ev.honk++;
+}
 function sndPeep(pan, k) { // a duckling: two or three tiny soft peeps (fx bus, so mute and volume apply)
   if (!fxOn()) return; const t0 = AG.ac.currentTime + 0.02 + Math.random() * 0.15, n = 2 + (Math.random() < 0.4 ? 1 : 0), f0 = 3000 + Math.random() * 600;
   for (let j = 0; j < n; j++) { const t = t0 + j * (0.13 + Math.random() * 0.05), g = auVoice('fx', t, 0.12, pan), o = osc('sine', f0 * 1.08, t, 0.12, g);
@@ -4012,6 +4072,8 @@ function auTick(dt) {
   if (st.bfSit > 0 && st.bfAt && st.bfAt.length && t - (AU.pipeT || -9) > 2.2 && R() < 0.22) { sndPipe(fxPan(st.bfAt[(R() * st.bfAt.length) | 0][0]), 0.7 + 0.3 * R()); AU.pipeT = t; }
   if ((st.bfFled || 0) > (AU.fled || 0) && t - (AU.whirrT || -9) > 0.8) { sndWhirr(fxPan(st.bfFleeX), 0.8 + 0.2 * R()); AU.whirrT = t; }
   AU.fled = st.bfFled || 0;
+  // wild geese overhead (while a skein is drawn): a faint honk now and then, at most one per 1.6 s, panned to the lead goose
+  if (st.geeseDrawn > 0 && t - (AU.honkT || -9) > 1.6 && R() < 0.35) { sndHonk(fxPan(st.geeseAt ? st.geeseAt[0] : st.geeseX), 0.7 + 0.3 * R()); AU.honkT = t; }
   if (st.ducklingsDrawn > 0 && st.duckPx && t - (AU.peepT || -9) > 1.4 && R() < 0.3) { sndPeep(fxPan(st.duckPx[0]), 0.7 + 0.3 * R()); AU.peepT = t; }
   // icicles dripping in the sun (while drawn): a soft plip now and then, at most one per 0.6 s, panned to a dripping cottage
   if (st.dripsDrawn > 0 && performance.now() - (st.dripsAt || 0) < 600 && t - (AU.icT || -9) > 0.6 && R() < Math.min(0.7, 0.3 + 0.04 * st.dripsDrawn)) {
@@ -4287,7 +4349,7 @@ addEventListener('pagehide', () => autoSave('pagehide'));
 window.LV_AUTO = { AS, save: autoSave, get: asGet, put: asPut, clear: asClear, restore: autoRestore };
 
 
-window.__lv = { st, FR, FOX, foxEvening, BF, AU, SW, updSound, LV, LT, leaf: LS, clockText, wheelAng, get col() { return [colR, colG, colB]; }, get tilt() { return tilt; }, get area() { return area; }, setTool, newWorld, unproj, proj, get S() { return st.S; }, floes, breakup: sndBreakup, yearTurn, flourT, SACK_T, carts, CART_LOAD, cartTarget, bakeT, FLOUR, smokeRGB, HAY, HAY_T, PUD, KID, DUCK };
+window.__lv = { st, FR, FOX, foxEvening, BF, GS, AU, SW, updSound, LV, LT, leaf: LS, clockText, wheelAng, get col() { return [colR, colG, colB]; }, get tilt() { return tilt; }, get area() { return area; }, setTool, newWorld, unproj, proj, get S() { return st.S; }, floes, breakup: sndBreakup, yearTurn, flourT, SACK_T, carts, CART_LOAD, cartTarget, bakeT, FLOUR, smokeRGB, HAY, HAY_T, PUD, KID, DUCK };
 updUI(); updSound();
 const rawHash = (location.hash || '').slice(1);
 let fromHash = ''; try { fromHash = decodeURIComponent(rawHash); } catch (e) { fromHash = ''; }
