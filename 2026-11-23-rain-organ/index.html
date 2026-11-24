@@ -375,6 +375,7 @@ $('bPad').onclick = () => openPad(!pad.open); $('padX').onclick = () => openPad(
 $('padUndo').onclick = () => { if (pad.busy) return; pad.seq.pop(); renderPad(); };
 $('padSwap').onclick = () => { if (pad.busy) return; pad.cloud = (pad.cloud + 1) % st.clouds.length; renderPad(); };
 // build the path for one cloud: its old composed leaves go, everything else must stay as it is
+let PAD_BUDGET = 1500; // work units for the classic pad attempts (tests may change it through RO_APP)
 function buildVoice(k, steps) { return RO.finish(buildVoiceGen(k, steps)); }
 // the same work as a generator: the pad runs it in small slices so a hard tune never blocks the page
 function* buildVoiceGen(k, steps) {
@@ -392,14 +393,17 @@ function* buildVoiceGen(k, steps) {
     const voices = st.clouds.map((o, j) => ({ x: o.x, y: o.y + 22, steps: tunes[j] })).filter(v => v.steps.length);
     const until = RO.clock() + 1200; let A = null; // spread layout if it is found quickly, else the classic (top) layout
     for (let seed = 1; seed <= 3 && !A && RO.clock() < until; seed++) A = yield* RO.composePieceGen(voices, seed, fy, fallK(), 0.9, until);
-    for (let seed = 1; seed <= 3 && !A; seed++) A = yield* RO.composePieceGen(voices, seed, my, fallK(), 0, RO.clock() + 800);
+    const until2 = RO.clock() + 800; // one shared budget for the classic relayout seeds (was 800 each)
+    for (let seed = 1; seed <= 3 && !A && RO.clock() < until2; seed++) A = yield* RO.composePieceGen(voices, seed, my, fallK(), 0, until2);
     if (A && encode() !== sig) return 'stale';
     if (A) { let n0 = 0; const out = []; st.clouds.forEach((o, j) => { if (!tunes[j].length) return; for (let i = 0; i < tunes[j].length; i++) { const l = A[n0 + i]; out.push(Object.assign(makeLeaf(l.x1, l.y1, l.x2, l.y2, mats[j]), { voice: j })); } n0 += tunes[j].length; });
       st.leaves = out; for (const d of st.drops) d.rang = []; save(); return true; }
   }
-  if (!L) L = yield* RO.composeGen(steps, c.x, c.y + 22, rnd, my, tall ? 300 : 700, null, keep, others, fallK(), lo, hi);
-  if (!L) L = yield* RO.composeGen(steps, c.x, c.y + 22, rnd, my, tall ? 300 : 700, null, keep, others, 1, lo, hi);
-  if (!L) L = yield* RO.composeGen(steps, c.x, c.y + 22, rnd, my, tall ? 300 : 700, null, keep, others, 1);
+  // the classic attempts share one budget (RO.clock work units, ~ms on a desktop), so a tune that cannot fit says "no room" in ~2 s, not ~3-4 s
+  const end = RO.clock() + PAD_BUDGET;
+  if (!L) L = yield* RO.composeGen(steps, c.x, c.y + 22, rnd, my, tall ? 300 : 700, null, keep, others, fallK(), lo, hi, 0, end);
+  if (!L) L = yield* RO.composeGen(steps, c.x, c.y + 22, rnd, my, tall ? 300 : 700, null, keep, others, 1, lo, hi, 0, end);
+  if (!L) L = yield* RO.composeGen(steps, c.x, c.y + 22, rnd, my, tall ? 300 : 700, null, keep, others, 1, 20, 980, 0, end);
   if (!L) return false;
   if (encode() !== sig) return 'stale';
   st.leaves = keep.concat(L.map(l => Object.assign(makeLeaf(l.x1, l.y1, l.x2, l.y2, st.mat), { voice: k })));
@@ -631,7 +635,7 @@ function frame(now) {
   draw(); requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
-window.RO_APP = { startShower, showerAmt, rainbowAmt, shower, setTempo, cycleTempo, get bpm() { return BPM; }, setSky, cycleSky, get skyMode() { return skyMode; }, setHour: h => { forcedHour = h === null || h === undefined ? null : +h; skyLabel(); }, skyHour, get pal() { return pal; }, cycleMat, MATS, pad, buildVoice, buildVoiceAsync, openPad, get FH() { return FH; }, PIECES, loadPiece, encode, decode, st, makeLeaf, tick, save, load, setSound, get soundOn() { return soundOn; }, audio: () => ({ ctx: !!ac, reverb: !!verb, state: ac ? ac.state : 'none' }) };
+window.RO_APP = { set padBudget(v) { PAD_BUDGET = v; }, get padBudget() { return PAD_BUDGET; }, startShower, showerAmt, rainbowAmt, shower, setTempo, cycleTempo, get bpm() { return BPM; }, setSky, cycleSky, get skyMode() { return skyMode; }, setHour: h => { forcedHour = h === null || h === undefined ? null : +h; skyLabel(); }, skyHour, get pal() { return pal; }, cycleMat, MATS, pad, buildVoice, buildVoiceAsync, openPad, get FH() { return FH; }, PIECES, loadPiece, encode, decode, st, makeLeaf, tick, save, load, setSound, get soundOn() { return soundOn; }, audio: () => ({ ctx: !!ac, reverb: !!verb, state: ac ? ac.state : 'none' }) };
 })();
 </script>
 </body></html>
