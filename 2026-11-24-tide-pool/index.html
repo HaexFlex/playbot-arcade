@@ -1,0 +1,2114 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Tide Pool</title>
+<link rel="icon" href="../favicon.svg" type="image/svg+xml">
+<meta name="description" content="A living rock pool. Watch the tide, the crabs, and the little school of fish.">
+<meta name="theme-color" content="#1c3c44">
+<style>
+html,body{margin:0;height:100%;background:#241e1a;overflow:hidden;font-family:system-ui,-apple-system,"Segoe UI",sans-serif;color:#f4ecdf;-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent}
+canvas{display:block;width:100%;height:100%;touch-action:none}
+button{font:inherit;color:#f4ecdf;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.16);border-radius:12px;cursor:pointer;touch-action:manipulation}
+button:focus-visible{outline:2px solid #f0d78c;outline-offset:2px}
+#pill{position:fixed;top:max(8px,env(safe-area-inset-top));left:max(8px,env(safe-area-inset-left));background:rgba(28,24,20,.72);border:1px solid rgba(255,255,255,.12);border-radius:14px;padding:8px 12px 9px;backdrop-filter:blur(6px);max-width:min(280px,72vw);pointer-events:none}
+#pill strong{display:block;font-size:16px;letter-spacing:.01em}
+#tideText{font-size:13px;opacity:.88;margin-top:2px}
+#meter{margin-top:6px;height:8px;border-radius:99px;background:rgba(255,255,255,.12);overflow:hidden}
+#meter i{display:block;height:100%;width:50%;border-radius:99px;background:linear-gradient(90deg,#c9854a,#7ec8c0 55%,#1d6e86)}
+#bar{position:fixed;left:50%;bottom:max(10px,env(safe-area-inset-bottom));transform:translateX(-50%);display:flex;gap:6px;padding:6px;border-radius:16px;background:rgba(28,24,20,.72);border:1px solid rgba(255,255,255,.1);backdrop-filter:blur(6px);max-width:96vw;box-sizing:border-box}
+#bar button{min-height:44px;padding:8px 12px;font-size:15px;display:flex;align-items:center;gap:6px;position:relative}
+#bar button.on{background:rgba(126,200,192,.28);border-color:rgba(190,235,220,.7)}
+#bar button .n{position:absolute;top:-6px;right:-4px;background:#f0d78c;color:#2a2118;border-radius:99px;font-size:11px;font-weight:700;min-width:16px;padding:1px 4px;text-align:center}
+#hint{position:fixed;left:50%;bottom:calc(max(10px,env(safe-area-inset-bottom)) + 70px);transform:translateX(-50%);background:rgba(28,24,20,.66);border-radius:12px;padding:8px 12px;font-size:14px;max-width:min(440px,92vw);text-align:center;pointer-events:none;transition:opacity .8s}
+#hint.gone{opacity:0}
+#toast{position:fixed;left:max(8px,env(safe-area-inset-left));top:calc(max(8px,env(safe-area-inset-top)) + 76px);background:rgba(28,24,20,.88);border:1px solid rgba(240,215,140,.45);color:#f4ecdf;border-radius:12px;padding:8px 14px;font-size:14px;max-width:min(420px,78vw);text-align:left;pointer-events:none;z-index:5}
+#toast[hidden]{display:none}
+#tip{position:fixed;z-index:4;width:min(260px,80vw);background:rgba(28,24,20,.92);border:1px solid rgba(240,215,140,.4);border-radius:12px;padding:8px 10px;pointer-events:none}
+#tip[hidden]{display:none}
+#tip b{display:block;font-size:14px;color:#f0d78c}
+#tip span{display:block;font-size:13px;line-height:1.35;margin-top:2px}
+#scrim{position:fixed;inset:0;background:rgba(12,10,8,.45);z-index:6}
+#scrim[hidden]{display:none}
+#journal{position:fixed;z-index:7;left:50%;top:50%;transform:translate(-50%,-50%);width:min(440px,94vw);max-height:min(78vh,640px);overflow:auto;background:rgba(32,27,23,.96);border:1px solid rgba(255,255,255,.14);border-radius:16px;padding:12px 14px 16px;box-sizing:border-box}
+#journal[hidden]{display:none}
+#journal header{display:flex;align-items:center;gap:8px;position:sticky;top:0;background:rgba(32,27,23,.96);padding-bottom:8px}
+#journal header b{font-size:18px}
+#journal header span{opacity:.75;font-size:13px;flex:1}
+#journal header button{min-width:36px;min-height:36px;border-radius:10px}
+.jrow{display:flex;gap:10px;padding:8px 0;border-top:1px solid rgba(255,255,255,.08)}
+.jrow .em{font-size:22px;width:32px;text-align:center;flex:none}
+.jrow b{font-size:14px}
+.jrow p{margin:2px 0 0;font-size:13px;line-height:1.35;opacity:.82}
+.jrow.unknown{opacity:.45}
+@media (max-width:720px){
+  #bar button .tx{display:none}
+  #bar button{padding:8px 0;width:48px;justify-content:center}
+  #pill strong{font-size:15px}
+}
+@media (max-height:420px){
+  #hint{display:none}
+  #pill{padding:4px 8px}
+  #tideText{display:none}
+  #toast{top:max(8px,env(safe-area-inset-top));left:auto;right:max(8px,env(safe-area-inset-right));max-width:min(340px,58vw)}
+}
+</style>
+</head>
+<body>
+<canvas id="c" aria-label="Tide Pool, a rock pool seen from above. Tap the water, drag a rock, or leave a shell."></canvas>
+<div id="pill">
+  <strong>Tide Pool</strong>
+  <div id="tideText">The tide is turning</div>
+  <div id="meter" aria-hidden="true"><i id="meterFill"></i></div>
+</div>
+<div id="bar" role="toolbar" aria-label="Tide Pool tools">
+  <button id="bSound" type="button" aria-pressed="false" aria-label="Sound is off. Tap to turn it on" title="Sound (M)">
+    <span class="ic" aria-hidden="true">🔇</span><span class="tx">Sound</span>
+  </button>
+  <button id="bLook" type="button" aria-pressed="false" aria-label="Magnifier is off" title="Name a creature (L)">
+    <span class="ic" aria-hidden="true">🔍</span><span class="tx">Look</span>
+  </button>
+  <button id="bShell" type="button" aria-pressed="false" aria-label="Drop a shell" title="Leave a shell for a crab (S)">
+    <span class="ic" aria-hidden="true">🐚</span><span class="tx">Shell</span>
+  </button>
+  <button id="bJournal" type="button" aria-label="Open the field journal" title="Species you have found (J)">
+    <span class="ic" aria-hidden="true">📖</span><span class="tx">Journal</span><span class="n" id="jBadge">0</span>
+  </button>
+</div>
+<div id="hint">Tap the water for ripples. Drag a rock to peek under it. Leave a shell for a crab.</div>
+<div id="toast" hidden role="status" aria-live="polite"></div>
+<div id="tip" hidden><b id="tipName"></b><span id="tipFact"></span></div>
+<div id="scrim" hidden></div>
+<div id="journal" hidden role="dialog" aria-modal="true" aria-label="Field journal">
+  <header>
+    <b>Field journal</b>
+    <span id="jCount">0 of 12</span>
+    <button id="jClose" type="button" aria-label="Close journal">✕</button>
+  </header>
+  <div id="jList"></div>
+</div>
+<script>
+'use strict';
+(function () {
+  const PERIOD = 180;
+  const COLS = 160;
+  const ROWS = 110;
+  const AC = 80;
+  const AR = 56;
+  const KEY = 'playbot-tide-pool-journal';
+  const SPECIES = [
+    ['hermit', '🦀', 'Hermit crab', 'It tries on bigger empty shells and moves house when it finds one.'],
+    ['anemone', '🌸', 'Beadlet anemone', 'Tap the water and it shuts tight, then slowly blooms open again.'],
+    ['periwinkle', '🐌', 'Periwinkle', 'A snail that scrapes algae with a tiny tongue called a radula.'],
+    ['goby', '🐟', 'Sand goby', 'Little fish that swim together as one shimmering school.'],
+    ['star', '⭐', 'Cushion star', 'It crawls very slowly on hundreds of tiny tube feet.'],
+    ['shrimp', '🦐', 'Glass shrimp', 'It darts, then freezes, hoping nobody noticed.'],
+    ['barnacle', '⚪', 'Acorn barnacle', 'Glued on for life, it sweeps the water with feathery feet.'],
+    ['lettuce', '🌿', 'Sea lettuce', 'Soft green algae. It grows where the light reaches, and snails eat it.'],
+    ['gull', '🐦', 'Herring gull', 'At low tide it drops in to poke around the dry rocks.'],
+    ['jelly', '🪼', 'Moon jelly', 'A gentle drifter that a high tide sometimes washes in.'],
+    ['shanny', '🐠', 'Shanny', 'A shy little fish that waits in the dark under stones.'],
+    ['porcelain', '🦀', 'Porcelain crab', 'Tiny and flat, it keeps house under rocks.']
+  ];
+  const SPEC = {};
+  for (const s of SPECIES) SPEC[s[0]] = { id: s[0], emoji: s[1], name: s[2], fact: s[3] };
+
+  let seed = 20261124;
+  function rnd() {
+    seed = (seed + 0x6D2B79F5) | 0;
+    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  }
+  function hash2(ix, iy) {
+    let n = (ix * 374761393 + iy * 668265263 + 1013904223) | 0;
+    n = Math.imul(n ^ (n >>> 13), 1274126177);
+    return ((n ^ (n >>> 16)) >>> 0) / 4294967296;
+  }
+  function vnoise(x, y) {
+    const x0 = Math.floor(x), y0 = Math.floor(y);
+    const fx = x - x0, fy = y - y0;
+    const sx = fx * fx * (3 - 2 * fx), sy = fy * fy * (3 - 2 * fy);
+    const a = hash2(x0, y0), b = hash2(x0 + 1, y0), c = hash2(x0, y0 + 1), d = hash2(x0 + 1, y0 + 1);
+    return a + (b - a) * sx + (c - a) * sy + (a - b - c + d) * sx * sy;
+  }
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+
+  const canvas = document.getElementById('c');
+  const ctx = canvas.getContext('2d', { alpha: false });
+  const bg = document.createElement('canvas');
+  const bctx = bg.getContext('2d', { alpha: false });
+  const waterC = document.createElement('canvas');
+  const wctx = waterC.getContext('2d', { alpha: true });
+  const mask = document.createElement('canvas');
+  const mctx = mask.getContext('2d', { alpha: true, willReadFrequently: true });
+
+  const baseH = new Float32Array(COLS * ROWS);
+  const H = new Float32Array(COLS * ROWS);
+  const A = new Float32Array(AC * AR);
+  const outcrops = [];
+  const rocks = [];
+  const shells = [];
+  const crabs = [];
+  const anemones = [];
+  const snails = [];
+  const fish = [];
+  const stars = [];
+  const shrimp = [];
+  const barnacles = [];
+  const weeds = [];
+  const jellies = [];
+  const shannies = [];
+  const porcelains = [];
+  const pebbles = [];
+  const decor = [];
+  const blobs = [];
+  const gulls = [];
+  const ripples = [];
+  const motes = [];
+
+  let viewW = 800, viewH = 600, dpr = 1;
+  let rimPath = null;
+  let waterGrad = null;
+  let maskImg = null;
+  let tideTime = 95;
+  let simTime = 0;
+  let wl = 0.9;
+  let prevWl = 0.9;
+  let wave = null;
+  let gullWait = 4;
+  let shellMode = false;
+  let lookMode = false;
+  let soundOn = false;
+  let quiet = false;
+  let hintedFlip = false;
+  let audio = null;
+  let activePtr = null;
+  let drag = null;
+  let downX = 0, downY = 0, downMoved = false;
+  let tipSticky = 0;
+  let toastTimer = 0;
+  let algaeAcc = 0;
+  let algaePaint = 0;
+  let hudAcc = 0;
+  let lapAcc = 0;
+  let bootSilent = true;
+  let reduceMotion = false;
+  try { reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) { /* keep false */ }
+
+  const metrics = {
+    minWater: 1, maxWater: 0, waves: 0, gullVisits: 0, swaps: 0,
+    ripples: 0, flips: 0, shellsDropped: 0, loots: 0
+  };
+  const frameSamples = [];
+  let lastFrame = 0;
+
+  function waterAt(t) {
+    const th = ((t % PERIOD) + PERIOD) % PERIOD / PERIOD;
+    return 0.20 + 0.72 * (0.5 - 0.5 * Math.cos(th * Math.PI * 2));
+  }
+  function tidePhase(t) {
+    const th = ((t % PERIOD) + PERIOD) % PERIOD / PERIOD;
+    if (th < 0.07 || th > 0.93) return 'low';
+    if (th > 0.43 && th < 0.57) return 'high';
+    return th < 0.5 ? 'rising' : 'falling';
+  }
+  wl = waterAt(tideTime);
+  prevWl = wl;
+  metrics.minWater = wl;
+  metrics.maxWater = wl;
+
+  function cellIndex(nx, ny) {
+    const i = clamp(Math.floor(nx * COLS), 0, COLS - 1);
+    const j = clamp(Math.floor(ny * ROWS), 0, ROWS - 1);
+    return j * COLS + i;
+  }
+  function cellH(nx, ny) {
+    if (nx < 0 || ny < 0 || nx > 1 || ny > 1) return 2;
+    return H[cellIndex(nx, ny)];
+  }
+  function depthAt(nx, ny) { return wl - cellH(nx, ny); }
+  function mSize() { return Math.min(viewW, viewH) || 1; }
+  function iso(x1, y1, x2, y2) {
+    const m = mSize();
+    const dx = (x2 - x1) * viewW / m;
+    const dy = (y2 - y1) * viewH / m;
+    return { dx: dx, dy: dy, d: Math.hypot(dx, dy) };
+  }
+  function SX(nx) { return nx * viewW; }
+  function SY(ny) { return ny * viewH; }
+  function U(f) { return f * mSize(); }
+
+  function basin(nx, ny) {
+    const dx = (nx - 0.5) / 0.44;
+    const dy = (ny - 0.5) / 0.36;
+    const ang = Math.atan2(dy, dx);
+    const wob = 0.88 + 0.16 * vnoise(Math.cos(ang) * 1.7 + 3, Math.sin(ang) * 1.7 + 2);
+    return Math.hypot(dx, dy) / wob;
+  }
+
+  function buildBase() {
+    for (let j = 0; j < ROWS; j++) {
+      for (let i = 0; i < COLS; i++) {
+        const nx = (i + 0.5) / COLS, ny = (j + 0.5) / ROWS;
+        const e = basin(nx, ny);
+        const n = vnoise(nx * 7.5, ny * 7.5);
+        const n2 = vnoise(nx * 18 + 4, ny * 18 + 1);
+        let h;
+        if (e > 1) h = 1.04 + (e - 1) * 0.35 + n * 0.05;
+        else h = 0.05 + Math.pow(e, 1.55) * 0.78 + (n - 0.5) * 0.055 + (n2 - 0.5) * 0.02;
+        baseH[j * COLS + i] = h;
+      }
+    }
+  }
+
+  function stamp(oc) {
+    const m = mSize();
+    const rx = oc.r * m / viewW;
+    const ry = oc.r * m / viewH;
+    const i0 = clamp(Math.floor((oc.x - rx) * COLS) - 1, 0, COLS - 1);
+    const i1 = clamp(Math.ceil((oc.x + rx) * COLS) + 1, 0, COLS - 1);
+    const j0 = clamp(Math.floor((oc.y - ry) * ROWS) - 1, 0, ROWS - 1);
+    const j1 = clamp(Math.ceil((oc.y + ry) * ROWS) + 1, 0, ROWS - 1);
+    for (let j = j0; j <= j1; j++) {
+      for (let i = i0; i <= i1; i++) {
+        const nx = (i + 0.5) / COLS, ny = (j + 0.5) / ROWS;
+        const d = Math.hypot((nx - oc.x) / rx, (ny - oc.y) / ry);
+        if (d >= 1) continue;
+        const k = Math.pow(1 - d, 0.65);
+        const id = j * COLS + i;
+        H[id] = Math.max(H[id], oc.h * k + 0.08 * (1 - k));
+      }
+    }
+  }
+  function applyCover() {
+    H.set(baseH);
+    for (const oc of outcrops) stamp(oc);
+  }
+
+  function farFrom(list, x, y, dist) {
+    for (const p of list) {
+      if (Math.hypot(p.x - x, p.y - y) < dist) return false;
+    }
+    return true;
+  }
+  function placeIn(pred, tries) {
+    for (let k = 0; k < tries; k++) {
+      const x = 0.08 + rnd() * 0.84;
+      const y = 0.08 + rnd() * 0.84;
+      if (pred(x, y)) return { x: x, y: y };
+    }
+    return null;
+  }
+
+  function buildWorld() {
+    buildBase();
+    const kinds = [0.98, 0.96, 0.74, 0.7, 0.52];
+    for (let n = 0; n < kinds.length; n++) {
+      const p = placeIn(function (x, y) {
+        const e = basin(x, y);
+        return e > 0.28 && e < 0.82 && farFrom(outcrops, x, y, 0.12);
+      }, 80);
+      if (!p) continue;
+      outcrops.push({ x: p.x, y: p.y, r: 0.045 + rnd() * 0.03, h: kinds[n], ph: rnd() * 6 });
+    }
+    applyCover();
+
+    for (let n = 0; n < 70; n++) {
+      const p = placeIn(function (x, y) {
+        const h = cellH(x, y);
+        return h > 0.18 && h < 0.72;
+      }, 8);
+      if (p) pebbles.push({ x: p.x, y: p.y, r: 0.004 + rnd() * 0.008, c: rnd() });
+    }
+    for (let n = 0; n < 8; n++) {
+      const p = placeIn(function (x, y) {
+        const h = cellH(x, y);
+        return h > 0.08 && h < 0.28 && farFrom(weeds, x, y, 0.06);
+      }, 40);
+      if (p) weeds.push({ x: p.x, y: p.y, ph: rnd() * 6, h: 0.7 + rnd() * 0.6 });
+    }
+    for (const oc of outcrops) {
+      const count = oc.h > 0.9 ? 4 : oc.h > 0.65 ? 3 : 1;
+      for (let k = 0; k < count; k++) {
+        const a = rnd() * Math.PI * 2;
+        const rad = oc.r * (0.2 + rnd() * 0.55);
+        const m = mSize();
+        const x = oc.x + Math.cos(a) * rad * m / viewW;
+        const y = oc.y + Math.sin(a) * rad * m / viewH;
+        if (cellH(x, y) > 0.45) barnacles.push({ x: x, y: y, s: 0.7 + rnd() * 0.6, ph: rnd() * 6 });
+      }
+    }
+    for (let n = 0; n < 6; n++) {
+      const p = placeIn(function (x, y) {
+        const h = cellH(x, y);
+        return h > 0.22 && h < 0.58 && farFrom(anemones, x, y, 0.07);
+      }, 50);
+      if (p) anemones.push({ x: p.x, y: p.y, open: 1, shut: 0, ph: rnd() * 6, hue: rnd() });
+    }
+    const lootPlan = ['shanny', 'porcelain', 'shanny', 'porcelain', null, null, null];
+    for (let n = 0; n < lootPlan.length; n++) {
+      const p = placeIn(function (x, y) {
+        const h = cellH(x, y);
+        return h > 0.2 && h < 0.62 && farFrom(rocks, x, y, 0.07) && farFrom(anemones, x, y, 0.05);
+      }, 50);
+      if (!p) continue;
+      rocks.push({
+        x: p.x, y: p.y, r: 0.028 + rnd() * 0.016,
+        rot: rnd() * 6, tint: rnd(), loot: lootPlan[n], flipped: false,
+        ox: p.x, oy: p.y
+      });
+    }
+    function addShell(x, y, size, owner) {
+      const s = { x: x, y: y, size: size, owner: owner, ang: rnd() * 6, reserved: null, tint: rnd() };
+      shells.push(s);
+      return s;
+    }
+    const crabSizes = [0.72, 1.02, 1.12];
+    for (let n = 0; n < crabSizes.length; n++) {
+      const p = placeIn(function (x, y) {
+        const h = cellH(x, y);
+        return h > 0.12 && h < 0.5 && farFrom(crabs, x, y, 0.08);
+      }, 40);
+      if (!p) continue;
+      const c = {
+        x: p.x, y: p.y, ang: rnd() * 6, speed: 0.055 + rnd() * 0.02,
+        think: rnd(), goal: null, swap: 0, hiding: false, cover: null, mode: 'wander', ph: rnd() * 6
+      };
+      c.shell = addShell(p.x, p.y, crabSizes[n], c);
+      crabs.push(c);
+    }
+    const empties = [0.58, 0.95, 1.38, 1.62];
+    for (const size of empties) {
+      const p = placeIn(function (x, y) {
+        const h = cellH(x, y);
+        return h > 0.12 && h < 0.55 && farFrom(shells, x, y, 0.06);
+      }, 40);
+      if (p) addShell(p.x, p.y, size, null);
+    }
+    for (let n = 0; n < 4; n++) {
+      const p = placeIn(function (x, y) {
+        const h = cellH(x, y);
+        return h > 0.12 && h < 0.6 && farFrom(snails, x, y, 0.06);
+      }, 30);
+      if (p) snails.push({ x: p.x, y: p.y, ang: rnd() * 6, ph: rnd() * 6, hiding: false, cover: null, mode: 'wander', think: rnd() });
+    }
+    for (let n = 0; n < 2; n++) {
+      const p = placeIn(function (x, y) { return cellH(x, y) > 0.15 && cellH(x, y) < 0.55; }, 20);
+      if (p) stars.push({ x: p.x, y: p.y, ang: rnd() * 6, rot: rnd() * 6, hiding: false, cover: null, mode: 'wander', tint: rnd() });
+    }
+    for (let n = 0; n < 7; n++) {
+      const p = placeIn(function (x, y) { return depthAt(x, y) > 0.05 && cellH(x, y) < 0.7; }, 30);
+      if (p) shrimp.push({
+        x: p.x, y: p.y, ang: rnd() * 6, vx: 0, vy: 0,
+        state: 'rest', timer: 0.3 + rnd(), hiding: false, cover: null, mode: 'wander', ph: rnd() * 6
+      });
+    }
+    let deep = { h: 9, x: 0.5, y: 0.5 };
+    for (let j = 0; j < ROWS; j += 2) {
+      for (let i = 0; i < COLS; i += 2) {
+        const h = H[j * COLS + i];
+        if (h < deep.h) deep = { h: h, x: (i + 0.5) / COLS, y: (j + 0.5) / ROWS };
+      }
+    }
+    for (let n = 0; n < 9; n++) {
+      fish.push({
+        x: deep.x + (rnd() - 0.5) * 0.08,
+        y: deep.y + (rnd() - 0.5) * 0.08,
+        vx: (rnd() - 0.5) * 0.05,
+        vy: (rnd() - 0.5) * 0.05,
+        ang: rnd() * 6,
+        ph: rnd() * 6,
+        tint: rnd()
+      });
+    }
+    for (let j = 0; j < AR; j++) {
+      for (let i = 0; i < AC; i++) {
+        const nx = (i + 0.5) / AC, ny = (j + 0.5) / AR;
+        const h = cellH(nx, ny);
+        if (h > 0.08 && h < 0.82 && basin(nx, ny) < 1) {
+          const n = vnoise(nx * 3.2 + 2, ny * 3.2);
+          A[j * AC + i] = n > 0.58 ? 0.35 + (n - 0.58) * 1.3 : n * 0.12;
+        }
+      }
+    }
+    for (let n = 0; n < 8; n++) {
+      motes.push({ x: rnd(), y: rnd(), s: 0.3 + rnd(), p: rnd() * 6 });
+    }
+    for (let n = 0; n < 42; n++) {
+      decor.push({ x: rnd(), y: rnd(), r: 0.035 + rnd() * 0.09, t: rnd(), rot: rnd() * 6 });
+    }
+  }
+
+  function loadFound() {
+    try {
+      const raw = localStorage.getItem(KEY);
+      if (!raw) return {};
+      const o = JSON.parse(raw);
+      if (!o || typeof o.found !== 'object' || !o.found) return {};
+      return o.found;
+    } catch (e) { return {}; }
+  }
+  const found = loadFound();
+  function saveFound() {
+    try { localStorage.setItem(KEY, JSON.stringify({ v: 1, found: found })); } catch (e) {}
+  }
+  function foundCount() {
+    let n = 0;
+    for (const s of SPECIES) if (found[s[0]]) n++;
+    return n;
+  }
+  function updateBadge() {
+    const n = foundCount();
+    document.getElementById('jBadge').textContent = String(n);
+    document.getElementById('jCount').textContent = n + ' of ' + SPECIES.length;
+  }
+  function discover(id, silent) {
+    if (!SPEC[id] || found[id]) return;
+    found[id] = true;
+    saveFound();
+    updateBadge();
+    const box = document.getElementById('journal');
+    if (!box.hidden) renderJournal();
+    if (!silent && !bootSilent && !quiet) toast('New in your journal: ' + SPEC[id].name + '.');
+  }
+  function renderJournal() {
+    const list = document.getElementById('jList');
+    list.replaceChildren();
+    for (const s of SPECIES) {
+      const known = !!found[s[0]];
+      const row = document.createElement('div');
+      row.className = 'jrow' + (known ? '' : ' unknown');
+      const em = document.createElement('div');
+      em.className = 'em';
+      em.textContent = known ? s[1] : '❔';
+      const body = document.createElement('div');
+      const b = document.createElement('b');
+      b.textContent = known ? s[2] : 'Not yet';
+      const p = document.createElement('p');
+      p.textContent = known ? s[3] : 'Keep watching the pool.';
+      body.appendChild(b);
+      body.appendChild(p);
+      row.appendChild(em);
+      row.appendChild(body);
+      list.appendChild(row);
+    }
+    updateBadge();
+  }
+
+  let toastHide = 0;
+  function toast(text) {
+    const el = document.getElementById('toast');
+    el.hidden = false;
+    el.textContent = text;
+    toastHide = performance.now() + 2800;
+  }
+
+  function addRipple(x, y) {
+    ripples.push({ x: x, y: y, age: 0, life: 1.15 });
+    if (ripples.length > 14) ripples.shift();
+    metrics.ripples++;
+    for (const a of anemones) {
+      const d = iso(a.x, a.y, x, y);
+      if (d.d < 0.12) a.shut = Math.max(a.shut, 1.25);
+    }
+    for (const s of shrimp) {
+      const d = iso(s.x, s.y, x, y);
+      if (d.d < 0.16 && d.d > 0.001) {
+        s.vx = -d.dx / d.d * 0.45;
+        s.vy = -d.dy / d.d * 0.45;
+        s.state = 'dart';
+        s.timer = 0.18;
+      }
+    }
+  }
+
+  function setupAudio() {
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) throw new Error('no audio');
+    const ac = new AC();
+    const master = ac.createGain();
+    master.gain.value = 0.9;
+    master.connect(ac.destination);
+    const len = ac.sampleRate * 2;
+    const buf = ac.createBuffer(1, len, ac.sampleRate);
+    const data = buf.getChannelData(0);
+    let b = 0;
+    for (let i = 0; i < len; i++) {
+      const w = Math.random() * 2 - 1;
+      b = b * 0.985 + w * 0.015;
+      data[i] = b * 3.2;
+    }
+    const src = ac.createBufferSource();
+    src.buffer = buf;
+    src.loop = true;
+    const bp = ac.createBiquadFilter();
+    bp.type = 'bandpass';
+    bp.frequency.value = 380;
+    bp.Q.value = 0.55;
+    const lap = ac.createGain();
+    lap.gain.value = 0.0001;
+    src.connect(bp);
+    bp.connect(lap);
+    lap.connect(master);
+    src.start();
+    audio = { ac: ac, master: master, lap: lap, buf: buf };
+  }
+  function setLap(level) {
+    if (!audio) return;
+    const g = audio.lap.gain;
+    const now = audio.ac.currentTime;
+    g.cancelScheduledValues(now);
+    g.setTargetAtTime(Math.max(0.0001, level), now, 0.12);
+  }
+  function tone(f0, f1, dur, delay, type, vol) {
+    if (!audio || quiet || !soundOn) return;
+    const ac = audio.ac;
+    const t0 = ac.currentTime + (delay || 0);
+    const o = ac.createOscillator();
+    o.type = type || 'sine';
+    o.frequency.setValueAtTime(Math.max(40, f0), t0);
+    o.frequency.exponentialRampToValueAtTime(Math.max(40, f1), t0 + dur);
+    const g = ac.createGain();
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.exponentialRampToValueAtTime(vol || 0.06, t0 + Math.min(0.03, dur * 0.4));
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+    o.connect(g);
+    g.connect(audio.master);
+    o.start(t0);
+    o.stop(t0 + dur + 0.02);
+  }
+  function plink(nx) {
+    if (!soundOn || !audio || quiet) return;
+    const ac = audio.ac;
+    const t0 = ac.currentTime;
+    const o = ac.createOscillator();
+    o.type = 'sine';
+    o.frequency.setValueAtTime(680 + Math.random() * 520, t0);
+    const g = ac.createGain();
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.exponentialRampToValueAtTime(0.07, t0 + 0.012);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.2);
+    let node = g;
+    try {
+      const p = ac.createStereoPanner();
+      p.pan.setValueAtTime(clamp((nx - 0.5) * 1.5, -1, 1), t0);
+      g.connect(p);
+      node = p;
+    } catch (e) { /* panner missing */ }
+    o.connect(g);
+    node.connect(audio.master);
+    o.start(t0);
+    o.stop(t0 + 0.22);
+  }
+  function playWave() {
+    if (!soundOn || !audio || quiet) return;
+    const ac = audio.ac;
+    const t0 = ac.currentTime;
+    const src = ac.createBufferSource();
+    src.buffer = audio.buf;
+    const f = ac.createBiquadFilter();
+    f.type = 'lowpass';
+    f.frequency.setValueAtTime(280, t0);
+    f.frequency.exponentialRampToValueAtTime(2200, t0 + 0.28);
+    f.frequency.exponentialRampToValueAtTime(360, t0 + 1.15);
+    const g = ac.createGain();
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.exponentialRampToValueAtTime(0.2, t0 + 0.16);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + 1.2);
+    src.connect(f);
+    f.connect(g);
+    g.connect(audio.master);
+    src.start(t0);
+    src.stop(t0 + 1.25);
+  }
+  function playGull() {
+    tone(1700, 980, 0.16, 0, 'triangle', 0.05);
+    tone(1500, 820, 0.2, 0.18, 'triangle', 0.045);
+  }
+
+  function spawnShellAt(x, y, size) {
+    while (shells.length > 18) {
+      const i = shells.findIndex(s => !s.owner);
+      if (i < 0) break;
+      shells.splice(i, 1);
+    }
+    shells.push({ x: x, y: y, size: size, owner: null, ang: rnd() * 6, reserved: null, tint: rnd() });
+  }
+  function spawnCrabAt(x, y, size) {
+    if (crabs.length >= 6) return null;
+    const c = {
+      x: x, y: y, ang: rnd() * 6, speed: 0.06, think: 0, goal: null, swap: 0.4,
+      hiding: false, cover: null, mode: 'wander', ph: rnd() * 6
+    };
+    c.shell = { x: x, y: y, size: size, owner: c, ang: rnd() * 6, reserved: null, tint: rnd() };
+    shells.push(c.shell);
+    crabs.push(c);
+    discover('hermit');
+    return c;
+  }
+  function spawnJelly(x, y) {
+    if (jellies.length >= 2) return;
+    jellies.push({ x: x, y: y, ang: rnd() * 6, ph: rnd() * 6, fade: 1, drift: rnd() * 6 });
+    discover('jelly');
+  }
+  function openSpot() {
+    return placeIn(function (x, y) { return depthAt(x, y) > 0.06 && basin(x, y) < 0.92; }, 40);
+  }
+  function startWave() {
+    metrics.waves++;
+    wave = { age: 0, life: 2.15 };
+    const gifts = ['a shell'];
+    const spot = openSpot() || { x: 0.5, y: 0.5 };
+    spawnShellAt(spot.x, spot.y, 1.2 + rnd() * 0.5);
+    addRipple(spot.x, spot.y);
+    if (crabs.length < 4 || rnd() < 0.55) {
+      const p = openSpot() || spot;
+      if (spawnCrabAt(p.x, p.y, 0.8 + rnd() * 0.35)) gifts.push('a hermit crab');
+    }
+    if (jellies.length < 1 || rnd() < 0.5) {
+      const p = openSpot() || spot;
+      const before = jellies.length;
+      spawnJelly(p.x, p.y);
+      if (jellies.length > before) gifts.push('a moon jelly');
+    }
+    if (!quiet) {
+      playWave();
+      const msg = gifts.length === 1 ? gifts[0]
+        : gifts.length === 2 ? gifts[0] + ' and ' + gifts[1]
+        : gifts[0] + ', ' + gifts[1] + ' and ' + gifts[2];
+      toast('The wave left ' + msg + '.');
+    }
+  }
+
+  function nearestCover(x, y) {
+    let best = null, bd = 1e9;
+    for (const r of rocks) {
+      const d = iso(x, y, r.x, r.y).d;
+      if (d < bd) { bd = d; best = r; }
+    }
+    for (const o of outcrops) {
+      const d = iso(x, y, o.x, o.y).d;
+      if (d < bd) { bd = d; best = o; }
+    }
+    return best;
+  }
+  function tryMove(e, ang, speed, dt, allowDry) {
+    const m = mSize();
+    const nx = e.x + Math.cos(ang) * speed * dt * m / viewW;
+    const ny = e.y + Math.sin(ang) * speed * dt * m / viewH;
+    if (nx < 0.03 || ny < 0.03 || nx > 0.97 || ny > 0.97) return false;
+    const h = cellH(nx, ny);
+    if (h > 1.02) return false;
+    if (!allowDry && h > wl - 0.01) return false;
+    e.x = nx;
+    e.y = ny;
+    return true;
+  }
+  function hideStep(e, dt, speed) {
+    const d = depthAt(e.x, e.y);
+    if (d > 0.03 && e.hiding) {
+      e.hiding = false;
+      e.mode = 'wander';
+      e.cover = null;
+    }
+    if (d < -0.012 && e.mode !== 'hide' && !e.hiding) e.mode = 'hide';
+    if (e.mode === 'hide' && !e.hiding) {
+      const c = nearestCover(e.x, e.y);
+      if (!c) return false;
+      const rel = iso(e.x, e.y, c.x, c.y);
+      if (rel.d < (c.r || 0.04) + 0.012) {
+        e.hiding = true;
+        e.cover = c;
+        e.x = c.x;
+        e.y = c.y;
+        return true;
+      }
+      const ang = Math.atan2(rel.dy, rel.dx);
+      tryMove(e, ang, speed, dt, true);
+      return true;
+    }
+    return e.hiding;
+  }
+
+  function thinkCrabs() {
+    for (const s of shells) if (s.reserved && s.reserved.goal !== s) s.reserved = null;
+    for (const c of crabs) {
+      if (c.hiding || c.mode === 'hide' || c.swap > 0) { c.goal = null; continue; }
+      let best = null, bestScore = -1;
+      const have = c.shell ? c.shell.size : 0;
+      for (const s of shells) {
+        if (s.owner) continue;
+        if (s.reserved && s.reserved !== c) continue;
+        if (s.size < have + 0.12) continue;
+        const d = iso(c.x, c.y, s.x, s.y).d;
+        if (d > 0.55) continue;
+        const score = s.size * 2 - d;
+        if (score > bestScore) { bestScore = score; best = s; }
+      }
+      if (c.goal && c.goal !== best && c.goal.reserved === c) c.goal.reserved = null;
+      c.goal = best;
+      if (best) best.reserved = c;
+    }
+  }
+  function doSwap(c, s) {
+    const old = c.shell;
+    if (old) {
+      old.owner = null;
+      old.x = c.x;
+      old.y = c.y;
+      old.reserved = null;
+    }
+    s.owner = c;
+    s.reserved = null;
+    c.shell = s;
+    c.goal = null;
+    c.swap = 0.85;
+    metrics.swaps++;
+    if (!quiet) toast('The hermit crab found a bigger shell.');
+  }
+
+  function growAlgae(dt) {
+    for (let j = 0; j < AR; j++) {
+      for (let i = 0; i < AC; i++) {
+        const nx = (i + 0.5) / AC, ny = (j + 0.5) / AR;
+        const id = j * AC + i;
+        if (basin(nx, ny) > 1.02) { A[id] = 0; continue; }
+        const depth = wl - cellH(nx, ny);
+        if (depth <= 0) A[id] = Math.max(0, A[id] - dt * 0.04);
+        else {
+          const light = clamp(1 - depth * 1.35, 0.08, 1);
+          A[id] = Math.min(1, A[id] + dt * (0.01 + 0.055 * light) * (1 - A[id]));
+        }
+      }
+    }
+  }
+  function algaeAt(nx, ny) {
+    const i = clamp(Math.floor(nx * AC), 0, AC - 1);
+    const j = clamp(Math.floor(ny * AR), 0, AR - 1);
+    return A[j * AC + i];
+  }
+  function graze(x, y, amt) {
+    const i0 = Math.floor(x * AC), j0 = Math.floor(y * AR);
+    for (let dj = -2; dj <= 2; dj++) {
+      for (let di = -2; di <= 2; di++) {
+        const i = i0 + di, j = j0 + dj;
+        if (i < 0 || j < 0 || i >= AC || j >= AR) continue;
+        const fall = 1 - Math.hypot(di, dj) / 3.2;
+        if (fall > 0) A[j * AC + i] = Math.max(0, A[j * AC + i] - amt * fall);
+      }
+    }
+  }
+
+  function stepFish(dt) {
+    const n = fish.length;
+    for (let i = 0; i < n; i++) {
+      const f = fish[i];
+      let sx = 0, sy = 0, ax = 0, ay = 0, cx = 0, cy = 0, cnt = 0;
+      for (let k = 0; k < n; k++) {
+        if (k === i) continue;
+        const rel = iso(f.x, f.y, fish[k].x, fish[k].y);
+        if (rel.d < 0.16 && rel.d > 0.0008) {
+          cnt++;
+          ax += fish[k].vx;
+          ay += fish[k].vy;
+          cx += rel.dx;
+          cy += rel.dy;
+          if (rel.d < 0.05) { sx -= rel.dx / rel.d; sy -= rel.dy / rel.d; }
+        }
+      }
+      let fx = sx * 1.7, fy = sy * 1.7;
+      if (cnt) {
+        fx += (ax / cnt - f.vx) * 0.65 + (cx / cnt) * 1.15;
+        fy += (ay / cnt - f.vy) * 0.65 + (cy / cnt) * 1.15;
+      }
+      const home = iso(f.x, f.y, 0.5, 0.5);
+      fx += home.dx * 0.15;
+      fy += home.dy * 0.15;
+      for (const rp of ripples) {
+        if (rp.age > 0.65) continue;
+        const rel = iso(rp.x, rp.y, f.x, f.y);
+        if (rel.d < 0.2 && rel.d > 0.001) {
+          const k = (1 - rel.d / 0.2) * (1 - rp.age / 0.65) * 3.2;
+          fx += rel.dx / rel.d * k;
+          fy += rel.dy / rel.d * k;
+        }
+      }
+      if (depthAt(f.x, f.y) < 0.04) {
+        let bestA = 0, bh = 99;
+        for (let k = 0; k < 8; k++) {
+          const a = k / 8 * Math.PI * 2;
+          const m = mSize();
+          const nx = f.x + Math.cos(a) * 0.035 * m / viewW;
+          const ny = f.y + Math.sin(a) * 0.035 * m / viewH;
+          const h = cellH(nx, ny);
+          if (h < bh) { bh = h; bestA = a; }
+        }
+        fx += Math.cos(bestA) * 2.4;
+        fy += Math.sin(bestA) * 2.4;
+      }
+      f.vx += fx * dt;
+      f.vy += fy * dt;
+      const sp = Math.hypot(f.vx, f.vy) || 1;
+      const max = 0.2;
+      if (sp > max) { f.vx = f.vx / sp * max; f.vy = f.vy / sp * max; }
+      const m = mSize();
+      let nx = f.x + f.vx * dt * m / viewW;
+      let ny = f.y + f.vy * dt * m / viewH;
+      if (cellH(nx, ny) > wl - 0.015 || nx < 0.04 || ny < 0.04 || nx > 0.96 || ny > 0.96) {
+        f.vx *= -0.4;
+        f.vy *= -0.4;
+        nx = clamp(f.x, 0.05, 0.95);
+        ny = clamp(f.y, 0.05, 0.95);
+      } else {
+        f.x = nx;
+        f.y = ny;
+      }
+      if (sp > 0.02) f.ang = Math.atan2(f.vy, f.vx);
+    }
+  }
+
+  function step(dt) {
+    dt = Math.min(Math.max(dt, 0), 0.05);
+    if (dt <= 0) return;
+    simTime += dt;
+    tideTime += dt;
+    wl = waterAt(tideTime);
+    if (wl < metrics.minWater) metrics.minWater = wl;
+    if (wl > metrics.maxWater) metrics.maxWater = wl;
+    if (prevWl < 0.8 && wl >= 0.8) startWave();
+    prevWl = wl;
+    if (wave) {
+      wave.age += dt;
+      if (wave.age > wave.life) wave = null;
+    }
+
+    algaeAcc += dt;
+    if (algaeAcc >= 0.12) {
+      growAlgae(algaeAcc);
+      algaeAcc = 0;
+    }
+
+    for (let i = ripples.length - 1; i >= 0; i--) {
+      ripples[i].age += dt;
+      if (ripples[i].age > ripples[i].life) ripples.splice(i, 1);
+    }
+
+    for (const a of anemones) {
+      a.shut -= dt;
+      const want = depthAt(a.x, a.y) > 0.03 && a.shut <= 0 ? 1 : 0;
+      a.open += (want - a.open) * Math.min(1, dt * 2.4);
+    }
+
+    stepFish(dt);
+
+    for (const s of shrimp) {
+      if (hideStep(s, dt, 0.16)) continue;
+      s.timer -= dt;
+      if (s.state === 'rest') {
+        s.vx *= 0.9;
+        s.vy *= 0.9;
+        if (s.timer <= 0) {
+          s.state = 'dart';
+          s.timer = 0.12 + rnd() * 0.12;
+          s.ang = rnd() * Math.PI * 2;
+          s.vx = Math.cos(s.ang) * 0.42;
+          s.vy = Math.sin(s.ang) * 0.42;
+        }
+      } else if (s.timer <= 0) {
+        s.state = 'rest';
+        s.timer = 0.45 + rnd() * 0.9;
+      }
+      const m = mSize();
+      const nx = s.x + s.vx * dt * m / viewW;
+      const ny = s.y + s.vy * dt * m / viewH;
+      if (depthAt(nx, ny) > 0.02 && nx > 0.04 && ny > 0.04 && nx < 0.96 && ny < 0.96) {
+        s.x = nx; s.y = ny;
+      } else {
+        s.ang += 1.8;
+        s.vx = Math.cos(s.ang) * 0.3;
+        s.vy = Math.sin(s.ang) * 0.3;
+        s.state = 'rest';
+        s.timer = 0.2;
+      }
+      if (Math.hypot(s.vx, s.vy) > 0.05) s.ang = Math.atan2(s.vy, s.vx);
+    }
+
+    let anyThink = false;
+    for (const c of crabs) {
+      if (c.shell) { c.shell.x = c.x; c.shell.y = c.y; }
+      c.swap -= dt;
+      c.think -= dt;
+      if (c.think <= 0) { anyThink = true; c.think = 0.28; }
+    }
+    if (anyThink) thinkCrabs();
+    for (const c of crabs) {
+      if (hideStep(c, dt, c.speed * 1.4)) continue;
+      if (c.swap > 0) continue;
+      if (c.goal && !c.goal.owner) {
+        const rel = iso(c.x, c.y, c.goal.x, c.goal.y);
+        if (rel.d < 0.03) doSwap(c, c.goal);
+        else {
+          const ang = Math.atan2(rel.dy, rel.dx) + Math.sin(simTime * 2.2 + c.ph) * 0.7;
+          if (!tryMove(c, ang, c.speed * 1.15, dt, true)) tryMove(c, ang + 1.7, c.speed, dt, true);
+        }
+      } else {
+        c.ang += (rnd() - 0.5) * dt * 2.2;
+        if (!tryMove(c, c.ang, c.speed, dt, true)) c.ang += 2.1;
+      }
+    }
+
+    for (const s of snails) {
+      if (hideStep(s, dt, 0.04)) continue;
+      s.think -= dt;
+      if (s.think <= 0) {
+        s.think = 0.45;
+        let bestA = s.ang, best = -1;
+        for (let k = 0; k < 8; k++) {
+          const a = k / 8 * Math.PI * 2;
+          const m = mSize();
+          const nx = s.x + Math.cos(a) * 0.03 * m / viewW;
+          const ny = s.y + Math.sin(a) * 0.03 * m / viewH;
+          const g = algaeAt(nx, ny);
+          if (g > best && cellH(nx, ny) < 1) { best = g; bestA = a; }
+        }
+        if (best > 0.12) s.ang = bestA;
+        else s.ang += (rnd() - 0.5) * 1.4;
+      }
+      if (!tryMove(s, s.ang, 0.028, dt, depthAt(s.x, s.y) > -0.04)) s.ang += 1.7;
+      if (depthAt(s.x, s.y) > 0) graze(s.x, s.y, dt * 0.7);
+    }
+
+    for (const st of stars) {
+      if (hideStep(st, dt, 0.03)) continue;
+      st.ang += (rnd() - 0.48) * dt * 0.8;
+      if (!tryMove(st, st.ang, 0.018, dt, true)) st.ang += 2;
+      st.rot += dt * 0.15;
+    }
+
+    for (let i = jellies.length - 1; i >= 0; i--) {
+      const jy = jellies[i];
+      jy.ph += dt;
+      const m = mSize();
+      jy.ang += Math.sin(simTime * 0.4 + jy.drift) * dt * 0.4;
+      const sp = 0.03;
+      let nx = jy.x + Math.cos(jy.ang) * sp * dt * m / viewW;
+      let ny = jy.y + Math.sin(jy.ang) * sp * dt * m / viewH;
+      if (depthAt(nx, ny) < 0.03) jy.fade -= dt * 0.45;
+      else jy.fade = Math.min(1, jy.fade + dt * 0.4);
+      if (nx < 0.06 || ny < 0.06 || nx > 0.94 || ny > 0.94 || cellH(nx, ny) > wl) {
+        jy.ang += 1.4;
+      } else {
+        jy.x = nx;
+        jy.y = ny;
+      }
+      if (jy.fade <= 0) jellies.splice(i, 1);
+    }
+
+    gullWait -= dt;
+    if (!gulls.length && gullWait <= 0 && wl < 0.34) {
+      let spot = null;
+      for (let k = 0; k < 30; k++) {
+        const x = 0.12 + rnd() * 0.76, y = 0.12 + rnd() * 0.76;
+        const h = cellH(x, y);
+        if (h > wl + 0.025 && h < 1.03 && basin(x, y) < 1.05) { spot = { x: x, y: y }; break; }
+      }
+      if (spot) {
+        gulls.push({
+          x: spot.x < 0.5 ? -0.08 : 1.08,
+          y: 0.12 + rnd() * 0.2,
+          tx: spot.x, ty: spot.y,
+          state: 'fly', peck: 0, flap: rnd() * 6, leave: 0
+        });
+        metrics.gullVisits++;
+        discover('gull');
+        gullWait = 50;
+      } else gullWait = 6;
+    }
+    for (let i = gulls.length - 1; i >= 0; i--) {
+      const g = gulls[i];
+      g.flap += dt;
+      if (g.state === 'fly') {
+        const rel = iso(g.x, g.y, g.tx, g.ty);
+        const m = mSize();
+        const sp = 0.28;
+        if (rel.d < 0.03) {
+          g.x = g.tx; g.y = g.ty; g.state = 'peck'; g.peck = 0;
+          if (!quiet) { playGull(); toast('A gull lands to poke about.'); }
+        } else {
+          g.x += rel.dx / rel.d * sp * dt * m / viewW;
+          g.y += rel.dy / rel.d * sp * dt * m / viewH;
+        }
+      } else if (g.state === 'peck') {
+        g.peck += dt;
+        if (wl > 0.42 || g.peck > 8) {
+          g.state = 'leave';
+          g.tx = g.x < 0.5 ? -0.12 : 1.12;
+          g.ty = -0.05;
+        }
+      } else {
+        const rel = iso(g.x, g.y, g.tx, g.ty);
+        const m = mSize();
+        g.x += rel.dx / (rel.d || 1) * 0.32 * dt * m / viewW;
+        g.y += rel.dy / (rel.d || 1) * 0.32 * dt * m / viewH;
+        if (rel.d < 0.04 || g.x < -0.14 || g.x > 1.14 || g.y < -0.08) gulls.splice(i, 1);
+      }
+    }
+
+    for (const sh of shannies) {
+      if (hideStep(sh, dt, 0.12)) continue;
+      sh.timer -= dt;
+      if (sh.timer <= 0) { sh.ang += (rnd() - 0.5) * 2; sh.timer = 0.4 + rnd() * 0.6; }
+      if (!tryMove(sh, sh.ang, 0.06, dt, false)) sh.ang += 2;
+    }
+    for (const p of porcelains) {
+      if (hideStep(p, dt, 0.08)) continue;
+      p.ang += (rnd() - 0.5) * dt;
+      if (!tryMove(p, p.ang, 0.04, dt, true)) p.ang += 2;
+    }
+  }
+
+  function rimPoint(ang) {
+    let best = 0.12;
+    const c = Math.cos(ang), s = Math.sin(ang);
+    for (let t = 0.08; t < 0.72; t += 0.01) {
+      const x = 0.5 + c * t, y = 0.5 + s * t;
+      if (x < 0.01 || y < 0.01 || x > 0.99 || y > 0.99) break;
+      if (basin(x, y) < 1) best = t;
+      else break;
+    }
+    return { x: 0.5 + c * best, y: 0.5 + s * best };
+  }
+  function buildRim() {
+    rimPath = new Path2D();
+    const steps = 96;
+    for (let i = 0; i <= steps; i++) {
+      const p = rimPoint((i / steps) * Math.PI * 2);
+      const x = SX(p.x), y = SY(p.y);
+      if (i === 0) rimPath.moveTo(x, y);
+      else rimPath.lineTo(x, y);
+    }
+    rimPath.closePath();
+  }
+  function paintTerrain() {
+    bg.width = Math.max(1, canvas.width);
+    bg.height = Math.max(1, canvas.height);
+    bctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    bctx.fillStyle = '#3a312b';
+    bctx.fillRect(0, 0, viewW, viewH);
+    const tones = ['#2f2824', '#4a3d34', '#5c4b3e', '#6e5848', '#7b6554', '#3f342c'];
+    for (const d of decor) {
+      bctx.fillStyle = tones[(d.t * tones.length) | 0];
+      bctx.beginPath();
+      bctx.ellipse(SX(d.x), SY(d.y), U(d.r), U(d.r * 0.78), d.rot, 0, 6.3);
+      bctx.fill();
+      bctx.fillStyle = 'rgba(255,230,200,0.08)';
+      bctx.beginPath();
+      bctx.ellipse(SX(d.x) - U(d.r) * 0.25, SY(d.y) - U(d.r) * 0.22, U(d.r) * 0.35, U(d.r) * 0.18, d.rot, 0, 6.3);
+      bctx.fill();
+    }
+    buildRim();
+    bctx.save();
+    bctx.clip(rimPath);
+    const sand = bctx.createRadialGradient(SX(0.5), SY(0.48), U(0.04), SX(0.5), SY(0.5), U(0.55));
+    sand.addColorStop(0, '#c89a58');
+    sand.addColorStop(0.55, '#e6c488');
+    sand.addColorStop(1, '#f3ddb0');
+    bctx.fillStyle = sand;
+    bctx.fillRect(0, 0, viewW, viewH);
+    for (let i = 0; i < 80; i++) {
+      const x = hash2(i, 2), y = hash2(i, 11);
+      if (basin(x, y) > 0.9) continue;
+      bctx.fillStyle = i % 3 ? 'rgba(120,90,50,0.18)' : 'rgba(255,248,230,0.35)';
+      bctx.beginPath();
+      bctx.ellipse(SX(x), SY(y), U(0.004 + hash2(i, 4) * 0.008), U(0.003), i, 0, 6.3);
+      bctx.fill();
+    }
+    bctx.strokeStyle = 'rgba(90,60,30,0.22)';
+    bctx.lineWidth = Math.max(6, U(0.02));
+    bctx.stroke(rimPath);
+    bctx.restore();
+    for (const p of pebbles) {
+      if (basin(p.x, p.y) > 1) continue;
+      bctx.fillStyle = p.c > 0.5 ? 'rgba(80,62,50,0.65)' : 'rgba(255,244,220,0.8)';
+      bctx.beginPath();
+      bctx.ellipse(SX(p.x), SY(p.y), U(p.r) * 2.4, U(p.r) * 1.6, p.c * 4, 0, 6.3);
+      bctx.fill();
+    }
+    for (const oc of outcrops) {
+      const x = SX(oc.x), y = SY(oc.y), rad = U(oc.r);
+      bctx.fillStyle = oc.h > 0.9 ? '#3f342e' : '#5d4e43';
+      bctx.beginPath();
+      bctx.ellipse(x, y, rad, rad * 0.86, oc.ph, 0, 6.3);
+      bctx.fill();
+      bctx.beginPath();
+      bctx.ellipse(x + rad * 0.35, y + rad * 0.1, rad * 0.55, rad * 0.42, oc.ph + 1, 0, 6.3);
+      bctx.fill();
+      bctx.fillStyle = 'rgba(255,236,210,0.16)';
+      bctx.beginPath();
+      bctx.ellipse(x - rad * 0.28, y - rad * 0.28, rad * 0.36, rad * 0.2, -0.4, 0, 6.3);
+      bctx.fill();
+    }
+  }
+  function refreshBlobs() {
+    blobs.length = 0;
+    for (let n = 0; n < 28; n++) {
+      const i = 1 + (hash2(n, 21) * (AC - 2)) | 0;
+      const j = 1 + (hash2(n, 22) * (AR - 2)) | 0;
+      const v = A[j * AC + i];
+      if (v < 0.28) continue;
+      const nx = (i + 0.5) / AC + (hash2(n, 23) - 0.5) * 0.04;
+      const ny = (j + 0.5) / AR + (hash2(n, 24) - 0.5) * 0.04;
+      if (cellH(nx, ny) > wl + 0.01) continue;
+      blobs.push({ x: nx, y: ny, v: v, s: 0.018 + hash2(n, 25) * 0.034, ph: hash2(n, 26) * 6 });
+    }
+  }
+  function paintWater() {
+    if (!maskImg) {
+      mask.width = COLS;
+      mask.height = ROWS;
+      maskImg = mctx.createImageData(COLS, ROWS);
+    }
+    const data = maskImg.data;
+    for (let j = 0; j < ROWS; j++) {
+      for (let i = 0; i < COLS; i++) {
+        const id = j * COLS + i;
+        const h = H[id];
+        const p = id * 4;
+        let a = 0;
+        if (h < 1.04) {
+          const depth = wl - h;
+          if (depth > 0) a = Math.min(188, 40 + depth * 250);
+          else if (depth > -0.03) a = 32;
+        }
+        data[p] = 255;
+        data[p + 1] = 255;
+        data[p + 2] = 255;
+        data[p + 3] = a;
+      }
+    }
+    mctx.putImageData(maskImg, 0, 0);
+    const ww = Math.max(1, viewW | 0), wh = Math.max(1, viewH | 0);
+    if (waterC.width !== ww || waterC.height !== wh) {
+      waterC.width = ww;
+      waterC.height = wh;
+      waterGrad = null;
+    }
+    wctx.setTransform(1, 0, 0, 1, 0, 0);
+    wctx.globalCompositeOperation = 'source-over';
+    wctx.clearRect(0, 0, viewW, viewH);
+    if (!waterGrad) {
+      waterGrad = wctx.createRadialGradient(viewW * 0.5, viewH * 0.46, U(0.02), viewW * 0.5, viewH * 0.5, Math.max(viewW, viewH) * 0.48);
+      waterGrad.addColorStop(0, '#124e60');
+      waterGrad.addColorStop(0.5, '#2b8c96');
+      waterGrad.addColorStop(1, '#b7e4d8');
+    }
+    wctx.fillStyle = waterGrad;
+    wctx.fillRect(0, 0, viewW, viewH);
+    wctx.globalCompositeOperation = 'destination-in';
+    wctx.imageSmoothingEnabled = true;
+    wctx.drawImage(mask, 0, 0, viewW, viewH);
+    wctx.globalCompositeOperation = 'source-over';
+  }
+
+  function drawShell(x, y, size, ang, tint) {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(ang);
+    const s = U(0.012) + size * U(0.012);
+    ctx.scale(s / 10, s / 10);
+    ctx.fillStyle = tint > 0.5 ? '#f2e2c4' : '#e7c39a';
+    ctx.beginPath();
+    ctx.ellipse(0, 0, 9, 7.2, 0, 0, 6.3);
+    ctx.fill();
+    ctx.strokeStyle = tint > 0.5 ? '#c47b4a' : '#a85b48';
+    ctx.lineWidth = 1.3;
+    ctx.beginPath();
+    for (let a = 0.4; a < 5.6; a += 0.35) {
+      const r = 1.2 + a * 1.15;
+      const px = Math.cos(a) * r, py = Math.sin(a) * r * 0.82;
+      if (a === 0.4) ctx.moveTo(px, py);
+      else ctx.lineTo(px, py);
+    }
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function shadow(x, y, rx, ry) {
+    ctx.fillStyle = 'rgba(40,30,20,0.18)';
+    ctx.beginPath();
+    ctx.ellipse(x, y + ry * 0.35, rx, ry * 0.45, 0, 0, 6.3);
+    ctx.fill();
+  }
+
+  function drawFish(f, kind) {
+    const x = SX(f.x), y = SY(f.y);
+    const sc = kind === 'shanny' ? U(0.024) : U(0.02 + f.tint * 0.006);
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(f.ang);
+    shadow(0, 0, sc * 1.1, sc);
+    ctx.fillStyle = kind === 'shanny' ? '#c46a45' : (f.tint > 0.5 ? '#e6c56a' : '#d7b15a');
+    ctx.beginPath();
+    ctx.ellipse(0, 0, sc, sc * 0.52, 0, 0, 6.3);
+    ctx.fill();
+    ctx.fillStyle = kind === 'shanny' ? '#8d3d32' : 'rgba(120,80,40,0.35)';
+    ctx.beginPath();
+    ctx.moveTo(-sc * 0.85, 0);
+    ctx.lineTo(-sc * 1.45, -sc * 0.45);
+    ctx.lineTo(-sc * 1.45, sc * 0.45);
+    ctx.fill();
+    ctx.fillStyle = '#1c2430';
+    ctx.beginPath();
+    ctx.arc(sc * 0.45, -sc * 0.12, Math.max(1.2, sc * 0.14), 0, 6.3);
+    ctx.fill();
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(sc * 0.48, -sc * 0.18, 1.2, 1.2);
+    ctx.restore();
+  }
+
+  function render() {
+    paintWater();
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.drawImage(bg, 0, 0);
+    ctx.drawImage(waterC, 0, 0, canvas.width, canvas.height);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+    const leafGreen = ['rgba(24,104,58,', 'rgba(48,142,74,', 'rgba(18,86,68,'];
+    for (const b of blobs) {
+      const x = SX(b.x), y = SY(b.y);
+      for (let k = 0; k < 3; k++) {
+        ctx.fillStyle = leafGreen[k] + (0.32 + b.v * 0.28).toFixed(3) + ')';
+        ctx.beginPath();
+        ctx.ellipse(
+          x + Math.cos(b.ph + k * 2.1) * U(b.s * 0.4),
+          y + Math.sin(b.ph + k) * U(b.s * 0.28),
+          U(b.s * (0.75 + k * 0.12)),
+          U(b.s * 0.42),
+          b.ph + k * 0.7, 0, 6.3
+        );
+        ctx.fill();
+      }
+    }
+
+    const swayK = reduceMotion ? 0.25 : 1;
+    for (const w of weeds) {
+      const wet = depthAt(w.x, w.y);
+      const x = SX(w.x), y = SY(w.y);
+      const sway = (wet > 0 ? Math.sin(simTime * 1.3 + w.ph) : 0.15) * U(0.03) * swayK * w.h;
+      ctx.strokeStyle = wet > 0 ? '#1b6b3e' : '#5a6a40';
+      ctx.lineWidth = Math.max(2, U(0.005));
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      ctx.quadraticCurveTo(x + sway * 0.55, y - U(0.04) * w.h, x + sway, y - U(0.08) * w.h);
+      ctx.stroke();
+      ctx.fillStyle = wet > 0 ? '#2f9a58' : '#6a7a48';
+      ctx.beginPath();
+      ctx.ellipse(x + sway, y - U(0.08) * w.h, U(0.012) * w.h, U(0.006), 0.4, 0, 6.3);
+      ctx.fill();
+      ctx.strokeStyle = wet > 0 ? '#3ea864' : '#6d7d52';
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      ctx.quadraticCurveTo(x - sway * 0.45, y - U(0.025) * w.h, x - sway * 0.8, y - U(0.055) * w.h);
+      ctx.stroke();
+    }
+
+    for (const b of barnacles) {
+      const x = SX(b.x), y = SY(b.y);
+      const rad = U(0.007) * b.s;
+      const wet = depthAt(b.x, b.y) > 0.02;
+      ctx.fillStyle = '#e7e1d6';
+      ctx.beginPath();
+      ctx.ellipse(x, y, rad, rad * 0.72, 0, 0, 6.3);
+      ctx.fill();
+      ctx.strokeStyle = '#b5aa9c';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+      if (wet) {
+        ctx.strokeStyle = 'rgba(255,250,240,0.85)';
+        const ext = 0.5 + 0.5 * Math.sin(simTime * 3 + b.ph);
+        for (let k = 0; k < 4; k++) {
+          const a = -1.2 + k * 0.35;
+          ctx.beginPath();
+          ctx.moveTo(x, y);
+          ctx.lineTo(x + Math.cos(a) * rad * (1.2 + ext), y + Math.sin(a) * rad * (0.3 + ext) - rad);
+          ctx.stroke();
+        }
+      }
+    }
+
+    for (const a of anemones) {
+      const x = SX(a.x), y = SY(a.y);
+      const open = clamp(a.open, 0, 1);
+      const rad = U(0.013);
+      shadow(x, y, rad, rad * 0.6);
+      ctx.fillStyle = a.hue > 0.5 ? '#9a3048' : '#7d243c';
+      ctx.beginPath();
+      ctx.ellipse(x, y, rad * (1 - open * 0.15), rad * (0.85 + open * 0.15), 0, 0, 6.3);
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(255,170,180,' + (0.25 + open * 0.7) + ')';
+      ctx.lineWidth = Math.max(1, U(0.003));
+      const n = 9;
+      for (let k = 0; k < n; k++) {
+        const ang = k / n * Math.PI * 2 + a.ph;
+        const len = rad * (0.35 + open * 1.55);
+        const sw = Math.sin(simTime * 1.8 + k + a.ph) * U(0.006) * open * swayK;
+        ctx.beginPath();
+        ctx.moveTo(x, y);
+        ctx.quadraticCurveTo(x + Math.cos(ang) * len * 0.45 + sw, y + Math.sin(ang) * len * 0.45, x + Math.cos(ang) * len + sw, y + Math.sin(ang) * len);
+        ctx.stroke();
+      }
+    }
+
+    for (const s of shells) {
+      if (s.owner) continue;
+      drawShell(SX(s.x), SY(s.y), s.size, s.ang, s.tint);
+    }
+
+    for (const st of stars) {
+      if (st.hiding) continue;
+      const x = SX(st.x), y = SY(st.y);
+      const rad = U(0.02);
+      shadow(x, y, rad, rad * 0.5);
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.rotate(st.rot);
+      ctx.fillStyle = st.tint > 0.5 ? '#e07a3d' : '#ef8d4a';
+      ctx.beginPath();
+      for (let k = 0; k < 10; k++) {
+        const R = k % 2 === 0 ? rad : rad * 0.42;
+        const a = -Math.PI / 2 + k / 10 * Math.PI * 2;
+        const px = Math.cos(a) * R, py = Math.sin(a) * R;
+        if (k === 0) ctx.moveTo(px, py);
+        else ctx.lineTo(px, py);
+      }
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = 'rgba(255,220,180,0.7)';
+      ctx.beginPath();
+      ctx.arc(0, 0, rad * 0.18, 0, 6.3);
+      ctx.fill();
+      ctx.restore();
+    }
+
+    for (const s of snails) {
+      if (s.hiding) continue;
+      const x = SX(s.x), y = SY(s.y);
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.rotate(s.ang);
+      shadow(0, 0, U(0.012), U(0.008));
+      ctx.fillStyle = '#6d6258';
+      ctx.beginPath();
+      ctx.ellipse(U(0.006), 0, U(0.012), U(0.006), 0, 0, 6.3);
+      ctx.fill();
+      ctx.fillStyle = '#8d8072';
+      ctx.beginPath();
+      ctx.arc(-U(0.002), -U(0.002), U(0.008), 0, 6.3);
+      ctx.fill();
+      ctx.strokeStyle = '#d9cbb8';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.arc(-U(0.002), -U(0.002), U(0.004), 0.5, 3.4);
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    for (const c of crabs) {
+      if (c.hiding) continue;
+      const x = SX(c.x), y = SY(c.y);
+      const size = c.shell ? c.shell.size : 1;
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.rotate(c.ang);
+      if (c.swap > 0) ctx.rotate(Math.sin(c.swap * 16) * 0.3);
+      shadow(0, 0, U(0.016) * size, U(0.01));
+      ctx.strokeStyle = '#c45a3a';
+      ctx.lineWidth = Math.max(1, U(0.003));
+      ctx.lineCap = 'round';
+      for (let k = -1; k <= 1; k++) {
+        const bob = Math.sin(simTime * 7 + c.ph + k) * U(0.003);
+        ctx.beginPath();
+        ctx.moveTo(0, k * U(0.004));
+        ctx.lineTo(U(0.014), k * U(0.008) + bob);
+        ctx.moveTo(0, k * U(0.004));
+        ctx.lineTo(-U(0.01), k * U(0.008) - bob);
+        ctx.stroke();
+      }
+      ctx.restore();
+      drawShell(x, y, size, c.ang + 0.6, c.shell ? c.shell.tint : 0.2);
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.rotate(c.ang);
+      ctx.strokeStyle = '#e07a55';
+      ctx.lineWidth = Math.max(1, U(0.0025));
+      ctx.beginPath();
+      ctx.moveTo(U(0.01), -U(0.002));
+      ctx.lineTo(U(0.02), -U(0.012));
+      ctx.moveTo(U(0.01), U(0.002));
+      ctx.lineTo(U(0.02), U(0.008));
+      ctx.stroke();
+      ctx.fillStyle = '#2a201c';
+      ctx.beginPath();
+      ctx.arc(U(0.02), -U(0.012), Math.max(1, U(0.0022)), 0, 6.3);
+      ctx.arc(U(0.02), U(0.008), Math.max(1, U(0.0022)), 0, 6.3);
+      ctx.fill();
+      ctx.restore();
+    }
+
+    for (const s of shrimp) {
+      if (s.hiding) continue;
+      const x = SX(s.x), y = SY(s.y);
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.rotate(s.ang);
+      ctx.strokeStyle = 'rgba(255,186,186,0.95)';
+      ctx.lineWidth = Math.max(1.2, U(0.003));
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(-U(0.012), 0);
+      ctx.quadraticCurveTo(0, -U(0.006), U(0.012), U(0.001));
+      ctx.stroke();
+      ctx.strokeStyle = 'rgba(255,220,220,0.8)';
+      ctx.beginPath();
+      ctx.moveTo(U(0.012), 0);
+      ctx.lineTo(U(0.026), -U(0.008));
+      ctx.moveTo(U(0.012), 0);
+      ctx.lineTo(U(0.024), U(0.006));
+      ctx.stroke();
+      ctx.fillStyle = 'rgba(255,140,140,0.9)';
+      ctx.beginPath();
+      ctx.arc(U(0.004), 0, U(0.003), 0, 6.3);
+      ctx.fill();
+      ctx.restore();
+    }
+
+    for (const f of fish) drawFish(f, 'goby');
+    for (const f of shannies) if (!f.hiding) drawFish(f, 'shanny');
+
+    for (const p of porcelains) {
+      if (p.hiding) continue;
+      const x = SX(p.x), y = SY(p.y);
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.rotate(p.ang);
+      ctx.fillStyle = '#d46558';
+      ctx.beginPath();
+      ctx.ellipse(0, 0, U(0.012), U(0.009), 0, 0, 6.3);
+      ctx.fill();
+      ctx.strokeStyle = '#7a2e32';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(U(0.008), -U(0.004));
+      ctx.lineTo(U(0.016), -U(0.01));
+      ctx.moveTo(U(0.008), U(0.004));
+      ctx.lineTo(U(0.016), U(0.01));
+      ctx.stroke();
+      ctx.fillStyle = '#2a1c1c';
+      ctx.beginPath();
+      ctx.arc(U(0.004), -U(0.002), 1.2, 0, 6.3);
+      ctx.fill();
+      ctx.restore();
+    }
+
+    for (const jy of jellies) {
+      const x = SX(jy.x), y = SY(jy.y);
+      const pulse = 0.85 + Math.sin(jy.ph * 3) * 0.15;
+      const rad = U(0.02) * pulse;
+      ctx.save();
+      ctx.globalAlpha = clamp(jy.fade, 0, 1) * 0.85;
+      ctx.fillStyle = 'rgba(210,186,230,0.45)';
+      ctx.beginPath();
+      ctx.arc(x, y, rad, Math.PI, 0);
+      ctx.quadraticCurveTo(x, y + rad * 0.45, x - rad, y);
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(255,255,255,0.55)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.arc(x, y, rad, Math.PI, 0);
+      ctx.stroke();
+      ctx.strokeStyle = 'rgba(186,160,210,0.7)';
+      for (let k = -1.5; k <= 1.5; k++) {
+        ctx.beginPath();
+        ctx.moveTo(x + k * rad * 0.28, y);
+        ctx.quadraticCurveTo(x + k * rad * 0.4, y + rad * 1.1, x + k * rad * 0.1, y + rad * 1.8);
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+
+    const dragged = drag && drag.kind === 'rock' ? drag.rock : null;
+    for (const r of rocks) {
+      if (r === dragged) continue;
+      drawRock(r, false);
+    }
+    if (dragged) {
+      if (!dragged.flipped && iso(dragged.ox, dragged.oy, dragged.x, dragged.y).d > 0.025) {
+        ctx.fillStyle = 'rgba(50,40,30,0.35)';
+        ctx.beginPath();
+        ctx.ellipse(SX(dragged.ox), SY(dragged.oy), U(dragged.r * 0.7), U(dragged.r * 0.45), 0, 0, 6.3);
+        ctx.fill();
+      }
+      drawRock(dragged, true);
+    }
+
+    ctx.save();
+    if (rimPath) ctx.clip(rimPath);
+    ctx.globalCompositeOperation = 'screen';
+    ctx.strokeStyle = 'rgba(255,246,214,0.45)';
+    ctx.lineWidth = Math.max(1.4, U(0.0035));
+    ctx.lineCap = 'round';
+    for (let k = 0; k < 18; k++) {
+      const nx = 0.18 + hash2(k, 4) * 0.64;
+      const ny = 0.18 + hash2(k, 8) * 0.64;
+      if (depthAt(nx, ny) < 0.05) continue;
+      const bx = SX(nx), by = SY(ny);
+      const ph = simTime * (reduceMotion ? 0.35 : 1.15) + k;
+      ctx.beginPath();
+      ctx.moveTo(bx, by);
+      ctx.quadraticCurveTo(bx + Math.sin(ph) * U(0.035), by + U(0.012), bx + Math.cos(ph * 0.7) * U(0.06), by + Math.sin(ph) * U(0.018));
+      ctx.stroke();
+    }
+    const gx = viewW * (0.42 + Math.sin(simTime * 0.23) * 0.06);
+    const gy = viewH * (0.4 + Math.cos(simTime * 0.19) * 0.04);
+    const grd = ctx.createRadialGradient(gx, gy, 0, gx, gy, U(0.22));
+    grd.addColorStop(0, 'rgba(255,250,220,0.28)');
+    grd.addColorStop(1, 'rgba(255,250,220,0)');
+    ctx.fillStyle = grd;
+    ctx.fillRect(0, 0, viewW, viewH);
+    ctx.restore();
+
+    for (const m of motes) {
+      const x = (m.x + simTime * 0.01 * m.s) % 1;
+      const y = m.y + Math.sin(simTime * 0.6 + m.p) * 0.01;
+      if (depthAt(x, y) < 0.04) continue;
+      ctx.fillStyle = 'rgba(255,255,255,0.35)';
+      ctx.beginPath();
+      ctx.ellipse(SX(x), SY(y), U(0.004), U(0.002), m.p, 0, 6.3);
+      ctx.fill();
+    }
+
+    for (const rp of ripples) {
+      const t = rp.age / rp.life;
+      const x = SX(rp.x), y = SY(rp.y);
+      ctx.strokeStyle = 'rgba(255,255,255,' + ((1 - t) * 0.45) + ')';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.ellipse(x, y, U(0.02 + t * 0.12), U(0.012 + t * 0.07), 0, 0, 6.3);
+      ctx.stroke();
+    }
+
+    if (wave) {
+      const t = wave.age / wave.life;
+      const x = viewW * (-0.15 + t * 1.3);
+      ctx.fillStyle = 'rgba(255,255,255,0.28)';
+      for (let k = 0; k < 18; k++) {
+        const y = viewH * (0.12 + k * 0.045);
+        const wob = Math.sin(k * 1.3 + simTime * 6) * 10;
+        ctx.beginPath();
+        ctx.ellipse(x + wob, y, U(0.04), U(0.012), 0, 0, 6.3);
+        ctx.fill();
+      }
+    }
+
+    for (const g of gulls) {
+      const x = SX(g.x), y = SY(g.y);
+      const flying = g.state !== 'peck';
+      const flap = flying ? Math.sin(g.flap * (reduceMotion ? 2 : 10)) : 0;
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.fillStyle = '#f7f4ee';
+      ctx.beginPath();
+      ctx.ellipse(0, 0, U(0.018), U(0.01), 0, 0, 6.3);
+      ctx.fill();
+      ctx.fillStyle = '#d5dbe2';
+      ctx.beginPath();
+      ctx.ellipse(-U(0.002), flap * U(0.01) - U(0.002), U(0.02), U(0.006), flap * 0.6, 0, 6.3);
+      ctx.ellipse(-U(0.002), -flap * U(0.01) - U(0.002), U(0.02), U(0.006), -flap * 0.6, 0, 6.3);
+      ctx.fill();
+      ctx.fillStyle = '#f4c542';
+      ctx.beginPath();
+      ctx.moveTo(U(0.016), 0);
+      ctx.lineTo(U(0.03), -U(0.003));
+      ctx.lineTo(U(0.016), U(0.004));
+      ctx.fill();
+      ctx.fillStyle = '#1c2430';
+      ctx.beginPath();
+      ctx.arc(U(0.01), -U(0.003), 1.4, 0, 6.3);
+      ctx.fill();
+      if (!flying) {
+        const bob = Math.sin(g.peck * 7) > 0.4 ? U(0.006) : 0;
+        ctx.strokeStyle = '#e07a3a';
+        ctx.lineWidth = 1.4;
+        ctx.beginPath();
+        ctx.moveTo(U(0.004), U(0.006));
+        ctx.lineTo(U(0.004), U(0.016) - bob);
+        ctx.moveTo(-U(0.004), U(0.006));
+        ctx.lineTo(-U(0.004), U(0.016));
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+  }
+
+  function drawRock(r, lifted) {
+    const x = SX(r.x), y = SY(r.y);
+    const rad = U(r.r);
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(r.rot + (lifted ? 0.4 : 0));
+    ctx.fillStyle = 'rgba(30,24,18,0.25)';
+    ctx.beginPath();
+    ctx.ellipse(rad * 0.15, rad * 0.25, rad * 0.9, rad * 0.45, 0, 0, 6.3);
+    ctx.fill();
+    ctx.fillStyle = r.tint > 0.5 ? '#6a5b50' : '#7d6a5c';
+    ctx.beginPath();
+    ctx.ellipse(0, 0, rad, rad * 0.78, 0, 0, 6.3);
+    ctx.fill();
+    ctx.fillStyle = 'rgba(255,236,214,0.22)';
+    ctx.beginPath();
+    ctx.ellipse(-rad * 0.28, -rad * 0.22, rad * 0.38, rad * 0.22, -0.5, 0, 6.3);
+    ctx.fill();
+    if (r.flipped) {
+      ctx.fillStyle = 'rgba(40,32,28,0.35)';
+      ctx.beginPath();
+      ctx.ellipse(rad * 0.2, rad * 0.1, rad * 0.45, rad * 0.25, 0.6, 0, 6.3);
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  function describe(nx, ny) {
+    const m = mSize();
+    function hit(x, y, px) {
+      const dx = (x - nx) * viewW, dy = (y - ny) * viewH;
+      return dx * dx + dy * dy <= px * px;
+    }
+    for (const g of gulls) if (hit(g.x, g.y, 28)) return SPEC.gull;
+    for (const jy of jellies) if (hit(jy.x, jy.y, 26)) return SPEC.jelly;
+    for (const f of fish) if (hit(f.x, f.y, 18)) return SPEC.goby;
+    for (const s of shannies) if (!s.hiding && hit(s.x, s.y, 18)) return SPEC.shanny;
+    for (const s of shrimp) if (!s.hiding && hit(s.x, s.y, 18)) return SPEC.shrimp;
+    for (const c of crabs) if (!c.hiding && hit(c.x, c.y, 24)) return SPEC.hermit;
+    for (const p of porcelains) if (!p.hiding && hit(p.x, p.y, 18)) return SPEC.porcelain;
+    for (const s of snails) if (!s.hiding && hit(s.x, s.y, 18)) return SPEC.periwinkle;
+    for (const st of stars) if (!st.hiding && hit(st.x, st.y, 20)) return SPEC.star;
+    for (const a of anemones) if (hit(a.x, a.y, 22)) return SPEC.anemone;
+    for (const s of shells) if (!s.owner && hit(s.x, s.y, 18)) return { name: 'Empty shell', fact: 'A spare house. A hermit crab may come and try it on.' };
+    for (const b of barnacles) if (hit(b.x, b.y, 14)) return SPEC.barnacle;
+    for (const w of weeds) if (hit(w.x, w.y, 16)) return { name: 'Seaweed', fact: 'It sways while the water is in, and lies limp when the tide leaves.' };
+    for (const r of rocks) if (hit(r.x, r.y, Math.max(20, U(r.r)))) return { name: 'Loose rock', fact: 'Drag it aside. Something might be hiding underneath.' };
+    if (algaeAt(nx, ny) > 0.4 && depthAt(nx, ny) > 0) return SPEC.lettuce;
+    if (basin(nx, ny) < 1.02 && depthAt(nx, ny) > 0.02) return { name: 'Pool water', fact: 'Tap it to send a ripple. The fish scatter and the anemones close.' };
+    if (basin(nx, ny) < 1.05) return { name: 'Sand', fact: 'Warm and fine where the tide has slipped away.' };
+    return { name: 'Dry rock', fact: 'The rim of the pool. The tide rarely climbs all the way up here.' };
+  }
+
+  function showTip(nx, ny, cx, cy, sticky) {
+    const d = describe(nx, ny);
+    const tip = document.getElementById('tip');
+    document.getElementById('tipName').textContent = d.name;
+    document.getElementById('tipFact').textContent = d.fact;
+    const w = 250;
+    const left = clamp(cx - 16, 8, Math.max(8, viewW - w - 8));
+    const top = cy - 78 < 8 ? cy + 18 : cy - 78;
+    tip.style.left = left + 'px';
+    tip.style.top = top + 'px';
+    tip.hidden = false;
+    tipSticky = sticky ? performance.now() + 4200 : 0;
+  }
+  function hideTip() {
+    document.getElementById('tip').hidden = true;
+    tipSticky = 0;
+  }
+
+  function rockAt(nx, ny) {
+    let best = null, bd = 1e9;
+    for (const r of rocks) {
+      const d = iso(nx, ny, r.x, r.y).d;
+      if (d < r.r + 0.01 && d < bd) { bd = d; best = r; }
+    }
+    return best;
+  }
+  function reveal(rock) {
+    if (rock.flipped) return;
+    rock.flipped = true;
+    metrics.flips++;
+    if (!rock.loot) {
+      if (!quiet) toast('Just cool sand under there.');
+      return;
+    }
+    metrics.loots++;
+    if (rock.loot === 'shanny') {
+      shannies.push({ x: rock.ox, y: rock.oy, ang: rnd() * 6, timer: 0.2, hiding: false, cover: null, mode: 'wander', ph: rnd() * 6, tint: rnd(), vx: 0, vy: 0 });
+      discover('shanny');
+      if (!quiet) toast('A shanny was hiding under the rock.');
+    } else {
+      porcelains.push({ x: rock.ox, y: rock.oy, ang: rnd() * 6, hiding: false, cover: null, mode: 'wander' });
+      discover('porcelain');
+      if (!quiet) toast('A porcelain crab slips out from under the rock.');
+    }
+  }
+  function dropShell(nx, ny) {
+    if (basin(nx, ny) > 1.05 || cellH(nx, ny) > 1.12) {
+      toast('The shell skitters off the dry rocks.');
+      return;
+    }
+    spawnShellAt(nx, ny, 1.2 + rnd() * 0.5);
+    metrics.shellsDropped++;
+    addRipple(nx, ny);
+    plink(nx);
+    toast('A roomy shell settles on the sand.');
+    shellMode = false;
+    syncShellBtn();
+  }
+
+  function clientNorm(e) {
+    const r = canvas.getBoundingClientRect();
+    return { nx: (e.clientX - r.left) / r.width, ny: (e.clientY - r.top) / r.height };
+  }
+  function dismissHint() {
+    document.getElementById('hint').classList.add('gone');
+  }
+
+  canvas.addEventListener('pointerdown', function (e) {
+    if (activePtr !== null) return;
+    if (e.cancelable) e.preventDefault();
+    canvas.setPointerCapture(e.pointerId);
+    activePtr = e.pointerId;
+    const p = clientNorm(e);
+    downX = e.clientX;
+    downY = e.clientY;
+    downMoved = false;
+    dismissHint();
+    if (shellMode) {
+      dropShell(p.nx, p.ny);
+      activePtr = null;
+      return;
+    }
+    const rock = rockAt(p.nx, p.ny);
+    if (rock) drag = { kind: 'rock', rock: rock, ox: rock.x, oy: rock.y };
+    else drag = { kind: 'water', x: p.nx, y: p.ny };
+  });
+  canvas.addEventListener('pointermove', function (e) {
+    const p = clientNorm(e);
+    if (activePtr !== null && e.pointerId === activePtr && drag) {
+      if (Math.hypot(e.clientX - downX, e.clientY - downY) > 6) downMoved = true;
+      if (drag.kind === 'rock' && downMoved) {
+        drag.rock.x = clamp(p.nx, 0.04, 0.96);
+        drag.rock.y = clamp(p.ny, 0.04, 0.96);
+      }
+    } else if (lookMode && e.pointerType === 'mouse') {
+      showTip(p.nx, p.ny, e.clientX, e.clientY, false);
+    }
+  });
+  function endPointer(e) {
+    if (e.pointerId !== activePtr) return;
+    const p = clientNorm(e);
+    const moved = downMoved;
+    const d = drag;
+    drag = null;
+    activePtr = null;
+    if (!d) return;
+    if (d.kind === 'rock') {
+      if (moved && iso(d.ox, d.oy, d.rock.x, d.rock.y).d > 0.02) reveal(d.rock);
+      else if (lookMode) showTip(p.nx, p.ny, e.clientX, e.clientY, e.pointerType !== 'mouse');
+      else if (!hintedFlip) { hintedFlip = true; toast('Drag the rock aside to peek under it.'); }
+    } else if (!moved) {
+      if (lookMode) showTip(p.nx, p.ny, e.clientX, e.clientY, e.pointerType !== 'mouse');
+      else {
+        addRipple(p.nx, p.ny);
+        plink(p.nx);
+      }
+    }
+  }
+  canvas.addEventListener('pointerup', endPointer);
+  canvas.addEventListener('pointercancel', endPointer);
+  canvas.addEventListener('contextmenu', function (e) { e.preventDefault(); });
+  canvas.addEventListener('pointerleave', function (e) {
+    if (lookMode && e.pointerType === 'mouse' && activePtr === null) hideTip();
+  });
+
+  function syncSoundBtn() {
+    const b = document.getElementById('bSound');
+    b.setAttribute('aria-pressed', soundOn ? 'true' : 'false');
+    b.setAttribute('aria-label', soundOn ? 'Sound is on. Tap to turn it off' : 'Sound is off. Tap to turn it on');
+    b.classList.toggle('on', soundOn);
+    b.querySelector('.ic').textContent = soundOn ? '🔊' : '🔇';
+  }
+  function syncLookBtn() {
+    const b = document.getElementById('bLook');
+    b.setAttribute('aria-pressed', lookMode ? 'true' : 'false');
+    b.setAttribute('aria-label', lookMode ? 'Magnifier is on' : 'Magnifier is off');
+    b.classList.toggle('on', lookMode);
+    if (!lookMode) hideTip();
+  }
+  function syncShellBtn() {
+    const b = document.getElementById('bShell');
+    b.setAttribute('aria-pressed', shellMode ? 'true' : 'false');
+    b.setAttribute('aria-label', shellMode ? 'Tap the pool to drop a shell' : 'Drop a shell');
+    b.classList.toggle('on', shellMode);
+  }
+  function toggleSound() {
+    soundOn = !soundOn;
+    if (soundOn) {
+      try {
+        if (!audio) setupAudio();
+        const p = audio.ac.resume();
+        if (p && p.catch) p.catch(function () {});
+      } catch (e) {
+        soundOn = false;
+        toast('Sound could not start in this browser.');
+      }
+    } else setLap(0);
+    syncSoundBtn();
+  }
+  function toggleLook() {
+    lookMode = !lookMode;
+    shellMode = false;
+    syncLookBtn();
+    syncShellBtn();
+    if (lookMode) toast('Tap anything to hear its name.');
+  }
+  function toggleShell() {
+    shellMode = !shellMode;
+    if (shellMode) {
+      lookMode = false;
+      syncLookBtn();
+      toast('Tap the sand to leave a shell.');
+    }
+    syncShellBtn();
+  }
+  function openJournal() {
+    renderJournal();
+    document.getElementById('journal').hidden = false;
+    document.getElementById('scrim').hidden = false;
+  }
+  function closeJournal() {
+    document.getElementById('journal').hidden = true;
+    document.getElementById('scrim').hidden = true;
+  }
+  document.getElementById('bSound').addEventListener('click', toggleSound);
+  document.getElementById('bLook').addEventListener('click', toggleLook);
+  document.getElementById('bShell').addEventListener('click', toggleShell);
+  document.getElementById('bJournal').addEventListener('click', function () {
+    if (document.getElementById('journal').hidden) openJournal();
+    else closeJournal();
+  });
+  document.getElementById('jClose').addEventListener('click', closeJournal);
+  document.getElementById('scrim').addEventListener('click', closeJournal);
+  addEventListener('keydown', function (e) {
+    if (e.repeat) return;
+    if (e.key === 'm' || e.key === 'M') toggleSound();
+    else if (e.key === 'l' || e.key === 'L') toggleLook();
+    else if (e.key === 's' || e.key === 'S') toggleShell();
+    else if (e.key === 'j' || e.key === 'J') {
+      if (document.getElementById('journal').hidden) openJournal();
+      else closeJournal();
+    } else if (e.key === 'Escape') closeJournal();
+  });
+
+  function updateHud() {
+    const phase = tidePhase(tideTime);
+    const th = ((tideTime % PERIOD) + PERIOD) % PERIOD / PERIOD;
+    let label;
+    if (phase === 'low') label = 'Low tide. The rocks are bare.';
+    else if (phase === 'high') label = 'High tide. The pool is full.';
+    else if (phase === 'rising') {
+      const sec = Math.max(0, Math.round((0.5 - th) * PERIOD));
+      label = sec < 8 ? 'High tide. The pool is full.' : 'Tide coming in · high in ' + fmt(sec);
+    } else {
+      const sec = Math.max(0, Math.round((1 - th) * PERIOD));
+      label = sec < 8 ? 'Low tide. The rocks are bare.' : 'Tide going out · low in ' + fmt(sec);
+    }
+    const el = document.getElementById('tideText');
+    if (el.textContent !== label) el.textContent = label;
+    const fill = (wl - 0.2) / 0.72;
+    document.getElementById('meterFill').style.width = (clamp(fill, 0, 1) * 100).toFixed(1) + '%';
+  }
+  function fmt(sec) {
+    if (sec < 60) return sec + 's';
+    return Math.floor(sec / 60) + 'm ' + (sec % 60) + 's';
+  }
+
+  function resize() {
+    const cssW = canvas.clientWidth || window.innerWidth || 800;
+    const cssH = canvas.clientHeight || window.innerHeight || 600;
+    let next = Math.min(2, window.devicePixelRatio || 1);
+    const budget = 1280 * 800;
+    if (cssW * cssH * next * next > budget) next = Math.max(1, Math.sqrt(budget / (cssW * cssH)));
+    dpr = next;
+    viewW = canvas.clientWidth || window.innerWidth || 800;
+    viewH = canvas.clientHeight || window.innerHeight || 600;
+    if (viewW < 2 || viewH < 2) return;
+    canvas.width = Math.max(1, Math.round(viewW * dpr));
+    canvas.height = Math.max(1, Math.round(viewH * dpr));
+    waterGrad = null;
+    applyCover();
+    paintTerrain();
+    refreshBlobs();
+  }
+
+  function frame(now) {
+    if (!lastFrame) lastFrame = now;
+    const wall = Math.min(0.05, (now - lastFrame) / 1000);
+    const ms = now - lastFrame;
+    lastFrame = now;
+    if (ms > 0 && ms < 500) {
+      frameSamples.push(ms);
+      if (frameSamples.length > 180) frameSamples.shift();
+    }
+    step(wall);
+    algaePaint += wall;
+    if (algaePaint > 0.28) { algaePaint = 0; refreshBlobs(); }
+    render();
+    hudAcc += wall;
+    if (hudAcc > 0.25) { hudAcc = 0; updateHud(); }
+    lapAcc += wall;
+    if (lapAcc > 0.12) {
+      lapAcc = 0;
+      if (soundOn && audio && !document.hidden) {
+        const level = (0.025 + wl * 0.03) * (0.62 + 0.38 * Math.sin(simTime * 1.6));
+        setLap(level);
+      } else if (audio) setLap(0);
+    }
+    if (toastHide && now > toastHide) {
+      document.getElementById('toast').hidden = true;
+      toastHide = 0;
+    }
+    if (tipSticky && now > tipSticky) hideTip();
+    requestAnimationFrame(frame);
+  }
+
+  function boot() {
+    viewW = window.innerWidth || 800;
+    viewH = window.innerHeight || 600;
+    buildWorld();
+    resize();
+    for (const id of ['hermit', 'anemone', 'periwinkle', 'goby', 'star', 'shrimp', 'barnacle', 'lettuce']) discover(id, true);
+    bootSilent = false;
+    updateHud();
+    updateBadge();
+    requestAnimationFrame(frame);
+    setTimeout(function () { document.getElementById('hint').classList.add('gone'); }, 9000);
+  }
+
+  addEventListener('resize', resize);
+  if (window.visualViewport) visualViewport.addEventListener('resize', resize);
+  document.addEventListener('visibilitychange', function () {
+    if (document.hidden && audio) setLap(0);
+  });
+
+  function frameStats() {
+    const a = frameSamples.slice();
+    if (!a.length) return { n: 0, avg: 0, max: 0, min: 0, stdev: 0 };
+    let sum = 0, max = 0, min = 1e9;
+    for (const v of a) { sum += v; if (v > max) max = v; if (v < min) min = v; }
+    const avg = sum / a.length;
+    let sd = 0;
+    for (const v of a) sd += (v - avg) * (v - avg);
+    return { n: a.length, avg: avg, max: max, min: min, stdev: Math.sqrt(sd / a.length) };
+  }
+  function clearFrames() { frameSamples.length = 0; }
+
+  function fishSpread() {
+    if (fish.length < 2) return 0;
+    let s = 0, c = 0;
+    for (let i = 0; i < fish.length; i++) {
+      for (let k = i + 1; k < fish.length; k++) {
+        s += iso(fish[i].x, fish[i].y, fish[k].x, fish[k].y).d;
+        c++;
+      }
+    }
+    return s / c;
+  }
+
+  window.TIDE = {
+    ready: true,
+    PERIOD: PERIOD,
+    step: step,
+    fastForward: function (sec) {
+      quiet = true;
+      const sub = 1 / 30;
+      let left = sec;
+      while (left > 0) {
+        const d = Math.min(sub, left);
+        step(d);
+        left -= d;
+      }
+      quiet = false;
+      algaePaint = 1;
+      updateHud();
+    },
+    waterAt: waterAt,
+    phase: function () { return tidePhase(tideTime); },
+    stats: function () {
+      let algae = 0;
+      for (let i = 0; i < A.length; i++) algae += A[i];
+      return {
+        water: wl,
+        tideTime: tideTime,
+        simTime: simTime,
+        phase: tidePhase(tideTime),
+        minWater: metrics.minWater,
+        maxWater: metrics.maxWater,
+        waves: metrics.waves,
+        gullVisits: metrics.gullVisits,
+        swaps: metrics.swaps,
+        ripples: metrics.ripples,
+        flips: metrics.flips,
+        loots: metrics.loots,
+        shellsDropped: metrics.shellsDropped,
+        fish: fish.length,
+        crabs: crabs.length,
+        shells: shells.filter(s => !s.owner).length,
+        snails: snails.length,
+        stars: stars.length,
+        shrimp: shrimp.length,
+        anemones: anemones.length,
+        barnacles: barnacles.length,
+        jellies: jellies.length,
+        gulls: gulls.length,
+        shannies: shannies.length,
+        porcelains: porcelains.length,
+        rocks: rocks.length,
+        algaeMean: algae / A.length,
+        fishSpread: fishSpread(),
+        soundOn: soundOn,
+        lookMode: lookMode,
+        shellMode: shellMode
+      };
+    },
+    rocks: function () {
+      return rocks.map(function (r, i) {
+        return { i: i, x: r.x, y: r.y, r: r.r, loot: r.loot, flipped: r.flipped };
+      });
+    },
+    discovered: function () { return SPECIES.filter(s => found[s[0]]).map(s => s[0]); },
+    screen: function (nx, ny) {
+      const r = canvas.getBoundingClientRect();
+      return { x: r.left + nx * r.width, y: r.top + ny * r.height };
+    },
+    findWater: function () {
+      for (let k = 0; k < 80; k++) {
+        const x = 0.2 + (k % 10) * 0.06;
+        const y = 0.25 + Math.floor(k / 10) * 0.06;
+        if (depthAt(x, y) > 0.08 && !rockAt(x, y)) return { x: x, y: y };
+      }
+      return { x: 0.5, y: 0.5 };
+    },
+    frameStats: frameStats,
+    clearFrames: clearFrames,
+    describe: function (nx, ny) {
+      const d = describe(nx, ny);
+      return { name: d.name, fact: d.fact };
+    }
+  };
+
+  boot();
+})();
+</script>
+</body>
+</html>
