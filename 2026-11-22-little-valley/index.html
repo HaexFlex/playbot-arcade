@@ -1607,6 +1607,7 @@ function renderTilt(t) {
   rasterCottages(T, data);
   rasterSkaters(T, data);
   rasterSplash(T, data);
+  { const t0 = performance.now(); rasterDucks(T, data); st.duckMs = (st.duckMs || 0) * 0.9 + (performance.now() - t0) * 0.1; }
   T.ctx.putImageData(T.img, 0, 0);
   tintOver(T.ctx, 0, 0, ow, oh, 'source-atop');
   // place on screen
@@ -1902,6 +1903,112 @@ function rasterSplash(T, data) {
       if (s < 0.5) { put(ox - u, oy + 1, 170, 196, 214); put(ox + u, oy + 1, 170, 196, 214); }
     }
   }
+}
+// ducklings: in late spring and early summer (yearFrac ~0.16-0.34), by day (7:00-19:00), a few duck families (at most 2,
+// 1 on a phone) paddle slowly along the river and lake banks on open water: a brown mother duck with a dark-green head
+// hint, a little V of wake ripples behind her, and a short line of 3-5 yellow fuzzy ducklings. Each family swims to and
+// fro along a bank path (a chain of water cells next to the shore, found every few seconds and kept while it stays wet);
+// it turns round at the shallow or dry end. The ducklings sit where the mother was a moment ago (her trail history), so
+// they follow her path, also round the turn. In a shower one family stays out, in heavy rain or a storm they shelter in
+// the reeds; none at night, in autumn or winter, on ice, without water or in the map view. Hooks: st.duckFams (families
+// drawn), st.ducksDrawn (mothers), st.ducklingsDrawn, st.duckAt (grid pos of the first mother), st.duckLine (grid pos of
+// the first family, mother first), st.duckMoved (cells the mothers paddled), st.duckPx (screen px of the first mother).
+const DUCK_MAX = isPhone ? 1 : 2, DUCK_V = 0.42, DUCK = { S: null, t: -1e9, fams: [], moved: 0, last: null };
+function duckSeason() { const S = st.S; if (!S.P.seasons) return 1; const y = LV.yearFrac(S); return y >= 0.16 && y < 0.34 ? 1 : 0; }
+function duckCount() {
+  if (!duckSeason() || LT.h < 7 || LT.h >= 19 || LT.storm > 0.2 || LT.rain > 0.55) return 0;
+  return LT.rain > 0.25 ? 1 : DUCK_MAX; // a shower: only one family stays out
+}
+function duckBank(S, i) { // open water (not ice) with dry ground within 2 cells: the bank strip
+  const N = S.N, d = S.d, ice = S.ice; if (!(d[i] > 0.06) || (ice && ice[i] > 0.3)) return false;
+  const x = i % N, y = (i / N) | 0; if (x < 3 || y < 3 || x >= N - 3 || y >= N - 4) return false;
+  for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) if (d[i + dy * N + dx] < 0.02) return true;
+  return false;
+}
+function duckPath(S, s0, used) { // a chain of bank cells through s0, both ways, as straight as it goes (max ~44 cells)
+  const N = S.N, seen = new Set([s0]), half = dir0 => { const out = []; let c = s0, dx = dir0[0], dy = dir0[1];
+    for (let k = 0; k < 22; k++) { let best = -1, bs = -9, bx = 0, by = 0;
+      for (let v = -1; v <= 1; v++) for (let u = -1; u <= 1; u++) { if (!u && !v) continue; const j = c + v * N + u; if (seen.has(j) || used.has(j) || !duckBank(S, j)) continue;
+        const l = Math.hypot(u, v), sc = (dx || dy) ? (u * dx + v * dy) / l : 1; if (sc < -0.1) continue; if (sc > bs) { bs = sc; best = j; bx = u / l; by = v / l; } }
+      if (best < 0) break; seen.add(best); out.push(best); c = best; dx = dx ? dx * 0.5 + bx * 0.5 : bx; dy = dy ? dy * 0.5 + by * 0.5 : by; }
+    return out; };
+  const a = half([0, 0]); let b = [];
+  if (a.length) { const f = a[0]; b = half([-(f % N - s0 % N), -(((f / N) | 0) - ((s0 / N) | 0))]); }
+  const cells = b.reverse().concat([s0], a); if (cells.length < 9) return null;
+  let P = cells.map(i => [i % N + 0.5, ((i / N) | 0) + 0.5]);
+  for (let pass = 0; pass < 2; pass++) P = P.map((p, k) => k === 0 || k === P.length - 1 ? p : [(P[k - 1][0] + 2 * p[0] + P[k + 1][0]) / 4, (P[k - 1][1] + 2 * p[1] + P[k + 1][1]) / 4]);
+  const len = [0]; for (let k = 1; k < P.length; k++) len.push(len[k - 1] + Math.hypot(P[k][0] - P[k - 1][0], P[k][1] - P[k - 1][1]));
+  return { cells, P, len, L: len[len.length - 1] };
+}
+function duckSeen(T, S, x, y) { // is this cell's water surface visible in the tilt view (not behind a ridge, on screen)?
+  const N = S.N, i = y * N + x, sc = persp(y + 0.5, N), ox = Math.round((x + 0.5 - N / 2) * T.cp * sc + T.ow / 2), oy = Math.round(baseY(T, y + 0.5, N) - (S.h[i] + S.d[i]) * T.cp * T.hEx * sc);
+  if (ox < 6 || oy < 8 || ox >= T.ow - 6 || oy >= T.oh - 2) return false; const pc = T.pick[(oy + 1) * T.ow + ox]; return pc >= 0 && Math.abs(pc % N - x) <= 3 && Math.abs(((pc / N) | 0) - y) <= 4;
+}
+function duckFind(S, T) { // fresh families on bank paths, spread apart, keeping the ones whose path is still wet
+  const N = S.N, keep = DUCK.S === S ? DUCK.fams.filter(f => f.cells.filter(i => !duckBank(S, i) && !(S.d[i] > 0.04 && !(S.ice && S.ice[i] > 0.3))).length <= f.cells.length * 0.25) : [];
+  const used = new Set(); for (const f of keep) for (const i of f.cells) used.add(i);
+  if (keep.length < DUCK_MAX) { const cand = [], stp = Math.max(1, N >> 6), paths = [];
+    for (let y = 3; y < N - 4; y += stp) for (let x = 3; x < N - 3; x += stp) { const i = y * N + x; if (duckBank(S, i) && !used.has(i)) cand.push([Math.abs(Math.sin(i * 12.9898 + N) * 43758.5453) % 1, i]); }
+    cand.sort((a, b) => a[0] - b[0]);
+    for (let k = 0; k < cand.length && k < 32; k++) { const i = cand[k][1], p = duckPath(S, i, used); if (!p || p.L < 8 || p.cells.filter(c => duckSeen(T, S, c % N, (c / N) | 0)).length < p.cells.length * 0.7) continue;
+      let x0 = 1e9, x1 = -1e9; for (const q of p.P) { x0 = Math.min(x0, q[0]); x1 = Math.max(x1, q[0]); } p.wide = x1 - x0; p.h = cand[k][0]; paths.push(p); }
+    paths.sort((a, b) => b.wide - a.wide); // paths that run across the screen show the line of ducklings best
+    for (const p of paths) { if (keep.length >= DUCK_MAX) break; if (p.cells.some(c => used.has(c)) || keep.some(f => Math.hypot(f.P[f.P.length >> 1][0] - p.P[p.P.length >> 1][0], f.P[f.P.length >> 1][1] - p.P[p.P.length >> 1][1]) < N * 0.18)) continue;
+      for (const j of p.cells) used.add(j); p.ph = p.h * p.L * 2; p.n = 3 + (Math.floor(p.h * 97) % 3); keep.push(p); } }
+  DUCK.fams = keep; DUCK.S = S; DUCK.t = st.time;
+}
+function duckPos(f, tau) { // where the mother was at time tau: to and fro along the path (turns round at both ends)
+  const m = ((DUCK_V * tau + f.ph) % (2 * f.L) + 2 * f.L) % (2 * f.L), s = m < f.L ? m : 2 * f.L - m, len = f.len;
+  let lo = 0, hi = len.length - 1; while (hi - lo > 1) { const md = (lo + hi) >> 1; if (len[md] <= s) lo = md; else hi = md; }
+  const q = len[hi] > len[lo] ? (s - len[lo]) / (len[hi] - len[lo]) : 0, A = f.P[lo], B = f.P[hi];
+  return [A[0] + (B[0] - A[0]) * q, A[1] + (B[1] - A[1]) * q];
+}
+function rasterDucks(T, data) {
+  const S = st.S, N = S.N, ow = T.ow, oh = T.oh, pick = T.pick, cp = T.cp; st.duckFams = 0; st.ducksDrawn = 0; st.ducklingsDrawn = 0; st.duckLine = null;
+  const nf = duckCount(); if (!nf) { DUCK.last = null; return; }
+  if (DUCK.S !== S || st.time - DUCK.t > 3 || st.time < DUCK.t) duckFind(S, T);
+  const now = st.time, birds = [];
+  DUCK.fams.slice(0, nf).forEach((f, fi) => {
+    const m = duckPos(f, now), pm = duckPos(f, now - 0.6), line = [m]; birds.push([m, pm, 0, fi]);
+    for (let k = 1; k <= f.n; k++) { const tau = now - (1.6 + 1.0 * (k - 1)) / DUCK_V, p = duckPos(f, tau); line.push(p); birds.push([p, duckPos(f, tau - 0.6), k, fi]); }
+    if (fi === 0) { st.duckLine = line; st.duckAt = m; if (DUCK.last && DUCK.last.f === f) DUCK.moved += Math.hypot(m[0] - DUCK.last.p[0], m[1] - DUCK.last.p[1]); DUCK.last = { f, p: m }; }
+  });
+  st.duckMoved = DUCK.moved;
+  const put = (px, py, r, g, b) => { if (px < 0 || py < 0 || px >= ow || py >= oh) return; const q = (py * ow + px) * 4; data[q] = r; data[q + 1] = g; data[q + 2] = b; data[q + 3] = 255; };
+  const mix = (px, py, r, g, b, a) => { if (px < 0 || py < 0 || px >= ow || py >= oh) return; const q = (py * ow + px) * 4; data[q] += (r - data[q]) * a; data[q + 1] += (g - data[q + 1]) * a; data[q + 2] += (b - data[q + 2]) * a; };
+  const fams = new Set();
+  birds.sort((a, b) => a[0][1] - b[0][1]); // back to front
+  for (const [[gx, gy], [qx], k, fi] of birds) {
+    const x = Math.floor(gx), y = Math.floor(gy), i = y * N + x; if (x < 1 || y < 1 || x >= N - 1 || y >= N - 1 || !(S.d[i] > 0.02) || (S.ice && S.ice[i] > 0.3)) continue;
+    const sc = persp(gy, N), ox = Math.round((gx - N / 2) * cp * sc + ow / 2), oy = Math.round(baseY(T, gy, N) - (S.h[i] + S.d[i]) * cp * T.hEx * sc);
+    if (ox < 4 || oy < 5 || ox >= ow - 4 || oy >= oh - 2) continue;
+    const pc = pick[(oy + 1) * ow + ox]; if (pc < 0 || Math.abs(pc % N - x) > 3 || Math.abs(((pc / N) | 0) - y) > 4) continue; // hidden behind a ridge
+    const u = Math.max(2, Math.round(cp * sc)), sg = gx - qx >= 0 ? 1 : -1, bob = Math.floor(now * 2.2 + k * 0.7 + fi) % 2 ? 0 : 1;
+    if (k === 0) { // the mother: a brown boat-shaped body, a raised head with a green sheen and an orange bill, a V of wake behind
+      const bw = Math.max(6, Math.round(u * 2.8)), bh = Math.max(3, Math.round(u * 1.2)), hw = bw / 2, tail = ox - sg * Math.round(hw);
+      for (let j = 1; j <= Math.round(u * 3.2); j++) { const a = 0.5 * (1 - j / (u * 3.6)); if (a <= 0.05) break; const wx = tail - sg * j; mix(wx, oy + 1 + Math.round(j * 0.35), 222, 240, 252, a); mix(wx, oy + 1 - Math.round(j * 0.22), 222, 240, 252, a * 0.8); }
+      for (let py = oy - bh + 1; py <= oy; py++) { const fy = (oy - py) / bh, w2 = hw * (fy > 0.6 ? 0.85 : 1);
+        for (let px = Math.round(ox - w2); px <= Math.round(ox + w2); px++) { const back = (px - ox) * sg < -hw * 0.45; const top = py === oy - bh + 1;
+          if (back && py === oy - bh + 1 && (px - ox) * sg < -hw * 0.8) continue;
+          put(px, py, top ? 156 : back ? 92 : 122, top ? 118 : back ? 68 : 88, top ? 76 : back ? 46 : 56); } }
+      mix(Math.round(ox - hw), oy + 1, 200, 226, 244, 0.5); mix(Math.round(ox + hw), oy + 1, 200, 226, 244, 0.5); // the waterline
+      const hs = Math.max(2, Math.round(u * 0.8)), hx = Math.round(ox + sg * (hw - hs * 0.6)) - (sg > 0 ? hs - 1 : 0), hy = oy - bh - bob;
+      for (let py = hy - hs + 1; py <= hy; py++) for (let px = hx; px < hx + hs; px++) put(px, py, py === hy - hs + 1 ? 52 : 70, py === hy - hs + 1 ? 104 : 82, py === hy - hs + 1 ? 62 : 54);
+      put(hx + Math.floor(hs / 2), hy - hs + 1, 46, 112, 70); // the dark-green sheen
+      const bx = sg > 0 ? hx + hs : hx - 1; put(bx, hy, 232, 150, 44); if (u > 3) put(bx + sg, hy, 232, 150, 44);
+      for (let py = hy + 1; py <= oy - bh; py++) put(Math.round(ox + sg * (hw - hs * 0.6)), py, 84, 64, 46); // the neck
+      st.ducksDrawn++; fams.add(fi); if (fi === 0 || !st.duckPx) st.duckPx = [T.sx + ox * T.s, T.sy + oy * T.s];
+    } else { // a duckling: a small yellow fuzz ball, a tiny head bobbing, a ripple behind
+      const dw = Math.max(3, Math.round(u * 1.25)), dh = Math.max(2, Math.round(u * 0.75)), x0 = ox - (dw >> 1);
+      mix(sg > 0 ? x0 - 1 : x0 + dw, oy + 1, 222, 240, 252, 0.4);
+      for (let py = oy - dh + 1; py <= oy; py++) for (let px = x0; px < x0 + dw; px++) { const top = py === oy - dh + 1; put(px, py, top ? 255 : 244, top ? 238 : 210, top ? 136 : 78); }
+      const hs = Math.max(1, Math.round(u * 0.55)), hx = sg > 0 ? x0 + dw - hs : x0, hy = oy - dh - bob;
+      for (let py = hy - hs + 1; py <= hy; py++) for (let px = hx; px < hx + hs; px++) put(px, py, 250, 222, 92);
+      put(sg > 0 ? hx + hs : hx - 1, hy, 226, 140, 50);
+      st.ducklingsDrawn++; fams.add(fi);
+    }
+  }
+  st.duckFams = fams.size;
 }
 const ICE_LINGER = 30, DRIP_MAX = 48, icy = new WeakMap(); // icicles outlast the roof snow by ~30 sim s of sunny thaw, then are gone; at most 48 dripping tips drawn
 const SNOW_ROOF = 0.02; // snow around a cottage (3x3 max) above this whitens its roof and frosts its window
@@ -2747,7 +2854,7 @@ function frame(now) {
   const tc0 = performance.now(); computeColours(st.time); st.colMs = (st.colMs || 0) * 0.9 + (performance.now() - tc0) * 0.1;
   cx.setTransform(dpr, 0, 0, dpr, 0, 0);
   if (st.view === 'tilt') { tiltGeom(); drawSky(st.time, dtReal); renderTilt(st.time); }
-  else { drawSky(st.time, dtReal); renderTop(st.time); drawCottagesTop(); drawWindowGlowTop(st.time); st.petalsDrawn = 0; st.mistDrawn = 0; st.mistDrift = 0; st.puddlesDrawn = 0; st.icyPuddles = 0; st.puddleIcePx = 0; st.splashKids = 0; st.splashHopping = 0; st.splashDrops = 0; st.splashSpots = 0; st.splashPuds = []; KID.on = false; } // no petals in the map view (seen from far above they would be specks of dust)
+  else { drawSky(st.time, dtReal); renderTop(st.time); drawCottagesTop(); drawWindowGlowTop(st.time); st.petalsDrawn = 0; st.mistDrawn = 0; st.mistDrift = 0; st.puddlesDrawn = 0; st.icyPuddles = 0; st.puddleIcePx = 0; st.splashKids = 0; st.splashHopping = 0; st.splashDrops = 0; st.splashSpots = 0; st.splashPuds = []; KID.on = false; st.duckFams = 0; st.ducksDrawn = 0; st.ducklingsDrawn = 0; st.duckLine = null; DUCK.last = null; } // no petals in the map view (seen from far above they would be specks of dust)
   floeStep(S, dtReal); drawFloes();
   drawCottageBadges(st.time);
   drawNaturalRain(st.time); drawOverlays(st.time); drawShower(st.time);
@@ -2789,7 +2896,7 @@ function adapt(dt) {
 // and thunder after lightning, wind (stronger in winter and storms), birds by day in the forest, crickets on
 // summer evenings, an owl at night, the creak and clack of turning mill wheels, cowbells near the village.
 // window.LV_AUDIO holds the levels (0..1) and gains so tests can check them without listening.
-const AU = { want: false, on: false, started: false, state: 'none', nodes: 0, live: 0, L: {}, G: {}, ev: { chirp: 0, cricket: 0, owl: 0, clack: 0, creak: 0, bell: 0, thunder: 0, plop: 0, slurp: 0, splash: 0, knock: 0, well: 0, rustle: 0, rumble: 0, drip: 0, squeak: 0, thump: 0, crunch: 0, skate: 0, icicle: 0, puddle: 0 }, flow: 0, riverPan: 0, veg: 0, ticks: 0, vol: 1, snowCover: 0, rainMuffle: 0, rainCut: 9000, masterT: 0, melt: 0, meltPan: 0 };
+const AU = { want: false, on: false, started: false, state: 'none', nodes: 0, live: 0, L: {}, G: {}, ev: { chirp: 0, cricket: 0, owl: 0, clack: 0, creak: 0, bell: 0, thunder: 0, plop: 0, slurp: 0, splash: 0, knock: 0, well: 0, rustle: 0, rumble: 0, drip: 0, squeak: 0, thump: 0, crunch: 0, skate: 0, icicle: 0, puddle: 0, peep: 0 }, flow: 0, riverPan: 0, veg: 0, ticks: 0, vol: 1, snowCover: 0, rainMuffle: 0, rainCut: 9000, masterT: 0, melt: 0, meltPan: 0 };
 window.LV_AUDIO = AU;
 const AU_KEY = 'lv-sound', AU_MASTER = 0.45, AU_DT = 0.25;
 const AU_MAX = { river: 0.55, rain: 0.42, wind: 0.2, birds: 0.42, crickets: 0.13, owl: 0.38, mill: 0.42, cows: 0.26, thunder: 0.85, melt: 0.3 }; // full-level gain per layer
@@ -3009,6 +3116,12 @@ function sndPuddle(pan, k) { // a child lands in a puddle: a small wet slap and 
   drop(t + 0.025, 520 + Math.random() * 260, 0.3 * k, pan);
   AU.ev.puddle++;
 }
+function sndPeep(pan, k) { // a duckling: two or three tiny soft peeps (fx bus, so mute and volume apply)
+  if (!fxOn()) return; const t0 = AG.ac.currentTime + 0.02 + Math.random() * 0.15, n = 2 + (Math.random() < 0.4 ? 1 : 0), f0 = 3000 + Math.random() * 600;
+  for (let j = 0; j < n; j++) { const t = t0 + j * (0.13 + Math.random() * 0.05), g = auVoice('fx', t, 0.12, pan), o = osc('sine', f0 * 1.08, t, 0.12, g);
+    o.frequency.exponentialRampToValueAtTime(f0 * 0.82, t + 0.08); g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.03 * k, t + 0.012); g.gain.linearRampToValueAtTime(0, t + 0.085); }
+  AU.ev.peep++;
+}
 function fxBrush(S, g, x) { // while a brush is held: splash or slurp now and then where there is water under the finger (Plant rustles on land)
   if (!fxOn() || !g) return; const tool = st.tool;
   if (tool === 'plant') { const now = st.time; if (now - (AU.fxT || -9) < 0.3) return; const N = S.N, i = Math.round(g[1]) * N + Math.round(g[0]); if (!(i >= 0 && i < N * N) || S.d[i] > 0.3) return; AU.fxT = now + Math.random() * 0.12; sndRustle(x); return; }
@@ -3085,6 +3198,8 @@ function auTick(dt) {
   if (st.splashHopping > 0 && st.splashPuds && st.splashPuds.length && t - (AU.splT || -9) > 0.7 && R() < Math.min(0.7, 0.3 + 0.12 * st.splashHopping)) {
     const S = st.S, N = S.N, i0 = st.splashPuds[(R() * st.splashPuds.length) | 0], q = proj(i0 % N, (i0 / N) | 0);
     sndPuddle(q && innerWidth > 0 ? Math.max(-0.7, Math.min(0.7, (q[0] / innerWidth) * 1.4 - 0.7)) : 0, 0.7 + 0.3 * R()); AU.splT = t; }
+  // ducklings on the water (while drawn): a soft peep now and then, at most one per 1.4 s, panned to the first family
+  if (st.ducklingsDrawn > 0 && st.duckPx && t - (AU.peepT || -9) > 1.4 && R() < 0.3) { sndPeep(fxPan(st.duckPx[0]), 0.7 + 0.3 * R()); AU.peepT = t; }
   // icicles dripping in the sun (while drawn): a soft plip now and then, at most one per 0.6 s, panned to a dripping cottage
   if (st.dripsDrawn > 0 && performance.now() - (st.dripsAt || 0) < 600 && t - (AU.icT || -9) > 0.6 && R() < Math.min(0.7, 0.3 + 0.04 * st.dripsDrawn)) {
     const dd = st.drips[(R() * st.drips.length) | 0], T = tilt, x = T ? T.sx + dd[0] * T.s : null; sndIcicle(fxPan(x), 0.7 + 0.3 * R()); AU.icT = t; }
@@ -3359,7 +3474,7 @@ addEventListener('pagehide', () => autoSave('pagehide'));
 window.LV_AUTO = { AS, save: autoSave, get: asGet, put: asPut, clear: asClear, restore: autoRestore };
 
 
-window.__lv = { st, AU, updSound, LV, LT, leaf: LS, clockText, wheelAng, get col() { return [colR, colG, colB]; }, get tilt() { return tilt; }, get area() { return area; }, setTool, newWorld, unproj, proj, get S() { return st.S; }, floes, breakup: sndBreakup, yearTurn, flourT, SACK_T, carts, CART_LOAD, cartTarget, bakeT, FLOUR, smokeRGB, HAY, HAY_T, PUD, KID };
+window.__lv = { st, AU, updSound, LV, LT, leaf: LS, clockText, wheelAng, get col() { return [colR, colG, colB]; }, get tilt() { return tilt; }, get area() { return area; }, setTool, newWorld, unproj, proj, get S() { return st.S; }, floes, breakup: sndBreakup, yearTurn, flourT, SACK_T, carts, CART_LOAD, cartTarget, bakeT, FLOUR, smokeRGB, HAY, HAY_T, PUD, KID, DUCK };
 updUI(); updSound();
 const rawHash = (location.hash || '').slice(1);
 let fromHash = ''; try { fromHash = decodeURIComponent(rawHash); } catch (e) { fromHash = ''; }
