@@ -92,8 +92,11 @@ canvas{display:block;width:100vw;height:100vh;touch-action:none}
     d.vy += g * dt; d.x += d.vx * dt; d.y += d.vy * dt;
     for (let i = 0; i < leaves.length; i++) {
       if (i === skip) continue;
-      const L = leaves[i], c = closest(d.x, d.y, L.x1, L.y1, L.x2, L.y2);
-      if (c.d > r + 2) continue;
+      // the same maths as closest(), inlined so the hot loop allocates nothing (the composer runs it millions of times; garbage meant GC pauses)
+      const L = leaves[i], sx = L.x2 - L.x1, sy = L.y2 - L.y1, S2 = sx * sx + sy * sy || 1e-9;
+      const st = clamp(((d.x - L.x1) * sx + (d.y - L.y1) * sy) / S2, 0, 1), cx = L.x1 + st * sx, cy = L.y1 + st * sy;
+      if (Math.hypot(d.x - cx, d.y - cy) > r + 2) continue;
+      const c = { x: cx, y: cy };
       let nx = d.x - c.x, ny = d.y - c.y, n = Math.hypot(nx, ny);
       if (n < 1e-6) { nx = -(L.y2 - L.y1); ny = L.x2 - L.x1; n = Math.hypot(nx, ny); if (nx * d.vx + ny * d.vy > 0) { nx = -nx; ny = -ny; } }
       nx /= n; ny /= n;
@@ -109,9 +112,9 @@ canvas{display:block;width:100vw;height:100vh;touch-action:none}
   // the leaf length that rings a given scale step (middle of its band)
   function lengthForStep(step) { return MIN_LEN * Math.pow(MAX_LEN / MIN_LEN, 1 - step / (STEPS - 1)); }
   // follow one drop from (x0,y0) through the leaves; returns the leaf indices it rings, in order
-  function trace(leaves, x0, y0, maxY = 2000, dt = 1 / 240) {
-    const d = { x: x0, y: y0, vx: 0, vy: 40 }, hits = [], path = [];
-    for (let t = 0; t < 12 && d.y < maxY && d.x > -50 && d.x < 1050; t += dt) { clk.work += leaves.length + 1; const i = stepDrop(d, leaves, dt); path.push(d.x, d.y, d.vx, d.vy); if (i >= 0 && d.impact > 60 && !hits.includes(i)) hits.push(i); } // a drop rings each leaf once
+  function trace(leaves, x0, y0, maxY = 2000, dt = 1 / 240, keepPath = true) { // keepPath false: hits only, no path array (less garbage)
+    const d = { x: x0, y: y0, vx: 0, vy: 40 }, hits = [], path = keepPath ? [] : null;
+    for (let t = 0; t < 12 && d.y < maxY && d.x > -50 && d.x < 1050; t += dt) { clk.work += leaves.length + 1; const i = stepDrop(d, leaves, dt); if (path) path.push(d.x, d.y, d.vx, d.vy); if (i >= 0 && d.impact > 60 && !hits.includes(i)) hits.push(i); } // a drop rings each leaf once
     return { hits, path };
   }
   // build a falling melody: leaves placed so one drop from (x0,y0) rings steps[] in order.
@@ -172,9 +175,9 @@ canvas{display:block;width:100vw;height:100vh;touch-action:none}
         if (crowds(L, leaves)) { ok = false; if (why) why.cross = (why.cross || 0) + 1; break; }
         leaves.push(L);
         yield; // a trace down a tall field is the costliest piece: one per pause
-        const tr = trace(leaves, x0, y0, maxY + 40).hits;
+        const tr = trace(leaves, x0, y0, maxY + 40, 1 / 240, false).hits;
         let bad = tr.length !== leaves.length - F || tr.some((h, i) => h !== F + i);
-        for (let o = 0; o < others.length && !bad; o++) { yield; const [ox, oy, oh] = others[o], t = trace(leaves, ox, oy, maxY + 40).hits; bad = t.length !== oh.length || t.some((h, i) => h !== oh[i]); }
+        for (let o = 0; o < others.length && !bad; o++) { yield; const [ox, oy, oh] = others[o], t = trace(leaves, ox, oy, maxY + 40, 1 / 240, false).hits; bad = t.length !== oh.length || t.some((h, i) => h !== oh[i]); }
         if (bad) { ok = false; if (why) why['order' + n] = (why['order' + n] || 0) + 1; }
         if (n + 1 < steps.length) yield; // and between leaves: one try on a long tune can take a while
       }
