@@ -1,0 +1,1472 @@
+<!doctype html>
+<html lang="de-CH">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Sand-Alchemie</title>
+<link rel="icon" href="../favicon.svg" type="image/svg+xml">
+<meta name="description" content="Eine Sandkasten-Alchemie. Male mit Sand, Wasser, Feuer und dem, was du entdeckst.">
+<meta name="theme-color" content="#2a1a12">
+<style>
+html,body{margin:0;height:100%;background:#24160f;overflow:hidden;font-family:system-ui,-apple-system,"Segoe UI",sans-serif;color:#f6efe4;-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent;touch-action:none}
+canvas{display:block;width:100%;height:100%;touch-action:none}
+button{font:inherit;color:#f6efe4;background:rgba(255,244,230,.08);border:1px solid rgba(243,215,161,.28);border-radius:12px;cursor:pointer;touch-action:manipulation}
+button:focus-visible{outline:2px solid #f3d7a1;outline-offset:2px}
+#pill{position:fixed;z-index:4;top:max(8px,env(safe-area-inset-top));left:max(8px,env(safe-area-inset-left));max-width:min(300px,calc(100vw - 92px));background:rgba(36,22,16,.78);border:1px solid rgba(231,194,122,.38);border-radius:14px;padding:8px 12px 9px;backdrop-filter:blur(8px);pointer-events:none}
+#pill strong{display:block;font-family:Georgia,Palatino,"Iowan Old Style",serif;font-size:18px;font-weight:600;letter-spacing:.02em;color:#f3d7a1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#status{font-size:13px;opacity:.9;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#dock{position:fixed;z-index:4;left:50%;bottom:max(8px,env(safe-area-inset-bottom));transform:translateX(-50%);width:min(1040px,calc(100vw - 12px));display:flex;flex-direction:column;gap:6px}
+#elems,#tools{display:flex;gap:4px;overflow-x:auto;background:rgba(28,18,12,.8);border:1px solid rgba(243,215,161,.2);border-radius:16px;padding:4px;backdrop-filter:blur(8px);scrollbar-width:none}
+#elems::-webkit-scrollbar,#tools::-webkit-scrollbar{height:0}
+#tools{justify-content:center}
+.el,.tool{flex:0 0 auto;min-width:44px;min-height:44px;padding:4px 6px;display:flex;align-items:center;justify-content:center;gap:4px}
+.el{flex-direction:column;gap:2px;padding:4px 5px 3px}
+.el .sw{width:20px;height:14px;border-radius:4px;box-shadow:inset 0 0 0 1px rgba(0,0,0,.45)}
+.el .nm,.tool .nm{font-size:11px;line-height:1.1;white-space:nowrap}
+button.on{background:rgba(231,194,122,.24);border-color:rgba(243,215,161,.85)}
+.el.fresh{box-shadow:0 0 0 1px #f3d7a1}
+#hint{position:fixed;z-index:4;left:50%;top:max(64px,calc(env(safe-area-inset-top) + 58px));transform:translateX(-50%);background:rgba(36,22,16,.72);border:1px solid rgba(243,215,161,.2);border-radius:12px;padding:8px 12px;font-size:14px;line-height:1.35;max-width:min(460px,92vw);text-align:center;pointer-events:none;transition:opacity .8s}
+#hint.gone{opacity:0}
+#toast{position:fixed;z-index:6;left:50%;top:max(58px,calc(env(safe-area-inset-top) + 52px));transform:translateX(-50%);background:rgba(42,26,16,.94);border:1px solid rgba(243,215,161,.7);color:#f6efe4;border-radius:14px;padding:10px 16px;font-size:16px;font-family:Georgia,Palatino,serif;letter-spacing:.01em;box-shadow:0 8px 30px rgba(0,0,0,.35);pointer-events:none;max-width:min(420px,92vw);text-align:center}
+#toast[hidden]{display:none}
+#scrim{position:fixed;inset:0;background:rgba(12,8,6,.5);z-index:6}
+#scrim[hidden]{display:none}
+#book{position:fixed;z-index:7;left:50%;top:50%;transform:translate(-50%,-50%);width:min(460px,94vw);max-height:min(78vh,640px);overflow:auto;background:rgba(40,26,18,.97);border:1px solid rgba(243,215,161,.35);border-radius:16px;padding:12px 14px 16px;box-sizing:border-box;touch-action:pan-y;-webkit-overflow-scrolling:touch}
+#book[hidden]{display:none}
+#book header{display:flex;align-items:center;gap:8px;position:sticky;top:0;background:rgba(40,26,18,.97);padding-bottom:8px}
+#book header b{font-family:Georgia,Palatino,serif;font-size:18px;color:#f3d7a1;font-weight:600}
+#book header span{opacity:.75;font-size:13px;flex:1}
+#book header button{min-width:44px;min-height:44px;border-radius:10px}
+.brow{display:flex;gap:10px;padding:8px 0;border-top:1px solid rgba(255,236,210,.1)}
+.brow .sw{width:22px;height:22px;border-radius:6px;flex:none;margin-top:2px;box-shadow:inset 0 0 0 1px rgba(0,0,0,.4)}
+.brow b{font-size:14px}
+.brow p{margin:2px 0 0;font-size:13px;line-height:1.35;opacity:.86}
+.brow.unknown{opacity:.55}
+.brow.fresh b{color:#f3d7a1}
+@media (max-width:720px){
+  .tool .nm{display:none}
+  .tool{width:48px;padding:8px 0}
+  #pill strong{font-size:16px}
+}
+@media (max-height:460px){
+  #dock{flex-direction:row;width:min(1040px,calc(100vw - 8px));align-items:stretch}
+  .el .nm{display:none}
+  #hint{display:none}
+  #pill{padding:4px 8px}
+  #status{display:none}
+  #toast{top:max(8px,env(safe-area-inset-top))}
+}
+</style>
+</head>
+<body>
+<canvas id="c" aria-label="Sand-Alchemie. Eine Werkstattplatte. Zieh mit dem Finger, um Elemente zu malen."></canvas>
+<div id="pill">
+  <strong>Sand-Alchemie</strong>
+  <div id="status">Pinsel: Sand · Grösse 1</div>
+</div>
+<div id="hint">Zieh über die Platte. Feuer frisst Holz, Wasser fliesst, Samen keimt auf nassem Sand.</div>
+<div id="toast" hidden role="status" aria-live="polite"></div>
+<div id="dock">
+  <div id="elems" role="listbox" aria-label="Elemente"></div>
+  <div id="tools" role="toolbar" aria-label="Werkzeuge">
+    <button id="bSize" type="button" aria-label="Pinselgrösse 1"><span class="ic" aria-hidden="true">1</span><span class="nm">Grösse</span></button>
+    <button id="bErase" type="button" aria-pressed="false" aria-label="Radierer" title="Radierer (E)"><span class="ic" aria-hidden="true">✕</span><span class="nm">Radierer</span></button>
+    <button id="bPause" type="button" aria-pressed="false" aria-label="Pause" title="Pause (Leertaste)"><span class="ic" aria-hidden="true">❚❚</span><span class="nm">Pause</span></button>
+    <button id="bClear" type="button" aria-label="Platte leeren" title="Leeren (Rücktaste)"><span class="ic" aria-hidden="true">⌫</span><span class="nm">Leeren</span></button>
+    <button id="bSound" type="button" aria-pressed="false" aria-label="Ton ist aus. Tippen zum Einschalten" title="Ton (M)"><span class="ic" aria-hidden="true">🔇</span><span class="nm">Ton</span></button>
+    <button id="bBook" type="button" aria-label="Alchemie-Buch öffnen" title="Buch (B)"><span class="ic" aria-hidden="true">📖</span><span class="nm">Buch</span><span class="nm" id="badge">6/19</span></button>
+  </div>
+</div>
+<div id="scrim" hidden></div>
+<div id="book" hidden role="dialog" aria-modal="true" aria-label="Alchemie-Buch">
+  <header>
+    <b>Alchemie-Buch</b>
+    <span id="bookCount">6 von 19</span>
+    <button id="bookClose" type="button" aria-label="Buch schliessen">✕</button>
+  </header>
+  <div id="bookList"></div>
+</div>
+<script>
+'use strict';
+(function () {
+  const EMPTY = 0, SAND = 1, WATER = 2, STONE = 3, WOOD = 4, FIRE = 5, SEED = 6;
+  const SMOKE = 7, ASH = 8, STEAM = 9, PLANT = 10, LAVA = 11, GLASS = 12, ICE = 13;
+  const SALT = 14, OIL = 15, METAL = 16, ACID = 17, CLOUD = 18, BOLT = 19;
+
+  const KEY = ['leer','sand','water','stone','wood','fire','seed','smoke','ash','steam','plant','lava','glass','ice','salt','oil','metal','acid','cloud','bolt'];
+  const NAME = ['Leer','Sand','Wasser','Stein','Holz','Feuer','Samen','Rauch','Asche','Dampf','Pflanze','Lava','Glas','Eis','Salz','Öl','Metall','Säure','Wolke','Blitz'];
+  const HEX = ['#2a211c','#e4c56a','#3a96d2','#8a847c','#8a5630','#ff7a1a','#a8c448','#9a9694','#6a6460','#d5e6ee','#2e8c3e','#ff4a10','#b7e0ea','#d4f2ff','#f4f4f0','#5a4630','#c0c6ce','#b6e040','#e8e4dc','#fff6c2'];
+  const PAINTABLE = [SAND, WATER, STONE, WOOD, FIRE, SEED, SMOKE, ASH, STEAM, PLANT, LAVA, GLASS, ICE, SALT, OIL, METAL, ACID, CLOUD];
+  const ID_BY_KEY = {};
+  for (let i = 0; i < KEY.length; i++) ID_BY_KEY[KEY[i]] = i;
+
+  const HINT = [];
+  HINT[SMOKE] = 'Wenn etwas Brennbares Feuer fasst.';
+  HINT[ASH] = 'Was nach dem Brand liegen bleibt.';
+  HINT[STEAM] = 'Wasser trifft auf Hitze.';
+  HINT[PLANT] = 'Ein Samen mag nasse Erde.';
+  HINT[LAVA] = 'Stein hält grosse Hitze nicht ewig aus.';
+  HINT[GLASS] = 'Sand wird in der Hitze klar.';
+  HINT[ICE] = 'Dampf steigt bis unter die kalten Balken.';
+  HINT[SALT] = 'Asche und Wasser hinterlassen Kristalle.';
+  HINT[OIL] = 'Eine Pflanze unter schwerem Stein.';
+  HINT[METAL] = 'Stein, der in Lava liegt.';
+  HINT[ACID] = 'Rauch, der ins Wasser sinkt.';
+  HINT[CLOUD] = 'Viel Dampf ballt sich oben zusammen.';
+  HINT[BOLT] = 'Eine Wolke entlädt sich.';
+
+  const KNOWN = [];
+  KNOWN[SAND] = 'Rieselt nach unten und sinkt durch Wasser. In grosser Hitze wird er zu Glas.';
+  KNOWN[WATER] = 'Fliesst nach unten, löscht Feuer und wird zu Dampf. Trifft es Lava, gibt es Stein und Dampf.';
+  KNOWN[STONE] = 'Liegt still. Grosse Hitze schmilzt ihn zu Lava, ein Bad in Lava zu Metall.';
+  KNOWN[WOOD] = 'Brennt, sobald Feuer daran leckt. Zurück bleiben Asche und Rauch.';
+  KNOWN[FIRE] = 'Züngelt nach oben und vergeht, ausser es findet Nahrung. Sehr heisses Feuer macht aus Sand Glas.';
+  KNOWN[SEED] = 'Fällt wie Sand. Auf nassem Sand oder nasser Asche keimt eine Pflanze.';
+  KNOWN[SMOKE] = 'Steigt auf und verweht. Im Wasser wird er zu Säure.';
+  KNOWN[ASH] = 'Leicht und grau. Wasser wäscht sie zu Salz, Samen keimen gern darin.';
+  KNOWN[STEAM] = 'Steigt auf. Oben an den kalten Balken wird ein Hauch zu Eis und viel Dampf zu einer Wolke.';
+  KNOWN[PLANT] = 'Wächst nach oben, solange Wasser in der Nähe ist. Unter einem Stein presst sie Öl. Feuer verbrennt sie.';
+  KNOWN[LAVA] = 'Dick und heiss. Macht aus Wasser Dampf und Stein, aus Sand Glas und aus Stein Metall.';
+  KNOWN[GLASS] = 'Sand, der in der Hitze klar geworden ist. Liegt still.';
+  KNOWN[ICE] = 'Kalt und still. Salz und Feuer schmelzen es zu Wasser. Eis bringt nahes Wasser langsam zum Frieren.';
+  KNOWN[SALT] = 'Kristalle aus gewaschener Asche. Salz schmilzt Eis und löst sich in viel Wasser.';
+  KNOWN[OIL] = 'Aus gepressten Pflanzen. Schwimmt auf Wasser und brennt zu Asche und Rauch.';
+  KNOWN[METAL] = 'Aus Stein in Lava erschmolzen. Säure frisst es langsam.';
+  KNOWN[ACID] = 'Aus Rauch und Wasser. Fliesst und löst Metall langsam auf.';
+  KNOWN[CLOUD] = 'Geballter Dampf unter der Decke. Zieht weiter und wirft Blitze.';
+  KNOWN[BOLT] = 'Ein Stoss aus der Wolke. Entzündet, macht aus Sand Glas und aus Stein Lava.';
+
+  const PAL = [
+    [[68,54,46],[58,46,40],[76,62,52],[52,42,36]],
+    [[230,204,118],[218,188,102],[206,174,90],[236,214,136]],
+    [[62,158,214],[48,142,202],[80,172,222],[42,128,188]],
+    [[138,132,124],[110,106,100],[154,148,140],[96,92,86]],
+    [[154,98,54],[122,74,40],[170,114,66],[104,60,32]],
+    [[255,176,40],[255,96,28],[255,220,120],[255,64,18]],
+    [[176,204,78],[146,176,54],[198,220,104],[124,156,44]],
+    [[150,146,144],[120,116,118],[170,166,164],[96,94,96]],
+    [[110,104,100],[90,86,82],[126,120,116],[74,70,66]],
+    [[214,230,236],[190,214,224],[232,242,246],[170,198,210]],
+    [[52,150,68],[36,118,52],[78,176,86],[28,96,42]],
+    [[255,78,18],[255,150,28],[255,214,70],[210,46,12]],
+    [[186,226,234],[156,206,220],[214,240,244],[126,186,202]],
+    [[220,244,255],[186,224,248],[244,252,255],[160,208,236]],
+    [[246,246,242],[230,230,226],[255,255,252],[214,214,210]],
+    [[92,70,48],[64,46,30],[110,84,58],[48,34,22]],
+    [[198,204,212],[166,174,184],[224,228,234],[146,154,164]],
+    [[186,224,70],[156,204,46],[210,236,100],[126,174,36]],
+    [[236,232,226],[220,216,210],[248,246,242],[204,200,194]],
+    [[255,252,220],[255,255,255],[255,232,150],[210,225,255]]
+  ];
+
+  const INIT_M = new Uint8Array(20);
+  const INIT_L = new Uint8Array(20);
+  INIT_M[FIRE] = 3; INIT_L[FIRE] = 22;
+  INIT_L[SMOKE] = 52;
+  INIT_L[STEAM] = 56;
+  INIT_M[PLANT] = 1;
+  INIT_L[CLOUD] = 200;
+  INIT_L[BOLT] = 10;
+
+  const CRACK = 1, SIZZLE = 2, HISS = 4, TINK = 8, ZAP = 16, LAVA_BIT = 32, DRIP = 64, TICK = 128;
+  const STORE = 'playbot-sand-alchemy-v1';
+  const RAD = [0, 1, 2];
+  const RAD_LABEL = [1, 3, 5];
+
+  const canvas = document.getElementById('c');
+  const ctx = canvas.getContext('2d', { alpha: false });
+  const off = document.createElement('canvas');
+  const octx = off.getContext('2d', { alpha: false });
+  const bg = document.createElement('canvas');
+  const bctx = bg.getContext('2d', { alpha: false });
+  const elemsEl = document.getElementById('elems');
+  const statusEl = document.getElementById('status');
+  const hintEl = document.getElementById('hint');
+  const toastEl = document.getElementById('toast');
+  const bookEl = document.getElementById('book');
+  const scrimEl = document.getElementById('scrim');
+  const bookList = document.getElementById('bookList');
+  const bookCount = document.getElementById('bookCount');
+  const badgeEl = document.getElementById('badge');
+  const bSize = document.getElementById('bSize');
+  const bErase = document.getElementById('bErase');
+  const bPause = document.getElementById('bPause');
+  const bClear = document.getElementById('bClear');
+  const bSound = document.getElementById('bSound');
+  const bBook = document.getElementById('bBook');
+
+  let grid, meta, life, seen, active, proc;
+  let cols = 0, rows = 0, chunkCols = 0, chunkRows = 0;
+  let imgData, pix;
+  let fieldX = 0, fieldY = 0, cellSize = 4;
+  let viewW = 800, viewH = 600, dpr = 1;
+  let frame = 0, gen = 1;
+  let brush = SAND, erasing = false, sizeIndex = 0;
+  let paused = window.__startPaused === true;
+  let pausedBeforeBook = false;
+  let bookWasOpen = false;
+  let suppress = 0;
+  let paletteDirty = false;
+  let snd = 0;
+  let clearArm = 0;
+  let hover = null;
+  let pointerId = null;
+  let lastCell = null;
+  let audioOn = false, soundOn = false, actx = null, master = null, noiseBuf = null;
+  const NEXT = { drip: 0, crack: 0, sizzle: 0, hiss: 0, tink: 0, zap: 0, lava: 0, tick: 0 };
+  const found = new Uint8Array(20);
+  const fresh = new Uint8Array(20);
+  for (let id = SAND; id <= SEED; id++) found[id] = 1;
+  const toastLog = [];
+  const toastQ = [];
+  let toastTimer = 0;
+  const stats = { ash: 0, smoke: 0, steam: 0, stoneFromLava: 0, plant: 0, glass: 0, melt: 0, acidBite: 0, bolts: 0, oil: 0, salt: 0, acid: 0, ice: 0, cloud: 0, lava: 0, metal: 0 };
+  const frameSamples = [];
+  let simMs = 0, simSteps = 0, acc = 0, lastNow = 0;
+  let reduceMotion = false;
+  try { reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) { reduceMotion = false; }
+
+  function loadStore() {
+    try {
+      const raw = localStorage.getItem(STORE);
+      if (!raw) return;
+      const data = JSON.parse(raw);
+      const list = data && data.found;
+      if (list && list.length) {
+        for (let i = 0; i < list.length; i++) {
+          const id = ID_BY_KEY[list[i]];
+          if (id) found[id] = 1;
+        }
+      }
+      if (data && data.hint) hintEl.classList.add('gone');
+    } catch (e) { /* private mode */ }
+  }
+  function saveStore() {
+    try {
+      const list = [];
+      for (let id = 1; id < 20; id++) if (found[id] && id > SEED) list.push(KEY[id]);
+      const hint = hintEl.classList.contains('gone') ? 1 : 0;
+      localStorage.setItem(STORE, JSON.stringify({ found: list, hint: hint }));
+    } catch (e) { /* ignore */ }
+  }
+  loadStore();
+
+  function knownCount() {
+    let n = 0;
+    for (let id = 1; id < 20; id++) if (found[id]) n++;
+    return n;
+  }
+  function discover(id) {
+    if (suppress || !id || found[id]) return;
+    found[id] = 1;
+    fresh[id] = 1;
+    paletteDirty = true;
+    queueToast('Entdeckt! ' + NAME[id]);
+    saveStore();
+  }
+  function queueToast(text) {
+    toastLog.push(text);
+    toastQ.push(text);
+    pumpToast();
+  }
+  function pumpToast() {
+    if (toastTimer || !toastQ.length) return;
+    const text = toastQ.shift();
+    toastEl.hidden = false;
+    toastEl.textContent = text;
+    toastTimer = setTimeout(function () {
+      toastTimer = 0;
+      if (toastQ.length) pumpToast();
+      else toastEl.hidden = true;
+    }, 2200);
+  }
+
+  function wake(x, y) {
+    if (x < 0 || y < 0 || x >= cols || y >= rows) return;
+    active[(y >> 4) * chunkCols + (x >> 4)] = 1;
+  }
+  function wakeNear(x, y) {
+    wake(x, y);
+    wake(x - 1, y);
+    wake(x + 1, y);
+    wake(x, y - 1);
+    wake(x, y + 1);
+  }
+  function become(i, id, m, l) {
+    const prev = grid[i];
+    grid[i] = id;
+    meta[i] = m == null ? INIT_M[id] : m;
+    life[i] = l == null ? INIT_L[id] : l;
+    seen[i] = gen;
+    const x = i % cols;
+    const y = (i / cols) | 0;
+    wakeNear(x, y);
+    if (id !== prev && id !== 0) discover(id);
+  }
+  function moveCell(a, b) {
+    grid[b] = grid[a]; meta[b] = meta[a]; life[b] = life[a];
+    grid[a] = 0; meta[a] = 0; life[a] = 0;
+    seen[a] = gen; seen[b] = gen;
+    const ax = a % cols, ay = (a / cols) | 0;
+    const bx = b % cols, by = (b / cols) | 0;
+    wakeNear(ax, ay);
+    wakeNear(bx, by);
+  }
+  function swapCell(a, b) {
+    const g = grid[a], m = meta[a], lv = life[a];
+    grid[a] = grid[b]; meta[a] = meta[b]; life[a] = life[b];
+    grid[b] = g; meta[b] = m; life[b] = lv;
+    seen[a] = gen; seen[b] = gen;
+    wakeNear(a % cols, (a / cols) | 0);
+    wakeNear(b % cols, (b / cols) | 0);
+  }
+  function nearId(x, y, id) {
+    const i = y * cols + x;
+    if (x > 0 && grid[i - 1] === id) return i - 1;
+    if (x + 1 < cols && grid[i + 1] === id) return i + 1;
+    if (y > 0 && grid[i - cols] === id) return i - cols;
+    if (y + 1 < rows && grid[i + cols] === id) return i + cols;
+    return -1;
+  }
+  function nearHotFire(x, y) {
+    const i = y * cols + x;
+    if (x > 0 && grid[i - 1] === FIRE && meta[i - 1] >= 7) return i - 1;
+    if (x + 1 < cols && grid[i + 1] === FIRE && meta[i + 1] >= 7) return i + 1;
+    if (y > 0 && grid[i - cols] === FIRE && meta[i - cols] >= 7) return i - cols;
+    if (y + 1 < rows && grid[i + cols] === FIRE && meta[i + cols] >= 7) return i + cols;
+    return -1;
+  }
+  function nearFreshWater(x, y) {
+    const i = y * cols + x;
+    if (x > 0 && grid[i - 1] === WATER && meta[i - 1] === 0) return i - 1;
+    if (x + 1 < cols && grid[i + 1] === WATER && meta[i + 1] === 0) return i + 1;
+    if (y > 0 && grid[i - cols] === WATER && meta[i - cols] === 0) return i - cols;
+    if (y + 1 < rows && grid[i + cols] === WATER && meta[i + cols] === 0) return i + cols;
+    return -1;
+  }
+  function nearSaltWater(x, y) {
+    const i = y * cols + x;
+    if (x > 0 && grid[i - 1] === WATER && meta[i - 1] > 0) return i - 1;
+    if (x + 1 < cols && grid[i + 1] === WATER && meta[i + 1] > 0) return i + 1;
+    if (y > 0 && grid[i - cols] === WATER && meta[i - cols] > 0) return i - cols;
+    if (y + 1 < rows && grid[i + cols] === WATER && meta[i + cols] > 0) return i + cols;
+    return -1;
+  }
+  function moistAt(x, y) {
+    if (nearId(x, y, WATER) >= 0) return true;
+    if (y + 1 < rows) {
+      const b = grid[(y + 1) * cols + x];
+      if ((b === SAND || b === ASH) && nearId(x, y + 1, WATER) >= 0) return true;
+    }
+    return false;
+  }
+  function tryFall(i, x, y, heavy) {
+    if (y + 1 >= rows) return false;
+    const below = i + cols;
+    const b = grid[below];
+    if (b === 0) { moveCell(i, below); return true; }
+    if (heavy && (b === WATER || b === OIL || b === ACID)) { swapCell(i, below); return true; }
+    const dir = ((frame + x) & 1) ? 1 : -1;
+    for (let k = 0; k < 2; k++) {
+      const dx = k === 0 ? dir : -dir;
+      const nx = x + dx;
+      if (nx < 0 || nx >= cols) continue;
+      const ni = below + dx;
+      const nb = grid[ni];
+      if (nb === 0) { moveCell(i, ni); return true; }
+      if (heavy && (nb === WATER || nb === OIL || nb === ACID)) { swapCell(i, ni); return true; }
+    }
+    return false;
+  }
+  function trySide(i, x) {
+    const y = (i / cols) | 0;
+    const dir = ((x * 3 + y * 5 + frame) & 1) ? 1 : -1;
+    for (let k = 0; k < 2; k++) {
+      const dx = k === 0 ? dir : -dir;
+      const nx = x + dx;
+      if (nx < 0 || nx >= cols) continue;
+      if (grid[i + dx] === 0) { moveCell(i, i + dx); return true; }
+    }
+    return false;
+  }
+  function tryFlow(i, x, y) {
+    if (y + 1 < rows) {
+      const b = grid[i + cols];
+      if (b === 0) { moveCell(i, i + cols); return true; }
+      if (b === OIL) { swapCell(i, i + cols); return true; }
+    }
+    return trySide(i, x);
+  }
+  function tryRise(i, x, y) {
+    if (y <= 0) return false;
+    if (grid[i - cols] === 0) { moveCell(i, i - cols); return true; }
+    const dir = ((frame + x) & 1) ? 1 : -1;
+    for (let k = 0; k < 2; k++) {
+      const dx = k === 0 ? dir : -dir;
+      const nx = x + dx;
+      if (nx < 0 || nx >= cols) continue;
+      if (grid[i - cols + dx] === 0) { moveCell(i, i - cols + dx); return true; }
+    }
+    return false;
+  }
+  function heatFires(x, y) {
+    const touch = function (nx, ny) {
+      if (nx < 0 || ny < 0 || nx >= cols || ny >= rows) return;
+      const j = ny * cols + nx;
+      if (grid[j] !== FIRE) return;
+      if (meta[j] < 8) meta[j]++;
+      if (life[j] < 18) life[j] = 18;
+    };
+    touch(x - 1, y); touch(x + 1, y); touch(x, y - 1); touch(x, y + 1);
+  }
+  function puffSmoke(x, y) {
+    if (y > 0 && grid[(y - 1) * cols + x] === 0) { become((y - 1) * cols + x, SMOKE); stats.smoke++; return; }
+    if (x > 0 && grid[y * cols + x - 1] === 0) { become(y * cols + x - 1, SMOKE); stats.smoke++; return; }
+    if (x + 1 < cols && grid[y * cols + x + 1] === 0) { become(y * cols + x + 1, SMOKE); stats.smoke++; }
+  }
+  function burnWoodLike(i, x, y, startFuel) {
+    let fuel = meta[i];
+    if (fuel === 0) fuel = startFuel;
+    fuel -= 2;
+    heatFires(x, y);
+    if ((frame % 10) === 0) puffSmoke(x, y);
+    snd |= CRACK | SIZZLE;
+    if (fuel <= 0) {
+      become(i, ASH);
+      puffSmoke(x, y);
+      stats.ash++;
+      return;
+    }
+    meta[i] = fuel;
+    wakeNear(x, y);
+  }
+  function strikeAt(j, t, x, yy) {
+    if (t === WOOD || t === PLANT || t === SEED) { become(j, FIRE, 6, 18); puffSmoke(x, yy); return; }
+    if (t === OIL) { become(j, ASH); puffSmoke(x, yy); stats.ash++; return; }
+    if (t === WATER) { become(j, STEAM); stats.steam++; return; }
+    if (t === ICE || t === SALT) { become(j, WATER); return; }
+    if (t === SAND || t === ASH) { become(j, GLASS); stats.glass++; snd |= TINK; return; }
+    if (t === STONE) { become(j, LAVA); stats.lava++; snd |= LAVA_BIT; return; }
+    if (t === METAL) snd |= ZAP;
+  }
+  function boltFrom(x, y) {
+    for (let yy = y + 1; yy < rows; yy++) {
+      const j = yy * cols + x;
+      const t = grid[j];
+      if (t === 0 || t === SMOKE || t === STEAM || t === FIRE || t === BOLT) {
+        grid[j] = BOLT; meta[j] = 0; life[j] = 10; seen[j] = gen;
+        wake(x, yy);
+      } else {
+        strikeAt(j, t, x, yy);
+        break;
+      }
+    }
+    discover(BOLT);
+    stats.bolts++;
+    snd |= ZAP;
+  }
+  function cookSand(i, x, y) {
+    let add = 0;
+    if (nearId(x, y, LAVA) >= 0) add = 2;
+    else if (nearHotFire(x, y) >= 0) add = 1;
+    if (add) {
+      const v = meta[i] + add;
+      if (v >= 8) { become(i, GLASS); stats.glass++; snd |= TINK; return true; }
+      meta[i] = v;
+      wake(x, y);
+    } else if (meta[i] > 0) {
+      meta[i]--;
+      wake(x, y);
+    }
+    return false;
+  }
+
+  function update(i, x, y) {
+    if (seen[i] === gen) return;
+    const id = grid[i];
+    if (id === 0) return;
+    switch (id) {
+      case SAND:
+        if (cookSand(i, x, y)) return;
+        tryFall(i, x, y, true);
+        return;
+      case WATER: {
+        const lava = nearId(x, y, LAVA);
+        if (lava >= 0) {
+          become(i, STEAM);
+          become(lava, STONE);
+          stats.steam++;
+          stats.stoneFromLava++;
+          snd |= HISS;
+          return;
+        }
+        const fire = nearId(x, y, FIRE);
+        if (fire >= 0) {
+          become(i, STEAM);
+          become(fire, 0);
+          stats.steam++;
+          snd |= HISS;
+          return;
+        }
+        tryFlow(i, x, y);
+        return;
+      }
+      case STONE: {
+        if (nearId(x, y, LAVA) >= 0) {
+          const v = meta[i] + 1;
+          if (v >= 48) { become(i, METAL); stats.metal++; return; }
+          meta[i] = v;
+          wake(x, y);
+          return;
+        }
+        if (nearHotFire(x, y) >= 0) {
+          const v = meta[i] + 1;
+          if (v >= 14) { become(i, LAVA); stats.lava++; snd |= LAVA_BIT; return; }
+          meta[i] = v;
+          wake(x, y);
+          return;
+        }
+        if (meta[i] > 0) { meta[i]--; wake(x, y); }
+        return;
+      }
+      case WOOD: {
+        const hot = nearId(x, y, FIRE) >= 0 || nearId(x, y, LAVA) >= 0 || nearId(x, y, BOLT) >= 0;
+        if (hot || meta[i] > 0) burnWoodLike(i, x, y, 48);
+        return;
+      }
+      case FIRE: {
+        const fueled = nearId(x, y, WOOD) >= 0 || nearId(x, y, OIL) >= 0 || nearId(x, y, PLANT) >= 0 || nearId(x, y, SEED) >= 0;
+        if (fueled) {
+          if (meta[i] < 8) meta[i]++;
+          if (life[i] < 18) life[i] = 18;
+        }
+        if (life[i] > 0) life[i]--;
+        if (life[i] <= 0) { become(i, 0); return; }
+        if (!fueled && life[i] < 10 && y > 0 && grid[i - cols] === 0 && ((frame + x) & 1) === 0) {
+          moveCell(i, i - cols);
+          return;
+        }
+        wakeNear(x, y);
+        return;
+      }
+      case SEED: {
+        if (nearId(x, y, FIRE) >= 0 || nearId(x, y, LAVA) >= 0) {
+          become(i, ASH);
+          puffSmoke(x, y);
+          stats.ash++;
+          return;
+        }
+        if (tryFall(i, x, y, true)) return;
+        if (moistAt(x, y)) {
+          const v = meta[i] + 1;
+          if (v >= 16) { become(i, PLANT, 1, 0); stats.plant++; return; }
+          meta[i] = v;
+          wake(x, y);
+        } else if (meta[i] > 0) {
+          meta[i]--;
+          wake(x, y);
+        }
+        return;
+      }
+      case SMOKE: {
+        if (nearId(x, y, WATER) >= 0) { become(i, ACID); stats.acid++; snd |= HISS; return; }
+        if (life[i] > 0) life[i]--;
+        if (life[i] <= 0) { become(i, 0); return; }
+        if (!tryRise(i, x, y)) wake(x, y);
+        return;
+      }
+      case ASH: {
+        if (tryFall(i, x, y, true)) return;
+        if (nearId(x, y, WATER) >= 0) {
+          const v = meta[i] + 1;
+          if (v >= 20) { become(i, SALT); stats.salt++; return; }
+          meta[i] = v;
+          wake(x, y);
+          return;
+        }
+        if (meta[i] > 0) { meta[i]--; wake(x, y); }
+        return;
+      }
+      case STEAM: {
+        if (y <= 1) {
+          let n = 0;
+          const y0 = y > 2 ? y - 2 : 0;
+          const y1 = y + 2 < rows ? y + 2 : rows - 1;
+          const x0 = x > 2 ? x - 2 : 0;
+          const x1 = x + 2 < cols ? x + 2 : cols - 1;
+          for (let yy = y0; yy <= y1; yy++) {
+            const row = yy * cols;
+            for (let xx = x0; xx <= x1; xx++) {
+              const t = grid[row + xx];
+              if (t === STEAM || t === CLOUD) n++;
+            }
+          }
+          if (n >= 6) { become(i, CLOUD); stats.cloud++; return; }
+          if (y === 0) { become(i, ICE); stats.ice++; return; }
+        }
+        if (life[i] > 0) life[i]--;
+        if (life[i] <= 0) { become(i, 0); return; }
+        if (!tryRise(i, x, y)) wake(x, y);
+        return;
+      }
+      case PLANT: {
+        if (nearId(x, y, FIRE) >= 0 || nearId(x, y, LAVA) >= 0 || nearId(x, y, BOLT) >= 0) {
+          burnWoodLike(i, x, y, 16);
+          return;
+        }
+        if (y > 0 && grid[i - cols] === STONE) {
+          const v = life[i] + 1;
+          if (v >= 36) { become(i, OIL); stats.oil++; return; }
+          life[i] = v;
+          wake(x, y);
+          return;
+        }
+        if (y > 0 && grid[i - cols] === PLANT) return;
+        if (meta[i] < 5 && y > 0 && grid[i - cols] === 0 && moistAt(x, y)) {
+          const v = life[i] + 1;
+          if (v >= 28) {
+            become(i - cols, PLANT, meta[i] + 1, 0);
+            life[i] = 0;
+          } else {
+            life[i] = v;
+            wake(x, y);
+          }
+        }
+        return;
+      }
+      case LAVA: {
+        if (((frame + x) & 1) === 0) {
+          if (tryFall(i, x, y, true)) { snd |= LAVA_BIT; return; }
+          if (trySide(i, x)) { snd |= LAVA_BIT; return; }
+        }
+        wakeNear(x, y);
+        return;
+      }
+      case GLASS:
+      case METAL:
+        return;
+      case ICE: {
+        if (nearId(x, y, FIRE) >= 0 || nearId(x, y, LAVA) >= 0) {
+          become(i, WATER);
+          snd |= HISS;
+          return;
+        }
+        const salt = nearId(x, y, SALT);
+        if (salt >= 0) {
+          const v = meta[i] + 1;
+          if (v >= 18) {
+            become(i, WATER);
+            become(salt, 0);
+            stats.melt++;
+            snd |= DRIP;
+            return;
+          }
+          meta[i] = v;
+          wake(x, y);
+          return;
+        }
+        const salty = nearSaltWater(x, y);
+        if (salty >= 0) {
+          const v = meta[i] + 1;
+          if (v >= 18) {
+            become(i, WATER);
+            if (meta[salty] > 0) meta[salty]--;
+            stats.melt++;
+            snd |= DRIP;
+            return;
+          }
+          meta[i] = v;
+          wake(x, y);
+          return;
+        }
+        const w = nearFreshWater(x, y);
+        if (w >= 0) {
+          life[w] = life[w] < 255 ? life[w] + 1 : 255;
+          if (life[w] >= 80) become(w, ICE);
+          wake(x, y);
+          return;
+        }
+        if (meta[i] > 0) { meta[i]--; wake(x, y); }
+        return;
+      }
+      case SALT: {
+        if (tryFall(i, x, y, true)) return;
+        let wc = 0, wj = -1;
+        if (x > 0 && grid[i - 1] === WATER) { wc++; wj = i - 1; }
+        if (x + 1 < cols && grid[i + 1] === WATER) { wc++; wj = i + 1; }
+        if (y > 0 && grid[i - cols] === WATER) { wc++; wj = i - cols; }
+        if (y + 1 < rows && grid[i + cols] === WATER) { wc++; wj = i + cols; }
+        if (wc >= 2 && wj >= 0) {
+          meta[wj] = meta[wj] + 4 > 8 ? 8 : meta[wj] + 4;
+          become(i, 0);
+          return;
+        }
+        if (nearId(x, y, ICE) >= 0 || wc > 0) wakeNear(x, y);
+        return;
+      }
+      case OIL: {
+        if (nearId(x, y, FIRE) >= 0 || nearId(x, y, LAVA) >= 0 || nearId(x, y, BOLT) >= 0) {
+          become(i, ASH);
+          puffSmoke(x, y);
+          stats.ash++;
+          snd |= SIZZLE | CRACK;
+          return;
+        }
+        if (y > 0 && grid[i - cols] === WATER) { swapCell(i, i - cols); return; }
+        if (tryFall(i, x, y, false)) return;
+        trySide(i, x);
+        return;
+      }
+      case ACID: {
+        const metal = nearId(x, y, METAL);
+        if (metal >= 0) {
+          life[metal] = life[metal] < 255 ? life[metal] + 1 : 255;
+          if (life[metal] >= 72) {
+            become(metal, 0);
+            stats.acidBite++;
+            snd |= HISS;
+          } else wakeNear(x, y);
+        }
+        tryFlow(i, x, y);
+        return;
+      }
+      case CLOUD: {
+        if (life[i] > 0) life[i]--;
+        if (life[i] <= 0) { become(i, STEAM, 0, 30); return; }
+        meta[i]++;
+        if (meta[i] >= 24) {
+          meta[i] = 0;
+          boltFrom(x, y);
+        }
+        if ((frame & 7) === 0) {
+          const dir = ((y + frame) & 1) ? 1 : -1;
+          const nx = x + dir;
+          if (nx >= 0 && nx < cols) {
+            const ni = i + dir;
+            if (grid[ni] === 0) moveCell(i, ni);
+            else if (grid[ni] === STEAM) swapCell(i, ni);
+          }
+        }
+        wakeNear(x, y);
+        return;
+      }
+      case BOLT: {
+        if (life[i] > 0) life[i]--;
+        if (life[i] <= 0) become(i, 0);
+        else wake(x, y);
+        return;
+      }
+      default:
+        return;
+    }
+  }
+
+  function simStep() {
+    frame++;
+    proc.set(active);
+    active.fill(0);
+    gen = (gen + 1) & 255;
+    if (gen === 0) { seen.fill(0); gen = 1; }
+    snd = 0;
+    for (let cy = chunkRows - 1; cy >= 0; cy--) {
+      const base = cy * chunkCols;
+      for (let cx = 0; cx < chunkCols; cx++) {
+        if (!proc[base + cx]) continue;
+        const x0 = cx << 4;
+        const y0 = cy << 4;
+        const x1 = x0 + 16 < cols ? x0 + 16 : cols;
+        const y1 = y0 + 16 < rows ? y0 + 16 : rows;
+        const rtl = (frame & 1) === 1;
+        for (let y = y1 - 1; y >= y0; y--) {
+          const row = y * cols;
+          if (rtl) {
+            for (let x = x1 - 1; x >= x0; x--) update(row + x, x, y);
+          } else {
+            for (let x = x0; x < x1; x++) update(row + x, x, y);
+          }
+        }
+      }
+    }
+    playQueued();
+    if (paletteDirty) {
+      paletteDirty = false;
+      buildPalette();
+      buildBook();
+      updateBadge();
+    }
+  }
+
+  function alloc(nc, nr) {
+    const oldG = grid, oldM = meta, oldL = life, oc = cols, orows = rows;
+    cols = nc;
+    rows = nr;
+    const n = nc * nr;
+    grid = new Uint8Array(n);
+    meta = new Uint8Array(n);
+    life = new Uint8Array(n);
+    seen = new Uint8Array(n);
+    if (oldG) {
+      const cw = oc < nc ? oc : nc;
+      const rh = orows < nr ? orows : nr;
+      const ox = (nc - cw) >> 1, oy = (nr - rh) >> 1;
+      const sx = (oc - cw) >> 1, sy = (orows - rh) >> 1;
+      for (let y = 0; y < rh; y++) {
+        for (let x = 0; x < cw; x++) {
+          const si = (sy + y) * oc + (sx + x);
+          const di = (oy + y) * nc + (ox + x);
+          grid[di] = oldG[si];
+          meta[di] = oldM[si];
+          life[di] = oldL[si];
+        }
+      }
+    }
+    chunkCols = (nc + 15) >> 4;
+    chunkRows = (nr + 15) >> 4;
+    active = new Uint8Array(chunkCols * chunkRows);
+    proc = new Uint8Array(chunkCols * chunkRows);
+    for (let y = 0; y < nr; y++) {
+      for (let x = 0; x < nc; x++) if (grid[y * nc + x]) wakeNear(x, y);
+    }
+    off.width = nc;
+    off.height = nr;
+    imgData = octx.createImageData(nc, nr);
+    pix = imgData.data;
+  }
+
+  function reserves() {
+    const w = viewW, h = viewH;
+    const short = h < 460;
+    return {
+      top: short ? 44 : 80,
+      dock: short ? 72 : 128,
+      side: w < 520 ? 10 : Math.min(72, (w * 0.05) | 0)
+    };
+  }
+  function layout(force) {
+    const rect = canvas.getBoundingClientRect();
+    viewW = rect.width || window.innerWidth;
+    viewH = rect.height || window.innerHeight;
+    dpr = Math.min(2, window.devicePixelRatio || 1);
+    canvas.width = Math.max(1, Math.round(viewW * dpr));
+    canvas.height = Math.max(1, Math.round(viewH * dpr));
+    const box = reserves();
+    const availW = viewW - box.side * 2;
+    const availH = viewH - box.top - box.dock;
+    let cell = viewW < 420 ? 4 : (viewW < 900 ? 5 : 6);
+    let nc = Math.floor(availW / cell);
+    let nr = Math.floor(availH / cell);
+    if (nc < 48) nc = 48;
+    if (nr < 36) nr = 36;
+    if (nc > 220) nc = 220;
+    if (nr > 200) nr = 200;
+    while (nc * nr > 28000 && (nc > 48 || nr > 36)) {
+      if (nc >= nr && nc > 48) nc--;
+      else if (nr > 36) nr--;
+      else break;
+    }
+    cell = Math.max(3, Math.min(Math.floor(availW / nc), Math.floor(availH / nr)));
+    const usedW = nc * cell;
+    const usedH = nr * cell;
+    fieldX = Math.floor(box.side + (availW - usedW) / 2);
+    fieldY = Math.floor(box.top + Math.max(0, availH - usedH) / 2);
+    cellSize = cell;
+    if (force || nc !== cols || nr !== rows) alloc(nc, nr);
+    drawBackdrop();
+  }
+
+  function roundRect(c, x, y, w, h, r) {
+    c.beginPath();
+    c.moveTo(x + r, y);
+    c.arcTo(x + w, y, x + w, y + h, r);
+    c.arcTo(x + w, y + h, x, y + h, r);
+    c.arcTo(x, y + h, x, y, r);
+    c.arcTo(x, y, x + w, y, r);
+    c.closePath();
+  }
+  function drawBackdrop() {
+    bg.width = Math.max(1, Math.round(viewW * dpr));
+    bg.height = Math.max(1, Math.round(viewH * dpr));
+    bctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const g = bctx.createLinearGradient(0, 0, 0, viewH);
+    g.addColorStop(0, '#4a3024');
+    g.addColorStop(0.35, '#2c1b13');
+    g.addColorStop(1, '#1a100c');
+    bctx.fillStyle = g;
+    bctx.fillRect(0, 0, viewW, viewH);
+    bctx.fillStyle = '#5a3b28';
+    bctx.fillRect(0, 0, viewW, 10);
+    bctx.fillStyle = '#3d291c';
+    for (let i = 0; i < 6; i++) bctx.fillRect(0, viewH - 28 - i * 14, viewW, 2);
+    if (viewW > 760) {
+      bctx.fillStyle = '#101820';
+      roundRect(bctx, viewW - 132, 14, 64, 48, 8);
+      bctx.fill();
+      bctx.fillStyle = '#f3e2b8';
+      bctx.beginPath();
+      bctx.arc(viewW - 100, 34, 7, 0, 6.3);
+      bctx.fill();
+      bctx.fillStyle = '#6b442c';
+      bctx.fillRect(18, 70, 8, viewH - 150);
+      bctx.fillRect(viewW - 26, 70, 8, viewH - 150);
+      const bottle = function (x, y, h, color) {
+        bctx.fillStyle = color;
+        roundRect(bctx, x, y, 16, h, 4);
+        bctx.fill();
+        bctx.fillStyle = 'rgba(255,255,255,.28)';
+        bctx.fillRect(x + 3, y + 6, 3, h * 0.45);
+        bctx.fillStyle = '#4a301c';
+        bctx.fillRect(x + 4, y - 5, 8, 6);
+      };
+      bottle(34, 120, 36, '#3a96d2');
+      bottle(34, 188, 28, '#b6e040');
+      bottle(34, 250, 42, '#c45a3a');
+      bctx.strokeStyle = '#6a8f48';
+      bctx.lineWidth = 2;
+      for (let i = 0; i < 4; i++) {
+        bctx.beginPath();
+        bctx.moveTo(40 + i * 3, 78);
+        bctx.quadraticCurveTo(48 + i * 4, 96, 36 + i * 2, 112);
+        bctx.stroke();
+      }
+    }
+    bctx.fillStyle = '#4a4038';
+    roundRect(bctx, fieldX - 12, fieldY - 12, cols * cellSize + 24, rows * cellSize + 24, 16);
+    bctx.fill();
+    bctx.fillStyle = '#2a241e';
+    roundRect(bctx, fieldX - 4, fieldY - 4, cols * cellSize + 8, rows * cellSize + 8, 8);
+    bctx.fill();
+  }
+
+  function candle(x, y, t) {
+    ctx.fillStyle = '#6d4a30';
+    ctx.fillRect(x - 2, y, 4, 12);
+    const wob = reduceMotion ? 0 : Math.sin(t * 0.006 + x) * 1.4;
+    ctx.fillStyle = 'rgba(255,140,40,0.33)';
+    ctx.beginPath();
+    ctx.arc(x, y - 3 + wob, 9, 0, 6.3);
+    ctx.fill();
+    ctx.fillStyle = '#ffe6b0';
+    ctx.beginPath();
+    ctx.arc(x, y - 4 + wob, 2.6, 0, 6.3);
+    ctx.fill();
+  }
+
+  function render(t) {
+    const data = pix;
+    const W = cols, H = rows;
+    const flick = (t / 80) | 0;
+    let p = 0;
+    for (let y = 0; y < H; y++) {
+      const row = y * W;
+      const edgeY = y < 2 || y > H - 3;
+      for (let x = 0; x < W; x++, p += 4) {
+        const id = grid[row + x];
+        let v = (x * 13 + y * 17) & 3;
+        if (id === FIRE || id === LAVA) v = (v + flick) & 3;
+        let pr = PAL[id][v][0], pg = PAL[id][v][1], pb = PAL[id][v][2];
+        if ((id === SMOKE || id === STEAM) && life[row + x] < 40) {
+          const a = life[row + x] / 40;
+          const hr = PAL[0][v][0], hg = PAL[0][v][1], hb = PAL[0][v][2];
+          pr = (pr * a + hr * (1 - a)) | 0;
+          pg = (pg * a + hg * (1 - a)) | 0;
+          pb = (pb * a + hb * (1 - a)) | 0;
+        }
+        if (id === 0 && (edgeY || x < 2 || x > W - 3)) {
+          pr = (pr * 0.82) | 0; pg = (pg * 0.82) | 0; pb = (pb * 0.82) | 0;
+        }
+        data[p] = pr; data[p + 1] = pg; data[p + 2] = pb; data[p + 3] = 255;
+      }
+    }
+    octx.putImageData(imgData, 0, 0);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(bg, 0, 0, viewW, viewH);
+    ctx.drawImage(off, fieldX, fieldY, cols * cellSize, rows * cellSize);
+    ctx.strokeStyle = '#a86b3c';
+    ctx.lineWidth = 7;
+    roundRect(ctx, fieldX - 6, fieldY - 6, cols * cellSize + 12, rows * cellSize + 12, 10);
+    ctx.stroke();
+    ctx.strokeStyle = '#e6c192';
+    ctx.lineWidth = 2;
+    roundRect(ctx, fieldX - 3, fieldY - 3, cols * cellSize + 6, rows * cellSize + 6, 8);
+    ctx.stroke();
+    ctx.fillStyle = '#e6c192';
+    const screws = [[fieldX - 2, fieldY - 2], [fieldX + cols * cellSize - 2, fieldY - 2], [fieldX - 2, fieldY + rows * cellSize - 2], [fieldX + cols * cellSize - 2, fieldY + rows * cellSize - 2]];
+    for (let s = 0; s < 4; s++) {
+      ctx.beginPath();
+      ctx.arc(screws[s][0], screws[s][1], 2.2, 0, 6.3);
+      ctx.fill();
+    }
+    candle(viewW - 28, 18, t);
+    if (viewW > 520) candle(viewW - 62, 30, t);
+    if (hover && hover.inside) {
+      ctx.strokeStyle = 'rgba(243,215,161,.85)';
+      ctx.lineWidth = 1;
+      const r = RAD[sizeIndex];
+      for (let dy = -r; dy <= r; dy++) {
+        for (let dx = -r; dx <= r; dx++) {
+          if (dx * dx + dy * dy > r * r) continue;
+          const x = hover.cx + dx, y = hover.cy + dy;
+          if (x < 0 || y < 0 || x >= cols || y >= rows) continue;
+          ctx.strokeRect(fieldX + x * cellSize + 0.5, fieldY + y * cellSize + 0.5, cellSize - 1, cellSize - 1);
+        }
+      }
+    }
+  }
+
+  function ensureAudio() {
+    try {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) return;
+      if (!actx) {
+        actx = new AC();
+        master = actx.createGain();
+        master.gain.value = 0.22;
+        master.connect(actx.destination);
+        const len = actx.sampleRate;
+        noiseBuf = actx.createBuffer(1, len, actx.sampleRate);
+        const d = noiseBuf.getChannelData(0);
+        let s = 1;
+        for (let i = 0; i < len; i++) {
+          s = (s * 16807) % 2147483647;
+          d[i] = s / 2147483647 * 2 - 1;
+        }
+      }
+      if (actx.state === 'suspended') actx.resume();
+    } catch (e) { actx = null; }
+  }
+  function tone(type, f0, f1, dur, gain) {
+    const t = actx.currentTime;
+    const o = actx.createOscillator();
+    const g = actx.createGain();
+    o.type = type;
+    o.frequency.setValueAtTime(Math.max(40, f0), t);
+    o.frequency.exponentialRampToValueAtTime(Math.max(40, f1), t + dur);
+    g.gain.setValueAtTime(gain, t);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g); g.connect(master);
+    o.start(t); o.stop(t + dur + 0.02);
+  }
+  function noise(freq, q, dur, gain) {
+    if (!noiseBuf) return;
+    const t = actx.currentTime;
+    const src = actx.createBufferSource();
+    src.buffer = noiseBuf;
+    const f = actx.createBiquadFilter();
+    f.type = 'bandpass';
+    f.frequency.value = freq;
+    f.Q.value = q;
+    const g = actx.createGain();
+    g.gain.setValueAtTime(gain, t);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    src.connect(f); f.connect(g); g.connect(master);
+    src.start(t, 0, dur);
+    src.stop(t + dur + 0.02);
+  }
+  function blip(kind) {
+    const t = actx.currentTime;
+    if (t < NEXT[kind]) return;
+    NEXT[kind] = t + 0.09;
+    if (kind === 'drip') tone('sine', 680, 240, 0.09, 0.05);
+    else if (kind === 'tick') tone('square', 180, 90, 0.03, 0.01);
+    else if (kind === 'tink') { tone('triangle', 880, 760, 0.08, 0.03); tone('sine', 1320, 1320, 0.1, 0.018); }
+    else if (kind === 'lava') tone('sine', 90, 60, 0.2, 0.04);
+    else if (kind === 'zap') { noise(1800, 0.5, 0.12, 0.05); tone('square', 220, 50, 0.12, 0.028); }
+    else if (kind === 'hiss') noise(2400, 0.8, 0.16, 0.03);
+    else if (kind === 'sizzle') noise(4800, 0.7, 0.1, 0.025);
+    else if (kind === 'crack') noise(900, 1.1, 0.05, 0.04);
+  }
+  function playQueued() {
+    if (!soundOn || !actx || !snd) { snd = 0; return; }
+    const bits = snd;
+    snd = 0;
+    if (bits & CRACK) blip('crack');
+    if (bits & SIZZLE) blip('sizzle');
+    if (bits & HISS) blip('hiss');
+    if (bits & TINK) blip('tink');
+    if (bits & ZAP) blip('zap');
+    if (bits & LAVA_BIT) blip('lava');
+    if (bits & DRIP) blip('drip');
+    if (bits & TICK) blip('tick');
+  }
+  function paintSoundButton() {
+    bSound.classList.toggle('on', soundOn);
+    bSound.setAttribute('aria-pressed', soundOn ? 'true' : 'false');
+    bSound.querySelector('.ic').textContent = soundOn ? '🔊' : '🔇';
+    bSound.setAttribute('aria-label', soundOn ? 'Ton ist an. Tippen zum Stummschalten' : 'Ton ist aus. Tippen zum Einschalten');
+  }
+  function unlockFromGesture() {
+    if (audioOn) return;
+    audioOn = true;
+    soundOn = true;
+    ensureAudio();
+    paintSoundButton();
+  }
+
+  function updateStatus() {
+    const g = RAD_LABEL[sizeIndex];
+    const name = erasing ? 'Radierer' : NAME[brush];
+    statusEl.textContent = 'Pinsel: ' + name + ' · Grösse ' + g;
+    bSize.querySelector('.ic').textContent = String(g);
+    bSize.setAttribute('aria-label', 'Pinselgrösse ' + g);
+  }
+  function updateBadge() {
+    const n = knownCount();
+    badgeEl.textContent = n + '/19';
+    bookCount.textContent = n + ' von 19';
+  }
+  function buildPalette() {
+    elemsEl.textContent = '';
+    for (let p = 0; p < PAINTABLE.length; p++) {
+      const id = PAINTABLE[p];
+      if (!found[id]) continue;
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'el' + (fresh[id] ? ' fresh' : '') + (!erasing && brush === id ? ' on' : '');
+      btn.setAttribute('role', 'option');
+      btn.setAttribute('aria-selected', !erasing && brush === id ? 'true' : 'false');
+      btn.setAttribute('aria-label', NAME[id]);
+      btn.title = NAME[id];
+      const sw = document.createElement('i');
+      sw.className = 'sw';
+      sw.style.background = HEX[id];
+      const nm = document.createElement('span');
+      nm.className = 'nm';
+      nm.textContent = NAME[id];
+      btn.appendChild(sw);
+      btn.appendChild(nm);
+      btn.addEventListener('click', function () {
+        brush = id;
+        erasing = false;
+        syncTools();
+      });
+      elemsEl.appendChild(btn);
+    }
+  }
+  function buildBook() {
+    bookList.textContent = '';
+    const order = PAINTABLE.concat([BOLT]);
+    for (let p = 0; p < order.length; p++) {
+      const id = order[p];
+      const known = found[id] === 1;
+      const row = document.createElement('div');
+      row.className = 'brow' + (known ? '' : ' unknown') + (fresh[id] ? ' fresh' : '');
+      const sw = document.createElement('i');
+      sw.className = 'sw';
+      sw.style.background = known ? HEX[id] : '#3a3028';
+      const text = document.createElement('div');
+      const b = document.createElement('b');
+      b.textContent = known ? NAME[id] : 'Unbekannt';
+      const para = document.createElement('p');
+      para.textContent = known ? KNOWN[id] : (HINT[id] || '');
+      text.appendChild(b);
+      text.appendChild(para);
+      row.appendChild(sw);
+      row.appendChild(text);
+      bookList.appendChild(row);
+    }
+  }
+  function syncTools() {
+    bErase.classList.toggle('on', erasing);
+    bErase.setAttribute('aria-pressed', erasing ? 'true' : 'false');
+    bPause.classList.toggle('on', paused);
+    bPause.setAttribute('aria-pressed', paused ? 'true' : 'false');
+    bPause.querySelector('.ic').textContent = paused ? '▶' : '❚❚';
+    bPause.querySelector('.nm').textContent = paused ? 'Weiter' : 'Pause';
+    bPause.setAttribute('aria-label', paused ? 'Weiter' : 'Pause');
+    buildPalette();
+    updateStatus();
+    updateBadge();
+  }
+  function setPaused(v) {
+    paused = v;
+    syncTools();
+  }
+  function openBook() {
+    if (!bookEl.hidden) return;
+    pausedBeforeBook = paused;
+    bookWasOpen = true;
+    setPaused(true);
+    bookEl.hidden = false;
+    scrimEl.hidden = false;
+    document.getElementById('bookClose').focus();
+  }
+  function closeBook() {
+    bookEl.hidden = true;
+    scrimEl.hidden = true;
+    if (bookWasOpen) {
+      bookWasOpen = false;
+      setPaused(pausedBeforeBook);
+    }
+  }
+  function cycleSize(dir) {
+    sizeIndex = (sizeIndex + dir + RAD.length) % RAD.length;
+    updateStatus();
+  }
+  function requestClear() {
+    const now = performance.now();
+    if (now - clearArm < 1600) {
+      grid.fill(0); meta.fill(0); life.fill(0); seen.fill(0); active.fill(0);
+      clearArm = 0;
+      queueToast('Die Platte ist leer.');
+    } else {
+      clearArm = now;
+      queueToast('Nochmals tippen: alles leeren');
+    }
+  }
+  function hideHint() {
+    if (hintEl.classList.contains('gone')) return;
+    hintEl.classList.add('gone');
+    saveStore();
+  }
+  function cellFromEvent(e) {
+    const r = canvas.getBoundingClientRect();
+    const x = e.clientX - r.left;
+    const y = e.clientY - r.top;
+    const cx = Math.floor((x - fieldX) / cellSize);
+    const cy = Math.floor((y - fieldY) / cellSize);
+    return { cx: cx, cy: cy, inside: cx >= 0 && cy >= 0 && cx < cols && cy < rows };
+  }
+  function stamp(cx, cy) {
+    const r = RAD[sizeIndex];
+    const id = erasing ? 0 : brush;
+    const r2 = r * r;
+    for (let dy = -r; dy <= r; dy++) {
+      for (let dx = -r; dx <= r; dx++) {
+        if (dx * dx + dy * dy > r2) continue;
+        const x = cx + dx, y = cy + dy;
+        if (x < 0 || y < 0 || x >= cols || y >= rows) continue;
+        const i = y * cols + x;
+        if (grid[i] === id) continue;
+        become(i, id, INIT_M[id], INIT_L[id]);
+      }
+    }
+  }
+  function paintLine(x0, y0, x1, y1) {
+    const dx = Math.abs(x1 - x0), dy = Math.abs(y1 - y0);
+    const sx = x0 < x1 ? 1 : -1, sy = y0 < y1 ? 1 : -1;
+    let err = dx - dy;
+    for (;;) {
+      stamp(x0, y0);
+      if (x0 === x1 && y0 === y1) break;
+      const e2 = 2 * err;
+      if (e2 > -dy) { err -= dy; x0 += sx; }
+      if (e2 < dx) { err += dx; y0 += sy; }
+    }
+  }
+  function strokeNoise() {
+    if (erasing) return;
+    if (brush === WATER || brush === ACID) snd |= DRIP;
+    else if (brush === FIRE || brush === LAVA) snd |= SIZZLE;
+    else snd |= TICK;
+    playQueued();
+  }
+
+  canvas.addEventListener('pointerdown', function (e) {
+    if (pointerId !== null) return;
+    unlockFromGesture();
+    pointerId = e.pointerId;
+    try { canvas.setPointerCapture(e.pointerId); } catch (err) { /* ignore */ }
+    const c = cellFromEvent(e);
+    hover = c;
+    lastCell = c;
+    if (c.inside) {
+      hideHint();
+      paintLine(c.cx, c.cy, c.cx, c.cy);
+      strokeNoise();
+    }
+  });
+  canvas.addEventListener('pointermove', function (e) {
+    const c = cellFromEvent(e);
+    if (e.pointerId !== pointerId) {
+      if (e.pointerType === 'mouse') hover = c;
+      return;
+    }
+    hover = c;
+    if (lastCell && lastCell.inside && c.inside) paintLine(lastCell.cx, lastCell.cy, c.cx, c.cy);
+    else if (c.inside) stamp(c.cx, c.cy);
+    lastCell = c;
+  });
+  function endPointer(e) {
+    if (e.pointerId !== pointerId) return;
+    pointerId = null;
+    lastCell = null;
+  }
+  canvas.addEventListener('pointerup', endPointer);
+  canvas.addEventListener('pointercancel', endPointer);
+  canvas.addEventListener('contextmenu', function (e) { e.preventDefault(); });
+
+  document.addEventListener('pointerdown', function (e) {
+    if (e.target.closest && e.target.closest('#bSound')) return;
+    unlockFromGesture();
+  }, { passive: true });
+
+  bSound.addEventListener('pointerdown', function (e) {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!audioOn) {
+      audioOn = true;
+      soundOn = true;
+      ensureAudio();
+    } else {
+      soundOn = !soundOn;
+      if (soundOn) ensureAudio();
+    }
+    paintSoundButton();
+  });
+  bErase.addEventListener('click', function () { erasing = !erasing; syncTools(); });
+  bPause.addEventListener('click', function () { setPaused(!paused); });
+  bClear.addEventListener('click', requestClear);
+  bSize.addEventListener('click', function () { cycleSize(1); });
+  bBook.addEventListener('click', function () { if (bookEl.hidden) openBook(); else closeBook(); });
+  document.getElementById('bookClose').addEventListener('click', closeBook);
+  scrimEl.addEventListener('click', closeBook);
+
+  document.addEventListener('keydown', function (e) {
+    if (e.target && e.target.tagName === 'BUTTON' && e.key === ' ') return;
+    const k = e.key.toLowerCase();
+    if (k === 'escape') { closeBook(); return; }
+    if (!bookEl.hidden) return;
+    if (k === 'm') {
+      e.preventDefault();
+      if (!audioOn) { audioOn = true; soundOn = true; ensureAudio(); }
+      else soundOn = !soundOn;
+      paintSoundButton();
+    } else if (k === 'e') { erasing = !erasing; syncTools(); }
+    else if (e.key === ' ') { e.preventDefault(); setPaused(!paused); }
+    else if (k === 'b') { openBook(); }
+    else if (k === '[' || k === '-') cycleSize(-1);
+    else if (k === ']' || k === '=' || k === '+') cycleSize(1);
+    else if (k === 'backspace') { e.preventDefault(); requestClear(); }
+    else if (e.key >= '1' && e.key <= '9') {
+      const idx = e.key.charCodeAt(0) - 49;
+      const buttons = elemsEl.querySelectorAll('button');
+      if (buttons[idx]) buttons[idx].click();
+    }
+  });
+
+  function loop(now) {
+    const dt = lastNow ? now - lastNow : 16.7;
+    lastNow = now;
+    frameSamples.push(dt);
+    if (frameSamples.length > 300) frameSamples.shift();
+    if (!paused) {
+      acc += dt;
+      let n = 0;
+      while (acc >= 16.666 && n < 2) {
+        const t0 = performance.now();
+        simStep();
+        simMs += performance.now() - t0;
+        simSteps++;
+        acc -= 16.666;
+        n++;
+      }
+      if (acc > 40) acc = 0;
+    }
+    render(now);
+    requestAnimationFrame(loop);
+  }
+
+  function countId(id) {
+    let n = 0;
+    const g = grid;
+    for (let i = 0; i < g.length; i++) if (g[i] === id) n++;
+    return n;
+  }
+  function activeChunks() {
+    let n = 0;
+    for (let i = 0; i < active.length; i++) if (active[i]) n++;
+    return n;
+  }
+
+  layout(true);
+  buildPalette();
+  buildBook();
+  syncTools();
+  paintSoundButton();
+  window.addEventListener('resize', function () { layout(false); });
+
+  window.__alchemy = {
+    ready: true,
+    get cols() { return cols; },
+    get rows() { return rows; },
+    ids: { empty: 0, sand: 1, water: 2, stone: 3, wood: 4, fire: 5, seed: 6, smoke: 7, ash: 8, steam: 9, plant: 10, lava: 11, glass: 12, ice: 13, salt: 14, oil: 15, metal: 16, acid: 17, cloud: 18, bolt: 19 },
+    place: function (x, y, key) {
+      const id = ID_BY_KEY[key];
+      if (id == null || x < 0 || y < 0 || x >= cols || y >= rows) return false;
+      suppress++;
+      become(y * cols + x, id, INIT_M[id], INIT_L[id]);
+      suppress--;
+      return true;
+    },
+    get: function (x, y) {
+      if (x < 0 || y < 0 || x >= cols || y >= rows) return null;
+      const i = y * cols + x;
+      return { id: KEY[grid[i]], meta: meta[i], life: life[i] };
+    },
+    count: function (key) { return countId(ID_BY_KEY[key]); },
+    step: function (n) {
+      n = n | 0;
+      for (let i = 0; i < n; i++) {
+        const t0 = performance.now();
+        simStep();
+        simMs += performance.now() - t0;
+        simSteps++;
+      }
+    },
+    unlocks: function () {
+      const a = [];
+      for (let id = 1; id < 20; id++) if (found[id]) a.push(KEY[id]);
+      return a;
+    },
+    stats: function () {
+      return {
+        ash: stats.ash, smoke: stats.smoke, steam: stats.steam, stoneFromLava: stats.stoneFromLava,
+        plant: stats.plant, glass: stats.glass, melt: stats.melt, acidBite: stats.acidBite,
+        bolts: stats.bolts, oil: stats.oil, salt: stats.salt, acid: stats.acid, ice: stats.ice,
+        cloud: stats.cloud, lava: stats.lava, metal: stats.metal
+      };
+    },
+    toastLog: function () { return toastLog.slice(); },
+    clearGrid: function () {
+      grid.fill(0); meta.fill(0); life.fill(0); seen.fill(0); active.fill(0);
+    },
+    setPaused: function (v) { setPaused(!!v); },
+    isPaused: function () { return paused; },
+    setBrush: function (key) {
+      if (key === 'erase') { erasing = true; syncTools(); return; }
+      const id = ID_BY_KEY[key];
+      if (!id || !found[id] || id === BOLT) return;
+      brush = id;
+      erasing = false;
+      syncTools();
+    },
+    setSize: function (label) {
+      const idx = RAD_LABEL.indexOf(label);
+      if (idx >= 0) { sizeIndex = idx; updateStatus(); }
+    },
+    activeChunks: activeChunks,
+    field: function () {
+      return { x: fieldX, y: fieldY, w: cols * cellSize, h: rows * cellSize, cell: cellSize, cols: cols, rows: rows };
+    },
+    resetFrames: function () { frameSamples.length = 0; simMs = 0; simSteps = 0; },
+    frameStats: function () {
+      const a = frameSamples.slice(5);
+      const s = a.slice().sort(function (x, y) { return x - y; });
+      const med = s.length ? s[s.length >> 1] : 0;
+      const p95 = s.length ? s[Math.min(s.length - 1, Math.floor(s.length * 0.95))] : 0;
+      let sum = 0;
+      for (let i = 0; i < a.length; i++) sum += a[i];
+      return {
+        n: a.length, med: med, p95: p95, avg: a.length ? sum / a.length : 0,
+        simAvg: simSteps ? simMs / simSteps : 0, simSteps: simSteps,
+        chunks: activeChunks(), cells: cols * rows, cols: cols, rows: rows
+      };
+    }
+  };
+
+  requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>
