@@ -1,0 +1,1265 @@
+<!doctype html>
+<html lang="de-CH">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Spieldosen-Werkstatt</title>
+<link rel="icon" href="../favicon.svg" type="image/svg+xml">
+<meta name="description" content="Spieldosen-Werkstatt: Stifte in eine Messingwalze setzen, Kurbel drehen oder die Feder aufziehen.">
+<meta name="theme-color" content="#c49a6a">
+<style>
+html,body{margin:0;height:100%;background:#c49a6a;color:#3b2415;font-family:"Iowan Old Style",Palatino,"Palatino Linotype",Georgia,"Times New Roman",serif;-webkit-user-select:none;user-select:none;overflow:hidden;overscroll-behavior:none}
+#app{height:100dvh;min-height:100%;display:flex;flex-direction:column}
+#main{flex:1 1 34%;min-height:190px;display:flex;flex-direction:column;min-width:0}
+header{padding:max(8px,env(safe-area-inset-top)) 12px 4px;display:flex;flex-direction:column;gap:2px}
+h1{margin:0;font-size:clamp(18px,2.4vw,28px);font-weight:700;letter-spacing:.01em;line-height:1.1}
+#help,#hint{margin:0;font-family:system-ui,-apple-system,"Segoe UI",sans-serif;font-size:13px;line-height:1.3;opacity:.9}
+#hint{min-height:1.3em;font-weight:600}
+#stage{flex:1;min-height:150px;position:relative}
+canvas{display:block;width:100%;height:100%;touch-action:none;cursor:grab}
+canvas.hold{cursor:grabbing}
+#side{flex:1 1 66%;min-height:0;display:flex;flex-direction:column;background:linear-gradient(#e7c8a2,#d7b088);border-top:1px solid rgba(80,40,16,.25)}
+#rollHead{display:flex;justify-content:space-between;align-items:baseline;gap:8px;padding:6px 10px 2px;font-family:system-ui,sans-serif;font-size:13px}
+#wind{font-variant-numeric:tabular-nums;opacity:.8}
+#rollWrap{flex:1;min-height:0;overflow:auto;padding:2px 8px 6px;-webkit-overflow-scrolling:touch}
+#roll{--cell:22px;--row:20px;--lab:42px;width:max-content}
+#roll .ruler,#roll .row{display:grid;grid-template-columns:var(--lab) repeat(32,var(--cell));gap:3px;margin-bottom:3px;align-items:center}
+#roll .nl{font:600 10px/1.1 system-ui,sans-serif;text-align:right;padding-right:4px;opacity:.8}
+#roll .ruler i{font:600 9px/1 system-ui,sans-serif;font-style:normal;text-align:center;opacity:.55}
+#roll .ruler i.now{opacity:1;color:#6b3a22}
+button{touch-action:manipulation}
+#roll button{width:var(--cell);height:var(--row);padding:0;border-radius:4px;border:1px solid #6b4528;background:radial-gradient(circle at 50% 40%,#a87848,#6a4326 70%);cursor:pointer}
+#roll button.on{background:radial-gradient(circle at 35% 30%,#fff4c8,#e0b03a 45%,#8d6416);border-color:#5c4010;box-shadow:0 1px 0 rgba(255,255,255,.4) inset}
+#roll button.now{outline:1px solid rgba(90,40,10,.55);outline-offset:-1px}
+#roll button.beat{margin-left:0}
+#roll button:focus-visible,#bar button:focus-visible{outline:2px solid #8a3d12;outline-offset:2px}
+#bar{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;padding:6px 8px max(8px,env(safe-area-inset-bottom));box-sizing:border-box}
+#bar button{font:600 14px/1.1 system-ui,-apple-system,"Segoe UI",sans-serif;color:#3b2415;background:#f6e6cc;border:1px solid #8a5a32;border-radius:999px;padding:8px 10px;min-height:40px;cursor:pointer}
+#bar button.on,#bar button.sel{background:#6b3a22;color:#f8ecd8;border-color:#4a2614}
+#bar button.full{box-shadow:inset 0 -3px 0 #e0b03a}
+@media (pointer:coarse){#roll{--cell:24px;--row:22px}}
+@media (min-width:1100px){#roll{--cell:24px;--row:22px;--lab:48px}#help{font-size:14px}}
+@media (max-width:420px){#bar button{padding:8px 8px;font-size:13px}#help{display:none}}
+@media (orientation:landscape) and (max-height:560px){
+  #app{flex-direction:row}
+  #main{flex:1 1 56%;min-height:0}
+  #side{flex:1 1 44%;width:min(460px,48vw);border-top:0;border-left:1px solid rgba(80,40,16,.25)}
+  header{padding-top:6px}
+  h1{font-size:18px}
+  #help{display:none}
+  #stage{min-height:0}
+}
+@media (prefers-reduced-motion:reduce){*{scroll-behavior:auto}}
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="main">
+    <header>
+      <h1>Spieldosen-Werkstatt</h1>
+      <p id="help">Tippe Stifte ins Raster. Drehe die Kurbel oder ziehe die Feder auf.</p>
+      <p id="hint" role="status" aria-live="polite"></p>
+    </header>
+    <div id="stage"><canvas id="c" aria-label="Werkbank von oben: offene Spieldose mit Walze, Kamm, Tänzerin, Kurbel und Feder"></canvas></div>
+  </div>
+  <div id="side">
+    <div id="rollHead"><span>Stifte auf der Walze</span><span id="wind">Feder 0%</span></div>
+    <div id="rollWrap"><div id="roll" role="grid" aria-label="Stifte der Walze, hohe Töne oben"></div></div>
+    <div id="bar" role="toolbar" aria-label="Werkstatt">
+      <button type="button" id="bEnt" title="Alle meine Entchen">Entchen</button>
+      <button type="button" id="bWeih" title="Morgen kommt der Weihnachtsmann">Weihnacht</button>
+      <button type="button" id="bWalz" title="Kleiner Walzer">Walzer</button>
+      <button type="button" id="bClear">Leeren</button>
+      <button type="button" id="bScale" aria-label="Tonleiter: Dur">Dur</button>
+      <button type="button" id="bP0" aria-pressed="true">Platz 1</button>
+      <button type="button" id="bP1" aria-pressed="false">Platz 2</button>
+      <button type="button" id="bP2" aria-pressed="false">Platz 3</button>
+      <button type="button" id="bSave" title="In den gewählten Platz merken">Merken</button>
+      <button type="button" id="bLoad" title="Gewählten Platz laden">Laden</button>
+      <button type="button" id="bShare">Teilen</button>
+      <button type="button" id="bSound" aria-pressed="false" aria-label="Ton ist aus">Ton aus</button>
+    </div>
+  </div>
+</div>
+<script>
+'use strict';
+(function () {
+  const STEPS = 32, TEETH = 15, MAX_WIND = 6, WIND_PER_REV = 1.15, TAU = Math.PI * 2;
+  const STORE = 'spieldose-werkstatt-v1';
+  const SCALES = [
+    { name: 'Dur', iv: [0, 2, 4, 5, 7, 9, 11] },
+    { name: 'Pentatonik', iv: [0, 2, 4, 7, 9] },
+    { name: 'Moll', iv: [0, 2, 3, 5, 7, 8, 10] },
+    { name: 'Mixolydisch', iv: [0, 2, 4, 5, 7, 9, 10] }
+  ];
+  const NOTE_DE = ['C', 'Cis', 'D', 'Dis', 'E', 'F', 'Fis', 'G', 'Gis', 'A', 'Ais', 'H'];
+  const DETUNE = [-6, 4, -3, 7, -2, 5, -8, 3, 1, -4, 6, -5, 2, -1, 8];
+  const DEG = { C: 0, D: 1, E: 2, F: 3, G: 4, A: 5, H: 6, c: 7, d: 8, e: 9, f: 10, g: 11, a: 12, h: 13, x: 14 };
+
+  const $ = id => document.getElementById(id);
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+  const mod = (n, m) => ((n % m) + m) % m;
+  function midiHz(m) { return 440 * Math.pow(2, (m - 69) / 12); }
+  function noteLabel(m) { return NOTE_DE[m % 12] + (Math.floor(m / 12) - 1); }
+
+  function parseTune(text) {
+    const toks = text.trim().split(/\s+/);
+    if (toks.length !== STEPS) throw new Error('tune length ' + toks.length);
+    return toks.map(tok => {
+      if (tok === '.') return [];
+      return tok.split('+').map(n => {
+        if (!Object.prototype.hasOwnProperty.call(DEG, n)) throw new Error('bad note ' + n);
+        return DEG[n];
+      });
+    });
+  }
+
+  // 32 steps around the cylinder. Rests are ".". Chords join with "+".
+  // Letters: C D E F G A H in the lower octave, c d e f g a h one octave up, x = top C.
+  const DEMOS = [
+    { name: 'Alle meine Entchen', rows: parseTune('C D E F G G A A A A G . A A A A G . . . F F F F E E E E D D D C') },
+    { name: 'Morgen kommt der Weihnachtsmann', rows: parseTune('C C G G A A G . F F E E D D C . G G F F E E D . G G F F E E D .') },
+    { name: 'Kleiner Walzer', rows: parseTune('C+G E G+c C+A G E+A C+F G A+c G+c E C+G C+E G c D+G c H+G C+A G F+A C+E D C+G G+c+g e G+c C+G+c . . . .') }
+  ];
+
+  const pins = new Uint16Array(STEPS);
+  const toothMidiN = new Float64Array(TEETH);
+  const toothHz = new Float64Array(TEETH);
+  const toothAmp = new Float64Array(TEETH);
+  const toothPh = new Float64Array(TEETH);
+  const combTips = Array.from({ length: TEETH }, () => ({ x: 0, y: 0 }));
+  const sparks = Array.from({ length: 36 }, () => ({ x: 0, y: 0, vx: 0, vy: 0, life: 0, max: 1 }));
+  const PIN_POOL = Array.from({ length: STEPS * TEETH }, () => ({ x: 0, y: 0, r: 0, a: 0, z: 0 }));
+  const events = [];
+  let sparkI = 0, scaleIx = 0, pos = -0.001, crankAngle = 0, keyAngle = 0, wind = 0, springOn = false;
+  let holdingCrank = false, holdingKey = false, saidEnd = false, soundOn = false, userMuted = false, announced = false;
+  let sel = 0, slots = [null, null, null], windShown = 0, head = 0, headReady = false;
+  let ac = null, master = null, dry = null, send = null, noiseBuf = null, voices = 0, saveTimer = 0;
+  let lastLayout = null, wood = null, woodW = 0, woodH = 0, reduceMotion = false;
+
+  const canvas = $('c'), ctx = canvas.getContext('2d', { alpha: false });
+  const roll = $('roll'), rollWrap = $('rollWrap'), hint = $('hint'), elWind = $('wind');
+  const bScale = $('bScale'), bSound = $('bSound');
+  const slotBtns = [$('bP0'), $('bP1'), $('bP2')];
+  const btns = Array.from({ length: TEETH }, () => new Array(STEPS));
+  const colEls = Array.from({ length: STEPS }, () => []);
+  const labels = new Array(TEETH);
+  const rulerCells = [];
+
+  try { reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) { reduceMotion = false; }
+
+  function say(msg) { hint.textContent = msg; }
+
+  function toothMidiOf(i) {
+    const iv = SCALES[scaleIx].iv, n = iv.length;
+    return 72 + iv[i % n] + 12 * Math.floor(i / n);
+  }
+  function rebuildFreqs() {
+    for (let i = 0; i < TEETH; i++) {
+      toothMidiN[i] = toothMidiOf(i);
+      toothHz[i] = midiHz(toothMidiN[i]) * Math.pow(2, DETUNE[i] / 1200);
+    }
+  }
+
+  function encodeHash() {
+    let s = '';
+    for (let i = 0; i < STEPS; i++) s += String.fromCharCode(pins[i] & 255, (pins[i] >> 8) & 127);
+    const b64 = btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
+    return '#w' + scaleIx + '.' + b64;
+  }
+  function applyHash(h) {
+    const m = /^#?w([0-3])\.([A-Za-z0-9_-]+)$/.exec(h || '');
+    if (!m) return false;
+    let b64 = m[2].replace(/-/g, '+').replace(/_/g, '/');
+    while (b64.length % 4) b64 += '=';
+    let bin;
+    try { bin = atob(b64); } catch (e) { return false; }
+    if (bin.length < STEPS * 2) return false;
+    scaleIx = +m[1];
+    rebuildFreqs();
+    for (let i = 0; i < STEPS; i++) pins[i] = (bin.charCodeAt(i * 2) | (bin.charCodeAt(i * 2 + 1) << 8)) & 0x7fff;
+    refreshScaleUi();
+    syncGrid();
+    return true;
+  }
+
+  function refreshScaleUi() {
+    bScale.textContent = SCALES[scaleIx].name;
+    bScale.setAttribute('aria-label', 'Tonleiter: ' + SCALES[scaleIx].name);
+    for (let t = 0; t < TEETH; t++) {
+      const name = noteLabel(toothMidiN[t]);
+      if (labels[t]) labels[t].textContent = name;
+      for (let s = 0; s < STEPS; s++) {
+        const b = btns[t][s];
+        if (b) b.setAttribute('aria-label', 'Schritt ' + (s + 1) + ', ' + name);
+      }
+    }
+  }
+  function setScale(i, quiet) {
+    scaleIx = ((i % 4) + 4) % 4;
+    rebuildFreqs();
+    refreshScaleUi();
+    if (!quiet) {
+      say('Tonleiter: ' + SCALES[scaleIx].name + '. Dieselben Stifte, neue Stimmung.');
+      persistCur();
+    }
+  }
+
+  function paintCell(s, t) {
+    const on = (pins[s] & (1 << t)) !== 0;
+    const b = btns[t][s];
+    b.classList.toggle('on', on);
+    b.setAttribute('aria-pressed', on ? 'true' : 'false');
+  }
+  function syncGrid() {
+    for (let t = 0; t < TEETH; t++) for (let s = 0; s < STEPS; s++) paintCell(s, t);
+  }
+  function setPin(s, t, on) {
+    if (s < 0 || s >= STEPS || t < 0 || t >= TEETH) return;
+    if (on) pins[s] |= 1 << t; else pins[s] &= ~(1 << t);
+    paintCell(s, t);
+    persistCur();
+  }
+  function togglePin(s, t) { setPin(s, t, (pins[s] & (1 << t)) === 0); }
+  function applyPattern(rows) {
+    pins.fill(0);
+    for (let s = 0; s < STEPS; s++) {
+      const teeth = rows[s] || [];
+      for (let i = 0; i < teeth.length; i++) {
+        const t = teeth[i];
+        if (t >= 0 && t < TEETH) pins[s] |= 1 << t;
+      }
+    }
+    syncGrid();
+  }
+  function clearPins() {
+    pins.fill(0);
+    syncGrid();
+    persistCur();
+    say('Walze geleert.');
+  }
+  function loadDemo(i) {
+    const d = DEMOS[i];
+    if (!d) return;
+    setScale(0, true);
+    applyPattern(d.rows);
+    seek(-0.001);
+    persistCur();
+    revealPins();
+    say(d.name + ' geladen.');
+  }
+
+  function readStore() {
+    try { return JSON.parse(localStorage.getItem(STORE) || 'null'); } catch (e) { return null; }
+  }
+  function writeStore() {
+    try {
+      localStorage.setItem(STORE, JSON.stringify({ v: 1, sel: sel, slots: slots, cur: encodeHash() }));
+    } catch (e) {}
+  }
+  function persistCur() {
+    const h = encodeHash();
+    try { history.replaceState(null, '', h); } catch (e) {}
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(writeStore, 160);
+  }
+  function refreshSlots() {
+    for (let i = 0; i < 3; i++) {
+      slotBtns[i].classList.toggle('sel', i === sel);
+      slotBtns[i].classList.toggle('full', !!slots[i]);
+      slotBtns[i].setAttribute('aria-pressed', i === sel ? 'true' : 'false');
+    }
+  }
+  function saveSlot(i) {
+    sel = clamp(i | 0, 0, 2);
+    slots[sel] = encodeHash();
+    refreshSlots();
+    writeStore();
+    say('In Platz ' + (sel + 1) + ' gemerkt.');
+  }
+  function loadSlot(i) {
+    sel = clamp(i | 0, 0, 2);
+    refreshSlots();
+    const h = slots[sel];
+    if (!h || !applyHash(h)) { writeStore(); say('Platz ' + (sel + 1) + ' ist leer.'); return false; }
+    seek(-0.001);
+    persistCur();
+    revealPins();
+    say('Platz ' + (sel + 1) + ' geladen.');
+    return true;
+  }
+
+  function bootStore() {
+    const data = readStore();
+    if (data && data.v === 1 && Array.isArray(data.slots)) {
+      slots = [data.slots[0] || null, data.slots[1] || null, data.slots[2] || null];
+      sel = clamp(data.sel | 0, 0, 2);
+    }
+    refreshSlots();
+    if (applyHash(location.hash)) return;
+    if (data && data.cur) applyHash(data.cur);
+  }
+
+  function ensureAudio() {
+    if (ac) return true;
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return false;
+    try { ac = new AC(); } catch (e) { ac = null; return false; }
+    master = ac.createGain();
+    master.gain.value = 0.0001;
+    const hp = ac.createBiquadFilter();
+    hp.type = 'highpass';
+    hp.frequency.value = 240;
+    const comp = ac.createDynamicsCompressor();
+    comp.threshold.value = -16;
+    comp.knee.value = 10;
+    comp.ratio.value = 3.2;
+    comp.attack.value = 0.003;
+    comp.release.value = 0.18;
+    dry = ac.createGain();
+    dry.gain.value = 1;
+    send = ac.createGain();
+    send.gain.value = 0.22;
+    const delay = ac.createDelay(0.3);
+    delay.delayTime.value = 0.038;
+    const fb = ac.createGain();
+    fb.gain.value = 0.22;
+    const damp = ac.createBiquadFilter();
+    damp.type = 'lowpass';
+    damp.frequency.value = 2800;
+    send.connect(delay);
+    delay.connect(damp);
+    damp.connect(fb);
+    fb.connect(delay);
+    damp.connect(dry);
+    dry.connect(hp);
+    hp.connect(comp);
+    comp.connect(master);
+    master.connect(ac.destination);
+    const len = Math.floor(ac.sampleRate * 0.04);
+    noiseBuf = ac.createBuffer(1, len, ac.sampleRate);
+    const ch = noiseBuf.getChannelData(0);
+    for (let i = 0; i < len; i++) ch[i] = Math.random() * 2 - 1;
+    return true;
+  }
+  function setSound(on) {
+    if (on && !ensureAudio()) { say('Ton konnte nicht starten.'); return; }
+    soundOn = !!on;
+    if (ac && master) {
+      if (ac.state === 'suspended') ac.resume();
+      master.gain.setTargetAtTime(soundOn ? 0.4 : 0.0001, ac.currentTime, 0.015);
+    }
+    bSound.textContent = soundOn ? 'Ton an' : 'Ton aus';
+    bSound.classList.toggle('on', soundOn);
+    bSound.setAttribute('aria-pressed', soundOn ? 'true' : 'false');
+    bSound.setAttribute('aria-label', soundOn ? 'Ton ist an' : 'Ton ist aus');
+    if (soundOn && !announced) { announced = true; say('Ton an.'); }
+    else if (!soundOn && announced) say('Ton aus.');
+  }
+
+  // Metallic comb: additive inharmonic partials plus a short FM bloom. Each tooth is detuned a few cents.
+  function ring(tooth, when) {
+    if (!ac || !soundOn || !dry) return;
+    if (voices >= 20) return;
+    voices++;
+    const freq = toothHz[tooth];
+    const dur = 0.95;
+    const g = ac.createGain();
+    g.gain.setValueAtTime(0.0001, when);
+    g.gain.exponentialRampToValueAtTime(0.85, when + 0.007);
+    g.gain.exponentialRampToValueAtTime(0.0008, when + dur);
+    g.connect(dry);
+    g.connect(send);
+    const stretch = 1 + tooth * 0.00022;
+    const partials = [[1, 0.62], [2.007, 0.32], [3.98, 0.18], [5.81, 0.09], [8.66, 0.045]];
+    for (let i = 0; i < partials.length; i++) {
+      const ratio = partials[i][0], amp = partials[i][1];
+      const o = ac.createOscillator();
+      o.type = 'sine';
+      const f = freq * (1 + (ratio - 1) * stretch);
+      o.frequency.setValueAtTime(f * 1.006, when);
+      o.frequency.exponentialRampToValueAtTime(f, when + 0.05);
+      const pg = ac.createGain();
+      pg.gain.value = amp;
+      o.connect(pg);
+      pg.connect(g);
+      o.start(when);
+      o.stop(when + dur + 0.02);
+    }
+    const car = ac.createOscillator();
+    const modu = ac.createOscillator();
+    const mi = ac.createGain();
+    car.type = 'sine';
+    modu.type = 'sine';
+    car.frequency.setValueAtTime(freq * 1.01, when);
+    car.frequency.exponentialRampToValueAtTime(freq, when + 0.08);
+    modu.frequency.value = freq * (2.73 + tooth * 0.008);
+    mi.gain.setValueAtTime(freq * 1.7, when);
+    mi.gain.exponentialRampToValueAtTime(freq * 0.08, when + 0.16);
+    modu.connect(mi);
+    mi.connect(car.frequency);
+    const cg = ac.createGain();
+    cg.gain.value = 0.42;
+    car.connect(cg);
+    cg.connect(g);
+    car.start(when);
+    modu.start(when);
+    car.stop(when + dur + 0.02);
+    modu.stop(when + 0.2);
+    const ns = ac.createBufferSource();
+    ns.buffer = noiseBuf;
+    const bp = ac.createBiquadFilter();
+    bp.type = 'highpass';
+    bp.frequency.value = 1600 + tooth * 40;
+    const ng = ac.createGain();
+    ng.gain.setValueAtTime(0.16, when);
+    ng.gain.exponentialRampToValueAtTime(0.0008, when + 0.028);
+    ns.connect(bp);
+    bp.connect(ng);
+    ng.connect(g);
+    ns.start(when);
+    ns.stop(when + 0.04);
+    setTimeout(() => { voices = Math.max(0, voices - 1); }, 1000);
+  }
+
+  function strike(step) {
+    const mask = pins[step];
+    const when = ac && soundOn ? ac.currentTime : 0;
+    if (!mask) return;
+    for (let t = 0; t < TEETH; t++) {
+      if ((mask & (1 << t)) === 0) continue;
+      events.push({ step: step, tooth: t, time: when, pos: pos });
+      if (events.length > 6000) events.shift();
+      toothAmp[t] = 1;
+      toothPh[t] = 0;
+      ring(t, when);
+      if (!reduceMotion) {
+        const s = sparks[sparkI];
+        sparkI = (sparkI + 1) % sparks.length;
+        const tip = combTips[t];
+        s.x = tip.x; s.y = tip.y; s.vx = (t - 7) * 8; s.vy = -36 - (t % 3) * 8; s.life = 0.38; s.max = 0.38;
+      }
+    }
+  }
+
+  // Crossing an integer step rings that step. Forward: every k with from < k <= pos.
+  // Backward: every k with pos <= k < from. One full turn from 0 rings steps 1..31 and then 0.
+  function turn(d) {
+    if (!Number.isFinite(d) || d === 0) return;
+    const from = pos;
+    pos += d;
+    crankAngle = pos / STEPS * TAU;
+    if (d > 0) {
+      for (let k = Math.floor(from) + 1; k <= Math.floor(pos); k++) strike(mod(k, STEPS));
+    } else {
+      for (let k = Math.ceil(from) - 1; k >= Math.ceil(pos); k--) strike(mod(k, STEPS));
+    }
+    syncPlayhead();
+  }
+
+  function springRate() {
+    return 0.65 + 6.4 * (wind / MAX_WIND);
+  }
+  function windLabel() {
+    const p = Math.round(wind / MAX_WIND * 100);
+    if (p !== windShown) { windShown = p; elWind.textContent = 'Feder ' + p + '%'; }
+  }
+  function tick(dt) {
+    dt = clamp(dt, 0, 0.05);
+    if (springOn && !holdingCrank && !holdingKey && wind > 0) {
+      const d = springRate() * dt;
+      wind = Math.max(0, wind - (d / STEPS) * WIND_PER_REV);
+      keyAngle -= (d / STEPS) * TAU;
+      if (wind <= 0.0008) {
+        wind = 0;
+        springOn = false;
+        if (!saidEnd) { saidEnd = true; say('Die Feder ist abgelaufen.'); }
+      }
+      turn(d);
+    }
+    for (let t = 0; t < TEETH; t++) {
+      if (toothAmp[t] > 0) {
+        toothPh[t] += dt * 46;
+        toothAmp[t] *= Math.exp(-dt * 3.1);
+        if (toothAmp[t] < 0.012) toothAmp[t] = 0;
+      }
+    }
+    for (let i = 0; i < sparks.length; i++) {
+      const s = sparks[i];
+      if (s.life <= 0) continue;
+      s.life -= dt;
+      s.x += s.vx * dt;
+      s.y += s.vy * dt;
+      s.vy += 70 * dt;
+    }
+    windLabel();
+  }
+
+  function seek(step) {
+    pos = step;
+    crankAngle = pos / STEPS * TAU;
+    syncPlayhead();
+  }
+  function revealPins() {
+    let maxT = -1;
+    for (let s = 0; s < STEPS; s++) {
+      for (let t = TEETH - 1; t >= 0; t--) {
+        if ((pins[s] & (1 << t)) !== 0) { if (t > maxT) maxT = t; break; }
+      }
+    }
+    const row = maxT >= 0 ? labels[maxT].parentElement : null;
+    if (!row) { rollWrap.scrollTop = 0; return; }
+    rollWrap.scrollTop = Math.max(0, row.offsetTop - 26);
+  }
+  function syncPlayhead() {
+    const s = mod(Math.round(pos), STEPS);
+    if (headReady && s === head) return;
+    for (let i = 0; i < colEls[head].length; i++) colEls[head][i].classList.remove('now');
+    if (rulerCells[head]) rulerCells[head].classList.remove('now');
+    head = s;
+    for (let i = 0; i < colEls[head].length; i++) colEls[head][i].classList.add('now');
+    if (rulerCells[head]) rulerCells[head].classList.add('now');
+    headReady = true;
+    if (springOn && colEls[head][0]) {
+      const el = colEls[head][0];
+      const x = el.offsetLeft, viewL = rollWrap.scrollLeft, viewR = viewL + rollWrap.clientWidth - 60;
+      if (x < viewL + 36 || x > viewR) rollWrap.scrollLeft = Math.max(0, x - 48);
+    }
+  }
+
+  function liftAmount(t) {
+    const pm = mod(pos, STEPS);
+    let best = 99;
+    for (let s = 0; s < STEPS; s++) {
+      if ((pins[s] & (1 << t)) === 0) continue;
+      let d = Math.abs(pm - s);
+      if (d > STEPS / 2) d = STEPS - d;
+      if (d < best) best = d;
+    }
+    if (best > 0.55) return 0;
+    return 1 - best / 0.55;
+  }
+
+  function layoutOf(w, h) {
+    const pad = 10;
+    const sideBySide = w > h * 1.35 && w > 680;
+    let lid, box;
+    if (sideBySide) {
+      const lidW = Math.min(w * 0.32, h * 0.96);
+      lid = { x: pad, y: pad, w: lidW, h: h - pad * 2 };
+      box = { x: pad + lidW + 8, y: pad, w: w - lidW - pad * 2 - 8, h: h - pad * 2 };
+    } else {
+      const lidH = clamp(h * 0.38, 86, h * 0.46);
+      lid = { x: pad, y: pad, w: w - pad * 2, h: lidH - 6 };
+      box = { x: pad, y: pad + lidH, w: w - pad * 2, h: Math.max(40, h - lidH - pad * 1.2) };
+    }
+    const rC = clamp(Math.min(box.w * 0.09, box.h * 0.22), 28, 44);
+    const rK = clamp(rC * 0.78, 24, 34);
+    const crank = {
+      x: box.x + box.w - rC * 1.45,
+      y: clamp(box.y + box.h * 0.4, box.y + rC * 1.35, box.y + box.h - rC * 1.45),
+      r: rC
+    };
+    const key = {
+      x: box.x + rK * 1.45,
+      y: clamp(box.y + box.h * 0.62, box.y + rK + 8, box.y + box.h - rK - 22),
+      r: rK
+    };
+    const cylX = key.x + rK + 22;
+    const cylR = crank.x - rC - 16;
+    const cyl = {
+      x: cylX,
+      y: box.y + Math.max(16, box.h * 0.16),
+      w: Math.max(48, cylR - cylX),
+      h: clamp(box.h * 0.3, 34, 92)
+    };
+    const dr = clamp(Math.min(lid.w * 0.22, lid.h * 0.42), 26, 70);
+    const dancer = {
+      x: lid.x + lid.w * (sideBySide ? 0.5 : 0.72),
+      y: clamp(lid.y + lid.h * 0.66, lid.y + dr * 0.15 + 18, lid.y + lid.h - 14),
+      r: dr
+    };
+    return { lid, box, cyl, crank, key, dancer, sideBySide, w, h };
+  }
+
+  function roundRect(x, y, w, h, r) {
+    r = Math.max(0, Math.min(r, w / 2, h / 2));
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + w, y, x + w, y + h, r);
+    ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r);
+    ctx.arcTo(x, y, x + w, y, r);
+    ctx.closePath();
+  }
+  function mulberry32(a) {
+    return function () {
+      a |= 0; a = a + 0x6D2B79F5 | 0;
+      let t = Math.imul(a ^ a >>> 15, 1 | a);
+      t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+      return ((t ^ t >>> 14) >>> 0) / 4294967296;
+    };
+  }
+  function buildWood(w, h) {
+    const c = document.createElement('canvas');
+    c.width = Math.max(1, w | 0);
+    c.height = Math.max(1, h | 0);
+    const g = c.getContext('2d');
+    const rnd = mulberry32(20261125);
+    const grd = g.createLinearGradient(0, 0, 0, h);
+    grd.addColorStop(0, '#e8cba4');
+    grd.addColorStop(0.45, '#d7ae7e');
+    grd.addColorStop(1, '#c4925e');
+    g.fillStyle = grd;
+    g.fillRect(0, 0, w, h);
+    const plank = 54 * (w > 10 ? (c.width / w) : 1);
+    for (let y = 0; y < c.height; y += plank) {
+      g.fillStyle = ((y / plank) | 0) % 2 ? 'rgba(120,70,30,.1)' : 'rgba(255,236,210,.08)';
+      g.fillRect(0, y, c.width, plank);
+      g.strokeStyle = 'rgba(90,48,18,.28)';
+      g.beginPath();
+      g.moveTo(0, y + 0.5);
+      g.lineTo(c.width, y + 0.5);
+      g.stroke();
+    }
+    g.globalAlpha = 0.22;
+    for (let i = 0; i < 70; i++) {
+      const x = rnd() * c.width, y = rnd() * c.height;
+      g.strokeStyle = i % 2 ? '#6a3e1c' : '#f3ddb8';
+      g.lineWidth = 1;
+      g.beginPath();
+      g.moveTo(x, y);
+      g.bezierCurveTo(x + 40, y + 2, x + 90, y - 3, x + 150, y + 1);
+      g.stroke();
+    }
+    g.globalAlpha = 1;
+    return c;
+  }
+
+  function drawDancer(x, y, r, ang) {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.fillStyle = 'rgba(70,36,16,.22)';
+    ctx.beginPath();
+    ctx.ellipse(0, 10, r * 0.72, r * 0.22, 0, 0, TAU);
+    ctx.fill();
+    const pod = ctx.createRadialGradient(-r * 0.2, 2, 2, 0, 6, r * 0.7);
+    pod.addColorStop(0, '#fffaf2');
+    pod.addColorStop(1, '#e4d3bc');
+    ctx.fillStyle = pod;
+    ctx.beginPath();
+    ctx.ellipse(0, 6, r * 0.64, r * 0.2, 0, 0, TAU);
+    ctx.fill();
+    ctx.strokeStyle = '#b8893a';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    ctx.save();
+    ctx.translate(0, 6);
+    ctx.rotate(ang);
+    ctx.strokeStyle = 'rgba(184,137,58,.95)';
+    ctx.beginPath();
+    ctx.moveTo(-r * 0.28, 0);
+    ctx.lineTo(r * 0.28, 0);
+    ctx.stroke();
+    ctx.restore();
+    const s = r / 34;
+    const sway = Math.sin(ang);
+    const face = Math.cos(ang);
+    ctx.save();
+    ctx.scale(s, s);
+    ctx.strokeStyle = '#e7b898';
+    ctx.lineWidth = 2.4;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(-2, -4);
+    ctx.lineTo(-4 + sway * 6, 12);
+    ctx.moveTo(2, -4);
+    ctx.lineTo(5 - sway * 5, 12);
+    ctx.stroke();
+    ctx.fillStyle = face > 0 ? '#f7c2d2' : '#e9a3b8';
+    ctx.beginPath();
+    ctx.moveTo(0, -22);
+    ctx.quadraticCurveTo(18, -6, 13, 2);
+    ctx.lineTo(-13, 2);
+    ctx.quadraticCurveTo(-18, -6, 0, -22);
+    ctx.fill();
+    ctx.fillStyle = '#fff6ea';
+    ctx.fillRect(-2.4, -28, 4.8, 8);
+    ctx.strokeStyle = '#f0c7a4';
+    ctx.lineWidth = 2.2;
+    ctx.beginPath();
+    ctx.moveTo(-2, -24);
+    ctx.lineTo(-14 * Math.max(0.35, face) - sway * 3, -34);
+    ctx.moveTo(2, -24);
+    ctx.lineTo(12, -16 + sway * 8);
+    ctx.stroke();
+    ctx.fillStyle = '#f0c7a4';
+    ctx.beginPath();
+    ctx.arc(0, -32, 4.1, 0, TAU);
+    ctx.fill();
+    ctx.fillStyle = '#5c331c';
+    ctx.beginPath();
+    ctx.arc(sway * 1.5, -34.5, 3.1, Math.PI * 0.9, TAU * 0.95);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(sway * 4, -36, 1.7, 0, TAU);
+    ctx.fill();
+    ctx.restore();
+    ctx.restore();
+  }
+
+  function drawCylinder(cyl) {
+    const x = cyl.x, y = cyl.y, w = cyl.w, h = cyl.h, cy = y + h / 2, rad = h / 2;
+    ctx.fillStyle = 'rgba(50,28,10,.25)';
+    roundRect(x, y + 5, w, h, rad);
+    ctx.fill();
+    const g = ctx.createLinearGradient(0, y, 0, y + h);
+    g.addColorStop(0, '#6a4e1c');
+    g.addColorStop(0.2, '#f6e4aa');
+    g.addColorStop(0.46, '#c8963c');
+    g.addColorStop(0.66, '#f8ecc0');
+    g.addColorStop(1, '#5e4516');
+    ctx.fillStyle = g;
+    roundRect(x, y, w, h, rad);
+    ctx.fill();
+    ctx.save();
+    roundRect(x, y, w, h, rad);
+    ctx.clip();
+    ctx.globalAlpha = 0.16;
+    ctx.lineWidth = 1;
+    for (let s = 0; s < STEPS; s += 2) {
+      const th = (s - pos) / STEPS * TAU;
+      const front = Math.cos(th);
+      if (front < -0.35) continue;
+      const py = cy + front * rad * 0.8;
+      ctx.strokeStyle = s % 4 === 0 ? '#3f2a0c' : '#fff6d4';
+      ctx.beginPath();
+      ctx.moveTo(x, py);
+      ctx.lineTo(x + w, py);
+      ctx.stroke();
+    }
+    ctx.restore();
+    ctx.globalAlpha = 1;
+    for (const ex of [x + 7, x + w - 7]) {
+      const eg = ctx.createLinearGradient(0, y, 0, y + h);
+      eg.addColorStop(0, '#8a6a30');
+      eg.addColorStop(0.5, '#f1d98a');
+      eg.addColorStop(1, '#5c4214');
+      ctx.fillStyle = eg;
+      ctx.beginPath();
+      ctx.ellipse(ex, cy, 8, rad - 1, 0, 0, TAU);
+      ctx.fill();
+    }
+    let pinCount = 0;
+    const x0 = x + 16, span = w - 32;
+    for (let t = 0; t < TEETH; t++) {
+      const px = x0 + span * ((t + 0.5) / TEETH);
+      for (let s = 0; s < STEPS; s++) {
+        if ((pins[s] & (1 << t)) === 0) continue;
+        const th = (s - pos) / STEPS * TAU;
+        const front = Math.cos(th);
+        const py = cy + front * rad * 0.76;
+        const fade = front * 0.5 + 0.5;
+        const p = PIN_POOL[pinCount++];
+        p.x = px; p.y = py; p.r = 1.35 + fade * 1.7; p.a = 0.28 + fade * 0.72; p.z = front;
+      }
+    }
+    for (let i = 1; i < pinCount; i++) {
+      const p = PIN_POOL[i];
+      let j = i - 1;
+      while (j >= 0 && PIN_POOL[j].z > p.z) { PIN_POOL[j + 1] = PIN_POOL[j]; j--; }
+      PIN_POOL[j + 1] = p;
+    }
+    for (let i = 0; i < pinCount; i++) {
+      const p = PIN_POOL[i];
+      ctx.globalAlpha = p.a;
+      ctx.fillStyle = p.z > 0.35 ? '#fff8dc' : '#a87828';
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.r, 0, TAU);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+    ctx.strokeStyle = 'rgba(255,250,230,.75)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(x + 20, y + h * 0.28);
+    ctx.lineTo(x + w - 20, y + h * 0.28);
+    ctx.stroke();
+    ctx.strokeStyle = 'rgba(255,220,150,.35)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(x + 14, y + h - 1);
+    ctx.lineTo(x + w - 14, y + h - 1);
+    ctx.stroke();
+  }
+
+  function drawComb(cyl) {
+    const x0 = cyl.x + 16, span = cyl.w - 32;
+    const baseY = Math.min(cyl.y + cyl.h + 14, lastLayout.box.y + lastLayout.box.h - 16);
+    ctx.fillStyle = '#aeb8c0';
+    roundRect(x0 - 8, baseY, span + 16, 8, 3);
+    ctx.fill();
+    ctx.fillStyle = '#6e7a84';
+    roundRect(x0 - 8, baseY + 6, span + 16, 3, 1.5);
+    ctx.fill();
+    ctx.lineCap = 'round';
+    for (let t = 0; t < TEETH; t++) {
+      const x = x0 + span * ((t + 0.5) / TEETH);
+      const len = 12 + (TEETH - 1 - t) * 1.05;
+      const held = liftAmount(t);
+      const vib = Math.sin(toothPh[t]) * toothAmp[t];
+      const tip = vib * 6.5 + held * 2.4;
+      const tipX = x + tip, tipY = baseY - len;
+      combTips[t].x = tipX;
+      combTips[t].y = tipY;
+      ctx.strokeStyle = toothAmp[t] > 0.06 ? '#f7fbfe' : '#d7e0e6';
+      ctx.lineWidth = 2.15;
+      ctx.beginPath();
+      ctx.moveTo(x, baseY);
+      ctx.quadraticCurveTo(x + tip * 0.4, baseY - len * 0.6, tipX, tipY);
+      ctx.stroke();
+      const glow = Math.max(toothAmp[t], held * 0.55);
+      if (glow > 0.08) {
+        ctx.globalAlpha = glow * 0.85;
+        ctx.strokeStyle = 'rgba(255, 224, 150, .9)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.arc(tipX, tipY, 4 + toothAmp[t] * 8, 0, TAU);
+        ctx.stroke();
+        ctx.globalAlpha = 1;
+      }
+    }
+  }
+
+  function chip(text, x, y) {
+    ctx.font = '600 12px system-ui,sans-serif';
+    const tw = ctx.measureText(text).width;
+    const bw = tw + 12;
+    ctx.fillStyle = 'rgba(255,246,230,.94)';
+    roundRect(x - bw / 2, y - 11, bw, 16, 8);
+    ctx.fill();
+    ctx.fillStyle = '#4a2c18';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(text, x, y - 2);
+    ctx.textBaseline = 'alphabetic';
+  }
+  function drawCrank(c) {
+    ctx.save();
+    ctx.translate(c.x, c.y);
+    ctx.fillStyle = 'rgba(60,32,12,.22)';
+    ctx.beginPath();
+    ctx.arc(2, 3, c.r * 0.48, 0, TAU);
+    ctx.fill();
+    const g = ctx.createRadialGradient(-c.r * 0.15, -c.r * 0.18, 2, 0, 0, c.r * 0.5);
+    g.addColorStop(0, '#fff1c4');
+    g.addColorStop(0.7, '#d7a44a');
+    g.addColorStop(1, '#7a5818');
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(0, 0, c.r * 0.42, 0, TAU);
+    ctx.fill();
+    ctx.strokeStyle = '#6e5016';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+    ctx.rotate(crankAngle);
+    ctx.strokeStyle = '#f0d48a';
+    ctx.lineWidth = 5;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(c.r * 0.2, 0);
+    ctx.lineTo(c.r * 0.92, 0);
+    ctx.stroke();
+    ctx.fillStyle = '#ffe9a8';
+    ctx.beginPath();
+    ctx.arc(c.r * 0.92, 0, c.r * 0.22, 0, TAU);
+    ctx.fill();
+    ctx.strokeStyle = '#6e5016';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+    ctx.restore();
+    chip('Kurbel', c.x, c.y + c.r + 8);
+  }
+
+  function drawKey(k) {
+    ctx.save();
+    ctx.translate(k.x, k.y);
+    ctx.rotate(keyAngle);
+    ctx.fillStyle = '#e7c56e';
+    ctx.beginPath();
+    ctx.ellipse(-k.r * 0.42, 0, k.r * 0.46, k.r * 0.26, 0, 0, TAU);
+    ctx.ellipse(k.r * 0.42, 0, k.r * 0.46, k.r * 0.26, 0, 0, TAU);
+    ctx.fill();
+    ctx.fillStyle = '#f8e7b2';
+    ctx.fillRect(-3, -k.r * 0.9, 6, k.r * 1.7);
+    ctx.fillStyle = '#e7c56e';
+    ctx.fillRect(-3, k.r * 0.55, k.r * 0.42, 4);
+    ctx.fillRect(-3, k.r * 0.72, k.r * 0.28, 4);
+    ctx.restore();
+    ctx.lineWidth = 4;
+    ctx.lineCap = 'round';
+    ctx.strokeStyle = 'rgba(80,44,18,.28)';
+    ctx.beginPath();
+    ctx.arc(k.x, k.y, k.r + 10, -2.4, 0.7);
+    ctx.stroke();
+    const u = wind / MAX_WIND;
+    if (u > 0.01) {
+      ctx.strokeStyle = '#e6c15a';
+      ctx.beginPath();
+      ctx.arc(k.x, k.y, k.r + 10, -2.4, -2.4 + u * 3.1);
+      ctx.stroke();
+    }
+    chip('Feder', k.x, k.y + k.r + 12);
+  }
+
+  function drawScrew(x, y) {
+    ctx.fillStyle = '#c8ccd0';
+    ctx.beginPath();
+    ctx.arc(x, y, 5, 0, TAU);
+    ctx.fill();
+    ctx.strokeStyle = '#5c656c';
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    ctx.moveTo(x - 3, y);
+    ctx.lineTo(x + 3, y);
+    ctx.stroke();
+  }
+
+  function draw() {
+    const w = canvas.clientWidth, h = canvas.clientHeight;
+    if (w < 2 || h < 2) return;
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    const bw = Math.round(w * dpr), bh = Math.round(h * dpr);
+    if (canvas.width !== bw || canvas.height !== bh) {
+      canvas.width = bw;
+      canvas.height = bh;
+    }
+    if (!wood || woodW !== bw || woodH !== bh) {
+      wood = buildWood(bw, bh);
+      woodW = bw;
+      woodH = bh;
+    }
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.drawImage(wood, 0, 0, w, h);
+    const L = layoutOf(w, h);
+    lastLayout = L;
+    const lid = L.lid, box = L.box;
+
+    ctx.fillStyle = 'rgba(60,30,10,.2)';
+    roundRect(box.x + 6, box.y + 8, box.w, box.h, 18);
+    ctx.fill();
+    const woodG = ctx.createLinearGradient(box.x, box.y, box.x, box.y + box.h);
+    woodG.addColorStop(0, '#a56b3e');
+    woodG.addColorStop(1, '#6e4124');
+    ctx.fillStyle = woodG;
+    roundRect(box.x, box.y, box.w, box.h, 16);
+    ctx.fill();
+    ctx.fillStyle = '#5c3018';
+    roundRect(box.x + 10, box.y + 10, box.w - 20, box.h - 20, 12);
+    ctx.fill();
+    const vel = ctx.createLinearGradient(0, box.y, 0, box.y + box.h);
+    vel.addColorStop(0, '#8d2438');
+    vel.addColorStop(1, '#4c101c');
+    ctx.fillStyle = vel;
+    roundRect(box.x + 16, box.y + 16, box.w - 32, box.h - 32, 10);
+    ctx.fill();
+
+    ctx.fillStyle = 'rgba(60,30,10,.18)';
+    roundRect(lid.x + 5, lid.y + 6, lid.w, lid.h, 16);
+    ctx.fill();
+    const lidG = ctx.createLinearGradient(lid.x, lid.y, lid.x, lid.y + lid.h);
+    lidG.addColorStop(0, '#c48a56');
+    lidG.addColorStop(1, '#8d5a34');
+    ctx.fillStyle = lidG;
+    roundRect(lid.x, lid.y, lid.w, lid.h, 16);
+    ctx.fill();
+    ctx.fillStyle = '#f0d7b4';
+    roundRect(lid.x + 10, lid.y + 10, lid.w - 20, lid.h - 20, 12);
+    ctx.fill();
+    const mirW = Math.min(lid.w * 0.42, 180), mirH = Math.min(lid.h * 0.55, 140);
+    const mx = lid.x + (L.sideBySide ? lid.w * 0.5 - mirW / 2 : 22);
+    const my = lid.y + lid.h * 0.18;
+    const mg = ctx.createLinearGradient(mx, my, mx + mirW, my + mirH);
+    mg.addColorStop(0, '#f7fbfc');
+    mg.addColorStop(0.5, '#d5e6ea');
+    mg.addColorStop(1, '#b7cdd4');
+    ctx.fillStyle = mg;
+    roundRect(mx, my, mirW, mirH, 8);
+    ctx.fill();
+    ctx.strokeStyle = '#b8893a';
+    ctx.lineWidth = 3;
+    ctx.stroke();
+    ctx.fillStyle = '#6b3a22';
+    ctx.font = '700 15px Palatino,Georgia,serif';
+    ctx.textAlign = 'left';
+    const plateX = L.sideBySide ? lid.x + 18 : lid.x + lid.w * 0.08;
+    const plateY = L.sideBySide ? lid.y + 36 : lid.y + lid.h - 18;
+    if (L.sideBySide) {
+      ctx.fillText('Spieldose', plateX, plateY);
+      ctx.font = '600 11px system-ui,sans-serif';
+      ctx.fillText('Playbot', plateX, plateY + 16);
+    } else if (lid.w > 280) {
+      ctx.textAlign = 'right';
+      ctx.fillText('Spieldose', lid.x + lid.w - 16, lid.y + 28);
+    }
+
+    if (L.sideBySide) {
+      ctx.fillStyle = '#4a2814';
+      roundRect(lid.x + lid.w - 4, lid.y + 20, 14, lid.h - 40, 4);
+      ctx.fill();
+    } else {
+      ctx.fillStyle = '#4a2814';
+      roundRect(lid.x + 24, lid.y + lid.h - 6, lid.w - 48, 12, 4);
+      ctx.fill();
+    }
+
+    drawDancer(L.dancer.x, L.dancer.y, L.dancer.r, pos / STEPS * TAU);
+    drawCylinder(L.cyl);
+    drawComb(L.cyl);
+    drawCrank(L.crank);
+    drawKey(L.key);
+    drawScrew(box.x + 18, box.y + 18);
+    drawScrew(box.x + box.w - 18, box.y + 18);
+    drawScrew(box.x + 18, box.y + box.h - 18);
+    drawScrew(box.x + box.w - 18, box.y + box.h - 18);
+
+    if (!reduceMotion) {
+      for (let i = 0; i < sparks.length; i++) {
+        const s = sparks[i];
+        if (s.life <= 0) continue;
+        ctx.globalAlpha = Math.max(0, s.life / s.max);
+        ctx.fillStyle = '#ffe7a8';
+        ctx.beginPath();
+        ctx.arc(s.x, s.y, 1.6, 0, TAU);
+        ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+    }
+
+    const vg = ctx.createRadialGradient(w / 2, h / 2, Math.min(w, h) * 0.2, w / 2, h / 2, Math.max(w, h) * 0.72);
+    vg.addColorStop(0, 'rgba(0,0,0,0)');
+    vg.addColorStop(1, 'rgba(80,40,12,.22)');
+    ctx.fillStyle = vg;
+    ctx.fillRect(0, 0, w, h);
+  }
+
+  function resize() { wood = null; draw(); revealPins(); }
+  let lastTs = 0, running = true, lastFrameMs = 0;
+  function frame(ts) {
+    if (!running) return;
+    const t0 = performance.now();
+    const dt = lastTs ? (ts - lastTs) / 1000 : 0.016;
+    lastTs = ts;
+    tick(dt);
+    draw();
+    lastFrameMs = performance.now() - t0;
+    requestAnimationFrame(frame);
+  }
+
+  function xy(e) {
+    const r = canvas.getBoundingClientRect();
+    return { x: (e.clientX - r.left) * (canvas.clientWidth / r.width), y: (e.clientY - r.top) * (canvas.clientHeight / r.height) };
+  }
+  let hold = null;
+  canvas.addEventListener('pointerdown', e => {
+    if (!lastLayout) return;
+    const p = xy(e);
+    const L = lastLayout;
+    const crankHit = Math.hypot(p.x - L.crank.x, p.y - L.crank.y) <= L.crank.r * 1.45;
+    const keyHit = Math.hypot(p.x - L.key.x, p.y - L.key.y) <= L.key.r * 1.85;
+    if (!crankHit && !keyHit) return;
+    e.preventDefault();
+    canvas.setPointerCapture(e.pointerId);
+    canvas.classList.add('hold');
+    if (crankHit) {
+      holdingCrank = true;
+      hold = { id: e.pointerId, kind: 'crank', last: Math.atan2(p.y - L.crank.y, p.x - L.crank.x) };
+    } else {
+      holdingKey = true;
+      springOn = false;
+      hold = { id: e.pointerId, kind: 'key', last: Math.atan2(p.y - L.key.y, p.x - L.key.x) };
+    }
+  });
+  canvas.addEventListener('pointermove', e => {
+    if (!hold || e.pointerId !== hold.id || !lastLayout) return;
+    const p = xy(e);
+    const L = lastLayout;
+    const cx = hold.kind === 'crank' ? L.crank.x : L.key.x;
+    const cy = hold.kind === 'crank' ? L.crank.y : L.key.y;
+    const a = Math.atan2(p.y - cy, p.x - cx);
+    let d = a - hold.last;
+    if (d > Math.PI) d -= TAU;
+    if (d < -Math.PI) d += TAU;
+    hold.last = a;
+    if (hold.kind === 'crank') turn(d / TAU * STEPS);
+    else {
+      wind = clamp(wind + d / TAU, 0, MAX_WIND);
+      keyAngle += d;
+      windLabel();
+    }
+  });
+  function endHold(e) {
+    if (!hold || (e && e.pointerId !== undefined && e.pointerId !== hold.id)) return;
+    const kind = hold.kind;
+    hold = null;
+    holdingCrank = false;
+    holdingKey = false;
+    canvas.classList.remove('hold');
+    if (kind === 'key') {
+      if (wind > 0.08) { springOn = true; saidEnd = false; say('Die Feder spielt.'); }
+      else say('Zieh die Feder weiter auf.');
+    }
+  }
+  canvas.addEventListener('pointerup', endHold);
+  canvas.addEventListener('pointercancel', endHold);
+  canvas.addEventListener('contextmenu', e => e.preventDefault());
+
+  function armSound(e) {
+    if (e.target && e.target.closest && e.target.closest('#bSound')) return;
+    if (!soundOn && !userMuted) setSound(true);
+  }
+  document.addEventListener('pointerdown', armSound, { passive: true });
+  document.addEventListener('click', armSound);
+
+  function buildGrid() {
+    const ruler = document.createElement('div');
+    ruler.className = 'ruler';
+    const cap = document.createElement('span');
+    cap.className = 'nl';
+    cap.textContent = 'Kamm';
+    ruler.appendChild(cap);
+    for (let s = 0; s < STEPS; s++) {
+      const i = document.createElement('i');
+      i.textContent = (s % 4 === 0) ? String(s + 1) : '';
+      ruler.appendChild(i);
+      rulerCells.push(i);
+    }
+    roll.appendChild(ruler);
+    for (let t = TEETH - 1; t >= 0; t--) {
+      const row = document.createElement('div');
+      row.className = 'row';
+      row.setAttribute('role', 'row');
+      const lab = document.createElement('span');
+      lab.className = 'nl';
+      labels[t] = lab;
+      row.appendChild(lab);
+      for (let s = 0; s < STEPS; s++) {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.dataset.s = String(s);
+        b.dataset.t = String(t);
+        b.setAttribute('role', 'gridcell');
+        b.setAttribute('aria-pressed', 'false');
+        if (s % 4 === 0) b.classList.add('beat');
+        btns[t][s] = b;
+        colEls[s].push(b);
+        row.appendChild(b);
+      }
+      roll.appendChild(row);
+    }
+    roll.addEventListener('click', e => {
+      const b = e.target.closest('button');
+      if (!b || !b.dataset.s) return;
+      togglePin(+b.dataset.s, +b.dataset.t);
+    });
+    roll.addEventListener('keydown', e => {
+      const b = e.target.closest('button');
+      if (!b || b.dataset.s == null) return;
+      let s = +b.dataset.s, t = +b.dataset.t;
+      if (e.key === 'ArrowRight') s = Math.min(STEPS - 1, s + 1);
+      else if (e.key === 'ArrowLeft') s = Math.max(0, s - 1);
+      else if (e.key === 'ArrowUp') t = Math.min(TEETH - 1, t + 1);
+      else if (e.key === 'ArrowDown') t = Math.max(0, t - 1);
+      else return;
+      e.preventDefault();
+      const n = btns[t][s];
+      if (n) n.focus();
+    });
+  }
+
+  $('bEnt').onclick = () => loadDemo(0);
+  $('bWeih').onclick = () => loadDemo(1);
+  $('bWalz').onclick = () => loadDemo(2);
+  $('bClear').onclick = () => clearPins();
+  bScale.onclick = () => setScale(scaleIx + 1);
+  slotBtns.forEach((b, i) => { b.onclick = () => { sel = i; refreshSlots(); writeStore(); say('Platz ' + (i + 1) + ' gewählt.'); }; });
+  $('bSave').onclick = () => saveSlot(sel);
+  $('bLoad').onclick = () => loadSlot(sel);
+  $('bShare').onclick = async () => {
+    persistCur();
+    const url = location.href;
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(url);
+        say('Link kopiert.');
+        return;
+      }
+    } catch (e) {}
+    say('Link steht in der Adresszeile.');
+  };
+  bSound.onclick = () => {
+    if (soundOn) { userMuted = true; setSound(false); }
+    else { userMuted = false; setSound(true); }
+  };
+
+  document.addEventListener('keydown', e => {
+    if (e.target && e.target.closest && e.target.closest('button') && e.key !== 'm' && e.key !== 'M' && e.key !== 's' && e.key !== 'S') return;
+    if (e.key === 'm' || e.key === 'M') { e.preventDefault(); bSound.click(); }
+    else if (e.key === 's' || e.key === 'S') { if (!e.target.closest('#roll')) { e.preventDefault(); setScale(scaleIx + 1); } }
+    else if (e.key === ' ' && (!e.target.closest || !e.target.closest('button'))) {
+      e.preventDefault();
+      if (springOn) { springOn = false; say('Die Feder hält an.'); }
+      else if (wind > 0.02) { springOn = true; saidEnd = false; say('Die Feder spielt.'); }
+    } else if (e.key === 'Escape') { springOn = false; say('Die Feder hält an.'); }
+  });
+
+  buildGrid();
+  rebuildFreqs();
+  refreshScaleUi();
+  bootStore();
+  syncPlayhead();
+  revealPins();
+  windLabel();
+  if (typeof ResizeObserver === 'function') new ResizeObserver(() => { wood = null; }).observe($('stage'));
+  window.addEventListener('resize', resize);
+  requestAnimationFrame(frame);
+
+  window.__mb = {
+    STEPS: STEPS,
+    TEETH: TEETH,
+    MAX_WIND: MAX_WIND,
+    pins: pins,
+    events: events,
+    get pos() { return pos; },
+    get wind() { return wind; },
+    get scale() { return scaleIx; },
+    get spring() { return springOn; },
+    get sound() { return soundOn; },
+    dancer() { return pos / STEPS * TAU; },
+    freqs() { return Array.from(toothHz); },
+    pinsCopy() { return Array.from(pins); },
+    clearEvents() { events.length = 0; },
+    setPin: setPin,
+    toggle: togglePin,
+    clear: clearPins,
+    seek: seek,
+    crank: turn,
+    tick: tick,
+    windTo(v) { wind = clamp(+v || 0, 0, MAX_WIND); windLabel(); },
+    setSpring(on) { springOn = !!on; if (on) saidEnd = false; },
+    stop() { springOn = false; holdingCrank = false; holdingKey = false; },
+    encode: encodeHash,
+    decode: applyHash,
+    loadDemo: loadDemo,
+    setScale: setScale,
+    saveSlot: saveSlot,
+    loadSlot: loadSlot,
+    layout() { return lastLayout; },
+    get frameMs() { return lastFrameMs; },
+    noteName(t) { return noteLabel(toothMidiN[t]); },
+    flushSave: writeStore
+  };
+})();
+</script>
+</body>
+</html>
