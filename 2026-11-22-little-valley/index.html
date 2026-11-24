@@ -1622,6 +1622,7 @@ function renderTilt(t) {
   drawIcicleDrips(t);
   drawMist(t);
   drawPetals(t);
+  { const t0 = performance.now(); drawSwallows(t); st.swallowMs = (st.swallowMs || 0) * 0.9 + (performance.now() - t0) * 0.1; }
   drawLanterns(t);
   drawFireflies(t);
   // mist where the river falls off the front edge
@@ -2489,6 +2490,96 @@ function drawPetals(t) {
   }
   cx.restore(); if (st.petalsDrawn) { st.petalDrift = sdx / st.petalsDrawn; st.petalFall = sdy / st.petalsDrawn; } // mean drift and drop (in cells) of the petals in the air
 }
+// swallows: on warm summer evenings (yearFrac ~0.24-0.52, about 17:00-21:00) and low before a storm builds (a storm
+// cloud due within ~90 sim s, then also by day) a small flock of swallows (cap 8 desk / 5 phone) hunts midges low over
+// the meadows, fields and the river: dark blue-black birds with swept-back wings, a forked tail and a pale belly that
+// shows as they bank. Each bird is a tiny steering sim (heading, smoothed turn rate, speed) flying to targets picked
+// from low, visible meadow and water cells (refreshed every 3 s), with wandering curves and now and then a quick flick
+// turn; over open water a bird sometimes dips to the surface and leaves a little ring ripple. Before a storm they fly
+// lower, faster and busier; rain sends them away (they fade out), none at night, outside summer or in the map view, and
+// in a drought only half as many (fewer midges). Drawn on the screen canvas, cheap. Hooks: st.swallowsDrawn,
+// st.swallowAmt, st.swallowBrew, st.swallowAlt (mean height above the ground in cells), st.swallowDips (dips so far),
+// st.swallowMoved (cells flown by the first bird), st.swallowAt (screen px of the first), st.swallowRings, st.swallowMs.
+const SWALLOW_MAX = isPhone ? 5 : 8, SW = { S: null, N: 0, t: -1e9, src: [], birds: [], rings: [], last: -1, dips: 0, moved: 0 };
+function swallowBrew() { const S = st.S, W = S.wx; if (!W || !W.storm || (S.rainNow || 0) > 0.05) return 0; const lead = W.start - S.time; return lead > 0 && lead < 90 ? 1 - smooth(25, 90, lead) : 0; }
+function swallowAmt() {
+  const S = st.S, y = S.P.seasons ? LV.yearFrac(S) : 0.35, h = LT.h;
+  const sea = smooth(0.23, 0.27, y) * (1 - smooth(0.49, 0.53, y)), late = 1 - smooth(20.4, 21.2, h);
+  const eve = smooth(16.6, 17.4, h) * late, day = smooth(8, 9, h) * late, brew = swallowBrew() * sea * day;
+  st.swallowBrew = brew;
+  return sea * Math.max(eve, brew) * (1 - smooth(0.12, 0.3, LT.rain)) * (LT.storm > 0.05 ? 0 : 1) * (1 - LT.night) * (1 - 0.5 * (LT.dry || 0));
+}
+function swallowSpots(S, T) { // low, visible meadow / field / water cells (not forest, not on the alp)
+  const N = S.N, H = N * 0.27, out = [], s2 = Math.max(1, N >> 5);
+  for (let y = 4; y < N - 4; y += s2) for (let x = 4; x < N - 4; x += s2) { const i = y * N + x, wet = S.d[i] > 0.05 && !(S.ice && S.ice[i] > 0.3);
+    if (S.h[i] / H > 0.42 || (!wet && !(S.veg[i] > 0.25 && S.tree[i] < 0.35))) continue; if (duckSeen(T, S, x, y)) out.push([x, y, wet]); }
+  return out;
+}
+function swallowGo(b, S) { // pick a new target, preferably 6-30 cells away
+  const L = SW.src; let best = null, bs = -1e9;
+  for (let k = 0; k < 4; k++) { const q = L[(Math.random() * L.length) | 0], dd = Math.hypot(q[0] - b.x, q[1] - b.y), sc = (dd > 6 && dd < 30 ? 10 : 0) - Math.abs(dd - 16) * 0.1 + (q[2] ? 3 : 0) + Math.random() * 4; if (sc > bs) { bs = sc; best = q; } }
+  b.tx = best[0] + Math.random() - 0.5; b.ty = best[1] + Math.random() - 0.5; b.tt = st.time + 2.5 + Math.random() * 3.5;
+}
+function drawSwallows(t) {
+  const T = tilt, S = st.S, N = S.N; st.swallowsDrawn = 0; st.swallowRings = 0; st.swallowAt = null;
+  const amt = st.swallowAmt = swallowAmt(), dt = Math.max(0, Math.min(0.1, t - SW.last)); SW.last = t;
+  if (!T || T.s == null) return;
+  if (SW.S !== S || SW.N !== N) { SW.S = S; SW.N = N; SW.birds = []; SW.rings = []; SW.t = -1e9; }
+  if (amt < 0.02 && !SW.birds.some(b => b.a > 0.02)) { SW.birds.forEach(b => { b.a = 0; }); return; }
+  if (st.time - SW.t > 3 || st.time < SW.t) { SW.t = st.time; SW.src = swallowSpots(S, T); }
+  st.swallowSrc = SW.src.length; if (SW.src.length < 3) return;
+  const brew = st.swallowBrew || 0, n = Math.round(SWALLOW_MAX * Math.min(1, amt)), V0 = Math.max(7, N * 0.075);
+  while (SW.birds.length < SWALLOW_MAX) SW.birds.push({ x: 0, y: 0, th: 0, om: 0, a: 0, alt: 2, dp: -1, fl: -9, fs: 1, tt: 0, tx: 0, ty: 0, ph: Math.random() * 6.28, f1: 0.8 + Math.random() * 0.5, f2: 0.8 + Math.random() * 0.6 });
+  const cp = T.cp, ow = T.ow, oh = T.oh, s = T.s, dim = 1 - LT.night * 0.5, col = litC(26 * dim, 30 * dim, 58 * dim), belly = litC(240, 228, 212);
+  let sa = 0; cx.save(); cx.lineCap = 'round'; cx.lineJoin = 'round';
+  for (let j = 0; j < SWALLOW_MAX; j++) {
+    const b = SW.birds[j], want = j < n ? 1 : 0;
+    if (want && b.a < 0.02) { const q = SW.src[(Math.random() * SW.src.length) | 0], an = Math.random() * 6.28; b.x = Math.max(3, Math.min(N - 4, q[0] - Math.cos(an) * 18)); b.y = Math.max(3, Math.min(N - 4, q[1] - Math.sin(an) * 18)); b.th = an; b.om = 0; b.tx = q[0]; b.ty = q[1]; b.tt = t + 3; b.dp = -1; b.alt = 2.4; }
+    b.a += (want - b.a) * Math.min(1, dt * (want ? 1.2 : 1.6)); if (b.a < 0.02) continue;
+    // steering: towards the target, plus a wandering curve and now and then a quick flick
+    let dx = b.tx - b.x, dy = b.ty - b.y; const dist = Math.hypot(dx, dy);
+    if (dist < 3 || t > b.tt) swallowGo(b, S);
+    let df = Math.atan2(b.ty - b.y, b.tx - b.x) - b.th; df -= Math.round(df / 6.2832) * 6.2832;
+    if (b.fl < t - 0.4 && Math.random() < dt * (0.25 + 0.5 * brew)) { b.fl = t; b.fs = Math.random() < 0.5 ? -1 : 1; }
+    const wand = 1.3 * Math.sin(t * 1.3 * b.f1 + b.ph) + 0.8 * Math.sin(t * 2.7 * b.f2 + 2 * b.ph), flick = t - b.fl < 0.35 ? b.fs * 5.5 : 0;
+    const omT = Math.max(-2.8, Math.min(2.8, 2.2 * df)) + wand * (dist > 4 ? 1 : 0.5) + flick;
+    b.om += (omT - b.om) * Math.min(1, dt * 5); b.th += b.om * dt;
+    const v = V0 * (0.85 + 0.25 * Math.sin(t * 0.7 * b.f1 + b.ph)) * (1 + 0.35 * brew) * (1 + 0.05 * Math.min(4, Math.abs(b.om)));
+    b.x = Math.max(2, Math.min(N - 3, b.x + Math.cos(b.th) * v * dt)); b.y = Math.max(2, Math.min(N - 3, b.y + Math.sin(b.th) * v * dt));
+    if (j === 0) SW.moved += v * dt;
+    // height: low over the grass, lower before a storm; a dip to the water now and then
+    const ci = (b.y | 0) * N + (b.x | 0), wet = S.d[ci] > 0.05 && !(S.ice && S.ice[ci] > 0.3);
+    const altT = Math.max(0.5, (2.4 - 1.4 * brew) + 0.6 * Math.sin(t * 1.1 * b.f2 + b.ph)); b.alt += (altT - b.alt) * Math.min(1, dt * 2);
+    if (b.dp < 0 && wet && Math.random() < dt * (0.15 + 0.45 * brew)) b.dp = 0;
+    let alt = b.alt;
+    if (b.dp >= 0) { const p0 = b.dp; b.dp += dt / 0.9; if (p0 < 0.5 && b.dp >= 0.5) { SW.dips++; if (wet && SW.rings.length < 12) SW.rings.push([b.x, b.y, t]); } if (b.dp >= 1) b.dp = -1; else { const q = Math.sin(Math.PI * b.dp); alt *= 1 - 0.96 * q * q; } }
+    // project (bilinear surface so the flight stays smooth over the cells)
+    const x0 = Math.min(N - 2, b.x | 0), y0 = Math.min(N - 2, b.y | 0), fx = b.x - x0, fy = b.y - y0, k0 = y0 * N + x0;
+    const hs = surf[k0] * (1 - fx) * (1 - fy) + surf[k0 + 1] * fx * (1 - fy) + surf[k0 + N] * (1 - fx) * fy + surf[k0 + N + 1] * fx * fy;
+    const sc = persp(b.y, N), ox = (b.x + 0.5 - N / 2) * cp * sc + ow / 2, oyB = baseY(T, b.y, N) - hs * cp * T.hEx * sc - alt * cp * sc;
+    const px = Math.round(ox), py = Math.round(oyB); if (px < 0 || px >= ow || py >= oh) continue;
+    if (py >= 0) { const pc = T.pick[py * ow + px]; if (pc >= 0 && ((pc / N) | 0) > b.y + 3) continue; } // behind a nearer slope
+    const x = T.sx + ox * s, y = T.sy + oyB * s, u = cp * sc * s, L = Math.max(isPhone ? 11 : 15, u * 3.2);
+    // screen heading (the ground is foreshortened in the tilt view), bank from the turn rate
+    const hx = Math.cos(b.th), hy = Math.sin(b.th) * 0.62, ang = Math.atan2(hy, hx), ca = Math.cos(ang), sn = Math.sin(ang), bank = Math.max(-1, Math.min(1, b.om / 3));
+    const P = (f, g) => [x + ca * f * L - sn * g * L, y + sn * f * L + ca * g * L];
+    const flap = Math.sin(t * 0.9 * b.f1 + b.ph) > -0.3 ? Math.sin(t * (15 + 5 * brew) + b.ph * 3) : 0.35; // bursts of wingbeats, then a glide
+    const reach = 0.5 * (0.78 + 0.22 * flap), sw = 0.22 + 0.1 * flap;
+    const lt = P(-sw, -reach * (1 - 0.35 * bank)), rt = P(-sw, reach * (1 + 0.35 * bank)), sh = P(0.06, 0), cl = P(0.14, -reach * 0.45), cr = P(0.14, reach * 0.45);
+    cx.globalAlpha = b.a; cx.strokeStyle = col; cx.fillStyle = col;
+    cx.lineWidth = Math.max(1.6, L * 0.11); cx.beginPath(); cx.moveTo(lt[0], lt[1]); cx.quadraticCurveTo(cl[0], cl[1], sh[0], sh[1]); cx.quadraticCurveTo(cr[0], cr[1], rt[0], rt[1]); cx.stroke();
+    const tb = P(-0.16, 0), t1 = P(-0.6, -0.15), t2 = P(-0.6, 0.15); cx.lineWidth = Math.max(1, L * 0.06); cx.beginPath(); cx.moveTo(t1[0], t1[1]); cx.lineTo(tb[0], tb[1]); cx.lineTo(t2[0], t2[1]); cx.stroke();
+    const bc = P(0.02, 0); cx.beginPath(); cx.ellipse(bc[0], bc[1], L * 0.2, Math.max(1, L * 0.075), ang, 0, 7); cx.fill();
+    const be = P(0.0, bank * 0.05); cx.globalAlpha = b.a * (0.45 + 0.5 * Math.abs(bank)); cx.fillStyle = belly; cx.beginPath(); cx.ellipse(be[0], be[1], L * 0.11, Math.max(0.6, L * 0.035), ang, 0, 7); cx.fill();
+    if (!st.swallowsDrawn) st.swallowAt = [x, y]; st.swallowsDrawn++; sa += alt;
+  }
+  // little ring ripples where a bird touched the water
+  SW.rings = SW.rings.filter(r => t - r[2] < 1.1 && t >= r[2]);
+  for (const [gx, gy, t0] of SW.rings) { const p = projTilt(gx, gy); if (!p) continue; const k = (t - t0) / 1.1, u = cp * persp(gy, N) * s, rx = u * (0.4 + 1.4 * k);
+    cx.globalAlpha = 0.7 * (1 - k); cx.strokeStyle = litC(228, 240, 250); cx.lineWidth = Math.max(1, u * 0.18); cx.beginPath(); cx.ellipse(p[0], p[1], rx, rx * 0.4, 0, 0, 7); cx.stroke(); st.swallowRings++; }
+  cx.restore();
+  st.swallowAlt = st.swallowsDrawn ? sa / st.swallowsDrawn : 0; st.swallowDips = SW.dips; st.swallowMoved = SW.moved;
+}
 // morning mist: on cool spring and autumn mornings, most after a clear calm night, soft low wisps hang over the water
 // (river and lakes) at dawn; the morning sun lifts and thins them and they are gone by late morning. None in summer
 // heat, at midday or in the map view; rain thins them, wind thins them and drifts them along. Cheap: up to MIST_MAX
@@ -2854,7 +2945,7 @@ function frame(now) {
   const tc0 = performance.now(); computeColours(st.time); st.colMs = (st.colMs || 0) * 0.9 + (performance.now() - tc0) * 0.1;
   cx.setTransform(dpr, 0, 0, dpr, 0, 0);
   if (st.view === 'tilt') { tiltGeom(); drawSky(st.time, dtReal); renderTilt(st.time); }
-  else { drawSky(st.time, dtReal); renderTop(st.time); drawCottagesTop(); drawWindowGlowTop(st.time); st.petalsDrawn = 0; st.mistDrawn = 0; st.mistDrift = 0; st.puddlesDrawn = 0; st.icyPuddles = 0; st.puddleIcePx = 0; st.splashKids = 0; st.splashHopping = 0; st.splashDrops = 0; st.splashSpots = 0; st.splashPuds = []; KID.on = false; st.duckFams = 0; st.ducksDrawn = 0; st.ducklingsDrawn = 0; st.duckLine = null; DUCK.last = null; } // no petals in the map view (seen from far above they would be specks of dust)
+  else { drawSky(st.time, dtReal); renderTop(st.time); drawCottagesTop(); drawWindowGlowTop(st.time); st.petalsDrawn = 0; st.mistDrawn = 0; st.mistDrift = 0; st.puddlesDrawn = 0; st.icyPuddles = 0; st.puddleIcePx = 0; st.splashKids = 0; st.splashHopping = 0; st.splashDrops = 0; st.splashSpots = 0; st.splashPuds = []; KID.on = false; st.duckFams = 0; st.ducksDrawn = 0; st.ducklingsDrawn = 0; st.duckLine = null; DUCK.last = null; st.swallowsDrawn = 0; st.swallowRings = 0; st.swallowAt = null; SW.last = st.time; } // no petals in the map view (seen from far above they would be specks of dust)
   floeStep(S, dtReal); drawFloes();
   drawCottageBadges(st.time);
   drawNaturalRain(st.time); drawOverlays(st.time); drawShower(st.time);
@@ -2896,7 +2987,7 @@ function adapt(dt) {
 // and thunder after lightning, wind (stronger in winter and storms), birds by day in the forest, crickets on
 // summer evenings, an owl at night, the creak and clack of turning mill wheels, cowbells near the village.
 // window.LV_AUDIO holds the levels (0..1) and gains so tests can check them without listening.
-const AU = { want: false, on: false, started: false, state: 'none', nodes: 0, live: 0, L: {}, G: {}, ev: { chirp: 0, cricket: 0, owl: 0, clack: 0, creak: 0, bell: 0, thunder: 0, plop: 0, slurp: 0, splash: 0, knock: 0, well: 0, rustle: 0, rumble: 0, drip: 0, squeak: 0, thump: 0, crunch: 0, skate: 0, icicle: 0, puddle: 0, peep: 0 }, flow: 0, riverPan: 0, veg: 0, ticks: 0, vol: 1, snowCover: 0, rainMuffle: 0, rainCut: 9000, masterT: 0, melt: 0, meltPan: 0 };
+const AU = { want: false, on: false, started: false, state: 'none', nodes: 0, live: 0, L: {}, G: {}, ev: { chirp: 0, cricket: 0, owl: 0, clack: 0, creak: 0, bell: 0, thunder: 0, plop: 0, slurp: 0, splash: 0, knock: 0, well: 0, rustle: 0, rumble: 0, drip: 0, squeak: 0, thump: 0, crunch: 0, skate: 0, icicle: 0, puddle: 0, peep: 0, twit: 0 }, flow: 0, riverPan: 0, veg: 0, ticks: 0, vol: 1, snowCover: 0, rainMuffle: 0, rainCut: 9000, masterT: 0, melt: 0, meltPan: 0 };
 window.LV_AUDIO = AU;
 const AU_KEY = 'lv-sound', AU_MASTER = 0.45, AU_DT = 0.25;
 const AU_MAX = { river: 0.55, rain: 0.42, wind: 0.2, birds: 0.42, crickets: 0.13, owl: 0.38, mill: 0.42, cows: 0.26, thunder: 0.85, melt: 0.3 }; // full-level gain per layer
@@ -3116,6 +3207,12 @@ function sndPuddle(pan, k) { // a child lands in a puddle: a small wet slap and 
   drop(t + 0.025, 520 + Math.random() * 260, 0.3 * k, pan);
   AU.ev.puddle++;
 }
+function sndTwit(pan, k) { // a swallow: a quick, faint, high twitter of 3-5 chirps (fx bus, so mute and volume apply)
+  if (!fxOn()) return; const t0 = AG.ac.currentTime + 0.02 + Math.random() * 0.2, n = 3 + ((Math.random() * 3) | 0), f0 = 4200 + Math.random() * 900;
+  for (let j = 0; j < n; j++) { const t = t0 + j * (0.07 + Math.random() * 0.04), f = f0 * (0.9 + 0.25 * Math.random()), g = auVoice('fx', t, 0.07, pan), o = osc('sine', f, t, 0.07, g);
+    o.frequency.exponentialRampToValueAtTime(f * (j % 2 ? 1.25 : 0.8), t + 0.045); g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.018 * k, t + 0.008); g.gain.linearRampToValueAtTime(0, t + 0.055); }
+  AU.ev.twit++;
+}
 function sndPeep(pan, k) { // a duckling: two or three tiny soft peeps (fx bus, so mute and volume apply)
   if (!fxOn()) return; const t0 = AG.ac.currentTime + 0.02 + Math.random() * 0.15, n = 2 + (Math.random() < 0.4 ? 1 : 0), f0 = 3000 + Math.random() * 600;
   for (let j = 0; j < n; j++) { const t = t0 + j * (0.13 + Math.random() * 0.05), g = auVoice('fx', t, 0.12, pan), o = osc('sine', f0 * 1.08, t, 0.12, g);
@@ -3199,6 +3296,8 @@ function auTick(dt) {
     const S = st.S, N = S.N, i0 = st.splashPuds[(R() * st.splashPuds.length) | 0], q = proj(i0 % N, (i0 / N) | 0);
     sndPuddle(q && innerWidth > 0 ? Math.max(-0.7, Math.min(0.7, (q[0] / innerWidth) * 1.4 - 0.7)) : 0, 0.7 + 0.3 * R()); AU.splT = t; }
   // ducklings on the water (while drawn): a soft peep now and then, at most one per 1.4 s, panned to the first family
+  // swallows overhead (while drawn): a faint twitter now and then, at most one per 2.5 s, panned to the first bird
+  if (st.swallowsDrawn > 0 && st.swallowAt && t - (AU.twitT || -9) > 2.5 && R() < 0.2) { sndTwit(fxPan(st.swallowAt[0]), 0.7 + 0.3 * R()); AU.twitT = t; }
   if (st.ducklingsDrawn > 0 && st.duckPx && t - (AU.peepT || -9) > 1.4 && R() < 0.3) { sndPeep(fxPan(st.duckPx[0]), 0.7 + 0.3 * R()); AU.peepT = t; }
   // icicles dripping in the sun (while drawn): a soft plip now and then, at most one per 0.6 s, panned to a dripping cottage
   if (st.dripsDrawn > 0 && performance.now() - (st.dripsAt || 0) < 600 && t - (AU.icT || -9) > 0.6 && R() < Math.min(0.7, 0.3 + 0.04 * st.dripsDrawn)) {
@@ -3474,7 +3573,7 @@ addEventListener('pagehide', () => autoSave('pagehide'));
 window.LV_AUTO = { AS, save: autoSave, get: asGet, put: asPut, clear: asClear, restore: autoRestore };
 
 
-window.__lv = { st, AU, updSound, LV, LT, leaf: LS, clockText, wheelAng, get col() { return [colR, colG, colB]; }, get tilt() { return tilt; }, get area() { return area; }, setTool, newWorld, unproj, proj, get S() { return st.S; }, floes, breakup: sndBreakup, yearTurn, flourT, SACK_T, carts, CART_LOAD, cartTarget, bakeT, FLOUR, smokeRGB, HAY, HAY_T, PUD, KID, DUCK };
+window.__lv = { st, AU, SW, updSound, LV, LT, leaf: LS, clockText, wheelAng, get col() { return [colR, colG, colB]; }, get tilt() { return tilt; }, get area() { return area; }, setTool, newWorld, unproj, proj, get S() { return st.S; }, floes, breakup: sndBreakup, yearTurn, flourT, SACK_T, carts, CART_LOAD, cartTarget, bakeT, FLOUR, smokeRGB, HAY, HAY_T, PUD, KID, DUCK };
 updUI(); updSound();
 const rawHash = (location.hash || '').slice(1);
 let fromHash = ''; try { fromHash = decodeURIComponent(rawHash); } catch (e) { fromHash = ''; }
