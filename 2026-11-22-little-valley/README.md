@@ -86,6 +86,13 @@ through the night, and on spring and summer evenings fireflies blink over the me
 **Fields under snow**: when snow lies on the fields they rest: nothing ripens or is harvested, the crop
 fades to bare brown rows that peek through thin snow, and they are sown again after the thaw.
 
+**Fox tracks**: on winter mornings, when snow lies in the valley, a dotted line of little paw prints
+crosses the snowy meadow from the edge of the forest (two tracks on a big screen, one on a phone). They are
+crisp after dawn, go soft and fade through the day (gone by late afternoon) and fill in when new snow falls,
+so the next morning brings fresh ones. Now and then at dusk the red fox itself trots along the forest edge,
+a small orange fox with a white-tipped bushy tail; it stops to sniff the snow and leaves its own prints as it
+goes. None in falling snow or storms, or in the map view. (`screenshot-fox.png`: fox tracks on a winter morning.)
+
 **Snowmen**: when the snow reaches the village, little snowmen with red scarves and dark hats
 appear in the cottage gardens, and they melt with the snow in spring.
 

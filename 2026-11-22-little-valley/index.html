@@ -1627,6 +1627,7 @@ function renderTilt(t) {
   { const t0 = performance.now(); drawMidges(t); st.midgeMs = (st.midgeMs || 0) * 0.9 + (performance.now() - t0) * 0.1; }
   { const t0 = performance.now(); drawDragonflies(t); st.dfMs = (st.dfMs || 0) * 0.9 + (performance.now() - t0) * 0.1; }
   { const t0 = performance.now(); drawWebs(t); st.webMs = (st.webMs || 0) * 0.9 + (performance.now() - t0) * 0.1; }
+  { const t0 = performance.now(); drawFox(t); st.foxMs = (st.foxMs || 0) * 0.9 + (performance.now() - t0) * 0.1; }
   { const t0 = performance.now(); drawGlowworms(t); st.glowwormMs = (st.glowwormMs || 0) * 0.9 + (performance.now() - t0) * 0.1; }
   drawLanterns(t);
   drawFireflies(t);
@@ -2953,6 +2954,140 @@ function drawWebs(t) {
   }
   cx.restore(); st.webEdge = st.websDrawn ? ne / st.websDrawn : 0; st.webR = st.websDrawn ? sr / st.websDrawn : 0;
 }
+// fox tracks: on winter mornings with snow lying in the valley (the sim's winter snow keeps falling above the snow line,
+// so the cover is always fresh), a dotted line of little paw prints (2 tracks desk / 1 phone, at most 40 / 28 prints
+// each, about 0.85 cells apart) crosses the snowy meadow from the forest edge: a fox walks in a nearly single line, so the prints alternate
+// only a hair left and right of a gently wandering path. They are crisp after dawn, soften and fade through the day
+// (soft blurred sprite from ~11:00, gone by ~16:30) and fill in under new snowfall (they do not come back until the
+// next morning). Now and then at dusk (18:00-21:00, on about 2 evenings in 3, a pass every 20-50 s) the red fox itself
+// trots along the forest edge: a small orange sprite with a white-tipped bushy tail and dark legs, two trot frames
+// and a sniff pose (head down) when it stops now and then; it leaves its own prints in the snow as it goes. None in
+// rain/snowfall or storms, outside winter, without snow, in the map view; the always-day mode follows its own hour
+// (morning tracks in its morning part, no dusk so no fox). Cheap: pre-rendered paw and fox sprites (drawImage only).
+// Hooks: st.foxTracks, st.foxPrints (prints drawn), st.foxPrintCells, st.foxTrackA (track alpha), st.foxSoft,
+// st.foxFill, st.foxDrawn, st.foxAt, st.foxMoved (cells), st.foxSniffs, st.foxLaid (prints left by the fox),
+// st.foxEdge (share of fox steps at the forest edge), st.foxEve, st.foxForce (test: every evening), st.foxMs.
+const FOX_TR = isPhone ? 1 : 2, FOX_PR = isPhone ? 28 : 40, FOX_FP = isPhone ? 20 : 30, FOX_GAP = 0.85;
+const FOX = { S: null, N: 0, tracks: [], fill: 0, night: true, spr: null, fox: null, rest: 0, last: -1, laid: [], sniffs: 0, moved: 0, eStep: 0, eHit: 0 };
+function foxEvening(d) { const v = Math.sin(d * 91.7 + 13.1) * 43758.5; return v - Math.floor(v) < 0.67; }
+function foxSnowOk(S, i, H) { return S.snow[i] > 0.05 && S.d[i] < 0.02 && !(S.ice && S.ice[i] > 0.3) && S.tree[i] < 0.3 && S.h[i] / H < 0.5; }
+function foxGroundOk(S, i, H) { return S.d[i] < 0.02 && !(S.ice && S.ice[i] > 0.3) && S.tree[i] < 0.3 && S.h[i] / H < 0.5; }
+function foxSea(S) { const y = S.P.seasons ? LV.yearFrac(S) : 0.88; return smooth(0.74, 0.78, y) * (1 - smooth(0.97, 0.995, y)); }
+function foxSprites() {
+  if (FOX.spr) return FOX.spr;
+  const paw = soft => { const c = document.createElement('canvas'); c.width = c.height = 16; const g = c.getContext('2d');
+    if (soft) g.filter = 'blur(1.2px)'; g.fillStyle = soft ? 'rgba(120,140,175,0.75)' : 'rgba(86,104,140,0.9)';
+    g.beginPath(); g.ellipse(8, 10, 3.2, 2.6, 0, 0, 6.283); g.fill();
+    if (!soft) for (const [x, y] of [[4.6, 5.6], [7, 4], [9.2, 4], [11.4, 5.6]]) { g.beginPath(); g.arc(x, y, 1.3, 0, 6.283); g.fill(); }
+    else { g.beginPath(); g.ellipse(8, 5, 3.6, 1.8, 0, 0, 6.283); g.fill(); }
+    return c; };
+  const fox = (fr, flip) => { const W = 40, Hh = 24, c = document.createElement('canvas'); c.width = W; c.height = Hh; const g = c.getContext('2d');
+    if (flip) { g.translate(W, 0); g.scale(-1, 1); }
+    const sniff = fr === 2, leg = fr === 0 ? 2.2 : -2.2;
+    g.strokeStyle = '#2c1a12'; g.lineWidth = 1.6; g.lineCap = 'round'; g.beginPath(); // legs
+    if (sniff) { g.moveTo(16, 15); g.lineTo(16, 21); g.moveTo(19, 15); g.lineTo(19.5, 21); g.moveTo(26, 14); g.lineTo(26, 21); g.moveTo(28, 14); g.lineTo(28.5, 21); }
+    else { g.moveTo(16, 15); g.lineTo(16 - leg, 21); g.moveTo(18, 15); g.lineTo(18 + leg, 21); g.moveTo(26, 14); g.lineTo(26 + leg, 21); g.moveTo(28, 14); g.lineTo(28 - leg, 21); }
+    g.stroke();
+    g.fillStyle = '#c4561c'; g.beginPath(); g.moveTo(14, 12); g.quadraticCurveTo(5, 9 + (sniff ? 1 : fr), 1, 14 + (sniff ? 2 : 0)); g.quadraticCurveTo(6, 17, 15, 15); g.fill(); // bushy tail
+    g.fillStyle = '#f6efe6'; g.beginPath(); g.ellipse(2.6, 13.6 + (sniff ? 2 : 0), 2.4, 1.8, -0.3, 0, 6.283); g.fill(); // white tip
+    g.fillStyle = '#d2611f'; g.beginPath(); g.ellipse(22, 13, 9, 3.6, sniff ? 0.08 : -0.04, 0, 6.283); g.fill(); // body
+    g.fillStyle = '#efe3d2'; g.beginPath(); g.ellipse(23, 15.4, 6, 1.4, 0, 0, 6.283); g.fill(); // pale belly
+    const hx = 31, hy = sniff ? 17 : 9.5; // head (down to the snow when it sniffs)
+    g.fillStyle = '#d2611f'; g.beginPath(); g.moveTo(28, sniff ? 13 : 11); g.lineTo(hx, hy - 1); g.lineTo(hx + 1, hy + 3); g.lineTo(27, 15); g.fill(); // neck
+    g.beginPath(); g.ellipse(hx, hy, 3.2, 2.6, 0, 0, 6.283); g.fill();
+    g.beginPath(); g.moveTo(hx + 2, hy - 1); g.lineTo(hx + 7, hy + (sniff ? 2.5 : 1)); g.lineTo(hx + 2, hy + 2); g.fill(); // snout
+    g.fillStyle = '#efe3d2'; g.beginPath(); g.moveTo(hx + 1, hy + 1); g.lineTo(hx + 6.5, hy + (sniff ? 2.6 : 1.2)); g.lineTo(hx + 1, hy + 2.6); g.fill();
+    g.fillStyle = '#2c1a12'; g.beginPath(); g.arc(hx + 7, hy + (sniff ? 2.5 : 1), 0.9, 0, 6.283); g.fill(); // nose
+    g.beginPath(); g.moveTo(hx - 2.2, hy - 1.5); g.lineTo(hx - 1.4, hy - 5.5); g.lineTo(hx + 0.2, hy - 1.8); g.fill(); // ears
+    g.beginPath(); g.moveTo(hx + 0.2, hy - 1.8); g.lineTo(hx + 1.4, hy - 5.8); g.lineTo(hx + 2.4, hy - 1.4); g.fill();
+    return c; };
+  return FOX.spr = { crisp: paw(false), soft: paw(true), fox: [0, 1, 2].map(f => [fox(f, false), fox(f, true)]) };
+}
+function foxTrackAmt() { // morning tracks: visible winter daytime, crisp after dawn, softening through the day
+  const S = st.S, h = LT.h, sea = foxSea(S);
+  const day = smooth(5.8, 6.8, h) * (1 - smooth(13.5, 16.5, h)); st.foxSoft = smooth(10.5, 14.5, h);
+  return sea * day * (LT.storm > 0.02 ? 0 : 1);
+}
+function foxLayTrack(S, T, H) { // a dotted line across the snow, starting at the forest edge
+  const N = S.N;
+  const src = glowSpotsSnow(S, T, H).filter(q => foxSnowOk(S, q[1] * N + q[0], H)); if (!src.length) return null;
+  for (let tries = 0; tries < 14; tries++) {
+    const q = src[(Math.random() * src.length) | 0], x0 = q[0] + 0.5, y0 = q[1] + 0.5;
+    let x = x0, y = y0, a = Math.random() * 6.283, pts = [];
+    for (let k = 0; k < FOX_PR; k++) {
+      const side = (k & 1 ? 1 : -1) * 0.12; pts.push([x - Math.sin(a) * side, y + Math.cos(a) * side]);
+      a += (Math.random() - 0.5) * 0.45; const nx = x + Math.cos(a) * FOX_GAP, ny = y + Math.sin(a) * FOX_GAP;
+      if (nx < 3 || ny < 3 || nx > N - 4 || ny > N - 4 || !foxSnowOk(S, (ny | 0) * N + (nx | 0), H)) { break; }
+      x = nx; y = ny;
+    }
+    if (pts.length >= 12) return { pts };
+  }
+  return null;
+}
+function foxProj(T, S, x, y) { // grid point -> screen px on the snow surface, or null when behind a ridge / off screen
+  const N = S.N, xi = x | 0, yi = y | 0, ci = yi * N + xi, sc = persp(y, N), ox = (x - N / 2) * T.cp * sc + T.ow / 2, oyB = baseY(T, y, N) - (surf[ci] + 0.02) * T.cp * T.hEx * sc;
+  const px = Math.round(ox), py = Math.round(oyB) + 1; if (px < 0 || px >= T.ow || py < 0 || py >= T.oh) return null;
+  const pc = T.pick[py * T.ow + px]; if (pc < 0 || Math.abs(pc % N - xi) > 3 || Math.abs(((pc / N) | 0) - yi) > 4) return null;
+  return [T.sx + ox * T.s, T.sy + oyB * T.s, T.cp * sc * T.s];
+}
+function foxStep(S, T, H, dt, eve) { // the fox at dusk: trot along the forest edge, stop and sniff now and then
+  const N = S.N; let f = FOX.fox;
+  if (!f) { FOX.rest -= dt; if (!eve) FOX.rest = Math.min(FOX.rest, 3); if (!eve || FOX.rest > 0) return;
+    const src = glowSpotsSnow(S, T, H); if (!src.length) { FOX.rest = 2; return; }
+    const q = src[(Math.random() * src.length) | 0];
+    f = FOX.fox = { x: q[0] + 0.5, y: q[1] + 0.5, a: Math.random() * 6.283, a2: 0, go: 0, sniff: 0, next: 1.5 + Math.random() * 2.5, ph: 0, lp: 0, al: 0, out: false, life: 14 + Math.random() * 8, stuck: 0, m0: FOX.moved };
+    f.a2 = f.a; }
+  if (!eve) f.out = true; f.life -= dt; if (f.life < 0) f.out = true;
+  f.al += ((f.out ? 0 : 1) - f.al) * Math.min(1, dt * (f.out ? 3 : 2));
+  if (f.out && f.al < 0.03) { FOX.fox = null; FOX.rest = FOX.moved - f.m0 < 4 ? 2 : 20 + Math.random() * 30; return; } // a short pass (cut off): try again soon
+  if (f.sniff > 0) { f.sniff -= dt; return; }
+  f.next -= dt; if (f.next < 0) { f.sniff = 0.9 + Math.random() * 1.1; f.next = 2.5 + Math.random() * 4; FOX.sniffs++; return; }
+  // steer: look a little ahead at a few headings, prefer snowy-or-open ground right at the forest edge
+  let best = null, bs = -1e9;
+  for (const da of [0, -0.45, 0.45, -0.9, 0.9, -1.6, 1.6, 3.14]) { const a = f.a + da, lx = f.x + Math.cos(a) * 1.4, ly = f.y + Math.sin(a) * 1.4, i = (ly | 0) * N + (lx | 0);
+    if (lx < 3 || ly < 3 || lx > N - 4 || ly > N - 4 || !foxGroundOk(S, i, H)) continue; const sc = (glowEdge(S, i) ? 3 : 0) - Math.abs(da) * 0.35 + Math.random() * 0.3; if (sc > bs) { bs = sc; best = a; } }
+  if (best == null) { f.a += Math.PI; if (++f.stuck > 3) f.out = true; return; } // a dead end: turn round
+  f.a += (best - f.a) * Math.min(1, dt * 6); const sp = 1.15 * dt, i0 = (f.y | 0) * N + (f.x | 0);
+  f.x += Math.cos(f.a) * sp; f.y += Math.sin(f.a) * sp; f.ph += dt * 9; f.lp += sp; FOX.moved += sp; FOX.eStep++; if (glowEdge(S, i0)) FOX.eHit++;
+  if (f.lp > FOX_GAP) { f.lp = 0; const i = (f.y | 0) * N + (f.x | 0); if (foxSnowOk(S, i, H)) { const side = (FOX.laid.length & 1 ? 1 : -1) * 0.12; FOX.laid.push([f.x - Math.sin(f.a) * side, f.y + Math.cos(f.a) * side]); st.foxLaid = (st.foxLaid || 0) + 1; if (FOX.laid.length > FOX_FP) FOX.laid.shift(); } }
+}
+function glowSpotsSnow(S, T, H) { const N = S.N, out = [], s2 = Math.max(1, N >> 6);
+  for (let y = 4; y < N - 4; y += s2) for (let x = 4; x < N - 4; x += s2) { const i = y * N + x; if (foxGroundOk(S, i, H) && glowEdge(S, i) && duckSeen(T, S, x, y)) out.push([x, y]); }
+  return out; }
+function drawFox(t) {
+  const T = tilt, S = st.S; st.foxTracks = 0; st.foxPrints = 0; st.foxPrintCells = []; st.foxDrawn = 0; st.foxAt = null;
+  const dt = Math.max(0, Math.min(0.1, t - FOX.last)); FOX.last = t;
+  if (!T || T.s == null || !T.pick) return;
+  const N = S.N, H = N * 0.27, h = LT.h, sea = foxSea(S);
+  if (FOX.S !== S || FOX.N !== N) { FOX.S = S; FOX.N = N; FOX.tracks = []; FOX.laid = []; FOX.fox = null; FOX.night = true; }
+  const amt = st.foxTrackA = foxTrackAmt(), snowing = LT.rain > 0.03 && sea > 0.05;
+  if (amt < 0.01) { if (h < 5.5 || h > 17 || sea < 0.05) { FOX.night = true; FOX.fill = 0; } FOX.tracks = []; }
+  else if ((FOX.night || (!FOX.tracks.length && FOX.fill < 0.05 && t - (FOX.tryT || 0) > 3)) && !snowing) { FOX.night = false; FOX.tryT = t; FOX.tracks = []; for (let k = 0; k < FOX_TR; k++) { const tr = foxLayTrack(S, T, H); if (tr) FOX.tracks.push(tr); } }
+  if (snowing) FOX.fill = Math.min(1, FOX.fill + dt * 0.6); st.foxFill = FOX.fill;
+  const day = Math.floor(S.time / (S.P.dayLen || 720)), eve = st.foxEve = (st.foxForce || foxEvening(day)) && sea > 0.5 && h > 18 && h < 21 && !snowing && LT.storm < 0.02 && !st.alwaysDay;
+  if (!FOX.tracks.length && !FOX.laid.length && !FOX.fox && !eve) return;
+  const spr = foxSprites(), pr = isPhone ? 1.8 : 2.2; cx.save();
+  const a0 = amt * (1 - FOX.fill), soft = st.foxSoft || 0, img = soft > 0.5 ? spr.soft : spr.crisp;
+  const key = T.sx + ',' + T.sy + ',' + T.s + ',' + T.ow;
+  if (a0 > 0.02) for (const tr of FOX.tracks) {
+    if (!tr.c || tr.key !== key || t - tr.ct > 1 || t < tr.ct) { tr.key = key; tr.ct = t; tr.c = []; // screen spots, refreshed once a second (cheap per frame)
+      for (const [x, y] of tr.pts) { if (!foxSnowOk(S, (y | 0) * N + (x | 0), H)) continue; const p = foxProj(T, S, x, y); if (p) tr.c.push([p[0], p[1], Math.max(pr, Math.min(pr * 1.6, p[2] * 0.42)), x | 0, y | 0]); } }
+    cx.globalAlpha = Math.min(1, a0 * (1 - soft * 0.35)); const k = 1 + soft * 0.3;
+    for (const q of tr.c) { const r = q[2] * k; cx.drawImage(img, q[0] - r, q[1] - r, r * 2, r * 2); st.foxPrints++; if (st.foxPrintCells.length < 200) st.foxPrintCells.push([q[3], q[4]]); }
+    if (tr.c.length) st.foxTracks++; }
+  // the fox's own fresh prints (fill in with snowfall, melt away with the snow)
+  if (FOX.fill > 0.98 || sea < 0.05) FOX.laid = [];
+  for (const [x, y] of FOX.laid) { if (!foxSnowOk(S, (y | 0) * N + (x | 0), H)) continue; const p = foxProj(T, S, x, y); if (!p) continue; const r = Math.max(pr, Math.min(pr * 1.6, p[2] * 0.42));
+    cx.globalAlpha = 0.9 * (1 - FOX.fill); cx.drawImage(spr.crisp, p[0] - r, p[1] - r, r * 2, r * 2); }
+  foxStep(S, T, H, dt, eve); st.foxSniffs = FOX.sniffs; st.foxMoved = FOX.moved; st.foxEdge = FOX.eStep ? FOX.eHit / FOX.eStep : 0;
+  const f = FOX.fox;
+  if (f && f.al > 0.03) { const p = foxProj(T, S, f.x, f.y);
+    if (p) { const sx = Math.cos(f.a) * persp(f.y, N), sy = Math.sin(f.a), left = sx < 0; const fr = f.sniff > 0 ? 2 : (Math.sin(f.ph) > 0 ? 0 : 1);
+      const w = (isPhone ? 19 : 25) * Math.max(0.85, Math.min(1.3, p[2] / 5)), hh = w * 0.6; cx.globalAlpha = Math.min(1, f.al);
+      cx.fillStyle = 'rgba(60,70,100,0.18)'; cx.beginPath(); cx.ellipse(p[0], p[1], w * 0.36, hh * 0.12, 0, 0, 6.283); cx.fill(); // soft shadow on the snow
+      cx.drawImage(spr.fox[fr][left ? 1 : 0], p[0] - w / 2, p[1] - hh * 0.9, w, hh); st.foxDrawn = 1; st.foxAt = [p[0], p[1]]; void sy; } }
+  cx.restore();
+}
 function mistWind() { const S = st.S, W = S.wx, dir = W && W.vx < 0 ? -1 : 1, r = S.rainNow || 0, sto = W && W.storm ? r : 0; return dir * (0.12 + 0.8 * r + 1.6 * sto + (st.windTest || 0) + 0.08 * Math.sin(st.time * 0.19)); }
 function updMist() {
   const S = st.S, h = LT.h, y = S.P.seasons ? LV.yearFrac(S) : -1;
@@ -3312,7 +3447,7 @@ function frame(now) {
   const tc0 = performance.now(); computeColours(st.time); st.colMs = (st.colMs || 0) * 0.9 + (performance.now() - tc0) * 0.1;
   cx.setTransform(dpr, 0, 0, dpr, 0, 0);
   if (st.view === 'tilt') { tiltGeom(); drawSky(st.time, dtReal); renderTilt(st.time); }
-  else { drawSky(st.time, dtReal); renderTop(st.time); drawCottagesTop(); drawWindowGlowTop(st.time); st.websDrawn = 0; st.webAt = []; st.webCells = []; st.webGlints = 0; WEB.webs.forEach(w => { w.a = 0; }); st.glowwormsDrawn = 0; st.glowwormAt = []; st.glowwormCells = []; st.glowwormLvl = []; GW.worms.forEach(w => { w.a = 0; }); st.petalsDrawn = 0; st.mistDrawn = 0; st.mistDrift = 0; st.puddlesDrawn = 0; st.icyPuddles = 0; st.puddleIcePx = 0; st.splashKids = 0; st.splashHopping = 0; st.splashDrops = 0; st.splashSpots = 0; st.splashPuds = []; KID.on = false; st.batsDrawn = 0; st.batAt = null; st.midgesDrawn = 0; st.midgeSpecks = 0; st.midgeGlints = 0; st.midgeCols = []; MID.last = st.time; st.dragonfliesDrawn = 0; st.dfAt = null; st.dfHover = 0; DF.last = st.time; st.duckFams = 0; st.ducksDrawn = 0; st.ducklingsDrawn = 0; st.duckLine = null; DUCK.last = null; st.swallowsDrawn = 0; st.swallowRings = 0; st.swallowAt = null; SW.last = st.time; } // no petals in the map view (seen from far above they would be specks of dust)
+  else { drawSky(st.time, dtReal); renderTop(st.time); drawCottagesTop(); drawWindowGlowTop(st.time); st.websDrawn = 0; st.webAt = []; st.webCells = []; st.webGlints = 0; WEB.webs.forEach(w => { w.a = 0; }); st.foxTracks = 0; st.foxPrints = 0; st.foxPrintCells = []; st.foxDrawn = 0; st.foxAt = null; if (FOX.fox) { FOX.fox = null; FOX.rest = 5; } FOX.last = st.time; st.glowwormsDrawn = 0; st.glowwormAt = []; st.glowwormCells = []; st.glowwormLvl = []; GW.worms.forEach(w => { w.a = 0; }); st.petalsDrawn = 0; st.mistDrawn = 0; st.mistDrift = 0; st.puddlesDrawn = 0; st.icyPuddles = 0; st.puddleIcePx = 0; st.splashKids = 0; st.splashHopping = 0; st.splashDrops = 0; st.splashSpots = 0; st.splashPuds = []; KID.on = false; st.batsDrawn = 0; st.batAt = null; st.midgesDrawn = 0; st.midgeSpecks = 0; st.midgeGlints = 0; st.midgeCols = []; MID.last = st.time; st.dragonfliesDrawn = 0; st.dfAt = null; st.dfHover = 0; DF.last = st.time; st.duckFams = 0; st.ducksDrawn = 0; st.ducklingsDrawn = 0; st.duckLine = null; DUCK.last = null; st.swallowsDrawn = 0; st.swallowRings = 0; st.swallowAt = null; SW.last = st.time; } // no petals in the map view (seen from far above they would be specks of dust)
   floeStep(S, dtReal); drawFloes();
   drawCottageBadges(st.time);
   drawNaturalRain(st.time); drawOverlays(st.time); drawShower(st.time);
@@ -3948,7 +4083,7 @@ addEventListener('pagehide', () => autoSave('pagehide'));
 window.LV_AUTO = { AS, save: autoSave, get: asGet, put: asPut, clear: asClear, restore: autoRestore };
 
 
-window.__lv = { st, AU, SW, updSound, LV, LT, leaf: LS, clockText, wheelAng, get col() { return [colR, colG, colB]; }, get tilt() { return tilt; }, get area() { return area; }, setTool, newWorld, unproj, proj, get S() { return st.S; }, floes, breakup: sndBreakup, yearTurn, flourT, SACK_T, carts, CART_LOAD, cartTarget, bakeT, FLOUR, smokeRGB, HAY, HAY_T, PUD, KID, DUCK };
+window.__lv = { st, FOX, foxEvening, AU, SW, updSound, LV, LT, leaf: LS, clockText, wheelAng, get col() { return [colR, colG, colB]; }, get tilt() { return tilt; }, get area() { return area; }, setTool, newWorld, unproj, proj, get S() { return st.S; }, floes, breakup: sndBreakup, yearTurn, flourT, SACK_T, carts, CART_LOAD, cartTarget, bakeT, FLOUR, smokeRGB, HAY, HAY_T, PUD, KID, DUCK };
 updUI(); updSound();
 const rawHash = (location.hash || '').slice(1);
 let fromHash = ''; try { fromHash = decodeURIComponent(rawHash); } catch (e) { fromHash = ''; }
