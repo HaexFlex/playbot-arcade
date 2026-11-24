@@ -1626,6 +1626,7 @@ function renderTilt(t) {
   { const t0 = performance.now(); drawBats(t); st.batMs = (st.batMs || 0) * 0.9 + (performance.now() - t0) * 0.1; }
   { const t0 = performance.now(); drawMidges(t); st.midgeMs = (st.midgeMs || 0) * 0.9 + (performance.now() - t0) * 0.1; }
   { const t0 = performance.now(); drawDragonflies(t); st.dfMs = (st.dfMs || 0) * 0.9 + (performance.now() - t0) * 0.1; }
+  { const t0 = performance.now(); drawWebs(t); st.webMs = (st.webMs || 0) * 0.9 + (performance.now() - t0) * 0.1; }
   { const t0 = performance.now(); drawGlowworms(t); st.glowwormMs = (st.glowwormMs || 0) * 0.9 + (performance.now() - t0) * 0.1; }
   drawLanterns(t);
   drawFireflies(t);
@@ -2874,6 +2875,84 @@ function drawGlowworms(t) {
   }
   cx.restore(); st.glowwormEdge = st.glowwormsDrawn ? ne / st.glowwormsDrawn : 0;
 }
+// spider webs: on calm, cool autumn mornings (yearFrac ~0.58-0.78, about 6:00-10:00, most after a clear night) a capped
+// number of small orb webs (10 desk / 5 phone) hang in the grass where a meadow meets the forest (the glow-worm edge
+// cells: open grass with a wooded cell within 2 cells, not water, snow, fields, paths or bare rock). Each is a few
+// irregular spokes, a spiral of straight segments between them and two or three mooring threads, all thin and pale,
+// strung with tiny dew beads; where the low sun catches a bead it flashes (a white glint with a little cross) and the
+// sparkle drifts round the web. As the sun climbs the dew dries and the webs fade out, gone by ~10:30. None in rain or
+// storms, torn down by a strong wind, by night or in the afternoon, outside autumn, on snow, in the map view; the
+// always-day mode follows its own hour (morning part only). Drawn bigger than life so they read at normal zoom.
+// Cheap: three pre-rendered web sprites (lines + beads) drawn with drawImage, plus a few fillRect glints per web.
+// Hooks: st.websDrawn, st.webAmt, st.webSrc, st.webAt (screen px of the drawn ones), st.webCells, st.webEdge,
+// st.webR (mean web radius px), st.webGlints (glints this frame), st.webDew (dew level 0..1), st.webMs.
+const WEB_MAX = isPhone ? 5 : 10, WEB = { S: null, N: 0, t: -1e9, src: [], webs: [], last: -1, spr: null };
+function webAmt() {
+  const S = st.S, y = S.P.seasons ? LV.yearFrac(S) : 0.68, h = LT.h;
+  const sea = smooth(0.56, 0.6, y) * (1 - smooth(0.76, 0.79, y));
+  const morn = smooth(5.5, 6.3, h) * (1 - smooth(9.2, 10.4, h));
+  const day = S.P.dayLen || 720, clear = smooth(0.15, 0.5, Math.max(0, S.time - (st.puddleRainT == null ? -1e9 : st.puddleRainT)) / day);
+  const w = Math.abs(mistWind()); st.webWind = w; st.webDew = 1 - smooth(7.4, 10.3, h);
+  return sea * morn * (0.6 + 0.4 * clear) * (1 - smooth(0.5, 0.8, w)) * (1 - smooth(0.03, 0.1, LT.rain)) * (LT.storm > 0.02 ? 0 : 1);
+}
+function webSprites() {
+  if (WEB.spr) return WEB.spr; const out = [];
+  for (let v = 0; v < 3; v++) {
+    const Z = 96, c = document.createElement('canvas'); c.width = c.height = Z; const g = c.getContext('2d'), C = Z / 2, R = 30;
+    const ns = 8 + v, ang = [], len = [], beads = [];
+    for (let k = 0; k < ns; k++) { ang.push((k + 0.5 * Math.sin(k * 2.3 + v)) / ns * 6.283 + v * 0.4); len.push(R * (0.82 + 0.18 * Math.sin(k * 1.7 + v * 3))); }
+    g.lineCap = 'round'; g.strokeStyle = 'rgba(238,244,252,0.62)'; g.lineWidth = 1.3;
+    g.beginPath(); // mooring threads: up-left to the bush, down to the grass, sometimes up-right
+    g.moveTo(C + Math.cos(ang[0]) * len[0], C + Math.sin(ang[0]) * len[0]); g.lineTo(2, 2 + v * 6);
+    g.moveTo(C - 4, C + R * 0.8); g.lineTo(C - 10 + v * 6, Z - 1);
+    if (v !== 1) { g.moveTo(C + R * 0.7, C - R * 0.6); g.lineTo(Z - 2, 6); }
+    for (let k = 0; k < ns; k++) { g.moveTo(C, C); g.lineTo(C + Math.cos(ang[k]) * len[k], C + Math.sin(ang[k]) * len[k]); }
+    g.stroke();
+    g.strokeStyle = 'rgba(244,248,255,0.72)'; g.lineWidth = 1.1; g.beginPath(); // the spiral: straight hops spoke to spoke
+    const turns = 5, steps = turns * ns; let first = true;
+    for (let q = 0; q <= steps; q++) { const k = q % ns, f = 0.16 + 0.84 * q / steps, r = len[k] * f, x = C + Math.cos(ang[k]) * r, y = C + Math.sin(ang[k]) * r;
+      if (first) { g.moveTo(x, y); first = false; } else g.lineTo(x, y); if (q % 2 === (v & 1)) beads.push([x, y]); }
+    g.stroke();
+    g.fillStyle = 'rgba(255,255,255,0.95)'; for (const [x, y] of beads) { g.beginPath(); g.arc(x, y, 1.5, 0, 6.283); g.fill(); }
+    g.fillStyle = 'rgba(255,255,255,0.55)'; g.beginPath(); g.arc(C, C, 2.2, 0, 6.283); g.fill(); // the hub
+    out.push({ c, beads: beads.map(([x, y]) => [(x - C) / R, (y - C) / R]) });
+  }
+  return WEB.spr = out;
+}
+function drawWebs(t) {
+  const T = tilt, S = st.S, N = S.N; st.websDrawn = 0; st.webAt = []; st.webCells = []; st.webGlints = 0; st.webR = 0;
+  const amt = st.webAmt = webAmt(), dt = Math.max(0, Math.min(0.1, t - WEB.last)); WEB.last = t;
+  if (!T || T.s == null || !T.pick) return;
+  if (WEB.S !== S || WEB.N !== N) { WEB.S = S; WEB.N = N; WEB.webs = []; WEB.t = -1e9; }
+  if (amt < 0.02 && !WEB.webs.some(w => w.a > 0.02)) { WEB.webs.forEach(w => { w.a = 0; }); return; }
+  if (st.time - WEB.t > 4 || st.time < WEB.t) { WEB.t = st.time; WEB.src = glowSpots(S, T); }
+  st.webSrc = WEB.src.length; if (!WEB.src.length && !WEB.webs.some(w => w.a > 0.02)) return;
+  const spr = webSprites(), n = Math.min(WEB_MAX, Math.round(WEB_MAX * Math.min(1, amt * 1.1))), H = N * 0.27, cp = T.cp, ow = T.ow, oh = T.oh, s = T.s;
+  const torn = smooth(0.5, 0.8, st.webWind || 0), dew = st.webDew == null ? 1 : st.webDew, sunLow = 0.35 + 0.65 * (1 - smooth(7, 9.5, LT.h));
+  while (WEB.webs.length < WEB_MAX) WEB.webs.push({ x: 0, y: 0, i: -1, a: 0, v: WEB.webs.length % 3, ph: Math.random() * 6.28, sq: 0.75 + Math.random() * 0.25, sz: 0.85 + Math.random() * 0.3 });
+  let ne = 0, sr = 0; cx.save();
+  for (let j = 0; j < WEB_MAX; j++) {
+    const w = WEB.webs[j]; let want = j < n ? 1 : 0, gone = false;
+    if (w.i >= 0 && w.a > 0.02 && !glowOk(S, w.i, H)) { want = 0; gone = true; } // flooded, snowed over or ploughed: gone
+    if (want && w.a < 0.02 && WEB.src.length) { // a fresh web in an edge cell, not on top of another
+      let best = null; for (let k = 0; k < 8 && !best; k++) { const q = WEB.src[(Math.random() * WEB.src.length) | 0]; if (!WEB.webs.some(o => o !== w && o.a > 0.02 && Math.abs(o.x - q[0] - 0.5) < 2.5 && Math.abs(o.y - q[1] - 0.5) < 2.5)) best = q; }
+      if (!best) continue; w.x = best[0] + 0.3 + Math.random() * 0.4; w.y = best[1] + 0.3 + Math.random() * 0.4; w.i = best[1] * N + best[0]; }
+    w.a += (want - w.a) * Math.min(1, dt * (want ? 0.5 : gone || torn > 0.5 ? 4 : 2.5)); if (w.a < 0.02) continue;
+    const xi = w.x | 0, yi = w.y | 0, ci = yi * N + xi, sc = persp(w.y, N), ox = (w.x - N / 2) * cp * sc + ow / 2, oyB = baseY(T, w.y, N) - (surf[ci] + 0.05) * cp * T.hEx * sc;
+    const px = Math.round(ox), py = Math.round(oyB) + 1; if (px < 0 || px >= ow || py < 0 || py >= oh) continue;
+    { const pc = T.pick[py * ow + px]; if (pc < 0 || Math.abs(pc % N - xi) > 3 || Math.abs(((pc / N) | 0) - yi) > 4) continue; } // behind a ridge
+    const u = cp * sc * s, r = Math.min(isPhone ? 16 : 22, Math.max(isPhone ? 10.5 : 14, u * 2.6)) * w.sz, X = T.sx + ox * s, Y = T.sy + oyB * s - r * 0.95;
+    const sp = spr[w.v], rx = r * w.sq, a = w.a * (0.45 + 0.55 * dew);
+    cx.globalAlpha = Math.min(1, a); cx.drawImage(sp.c, X - rx * 1.6, Y - r * 1.6, rx * 3.2, r * 3.2); // sprite: web radius 30 of 48
+    if (dew > 0.05) { // the low sun catches a few dew beads: a sparkle that drifts round the web
+      const B = sp.beads, nb = B.length, k0 = Math.floor(t * 2.2 + w.ph * 7) % nb; cx.fillStyle = '#fff';
+      for (let m = 0; m < 3; m++) { const b = B[(k0 + m * 7 + j) % nb], tw = 0.5 + 0.5 * Math.sin(t * 5 + m * 2.1 + w.ph); const ga = w.a * dew * sunLow * tw; if (ga < 0.15) continue;
+        const gx = X + b[0] * rx, gy = Y + b[1] * r; cx.globalAlpha = Math.min(1, ga); cx.fillRect(gx - 1, gy - 1, 2, 2);
+        if (ga > 0.5) { cx.globalAlpha = ga * 0.55; cx.fillRect(gx - 3, gy - 0.5, 6, 1); cx.fillRect(gx - 0.5, gy - 3, 1, 6); } st.webGlints++; } }
+    if (glowEdge(S, w.i)) ne++; sr += r; st.webAt.push([X, Y]); st.webCells.push([xi, yi]); st.websDrawn++;
+  }
+  cx.restore(); st.webEdge = st.websDrawn ? ne / st.websDrawn : 0; st.webR = st.websDrawn ? sr / st.websDrawn : 0;
+}
 function mistWind() { const S = st.S, W = S.wx, dir = W && W.vx < 0 ? -1 : 1, r = S.rainNow || 0, sto = W && W.storm ? r : 0; return dir * (0.12 + 0.8 * r + 1.6 * sto + (st.windTest || 0) + 0.08 * Math.sin(st.time * 0.19)); }
 function updMist() {
   const S = st.S, h = LT.h, y = S.P.seasons ? LV.yearFrac(S) : -1;
@@ -3233,7 +3312,7 @@ function frame(now) {
   const tc0 = performance.now(); computeColours(st.time); st.colMs = (st.colMs || 0) * 0.9 + (performance.now() - tc0) * 0.1;
   cx.setTransform(dpr, 0, 0, dpr, 0, 0);
   if (st.view === 'tilt') { tiltGeom(); drawSky(st.time, dtReal); renderTilt(st.time); }
-  else { drawSky(st.time, dtReal); renderTop(st.time); drawCottagesTop(); drawWindowGlowTop(st.time); st.glowwormsDrawn = 0; st.glowwormAt = []; st.glowwormCells = []; st.glowwormLvl = []; GW.worms.forEach(w => { w.a = 0; }); st.petalsDrawn = 0; st.mistDrawn = 0; st.mistDrift = 0; st.puddlesDrawn = 0; st.icyPuddles = 0; st.puddleIcePx = 0; st.splashKids = 0; st.splashHopping = 0; st.splashDrops = 0; st.splashSpots = 0; st.splashPuds = []; KID.on = false; st.batsDrawn = 0; st.batAt = null; st.midgesDrawn = 0; st.midgeSpecks = 0; st.midgeGlints = 0; st.midgeCols = []; MID.last = st.time; st.dragonfliesDrawn = 0; st.dfAt = null; st.dfHover = 0; DF.last = st.time; st.duckFams = 0; st.ducksDrawn = 0; st.ducklingsDrawn = 0; st.duckLine = null; DUCK.last = null; st.swallowsDrawn = 0; st.swallowRings = 0; st.swallowAt = null; SW.last = st.time; } // no petals in the map view (seen from far above they would be specks of dust)
+  else { drawSky(st.time, dtReal); renderTop(st.time); drawCottagesTop(); drawWindowGlowTop(st.time); st.websDrawn = 0; st.webAt = []; st.webCells = []; st.webGlints = 0; WEB.webs.forEach(w => { w.a = 0; }); st.glowwormsDrawn = 0; st.glowwormAt = []; st.glowwormCells = []; st.glowwormLvl = []; GW.worms.forEach(w => { w.a = 0; }); st.petalsDrawn = 0; st.mistDrawn = 0; st.mistDrift = 0; st.puddlesDrawn = 0; st.icyPuddles = 0; st.puddleIcePx = 0; st.splashKids = 0; st.splashHopping = 0; st.splashDrops = 0; st.splashSpots = 0; st.splashPuds = []; KID.on = false; st.batsDrawn = 0; st.batAt = null; st.midgesDrawn = 0; st.midgeSpecks = 0; st.midgeGlints = 0; st.midgeCols = []; MID.last = st.time; st.dragonfliesDrawn = 0; st.dfAt = null; st.dfHover = 0; DF.last = st.time; st.duckFams = 0; st.ducksDrawn = 0; st.ducklingsDrawn = 0; st.duckLine = null; DUCK.last = null; st.swallowsDrawn = 0; st.swallowRings = 0; st.swallowAt = null; SW.last = st.time; } // no petals in the map view (seen from far above they would be specks of dust)
   floeStep(S, dtReal); drawFloes();
   drawCottageBadges(st.time);
   drawNaturalRain(st.time); drawOverlays(st.time); drawShower(st.time);
