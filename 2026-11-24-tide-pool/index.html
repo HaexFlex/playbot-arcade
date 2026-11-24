@@ -1,0 +1,1714 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Tide Pool</title>
+<link rel="icon" href="../favicon.svg" type="image/svg+xml">
+<meta name="description" content="A small living rock pool. Stir the water, turn a stone, and keep a journal of who you find.">
+<meta name="theme-color" content="#3c3833">
+<style>
+  html, body { margin: 0; height: 100%; background: #3c3833; overflow: hidden; font-family: system-ui, -apple-system, Segoe UI, sans-serif; color: #f3efe6; -webkit-user-select: none; user-select: none; }
+  canvas { display: block; width: 100vw; height: 100vh; touch-action: none; }
+  #top { position: fixed; top: max(10px, env(safe-area-inset-top)); left: max(12px, env(safe-area-inset-left)); right: 64px; pointer-events: none; text-shadow: 0 1px 2px rgba(20, 16, 12, .45); }
+  h1 { margin: 0; font-size: 18px; font-weight: 650; letter-spacing: .01em; }
+  #status { margin: 2px 0 0; font-size: 13px; opacity: .92; }
+  #bSky { position: fixed; top: max(8px, env(safe-area-inset-top)); right: max(8px, env(safe-area-inset-right)); width: 44px; height: 44px; padding: 0; font-size: 18px; line-height: 1; color: #f3efe6; background: rgba(28, 24, 20, .55); border: 1px solid rgba(255, 255, 255, .18); border-radius: 50%; cursor: pointer; backdrop-filter: blur(6px); }
+  #bar { position: fixed; left: 50%; bottom: max(10px, env(safe-area-inset-bottom)); transform: translateX(-50%); display: flex; gap: 6px; padding: 6px; border-radius: 14px; background: rgba(28, 24, 20, .72); backdrop-filter: blur(6px); max-width: calc(100vw - 16px); box-sizing: border-box; }
+  #bar button, #journal button { font: inherit; font-size: 15px; color: #f3efe6; background: rgba(255, 255, 255, .06); border: 1px solid rgba(255, 255, 255, .14); border-radius: 10px; padding: 8px 12px; min-height: 44px; cursor: pointer; }
+  #bar button.on { background: rgba(150, 196, 176, .28); border-color: rgba(190, 230, 210, .55); }
+  button:focus-visible { outline: 2px solid #f0d7a2; outline-offset: 2px; }
+  #hint, #toast { position: fixed; left: 50%; transform: translateX(-50%); text-align: center; max-width: min(92vw, 440px); pointer-events: none; }
+  #hint { bottom: calc(max(10px, env(safe-area-inset-bottom)) + 68px); font-size: 14px; background: rgba(28, 24, 20, .62); padding: 6px 12px; border-radius: 10px; transition: opacity 1s; }
+  #hint.gone { opacity: 0; }
+  #toast { top: max(56px, calc(env(safe-area-inset-top) + 48px)); font-size: 14px; background: rgba(244, 236, 214, .94); color: #2a241c; padding: 8px 12px; border-radius: 10px; opacity: 0; transition: opacity .4s; }
+  #toast.show { opacity: 1; }
+  #journal { position: fixed; left: 50%; bottom: calc(max(10px, env(safe-area-inset-bottom)) + 66px); transform: translateX(-50%); width: min(440px, 94vw); max-height: min(70vh, 540px); overflow: auto; background: rgba(32, 36, 38, .94); border: 1px solid rgba(255, 255, 255, .14); border-radius: 16px; padding: 12px 12px 10px; box-sizing: border-box; backdrop-filter: blur(8px); }
+  #journal[hidden] { display: none; }
+  #journal header { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+  #journal h2 { margin: 0; font-size: 16px; font-weight: 650; flex: 1; }
+  #journal header span { opacity: .75; font-size: 13px; }
+  #jlist { list-style: none; margin: 0; padding: 0; }
+  #jlist li { display: flex; gap: 8px; align-items: flex-start; padding: 7px 4px; border-top: 1px solid rgba(255, 255, 255, .08); }
+  #jlist b { display: block; font-weight: 650; }
+  #jlist em { display: block; font-style: normal; opacity: .78; font-size: 13px; margin-top: 1px; }
+  #jlist .n { margin-left: auto; font-size: 12px; opacity: .7; white-space: nowrap; padding-top: 2px; }
+  #jlist .unk { opacity: .55; }
+  #journal .foot { margin: 8px 2px 0; font-size: 12px; opacity: .65; }
+  @media (max-width: 520px) {
+    #bar button .lbl { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+    #bar button { width: 48px; padding: 8px 0; font-size: 20px; position: relative; }
+    h1 { font-size: 16px; }
+  }
+  @media (max-height: 430px) {
+    #hint { display: none; }
+    h1 { font-size: 15px; }
+    #status { font-size: 12px; }
+    #bar button { min-height: 38px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    #hint, #toast { transition: none; }
+  }
+</style>
+</head>
+<body>
+<canvas id="c" aria-label="Tide pool, seen from above. Tap the water to stir it, tap a stone to turn it over, or drop a little food."></canvas>
+<div id="top">
+  <h1>Tide Pool</h1>
+  <p id="status">Tide coming in</p>
+</div>
+<button id="bSky" type="button" aria-label="Light: follows the pool's own clock">🌗</button>
+<div id="bar" role="toolbar" aria-label="Pool">
+  <button id="bFeed" type="button" aria-pressed="false" aria-label="Drop food: tap the pool to sprinkle a pinch" title="Drop a pinch of food (F)">🍞 <span class="lbl">Feed</span></button>
+  <button id="bJournal" type="button" aria-expanded="false" aria-label="Pool journal" title="Pool journal (J)">📖 <span class="lbl">Journal</span></button>
+  <button id="bPause" type="button" aria-pressed="false" aria-label="Pause" title="Pause (Space)">⏸ <span class="lbl">Pause</span></button>
+  <button id="bSound" type="button" aria-pressed="false" aria-label="Sound is off. Tap to turn it on" title="Sound (M)">🔇 <span class="lbl">Sound</span></button>
+</div>
+<div id="hint" role="status">Tap the water. Tap a stone to see who hides beneath. At night, a stir wakes a little light.</div>
+<div id="toast" role="status" aria-live="polite"></div>
+<div id="journal" hidden role="dialog" aria-label="Pool journal">
+  <header><h2>Pool journal</h2><span id="jcount"></span><button id="jClose" type="button" aria-label="Close journal">✕</button></header>
+  <ul id="jlist"></ul>
+  <p class="foot">Kept on this shore, in this browser.</p>
+</div>
+<script>
+/* TP_SIM */
+(function () {
+  'use strict';
+  const TIDE = 180, DAY = 240, W = 1000, H = 700;
+  const CX = 500, CY = 468, RX = 318, RY = 196;
+  const CAP = { anemone: 8, hermit: 7, periwinkle: 14, goby: 12, starfish: 3, mussel: 26, shrimp: 14, shorecrab: 4, amphipod: 12, limpet: 7 };
+  const COMFORT = { anemone: 5, hermit: 4, periwinkle: 9, goby: 8, starfish: 1, mussel: 16, shrimp: 8, shorecrab: 2, amphipod: 6, limpet: 7 };
+  const TYPES = Object.keys(CAP);
+  const RESCUE = { anemone: 3, hermit: 2, periwinkle: 4, goby: 4, starfish: 1, mussel: 10, shrimp: 4, shorecrab: 1, amphipod: 3, limpet: 7 };
+
+  function mulberry32(a) {
+    a >>>= 0;
+    return function () {
+      a |= 0; a = (a + 0x6D2B79F5) | 0;
+      let t = Math.imul(a ^ (a >>> 15), 1 | a);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+  const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
+  function smooth(a, b, x) { const t = clamp((x - a) / (b - a || 1), 0, 1); return t * t * (3 - 2 * t); }
+  function angDiff(a, b) { let d = b - a; while (d > Math.PI) d -= Math.PI * 2; while (d < -Math.PI) d += Math.PI * 2; return d; }
+
+  // One basin, star-shaped from the center, so the shoreline is a single calm ring.
+  // r = 0 at the middle, r = 1 on the rim. A pocket toward the upper left is deeper.
+  function depth(x, y) {
+    const dx = (x - CX) / RX, dy = (y - CY) / RY;
+    const r0 = Math.hypot(dx, dy);
+    const a = Math.atan2(dy, dx);
+    const wob = 1 + 0.16 * Math.sin(3 * a + 0.55) + 0.075 * Math.sin(5 * a + 1.9) + 0.04 * Math.sin(8 * a + 0.4);
+    const r = r0 / wob;
+    if (r >= 1) return 0;
+    const pocket = Math.exp(-((a + 0.45) * (a + 0.45)) / 0.9);
+    return Math.pow(1 - r, 1.16 - 0.3 * pocket);
+  }
+
+  function skyAt(p, pin) {
+    if (pin === 'day') return { daylight: 1, night: 0, sky: 'Day' };
+    if (pin === 'night') return { daylight: 0.05, night: 1, sky: 'Night' };
+    const night = smooth(0.74, 0.8, p) * (1 - smooth(0.93, 0.99, p));
+    let elev;
+    if (p < 0.72) elev = Math.sin(clamp((p - 0.02) / 0.64, 0, 1) * Math.PI);
+    else elev = Math.sin(clamp((0.97 - p) / 0.22, 0, 1) * Math.PI) * (1 - night);
+    const daylight = clamp(elev, 0, 1) * (1 - 0.92 * night) + 0.05 * (1 - night);
+    let sky = 'Afternoon';
+    if (night > 0.55) sky = 'Night';
+    else if (p >= 0.64 && p < 0.8) sky = 'Dusk';
+    else if (p < 0.2) sky = 'Morning';
+    else if (p < 0.52) sky = 'Midday';
+    return { daylight, night, sky };
+  }
+
+  function refresh(w) {
+    const p = ((w.t / TIDE) % 1 + 1) % 1;
+    const prev = w.water;
+    const s = 0.5 - 0.5 * Math.cos(p * Math.PI * 2);
+    w.phase = p;
+    w.water = 0.30 + 0.70 * s;
+    w.rising = w.water >= prev - 1e-6;
+    w.threshold = (1 - w.water) * 0.72;
+    const sky = skyAt(((w.t / DAY) % 1 + 1) % 1, w.pin);
+    w.daylight = sky.daylight; w.night = sky.night; w.sky = sky.sky;
+    const cool = 1 - (w.water - 0.30) / 0.70;
+    w.temp = 12.5 + cool * 8 + w.daylight * cool * 7.5;
+    w.hot = w.temp >= 22 && w.water < 0.5;
+  }
+  const wet = (w, x, y) => depth(x, y) > w.threshold + 0.018;
+
+  function makeAnimal(type, x, y, extra) {
+    return Object.assign({
+      type, x, y, vx: 0, vy: 0, heading: 0, energy: 0.74,
+      open: 1, touch: 0, hide: 0, out: 0, home: -1,
+      shell: 1, hold: -1, digest: 0, eat: 0, scare: 0,
+      dart: 1, age: 0, cd: 8, rot: 0, sz: 1, hue: 0.5, phase: 0, wander: 0,
+    }, extra);
+  }
+
+  function findSpot(w, d0, d1, minD, avoid) {
+    for (let t = 0; t < 90; t++) {
+      const a = w.rng() * Math.PI * 2;
+      const r = Math.sqrt(w.rng()) * 0.94;
+      const x = CX + Math.cos(a) * r * RX;
+      const y = CY + Math.sin(a) * r * RY;
+      const d = depth(x, y);
+      if (d < d0 || d > d1) continue;
+      let ok = true;
+      if (avoid) for (const o of avoid) if (Math.hypot(o.x - x, o.y - y) < minD) { ok = false; break; }
+      if (ok) return { x, y };
+    }
+    return null;
+  }
+  function count(w, type) { let n = 0; for (const a of w.animals) if (a.type === type) n++; return n; }
+  function algaeMean(w) { let s = 0; for (const a of w.algae) s += a.g; return s / (w.algae.length || 1); }
+  function emptyShells(w) { let n = 0; for (const s of w.shells) if (s.hold < 0 && s.buried < 0) n++; return n; }
+
+  function createWorld(seed, t0) {
+    seed = seed == null ? 20261124 : seed;
+    const w = {
+      seed, rng: mulberry32(seed), t: t0 == null ? 52 : t0, nextId: 1, pin: 'auto',
+      animals: [], algae: [], bits: [], shells: [], stones: [], ledges: [],
+      swaps: 0, eaten: 0, grazed: 0, births: 0,
+      lost: Object.fromEntries(TYPES.map(function (t) { return [t, 0]; })),
+      washed: false, wave: 0, wavePing: 0, swapPing: 0,
+      water: 0.7, temp: 16, daylight: 1, night: 0, sky: 'Morning',
+      rising: true, hot: false, threshold: 0.3, phase: 0,
+    };
+    refresh(w);
+    for (let i = 0; i < 46; i++) {
+      const p = findSpot(w, 0.26, 0.92, 16, w.algae);
+      if (p) w.algae.push({ x: p.x, y: p.y, g: 0.4 + w.rng() * 0.5 });
+    }
+    for (let i = 0; i < 7; i++) {
+      const p = findSpot(w, 0.22, 0.78, 34, w.animals.filter(function (a) { return a.type === 'limpet'; }));
+      if (p) w.animals.push(makeAnimal('limpet', p.x, p.y, { energy: 1, rot: w.rng() * 6, hue: w.rng(), phase: w.rng() * 6 }));
+    }
+    const clusters = [];
+    for (let c = 0; c < 4; c++) {
+      const p = findSpot(w, 0.52, 0.9, 48, clusters);
+      if (p) clusters.push(p);
+    }
+    for (const c of clusters) {
+      const n = 4 + Math.floor(w.rng() * 2);
+      for (let k = 0; k < n; k++) {
+        const ang = w.rng() * Math.PI * 2, rad = 4 + w.rng() * 16;
+        const x = c.x + Math.cos(ang) * rad, y = c.y + Math.sin(ang) * rad;
+        if (depth(x, y) > 0.5) w.animals.push(makeAnimal('mussel', x, y, { energy: 0.82, rot: w.rng() * Math.PI, hue: w.rng(), cd: 20 + w.rng() * 50 }));
+      }
+    }
+    for (let i = 0; i < 5; i++) {
+      const p = findSpot(w, 0.48, 0.9, 40, w.animals.filter(function (a) { return a.type === 'anemone'; }));
+      if (p) w.animals.push(makeAnimal('anemone', p.x, p.y, { energy: 0.8, open: 0.9, rot: w.rng() * 6, hue: w.rng(), phase: w.rng() * 6 }));
+    }
+    for (let i = 0; i < 6; i++) {
+      const p = findSpot(w, 0.28, 0.82, 62, w.stones);
+      if (!p) continue;
+      w.stones.push({ id: w.stones.length, x: p.x, y: p.y, rx: 18 + w.rng() * 8, ry: 14 + w.rng() * 5, rot: w.rng() * Math.PI, flipped: false, tone: w.rng() });
+    }
+      for (let i = 0; i < 3; i++) {
+      const p = findSpot(w, 0.64, 0.96, 70, w.ledges);
+      if (p) w.ledges.push({ x: p.x, y: p.y, rot: w.rng() * Math.PI, len: 54 + w.rng() * 16 });
+    }
+    const sizes = [1.05, 1.3, 1.5, 1.75, 2.35, 2.85, 3.4];
+    for (const size of sizes) {
+      const p = findSpot(w, 0.48, 0.96, 18, w.shells);
+      if (p) w.shells.push({ x: p.x, y: p.y, size, hold: -1, buried: -1, hue: w.rng() });
+    }
+    if (w.shells.length && w.stones.length) {
+      const big = w.shells[w.shells.length - 1];
+      const st = w.stones[2] || w.stones[0];
+      big.x = st.x; big.y = st.y; big.buried = st.id;
+    }
+    const freeShells = w.shells.filter(function (s) { return s.buried < 0; }).sort(function (a, b) { return a.size - b.size; });
+    for (let i = 0; i < 4 && i < freeShells.length; i++) {
+      const s = freeShells[i];
+      w.animals.push(makeAnimal('hermit', s.x, s.y, { energy: 0.76, shell: s.size, heading: w.rng() * 6.28, hue: s.hue, phase: w.rng() * 6 }));
+    }
+    for (let i = 0; i < 9; i++) {
+      const p = findSpot(w, 0.36, 0.9, 20, w.animals);
+      if (p) w.animals.push(makeAnimal('periwinkle', p.x, p.y, { energy: 0.72, heading: w.rng() * 6, hue: w.rng(), phase: w.rng() * 6, sz: 0.85 + w.rng() * 0.3 }));
+    }
+    for (let i = 0; i < 8; i++) {
+      const p = findSpot(w, 0.58, 0.98, 16, w.animals);
+      if (p) w.animals.push(makeAnimal('goby', p.x, p.y, { energy: 0.78, heading: w.rng() * 6, hue: w.rng(), phase: w.rng() * 6, sz: 0.85 + w.rng() * 0.35, vx: (w.rng() - 0.5) * 8 }));
+    }
+    for (let i = 0; i < 8; i++) {
+      const p = findSpot(w, 0.4, 0.95, 14, w.animals);
+      if (p) w.animals.push(makeAnimal('shrimp', p.x, p.y, { energy: 0.7, heading: w.rng() * 6, hue: w.rng(), phase: w.rng() * 6, dart: w.rng() * 1.2, sz: 0.85 + w.rng() * 0.3 }));
+    }
+    {
+      const p = findSpot(w, 0.55, 0.95, 16, w.animals.filter(function (a) { return a.type === 'starfish'; })) || { x: CX + 24, y: CY - 8 };
+      w.animals.push(makeAnimal('starfish', p.x, p.y, { energy: 0.85, heading: w.rng() * 6, hue: w.rng(), digest: 6, phase: w.rng() * 6 }));
+    }
+    let crabs = 0, amps = 0;
+    for (const st of w.stones) {
+      if (crabs < 2) {
+        w.animals.push(makeAnimal('shorecrab', st.x, st.y, { energy: 0.75, home: st.id, hue: w.rng(), phase: w.rng() * 6, hide: 1 }));
+        crabs++;
+      }
+      if (amps < 6) {
+        w.animals.push(makeAnimal('amphipod', st.x - 2, st.y + 1, { energy: 0.7, home: st.id, hue: w.rng(), phase: w.rng() * 6, hide: 1 }));
+        amps++;
+        if (amps < 6) {
+          w.animals.push(makeAnimal('amphipod', st.x + 3, st.y - 1, { energy: 0.68, home: st.id, hue: w.rng(), phase: w.rng() * 6, hide: 1 }));
+          amps++;
+        }
+      }
+    }
+    for (const a of w.animals) a.id = w.nextId++;
+    const hermits = w.animals.filter(function (a) { return a.type === 'hermit'; });
+    for (let i = 0; i < hermits.length && i < freeShells.length; i++) {
+      const s = freeShells[i], a = hermits[i];
+      s.hold = a.id; a.hold = w.shells.indexOf(s); a.shell = s.size; a.x = s.x; a.y = s.y;
+    }
+    for (let i = 0; i < 8; i++) dropBit(w, false);
+    refresh(w);
+    return w;
+  }
+
+  function dropBit(w, wash) {
+    if (w.bits.length > 40) return;
+    const p = findSpot(w, 0.34, 0.96, 4, null);
+    if (!p) return;
+    w.bits.push({ x: p.x, y: p.y, life: wash ? 28 : 18, player: false });
+  }
+  function nearestBit(w, x, y, maxD) {
+    let best = null, bd = maxD;
+    for (const b of w.bits) {
+      if (b.life <= 0) continue;
+      const d = Math.hypot(b.x - x, b.y - y);
+      if (d < bd) { bd = d; best = b; }
+    }
+    return best;
+  }
+  function seek(a, x, y, accel, dt) {
+    const dx = x - a.x, dy = y - a.y, L = Math.hypot(dx, dy) || 1;
+    a.vx += (dx / L) * accel * dt * 6;
+    a.vy += (dy / L) * accel * dt * 6;
+  }
+  function seekDeep(a, dt, accel) {
+    let bx = a.x, by = a.y, bd = depth(a.x, a.y);
+    for (let k = 0; k < 8; k++) {
+      const ang = k / 8 * Math.PI * 2;
+      const x = a.x + Math.cos(ang) * 32, y = a.y + Math.sin(ang) * 32;
+      const d = depth(x, y);
+      if (d > bd) { bd = d; bx = x; by = y; }
+    }
+    if (depth(CX, CY) > bd + 0.04) { bx = CX + ((a.id % 5) - 2) * 14; by = CY + ((a.id % 3) - 1) * 12; }
+    seek(a, bx, by, accel, dt);
+  }
+  function wander(w, a, dt, accel) {
+    a.wander += (w.rng() - 0.5) * dt * 2.4;
+    a.vx += Math.cos(a.wander) * accel * dt * 5;
+    a.vy += Math.sin(a.wander) * accel * dt * 5;
+  }
+  function nearestLedge(w, a) {
+    let best = null, bd = 1e9;
+    for (const L of w.ledges) {
+      const d = Math.hypot(L.x - a.x, L.y - a.y);
+      if (d < bd) { bd = d; best = L; }
+    }
+    return best;
+  }
+  function nearestStone(w, a) {
+    let best = null, bd = 1e9;
+    for (const s of w.stones) {
+      const d = Math.hypot(s.x - a.x, s.y - a.y);
+      if (d < bd) { bd = d; best = s; }
+    }
+    return best;
+  }
+  function metab(a) {
+    if (a.type === 'goby') return 0.0011;
+    if (a.type === 'shrimp') return 0.0014;
+    if (a.type === 'periwinkle') return 0.0022;
+    if (a.type === 'starfish') return 0.0016;
+    if (a.type === 'hermit') return 0.0011;
+    return 0.0012;
+  }
+  function emptyShellIndex(w) {
+    for (let i = 0; i < w.shells.length; i++) if (w.shells[i].hold < 0 && w.shells[i].buried < 0) return i;
+    return -1;
+  }
+  function maxSpeed(a) {
+    if (a.type === 'starfish') return 16;
+    if (a.type === 'periwinkle') return 20;
+    if (a.type === 'hermit') return 28;
+    if (a.type === 'shorecrab') return 34;
+    if (a.type === 'amphipod') return 44;
+    if (a.type === 'shrimp') return a.hide > 0.6 ? 8 : 58;
+    if (a.type === 'goby') return a.hide > 0.6 ? 14 : 48;
+    return 24;
+  }
+  function separate(w, a, dt) {
+    const rad = a.type === 'goby' ? 20 : a.type === 'shrimp' ? 12 : 16;
+    for (const o of w.animals) {
+      if (o === a || o.type !== a.type) continue;
+      const dx = a.x - o.x, dy = a.y - o.y, d2 = dx * dx + dy * dy;
+      if (d2 > 0.16 && d2 < rad * rad) {
+        const d = Math.sqrt(d2);
+        a.vx += (dx / d) * 16 * dt;
+        a.vy += (dy / d) * 16 * dt;
+      }
+    }
+  }
+  function moveAnimal(w, a, dt) {
+    if (depth(a.x, a.y) < 0.05) seek(a, CX, CY, 40, dt);
+    const drag = a.type === 'starfish' ? 2.6 : a.type === 'periwinkle' ? 3.4 : 1.5;
+    const damp = Math.exp(-drag * dt);
+    a.vx *= damp; a.vy *= damp;
+    const sp = Math.hypot(a.vx, a.vy), max = maxSpeed(a);
+    if (sp > max) { a.vx = a.vx / sp * max; a.vy = a.vy / sp * max; }
+    let nx = a.x + a.vx * dt, ny = a.y + a.vy * dt;
+    const need = w.threshold + (a.type === 'goby' ? 0.05 : 0.02);
+    if (depth(nx, ny) < need) {
+      let bx = a.x, by = a.y, bd = depth(a.x, a.y);
+      for (let k = 0; k < 8; k++) {
+        const ang = k / 8 * Math.PI * 2;
+        const sx = a.x + Math.cos(ang) * 18, sy = a.y + Math.sin(ang) * 18;
+        const d = depth(sx, sy);
+        if (d > bd) { bd = d; bx = sx; by = sy; }
+      }
+      a.vx = (bx - a.x) * 1.1; a.vy = (by - a.y) * 1.1;
+      nx = a.x + a.vx * dt; ny = a.y + a.vy * dt;
+    }
+    a.x = nx; a.y = ny;
+    const sp2 = Math.hypot(a.vx, a.vy);
+    if (sp2 > 2) a.heading += angDiff(a.heading, Math.atan2(a.vy, a.vx)) * Math.min(1, dt * 5);
+    if (!Number.isFinite(a.x) || !Number.isFinite(a.y)) { a.x = CX; a.y = CY; a.vx = 0; a.vy = 0; }
+  }
+  function freeShell(w, a) {
+    if (a.type !== 'hermit' || a.hold < 0) return;
+    const s = w.shells[a.hold];
+    if (s && s.hold === a.id) { s.hold = -1; s.x = a.x; s.y = a.y; }
+    a.hold = -1;
+  }
+
+  function updateMussel(w, a, dt, born, remove) {
+    if (remove.has(a)) return;
+    const isWet = wet(w, a.x, a.y);
+    a.open = isWet ? 1 : 0;
+    a.energy += (isWet ? 0.018 : -0.01) * dt - 0.006 * dt;
+    if (a.energy > 1) a.energy = 1;
+    if (a.energy <= 0) { remove.add(a); w.lost.mussel++; return; }
+    a.cd -= dt;
+    if (isWet && a.energy > 0.75 && a.cd <= 0 && count(w, 'mussel') < 18 && w.rng() < 0.0022 * dt) {
+      a.cd = 55;
+      const ang = w.rng() * Math.PI * 2, x = a.x + Math.cos(ang) * (10 + w.rng() * 12), y = a.y + Math.sin(ang) * (10 + w.rng() * 12);
+      if (depth(x, y) > 0.5 && count(w, 'mussel') + born.length < CAP.mussel) {
+        a.energy -= 0.22;
+        const b = makeAnimal('mussel', x, y, { energy: 0.55, rot: w.rng() * Math.PI, hue: w.rng(), cd: 40 });
+        b.id = w.nextId++; born.push(b); w.births++;
+      }
+    }
+  }
+  function updateAnemone(w, a, dt, born, remove) {
+    if (a.touch > 0) a.touch -= dt;
+    const isWet = wet(w, a.x, a.y);
+    const want = (a.touch > 0 || !isWet || w.hot) ? 0.06 : 1;
+    const k = want < a.open ? 8 : 0.65;
+    a.open += (want - a.open) * Math.min(1, k * dt);
+    if (a.open > 0.6) {
+      for (const b of w.bits) {
+        if (b.life <= 0) continue;
+        if (Math.hypot(b.x - a.x, b.y - a.y) < 18 + a.open * 8) { b.life = 0; a.energy = Math.min(1, a.energy + 0.16); break; }
+      }
+    }
+    a.energy -= 0.0007 * dt;
+    if (a.energy <= 0) { remove.add(a); w.lost.anemone++; return; }
+    if (isWet && a.open > 0.75 && a.energy > 0.92 && count(w, 'anemone') < CAP.anemone && w.rng() < 0.0004 * dt) {
+      const p = findSpot(w, 0.5, 0.88, 44, w.animals);
+      if (p) {
+        a.energy -= 0.4;
+        const b = makeAnimal('anemone', p.x, p.y, { energy: 0.5, open: 0.25, hue: w.rng(), phase: w.rng() * 6, rot: w.rng() * 6 });
+        b.id = w.nextId++; born.push(b); w.births++;
+      }
+    }
+  }
+
+  function snail(w, a, dt, isWet, born) {
+    if (!isWet || w.hot) { seekDeep(a, dt, 28); a.vx *= 0.92; return; }
+    let best = null, bd = 150;
+    for (const p of w.algae) {
+      if (p.g < 0.06) continue;
+      const d = Math.hypot(p.x - a.x, p.y - a.y);
+      if (d < bd) { bd = d; best = p; }
+    }
+    if (best) {
+      seek(a, best.x, best.y, 24, dt);
+      if (bd < 14) {
+        const bite = Math.min(best.g, 0.03 * dt);
+        best.g -= bite; a.energy = Math.min(1.05, a.energy + bite * 2.4); w.grazed += bite;
+      }
+    } else wander(w, a, dt, 8);
+    if (a.energy > 0.88 && count(w, 'periwinkle') < 11 && algaeMean(w) > 0.22 && w.rng() < 0.001 * dt) {
+      const x = a.x + 10, y = a.y + 4;
+      if (depth(x, y) > w.threshold + 0.05) {
+        a.energy -= 0.32;
+        const b = makeAnimal('periwinkle', x, y, { energy: 0.5, heading: w.rng() * 6, hue: w.rng(), phase: w.rng() * 6, sz: 0.8 });
+        b.id = w.nextId++; born.push(b); w.births++;
+      }
+    }
+  }
+  function hermit(w, a, dt, isWet, born) {
+    if (!isWet) { seekDeep(a, dt, 40); return; }
+    a.energy = Math.min(1.05, a.energy + 0.0009 * dt);
+    if (w.hot) seekDeep(a, dt, 26);
+    if (!w.hot) {
+      let shell = null, sd = 220, si = -1;
+      for (let i = 0; i < w.shells.length; i++) {
+        const s = w.shells[i];
+        if (s.hold >= 0 || s.buried >= 0 || s.size < a.shell + 0.32) continue;
+        const d = Math.hypot(s.x - a.x, s.y - a.y);
+        if (d < sd) { sd = d; shell = s; si = i; }
+      }
+      if (shell) {
+        seek(a, shell.x, shell.y, 34, dt);
+        if (sd < 12) {
+          const old = a.hold >= 0 ? w.shells[a.hold] : null;
+          if (old && old.hold === a.id) { old.hold = -1; old.x = a.x; old.y = a.y; }
+          shell.hold = a.id; a.hold = si; a.shell = shell.size; a.x = shell.x; a.y = shell.y;
+          w.swaps++; w.swapPing++;
+        }
+        return;
+      }
+    }
+    const bit = nearestBit(w, a.x, a.y, 100);
+    if (bit) {
+      seek(a, bit.x, bit.y, 30, dt);
+      if (Math.hypot(bit.x - a.x, bit.y - a.y) < 12) { bit.life = 0; a.energy = Math.min(1.05, a.energy + 0.18); }
+    } else wander(w, a, dt, 12);
+    if (a.energy > 0.9 && count(w, 'hermit') < CAP.hermit && w.rng() < 0.00045 * dt) {
+      const slot = emptyShellIndex(w);
+      if (slot >= 0 || w.shells.length < 12) {
+        const x = a.x + 14, y = a.y;
+        if (wet(w, x, y)) {
+          a.energy -= 0.36;
+          let s, idx;
+          if (slot >= 0 && w.shells[slot].size < 1.4) { idx = slot; s = w.shells[idx]; s.x = x; s.y = y; }
+          else { s = { x: x, y: y, size: 0.95, hold: -1, buried: -1, hue: w.rng() }; w.shells.push(s); idx = w.shells.length - 1; }
+          const b = makeAnimal('hermit', s.x, s.y, { energy: 0.5, shell: s.size, hue: s.hue, phase: w.rng() * 6 });
+          b.id = w.nextId++; s.hold = b.id; b.hold = idx;
+          born.push(b); w.births++;
+        }
+      }
+    }
+  }
+  function goby(w, a, dt, isWet, fish) {
+    const hide = !isWet || w.water < 0.46 || a.scare > 0 || w.hot;
+    if (!hide) a.energy = Math.min(1.05, a.energy + 0.0015 * dt);
+    if (hide) {
+      const L = nearestLedge(w, a);
+      if (L) {
+        seek(a, L.x, L.y, a.scare > 0 ? 64 : 36, dt);
+        a.hide = Math.hypot(L.x - a.x, L.y - a.y) < 26 ? 1 : 0.45;
+      } else { seekDeep(a, dt, 44); a.hide = 0.3; }
+    } else {
+      a.hide *= 0.9;
+      let cx = 0, cy = 0, cvx = 0, cvy = 0, n = 0, sx = 0, sy = 0;
+      for (const o of fish) {
+        if (o === a) continue;
+        const dx = o.x - a.x, dy = o.y - a.y, d2 = dx * dx + dy * dy;
+        if (d2 < 150 * 150) { cx += o.x; cy += o.y; cvx += o.vx; cvy += o.vy; n++; }
+        if (d2 < 26 * 26 && d2 > 1) { sx -= dx; sy -= dy; }
+      }
+      if (n) {
+        a.vx += ((cx / n - a.x) * 0.5 + (cvx / n - a.vx) * 0.3) * dt + sx * 0.04 * dt;
+        a.vy += ((cy / n - a.y) * 0.5 + (cvy / n - a.vy) * 0.3) * dt + sy * 0.04 * dt;
+      }
+      wander(w, a, dt, 18);
+      const bit = nearestBit(w, a.x, a.y, 90);
+      if (bit) {
+        seek(a, bit.x, bit.y, 42, dt);
+        if (Math.hypot(bit.x - a.x, bit.y - a.y) < 12) { bit.life = 0; a.energy = Math.min(1.05, a.energy + 0.15); }
+      }
+    }
+    if (depth(a.x, a.y) < w.threshold + 0.1) seekDeep(a, dt, 36);
+    if (a.scare > 0) a.scare -= dt;
+  }
+  function shrimp(w, a, dt, isWet, born, remove) {
+    a.dart -= dt;
+    if (w.hot || w.water < 0.44 || !isWet) {
+      const st = nearestStone(w, a);
+      if (st) {
+        seek(a, st.x, st.y, 50, dt);
+        a.hide = Math.hypot(st.x - a.x, st.y - a.y) < 20 ? 1 : 0.2;
+      } else seekDeep(a, dt, 36);
+      if (a.hide > 0.6) a.energy = Math.min(1.02, a.energy + 0.005 * dt);
+      return;
+    }
+    a.hide *= 0.85;
+    for (const o of w.animals) {
+      if (o === a) continue;
+      const d = Math.hypot(o.x - a.x, o.y - a.y);
+      if (o.type === 'goby' && d < 42 && d > 0) { a.vx += (a.x - o.x) / d * 70 * dt; a.vy += (a.y - o.y) / d * 70 * dt; }
+      if (o.type === 'anemone' && o.open > 0.55 && d < 34 && d > 0) { a.vx += (a.x - o.x) / d * 80 * dt; a.vy += (a.y - o.y) / d * 80 * dt; }
+      if (o.type === 'anemone' && o.open > 0.78 && d < 12 && !remove.has(a) && w.rng() < 0.02 * dt) {
+        remove.add(a); w.lost.shrimp++; o.energy = Math.min(1, o.energy + 0.25); return;
+      }
+    }
+    if (a.dart <= 0) {
+      const ang = w.rng() * Math.PI * 2;
+      a.vx += Math.cos(ang) * 34; a.vy += Math.sin(ang) * 34;
+      a.dart = 0.35 + w.rng() * 1.15;
+    }
+    const bit = nearestBit(w, a.x, a.y, 80);
+    if (bit) {
+      seek(a, bit.x, bit.y, 36, dt);
+      if (Math.hypot(bit.x - a.x, bit.y - a.y) < 10) { bit.life = 0; a.energy = Math.min(1.05, a.energy + 0.2); }
+    }
+    if (!remove.has(a) && a.energy > 0.86 && count(w, 'shrimp') < 12 && w.rng() < 0.0018 * dt) {
+      a.energy -= 0.28;
+      const b = makeAnimal('shrimp', a.x + 6, a.y - 4, { energy: 0.52, heading: w.rng() * 6, hue: w.rng(), phase: w.rng() * 6 });
+      b.id = w.nextId++; born.push(b); w.births++;
+    }
+  }
+  function star(w, a, dt, isWet, born, remove) {
+    if (!isWet) { seekDeep(a, dt, 20); return; }
+    if (a.digest > 0) { a.digest -= dt; wander(w, a, dt, 6); return; }
+    let prey = null, pd = 1e9;
+    for (const o of w.animals) {
+      if (o.type !== 'mussel' || o.open < 0.8 || remove.has(o)) continue;
+      const d = Math.hypot(o.x - a.x, o.y - a.y);
+      if (d < pd) { pd = d; prey = o; }
+    }
+    if (!prey) { wander(w, a, dt, 7); a.energy -= 0.01 * dt; a.eat = 0; return; }
+    seek(a, prey.x, prey.y, 18, dt);
+    if (pd < 14) {
+      a.eat += dt; a.vx = 0; a.vy = 0;
+      if (a.eat > 24) {
+        remove.add(prey); w.lost.mussel++; w.eaten++;
+        a.energy = 1; a.digest = 80; a.eat = 0;
+      }
+    } else if (a.eat > 0) a.eat = Math.max(0, a.eat - dt);
+    if (a.energy > 0.95 && count(w, 'starfish') < 2 && count(w, 'mussel') > 18 && w.rng() < 0.0003 * dt) {
+      a.energy = 0.55;
+      const b = makeAnimal('starfish', a.x + 12, a.y + 4, { energy: 0.6, digest: 18, hue: w.rng(), phase: w.rng() * 6 });
+      b.id = w.nextId++; born.push(b); w.births++;
+    }
+  }
+  function hider(w, a, dt, isWet) {
+    const st = a.home >= 0 ? w.stones[a.home] : null;
+    if (a.out > 0) a.out -= dt;
+    const cover = st && !st.flipped && a.out <= 0;
+    if (cover) {
+      seek(a, st.x, st.y, a.type === 'amphipod' ? 36 : 26, dt);
+      a.hide = Math.hypot(st.x - a.x, st.y - a.y) < 10 ? 1 : 0.35;
+      if (a.hide > 0.7) a.energy = Math.min(1.02, a.energy + 0.0045 * dt);
+      return;
+    }
+    a.hide = 0;
+    if (!isWet) { seekDeep(a, dt, 32); return; }
+    const bit = nearestBit(w, a.x, a.y, 70);
+    if (bit) {
+      seek(a, bit.x, bit.y, 28, dt);
+      if (Math.hypot(bit.x - a.x, bit.y - a.y) < 10) { bit.life = 0; a.energy = Math.min(1.05, a.energy + 0.14); }
+    } else wander(w, a, dt, a.type === 'amphipod' ? 22 : 14);
+  }
+
+  function behave(w, a, dt, fish, born, remove) {
+    const isWet = wet(w, a.x, a.y);
+    a.energy -= metab(a) * dt;
+    if (a.type === 'periwinkle') snail(w, a, dt, isWet, born);
+    else if (a.type === 'hermit') hermit(w, a, dt, isWet, born);
+    else if (a.type === 'goby') goby(w, a, dt, isWet, fish);
+    else if (a.type === 'shrimp') shrimp(w, a, dt, isWet, born, remove);
+    else if (a.type === 'starfish') star(w, a, dt, isWet, born, remove);
+    else hider(w, a, dt, isWet);
+    if (a.energy > 1.05) a.energy = 1.05;
+    if (a.energy <= 0 && !remove.has(a)) { remove.add(a); w.lost[a.type]++; freeShell(w, a); }
+  }
+
+  function spawn(w, type) {
+    if (count(w, type) >= CAP[type]) return false;
+    if (type === 'hermit') {
+      let idx = emptyShellIndex(w);
+      if (idx < 0) {
+        if (w.shells.length >= 12) return false;
+        const p = findSpot(w, 0.5, 0.95, 8, null);
+        if (!p) return false;
+        w.shells.push({ x: p.x, y: p.y, size: 1 + w.rng() * 0.8, hold: -1, buried: -1, hue: w.rng() });
+        idx = w.shells.length - 1;
+      }
+      const s = w.shells[idx];
+      const a = makeAnimal('hermit', s.x, s.y, { energy: 0.62, shell: s.size, hue: s.hue, phase: w.rng() * 6, heading: w.rng() * 6 });
+      a.id = w.nextId++; s.hold = a.id; a.hold = idx;
+      w.animals.push(a); return true;
+    }
+    if (type === 'shorecrab' || type === 'amphipod') {
+      if (!w.stones.length) return false;
+      const st = w.stones[Math.floor(w.rng() * w.stones.length)];
+      const a = makeAnimal(type, st.x, st.y, { energy: 0.64, home: st.id, hide: st.flipped ? 0 : 1, hue: w.rng(), phase: w.rng() * 6 });
+      a.id = w.nextId++; w.animals.push(a); return true;
+    }
+    const range = { mussel: [0.52, 0.9], anemone: [0.5, 0.88], periwinkle: [0.34, 0.9], goby: [0.55, 0.98], shrimp: [0.4, 0.95], starfish: [0.55, 0.92] }[type] || [0.4, 0.9];
+    const same = w.animals.filter(function (a) { return a.type === type; });
+    const p = findSpot(w, range[0], range[1], 10, same) || findSpot(w, range[0], range[1], 0, null);
+    if (!p) return false;
+    const a = makeAnimal(type, p.x, p.y, {
+      energy: 0.64, heading: w.rng() * 6, rot: w.rng() * 6, hue: w.rng(), phase: w.rng() * 6,
+      open: type === 'anemone' ? 0.4 : 1, digest: type === 'starfish' ? 8 : 0, cd: 30, sz: 0.9,
+    });
+    a.id = w.nextId++; w.animals.push(a); return true;
+  }
+  function immigrate(w) {
+    const order = ['mussel', 'anemone', 'periwinkle', 'hermit', 'goby', 'shrimp', 'shorecrab', 'amphipod', 'starfish'];
+    for (const type of order) {
+      let c = count(w, type);
+      if (type === 'starfish') {
+        const m = count(w, 'mussel');
+        if (c < 1 && m >= 8) spawn(w, 'starfish');
+        else if (c < COMFORT.starfish && m >= 14) spawn(w, 'starfish');
+        continue;
+      }
+      let guard = 0;
+      while (c < (RESCUE[type] || 1) && guard < 8) {
+        if (!spawn(w, type)) break;
+        c++; guard++;
+      }
+      if (c < COMFORT[type]) spawn(w, type);
+    }
+    for (let i = 0; i < 7; i++) dropBit(w, true);
+    if (emptyShells(w) < 3 && w.shells.length < 16) {
+      const p = findSpot(w, 0.45, 0.95, 8, null);
+      if (p) w.shells.push({ x: p.x, y: p.y, size: 1.3 + w.rng() * 2, hold: -1, buried: -1, hue: w.rng() });
+    }
+  }
+  function enforceCap(w, type) {
+    let n = count(w, type);
+    if (n <= CAP[type]) return;
+    const list = w.animals.filter(function (a) { return a.type === type; }).sort(function (a, b) { return a.energy - b.energy; });
+    const kill = new Set(list.slice(0, n - CAP[type]));
+    for (const a of kill) { w.lost[a.type]++; freeShell(w, a); }
+    w.animals = w.animals.filter(function (a) { return !kill.has(a); });
+  }
+
+  function stepOnce(w, dt) {
+    const before = w.water;
+    w.t += dt;
+    refresh(w);
+    w.rising = w.water >= before - 1e-8;
+    for (const p of w.algae) {
+      const isWet = depth(p.x, p.y) > w.threshold + 0.02;
+      // A little growth continues at night, so a long darkness doesn't strip the rock bare.
+      if (isWet) p.g += 0.05 * (1 - p.g) * (0.22 + 0.78 * w.daylight) * dt;
+      else p.g -= 0.012 * dt;
+      if (p.g < 0) p.g = 0; else if (p.g > 1) p.g = 1;
+    }
+    for (const b of w.bits) b.life -= dt;
+    if (w.bits.some(function (b) { return b.life <= 0; })) w.bits = w.bits.filter(function (b) { return b.life > 0; });
+    if (w.rng() < 0.05 * dt && w.bits.length < 16) dropBit(w, false);
+
+    const born = [], remove = new Set(), fish = [];
+    for (const a of w.animals) if (a.type === 'goby') fish.push(a);
+    for (const a of w.animals) {
+      a.age += dt;
+      if (a.type === 'limpet') { a.open = wet(w, a.x, a.y) ? 1 : 0.15; continue; }
+      if (a.type === 'mussel') { updateMussel(w, a, dt, born, remove); continue; }
+      if (a.type === 'anemone') { updateAnemone(w, a, dt, born, remove); continue; }
+      behave(w, a, dt, fish, born, remove);
+      separate(w, a, dt);
+      if (!remove.has(a)) moveAnimal(w, a, dt);
+    }
+    for (const b of born) w.animals.push(b);
+    if (remove.size) w.animals = w.animals.filter(function (a) { return !remove.has(a); });
+    for (const type of TYPES) enforceCap(w, type);
+
+    if (w.water > 0.93 && w.rising && !w.washed) {
+      w.washed = true; w.wave = 1; w.wavePing = 1; immigrate(w);
+    }
+    if (w.water < 0.7) w.washed = false;
+    if (w.wave > 0) w.wave = Math.max(0, w.wave - dt * 0.45);
+  }
+  function stepWorld(w, dt) {
+    if (!(dt > 0)) return;
+    let left = dt;
+    while (left > 1e-6) {
+      const h = left > 0.1 ? 0.1 : left;
+      stepOnce(w, h);
+      left -= h;
+    }
+  }
+  function poke(w, x, y) {
+    for (const a of w.animals) {
+      const d = Math.hypot(a.x - x, a.y - y);
+      if (a.type === 'anemone' && d < 42) a.touch = Math.max(a.touch, 2.6);
+      if (a.type === 'goby' && d < 90) a.scare = Math.max(a.scare, 3.4);
+    }
+  }
+  function feed(w, x, y) {
+    if (depth(x, y) <= 0.02) return 0;
+    let n = 0;
+    for (let i = 0; i < 6; i++) {
+      if (w.bits.length > 42) break;
+      const ang = w.rng() * 6.283, r = w.rng() * 16;
+      w.bits.push({ x: x + Math.cos(ang) * r, y: y + Math.sin(ang) * r, life: 24 + w.rng() * 8, player: true });
+      n++;
+    }
+    return n;
+  }
+  function flipStone(w, stone) {
+    stone.flipped = !stone.flipped;
+    if (stone.flipped) {
+      for (const a of w.animals) if (a.home === stone.id) { a.out = 9; a.hide = 0; }
+      for (const s of w.shells) if (s.buried === stone.id) {
+        s.buried = -1; s.x = stone.x + stone.rx * 0.9; s.y = stone.y + 4;
+      }
+    }
+    return stone.flipped;
+  }
+  function statsOf(w) {
+    const counts = {};
+    for (const t of TYPES) counts[t] = 0;
+    for (const a of w.animals) counts[a.type] = (counts[a.type] || 0) + 1;
+    let finite = true;
+    for (const a of w.animals) if (!Number.isFinite(a.x) || !Number.isFinite(a.y) || !Number.isFinite(a.energy)) finite = false;
+    return {
+      counts, algae: algaeMean(w), water: w.water, temp: w.temp, swaps: w.swaps, eaten: w.eaten,
+      grazed: w.grazed, births: w.births, lost: w.lost, t: w.t, sky: w.sky, night: w.night,
+      bits: w.bits.length, phase: w.phase, finite, hot: w.hot,
+    };
+  }
+  function shoreY(x) {
+    return 128 + Math.sin(x * 0.017) * 11 + Math.sin(x * 0.046 + 1.2) * 6 + Math.sin(x * 0.009 + 0.4) * 7;
+  }
+
+  globalThis.TP_SIM = {
+    createWorld, stepWorld, statsOf, depth, poke, feed, flipStone, skyAt, shoreY, refresh,
+    W, H, CX, CY, RX, RY, TIDE, DAY, CAP, COMFORT, TYPES, clamp,
+  };
+})();
+/* TP_SIM_END */
+</script>
+<script>
+'use strict';
+const SIM = globalThis.TP_SIM;
+const SPECIES = [
+  { id: 'anemone', name: 'Beadlet anemone', note: 'A red flower of the stone. It shuts if you touch it.' },
+  { id: 'hermit', name: 'Hermit crab', note: 'Wears a shell, and will trade up for a roomier one.' },
+  { id: 'periwinkle', name: 'Periwinkle', note: 'Scrapes the green film off the rock.' },
+  { id: 'goby', name: 'Rock goby', note: 'A little school that slips under ledges when the tide falls.' },
+  { id: 'starfish', name: 'Common starfish', note: 'Creeps, slowly, toward the mussels.' },
+  { id: 'mussel', name: 'Mussel', note: 'Blue-black, packed in families on the stone.' },
+  { id: 'shrimp', name: 'Shrimp', note: 'Glass-pink, and quick to vanish into a crack.' },
+  { id: 'shorecrab', name: 'Shore crab', note: 'Waits under a stone until the stone is turned.' },
+  { id: 'amphipod', name: 'Sand hopper', note: 'A speck with a kick, from the dark side of a stone.' },
+  { id: 'limpet', name: 'Limpet', note: 'A small hat, clamped fast to the rock.' },
+];
+const SAVE_KEY = 'tide-pool-journal-v1';
+const cv = document.getElementById('c');
+const ctx = cv.getContext('2d');
+const $ = (id) => document.getElementById(id);
+const world = SIM.createWorld(20261124, 52);
+try {
+  const pin = localStorage.getItem('tide-pool-sky');
+  if (pin === 'day' || pin === 'night' || pin === 'auto') world.pin = pin;
+} catch (e) { /* private mode */ }
+const found = new Set();
+try { JSON.parse(localStorage.getItem(SAVE_KEY) || '[]').forEach((id) => found.add(id)); } catch (e) { /* ignore */ }
+
+const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+let dpr = 1, view = { s: 1, ox: 0, oy: 0 };
+let paused = false, feedMode = false, journalOpen = false, hidden = false;
+let visT = 0, hintLeft = 9, toastLeft = 0, lastDraw = 0;
+let soundOn = false, userMuted = false, heard = false;
+try { userMuted = localStorage.getItem('tide-pool-sound') === '0'; } catch (e) { /* ignore */ }
+const flipVis = {};
+const fx = [];
+const seen = {};
+let ac = null, master = null, bed = null, fizz = null, bubbleAt = 0;
+
+function resize() {
+  dpr = Math.min(2, window.devicePixelRatio || 1);
+  cv.width = Math.max(1, innerWidth * dpr);
+  cv.height = Math.max(1, innerHeight * dpr);
+  const reserve = innerHeight < 430 ? 58 : 76;
+  const tight = innerWidth < 640 || innerHeight < 520;
+  const viewW = tight ? 860 : SIM.W;
+  const viewH = tight ? 620 : SIM.H;
+  const s = Math.min(innerWidth / viewW, (innerHeight - reserve) / viewH);
+  const camX = tight ? SIM.CX : SIM.W / 2;
+  const camY = tight ? SIM.CY - 30 : SIM.H / 2;
+  view = { s, ox: innerWidth / 2 - camX * s, oy: (innerHeight - reserve) / 2 - camY * s };
+}
+function toWorld(e) {
+  const r = cv.getBoundingClientRect();
+  return { x: (e.clientX - r.left - view.ox) / view.s, y: (e.clientY - r.top - view.oy) / view.s };
+}
+function statusText() {
+  let tide;
+  if (world.water > 0.9) tide = 'High tide';
+  else if (world.water < 0.42) tide = 'Low tide';
+  else if (world.rising) tide = 'Tide coming in';
+  else tide = 'Tide going out';
+  return tide + (world.hot ? ' · the pool is warm' : '') + ' · ' + world.sky;
+}
+function skyButton() {
+  const b = $('bSky');
+  if (world.pin === 'day') { b.textContent = '☀️'; b.setAttribute('aria-label', 'Light: always day'); }
+  else if (world.pin === 'night') { b.textContent = '🌙'; b.setAttribute('aria-label', 'Light: always night'); }
+  else { b.textContent = '🌗'; b.setAttribute('aria-label', "Light: follows the pool's own clock"); }
+}
+function setSound(on) {
+  soundOn = on;
+  if (on) {
+    startAudio();
+    if (ac && ac.state === 'suspended') ac.resume();
+    if (bed) bed.gain.setTargetAtTime(0.055, ac.currentTime, 0.25);
+    if (fizz) fizz.gain.setTargetAtTime(0.012, ac.currentTime, 0.25);
+  } else if (ac) {
+    if (bed) bed.gain.setTargetAtTime(0.0001, ac.currentTime, 0.2);
+    if (fizz) fizz.gain.setTargetAtTime(0.0001, ac.currentTime, 0.2);
+  }
+  const b = $('bSound');
+  b.innerHTML = (on ? '🔊' : '🔇') + ' <span class="lbl">Sound</span>';
+  b.classList.toggle('on', on);
+  b.setAttribute('aria-pressed', on ? 'true' : 'false');
+  b.setAttribute('aria-label', on ? 'Sound is on. Tap to mute' : 'Sound is off. Tap to turn it on');
+  try { localStorage.setItem('tide-pool-sound', on ? '1' : '0'); } catch (e) { /* ignore */ }
+}
+function startAudio() {
+  if (ac) return;
+  const AC = window.AudioContext || window.webkitAudioContext;
+  if (!AC) return;
+  try { ac = new AC(); } catch (e) { ac = null; return; }
+  master = ac.createGain(); master.gain.value = 0.9; master.connect(ac.destination);
+  const len = ac.sampleRate * 2;
+  const buf = ac.createBuffer(1, len, ac.sampleRate);
+  const data = buf.getChannelData(0);
+  let b0 = 0, b1 = 0;
+  for (let i = 0; i < len; i++) {
+    const w = Math.random() * 2 - 1;
+    b0 = b0 * 0.985 + w * 0.015;
+    b1 = b1 * 0.94 + w * 0.06;
+    data[i] = b0 * 2.4 + b1 * 0.35;
+  }
+  const src = ac.createBufferSource(); src.buffer = buf; src.loop = true;
+  const lp = ac.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 680;
+  bed = ac.createGain(); bed.gain.value = 0.0001;
+  src.connect(lp); lp.connect(bed); bed.connect(master); src.start();
+  const src2 = ac.createBufferSource(); src2.buffer = buf; src2.loop = true;
+  const bp = ac.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 1400; bp.Q.value = 0.7;
+  fizz = ac.createGain(); fizz.gain.value = 0.0001;
+  src2.connect(bp); bp.connect(fizz); fizz.connect(master); src2.start();
+}
+function envGain(peak, dur, delay) {
+  const g = ac.createGain(), t0 = ac.currentTime + (delay || 0);
+  g.gain.setValueAtTime(0.0001, t0);
+  g.gain.exponentialRampToValueAtTime(Math.max(0.001, peak), t0 + 0.03);
+  g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+  g.connect(master);
+  return { g, t0 };
+}
+function playBubble(strength) {
+  if (!soundOn || !ac) return;
+  const now = performance.now();
+  if (now - bubbleAt < 70) return;
+  bubbleAt = now;
+  const { g, t0 } = envGain(0.07 * (strength || 1), 0.22);
+  const o = ac.createOscillator();
+  const f = 320 + Math.random() * 640;
+  o.type = 'sine';
+  o.frequency.setValueAtTime(f, t0);
+  o.frequency.exponentialRampToValueAtTime(Math.max(80, f * 0.55), t0 + 0.2);
+  o.connect(g); o.start(t0); o.stop(t0 + 0.24);
+}
+function playWave() {
+  if (!soundOn || !ac) return;
+  const len = Math.floor(ac.sampleRate * 1.5);
+  const buf = ac.createBuffer(1, len, ac.sampleRate);
+  const d = buf.getChannelData(0);
+  let b = 0;
+  for (let i = 0; i < len; i++) { const w = Math.random() * 2 - 1; b = b * 0.96 + w * 0.04; d[i] = b * 3; }
+  const src = ac.createBufferSource(); src.buffer = buf;
+  const lp = ac.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.setValueAtTime(400, ac.currentTime);
+  lp.frequency.exponentialRampToValueAtTime(1600, ac.currentTime + 0.4);
+  lp.frequency.exponentialRampToValueAtTime(500, ac.currentTime + 1.4);
+  const g = ac.createGain();
+  g.gain.setValueAtTime(0.0001, ac.currentTime);
+  g.gain.exponentialRampToValueAtTime(0.22, ac.currentTime + 0.18);
+  g.gain.exponentialRampToValueAtTime(0.0001, ac.currentTime + 1.45);
+  src.connect(lp); lp.connect(g); g.connect(master); src.start(); src.stop(ac.currentTime + 1.5);
+}
+function playThud() {
+  if (!soundOn || !ac) return;
+  const { g, t0 } = envGain(0.16, 0.18);
+  const o = ac.createOscillator(); o.type = 'sine'; o.frequency.setValueAtTime(110, t0);
+  o.frequency.exponentialRampToValueAtTime(50, t0 + 0.16);
+  o.connect(g); o.start(t0); o.stop(t0 + 0.2);
+}
+function playClick() {
+  if (!soundOn || !ac) return;
+  const { g, t0 } = envGain(0.06, 0.08);
+  const o = ac.createOscillator(); o.type = 'triangle'; o.frequency.value = 540;
+  o.connect(g); o.start(t0); o.stop(t0 + 0.09);
+}
+
+function discover(id) {
+  if (!id || found.has(id)) return;
+  found.add(id);
+  try { localStorage.setItem(SAVE_KEY, JSON.stringify([...found])); } catch (e) { /* ignore */ }
+  const sp = SPECIES.find((s) => s.id === id);
+  if (sp) showToast(sp.name);
+  if (journalOpen) renderJournal();
+}
+function showToast(text) {
+  toastLeft = 3.4;
+  const el = $('toast');
+  el.textContent = text + ' — noted in the journal';
+  el.classList.add('show');
+}
+function isVisible(a) {
+  if (a.type === 'shorecrab' || a.type === 'amphipod') {
+    const st = a.home >= 0 ? world.stones[a.home] : null;
+    if (a.hide > 0.75 && st && !st.flipped && a.out <= 0) return false;
+  }
+  if ((a.type === 'shrimp') && a.hide > 0.8) return false;
+  return true;
+}
+function noticeNear(x, y, r) {
+  for (const a of world.animals) {
+    if (!isVisible(a)) continue;
+    if (Math.hypot(a.x - x, a.y - y) < r) discover(a.type);
+  }
+}
+function renderJournal() {
+  const ul = $('jlist');
+  ul.innerHTML = '';
+  for (const sp of SPECIES) {
+    const li = document.createElement('li');
+    const known = found.has(sp.id);
+    if (!known) li.className = 'unk';
+    const n = world.animals.filter((a) => a.type === sp.id).length;
+    li.innerHTML = known
+      ? '<div><b></b><em></em></div><span class="n"></span>'
+      : '<div><b>Unseen</b><em>Still somewhere in the pool.</em></div>';
+    if (known) {
+      li.querySelector('b').textContent = sp.name;
+      li.querySelector('em').textContent = sp.note;
+      li.querySelector('.n').textContent = n ? (n + ' here') : 'not in the pool';
+    }
+    ul.appendChild(li);
+  }
+  $('jcount').textContent = found.size + ' of ' + SPECIES.length;
+}
+function setJournal(open) {
+  journalOpen = open;
+  $('journal').hidden = !open;
+  $('bJournal').setAttribute('aria-expanded', open ? 'true' : 'false');
+  $('bJournal').classList.toggle('on', open);
+  if (open) renderJournal();
+}
+function setFeed(on) {
+  feedMode = on;
+  $('bFeed').classList.toggle('on', on);
+  $('bFeed').setAttribute('aria-pressed', on ? 'true' : 'false');
+  if (on) { setJournal(false); $('hint').classList.remove('gone'); $('hint').textContent = 'Tap the pool to drop a pinch of food.'; hintLeft = 5; }
+}
+function setPause(on) {
+  paused = on;
+  $('bPause').classList.toggle('on', on);
+  $('bPause').setAttribute('aria-pressed', on ? 'true' : 'false');
+  $('bPause').innerHTML = (on ? '▶️' : '⏸') + ' <span class="lbl">' + (on ? 'Play' : 'Pause') + '</span>';
+}
+function pushFx(p) { fx.push(p); if (fx.length > 80) fx.splice(0, fx.length - 80); }
+function stir(x, y, big) {
+  pushFx({ kind: 'rip', x, y, age: 0, life: big ? 1.35 : 1.05 });
+  if (big) for (let i = 0; i < 3; i++) pushFx({ kind: 'bub', x: x + (Math.random() - 0.5) * 10, y, r: 1.2 + Math.random() * 2.2, vy: -10 - Math.random() * 14, age: 0, life: 1.3 });
+  if (world.night > 0.45) {
+    const n = big ? 8 : 3;
+    for (let i = 0; i < n; i++) pushFx({ kind: 'spark', x, y, vx: (Math.random() - 0.5) * 18, vy: (Math.random() - 0.5) * 18, age: 0, life: 1.1 + Math.random() * 0.8 });
+  }
+  playBubble(big ? 1 : 0.55);
+}
+function tryFlip(x, y) {
+  let best = null, bd = 36;
+  for (const s of world.stones) {
+    const d = Math.hypot(s.x - x, s.y - y);
+    if (d < Math.max(s.rx, 18) + 10 && d < bd) { best = s; bd = d; }
+  }
+  if (!best) return false;
+  const opened = SIM.flipStone(world, best);
+  playThud();
+  stir(best.x, best.y, true);
+  if (opened) {
+    for (const a of world.animals) if (a.home === best.id) discover(a.type);
+    for (let i = 0; i < 6; i++) pushFx({ kind: 'sand', x: best.x, y: best.y, vx: (Math.random() - 0.5) * 30, vy: (Math.random() - 0.5) * 24, age: 0, life: 0.6 });
+  }
+  return true;
+}
+function interact(e, big) {
+  if (!heard && !userMuted && e.target === cv) { heard = true; setSound(true); }
+  const p = toWorld(e);
+  if (feedMode) {
+    if (big && SIM.depth(p.x, p.y) > 0.03) { SIM.feed(world, p.x, p.y); stir(p.x, p.y, true); noticeNear(p.x, p.y, 80); }
+    else if (SIM.depth(p.x, p.y) > 0.03) stir(p.x, p.y, false);
+    return;
+  }
+  if (big && tryFlip(p.x, p.y)) { noticeNear(p.x, p.y, 50); return; }
+  if (SIM.depth(p.x, p.y) > 0.02 || big) {
+    SIM.poke(world, p.x, p.y);
+    stir(p.x, p.y, big);
+    noticeNear(p.x, p.y, big ? 78 : 48);
+  }
+}
+let pointing = false, lastStir = 0;
+cv.addEventListener('pointerdown', (e) => {
+  if (e.button != null && e.button !== 0) return;
+  pointing = true;
+  try { cv.setPointerCapture(e.pointerId); } catch (err) { /* ignore */ }
+  if (journalOpen) setJournal(false);
+  interact(e, true);
+  lastStir = performance.now();
+});
+cv.addEventListener('pointermove', (e) => {
+  if (!pointing) return;
+  const now = performance.now();
+  if (now - lastStir < 55) return;
+  lastStir = now;
+  interact(e, false);
+});
+function endPoint() { pointing = false; }
+cv.addEventListener('pointerup', endPoint);
+cv.addEventListener('pointercancel', endPoint);
+
+function unlockButtons() { if (!heard && !userMuted) { heard = true; setSound(true); } }
+$('bFeed').onclick = () => { unlockButtons(); setFeed(!feedMode); };
+$('bJournal').onclick = () => { unlockButtons(); setFeed(false); setJournal(!journalOpen); };
+$('bPause').onclick = () => { unlockButtons(); setPause(!paused); };
+$('bSound').onclick = () => { userMuted = soundOn; heard = true; setSound(!soundOn); };
+$('jClose').onclick = () => setJournal(false);
+$('bSky').onclick = () => {
+  unlockButtons();
+  world.pin = world.pin === 'auto' ? 'day' : world.pin === 'day' ? 'night' : 'auto';
+  try { localStorage.setItem('tide-pool-sky', world.pin); } catch (e) { /* ignore */ }
+  SIM.refresh(world);
+  skyButton();
+};
+addEventListener('keydown', (e) => {
+  const k = e.key;
+  if (k === 'f' || k === 'F') { unlockButtons(); setFeed(!feedMode); }
+  else if (k === 'j' || k === 'J') { unlockButtons(); setFeed(false); setJournal(!journalOpen); }
+  else if (k === 'm' || k === 'M') { userMuted = soundOn; heard = true; setSound(!soundOn); }
+  else if (k === 'n' || k === 'N') $('bSky').click();
+  else if (k === ' ' || k === 'p' || k === 'P') { e.preventDefault(); unlockButtons(); setPause(!paused); }
+  else if (k === 'Escape') { setJournal(false); setFeed(false); }
+});
+
+// ---------- drawing ----------
+const backdrop = document.createElement('canvas');
+backdrop.width = SIM.W; backdrop.height = SIM.H;
+let backdropReady = false;
+function paintBackdrop() {
+  const b = backdrop.getContext('2d');
+  const g = b.createLinearGradient(0, 0, 0, SIM.H);
+  g.addColorStop(0, '#6f8f98');
+  g.addColorStop(0.22, '#6a635b');
+  g.addColorStop(1, '#3e3934');
+  b.fillStyle = g; b.fillRect(0, 0, SIM.W, SIM.H);
+  // sea
+  const sea = b.createLinearGradient(0, 0, 0, 180);
+  sea.addColorStop(0, '#3f92ae');
+  sea.addColorStop(1, '#7ec4cc');
+  b.fillStyle = sea;
+  b.beginPath(); b.moveTo(0, 0); b.lineTo(0, SIM.shoreY(0));
+  for (let x = 0; x <= SIM.W; x += 8) b.lineTo(x, SIM.shoreY(x));
+  b.lineTo(SIM.W, 0); b.closePath(); b.fill();
+  // rock masses along the shore and around the pool
+  const rng = (function mul(a) {
+    return function () { a |= 0; a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+  })(7);
+  for (let i = 0; i < 28; i++) {
+    const x = rng() * SIM.W, y = 150 + rng() * (SIM.H - 170), rad = 40 + rng() * 100;
+    const grd = b.createRadialGradient(x - rad * 0.25, y - rad * 0.3, rad * 0.1, x, y, rad);
+    const light = rng() < 0.5;
+    grd.addColorStop(0, light ? 'rgba(164,154,142,.92)' : 'rgba(96,90,82,.88)');
+    grd.addColorStop(1, 'rgba(70,64,58,0)');
+    b.fillStyle = grd;
+    b.beginPath();
+    const rot = rng() * 6;
+    for (let k = 0; k < 6; k++) {
+      const a = rot + (k / 6) * Math.PI * 2;
+      const rr = rad * (0.55 + rng() * 0.55);
+      const px = x + Math.cos(a) * rr, py = y + Math.sin(a) * rr * 0.72;
+      if (k === 0) b.moveTo(px, py); else b.lineTo(px, py);
+    }
+    b.closePath(); b.fill();
+  }
+  // basin floor: a smooth wet sand, then a scatter of grit (not a pixel grid)
+  b.save();
+  traceContour(b, 0.02);
+  b.clip();
+  const sand = b.createRadialGradient(SIM.CX, SIM.CY + 10, 30, SIM.CX, SIM.CY, 300);
+  sand.addColorStop(0, '#8a704c');
+  sand.addColorStop(0.55, '#c2ae86');
+  sand.addColorStop(1, '#e0d0ae');
+  b.fillStyle = sand;
+  b.fillRect(SIM.CX - SIM.RX - 20, SIM.CY - SIM.RY - 20, SIM.RX * 2 + 40, SIM.RY * 2 + 40);
+  for (let i = 0; i < 520; i++) {
+    const x = SIM.CX + (rng() - 0.5) * SIM.RX * 2.1;
+    const y = SIM.CY + (rng() - 0.5) * SIM.RY * 2.1;
+    if (SIM.depth(x, y) < 0.05) continue;
+    const n = rng();
+    b.fillStyle = n > 0.72 ? 'rgba(90,70,48,.45)' : 'rgba(255,248,230,.35)';
+    b.fillRect(x, y, n > 0.9 ? 2.4 : 1.4, n > 0.9 ? 2.2 : 1.3);
+  }
+  b.restore();
+  b.save();
+  traceContour(b, 0.02);
+  b.strokeStyle = 'rgba(48, 40, 32, .28)';
+  b.lineWidth = 16;
+  b.stroke();
+  b.restore();
+  // barnacles on dry shore
+  b.strokeStyle = 'rgba(60,56,50,.45)';
+  b.lineWidth = 1;
+  for (let i = 0; i < 70; i++) {
+    const x = rng() * SIM.W, y = 150 + rng() * 520;
+    if (SIM.depth(x, y) > 0.04) continue;
+    if (y < SIM.shoreY(x) - 4) continue;
+    b.beginPath(); b.arc(x, y, 2 + rng() * 2.2, 0, Math.PI * 2); b.stroke();
+  }
+  // a few cracks
+  b.strokeStyle = 'rgba(40,34,30,.28)';
+  b.lineWidth = 1.2;
+  for (let i = 0; i < 9; i++) {
+    let x = 80 + rng() * 840, y = 180 + rng() * 460;
+    b.beginPath(); b.moveTo(x, y);
+    for (let k = 0; k < 4; k++) { x += (rng() - 0.5) * 70; y += (rng() - 0.3) * 40; b.lineTo(x, y); }
+    b.stroke();
+  }
+  backdropReady = true;
+}
+function traceContour(c, level) {
+  const pts = contour(level);
+  c.beginPath();
+  c.moveTo(pts[0], pts[1]);
+  for (let i = 2; i < pts.length; i += 2) c.lineTo(pts[i], pts[i + 1]);
+  c.closePath();
+}
+const contourCache = new Map();
+function contour(level) {
+  const q = Math.round(level * 80);
+  const hit = contourCache.get(q);
+  if (hit) return hit;
+  const pts = [];
+  for (let i = 0; i < 80; i++) {
+    const a = (i / 80) * Math.PI * 2;
+    let lo = 0, hi = 1.2;
+    for (let k = 0; k < 16; k++) {
+      const mid = (lo + hi) / 2;
+      const x = SIM.CX + Math.cos(a) * mid * SIM.RX;
+      const y = SIM.CY + Math.sin(a) * mid * SIM.RY;
+      if (SIM.depth(x, y) > level) lo = mid; else hi = mid;
+    }
+    pts.push(SIM.CX + Math.cos(a) * lo * SIM.RX, SIM.CY + Math.sin(a) * lo * SIM.RY);
+  }
+  contourCache.set(q, pts);
+  return pts;
+}
+
+const caustic = document.createElement('canvas');
+const CW = 112, CH = 74;
+caustic.width = CW; caustic.height = CH;
+const cctx = caustic.getContext('2d');
+const cimg = cctx.createImageData(CW, CH);
+function paintCaustics(t) {
+  const data = cimg.data;
+  const dim = 0.35 + (1 - world.night) * 0.65;
+  const speed = reduce ? t * 0.35 : t;
+  for (let y = 0; y < CH; y++) {
+    for (let x = 0; x < CW; x++) {
+      const u = x * 0.18, v = y * 0.18;
+      const s1 = Math.sin(u * 1.05 + Math.sin(v * 0.72 + speed * 0.65) + speed);
+      const s2 = Math.sin(v * 1.15 - speed * 0.85 + Math.sin(u * 0.75 - speed * 0.4));
+      const s3 = Math.sin((u + v) * 0.72 + speed * 0.45);
+      let k = s1 + s2 * 0.85 + s3 * 0.45;
+      k = k > 0.55 ? (k - 0.55) * 1.35 : 0;
+      if (k > 1) k = 1;
+      const i = (y * CW + x) * 4;
+      data[i] = 226; data[i + 1] = 248; data[i + 2] = 242; data[i + 3] = (150 * k * dim) | 0;
+    }
+  }
+  cctx.putImageData(cimg, 0, 0);
+}
+
+function shadow(x, y, rx, ry) {
+  ctx.fillStyle = 'rgba(40, 30, 20, .16)';
+  ctx.beginPath(); ctx.ellipse(x + 1, y + 3, rx, ry, 0, 0, Math.PI * 2); ctx.fill();
+}
+function drawAnemone(a, t) {
+  const o = a.open;
+  shadow(a.x, a.y, 8, 5);
+  ctx.fillStyle = '#7a3a40';
+  ctx.beginPath(); ctx.ellipse(a.x, a.y, 8, 6, 0, 0, Math.PI * 2); ctx.fill();
+  const n = 12;
+  for (let i = 0; i < n; i++) {
+    const ang = (i / n) * Math.PI * 2 + a.rot;
+    const sway = Math.sin(t * 1.6 + a.phase + i) * 0.35 * o;
+    const len = 6 + o * 20;
+    ctx.strokeStyle = i % 4 === 0 ? '#e7b4b0' : '#c45c5e';
+    ctx.lineWidth = 1.7;
+    ctx.beginPath();
+    ctx.moveTo(a.x + Math.cos(ang) * 4, a.y + Math.sin(ang) * 3);
+    ctx.quadraticCurveTo(
+      a.x + Math.cos(ang + sway) * len * 0.55,
+      a.y + Math.sin(ang + sway) * len * 0.45,
+      a.x + Math.cos(ang + sway) * len,
+      a.y + Math.sin(ang + sway) * len * 0.82
+    );
+    ctx.stroke();
+  }
+  ctx.fillStyle = '#2c5eae';
+  ctx.beginPath(); ctx.arc(a.x, a.y, 2.4 + (1 - o) * 1.4, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = 'rgba(255,230,230,.7)';
+  ctx.beginPath(); ctx.arc(a.x - 0.6, a.y - 0.7, 0.7, 0, Math.PI * 2); ctx.fill();
+}
+function drawMussel(a) {
+  ctx.save(); ctx.translate(a.x, a.y); ctx.rotate(a.rot);
+  shadow(0, 0, 4, 8);
+  const shut = a.open < 0.5 ? 0.72 : 1;
+  ctx.fillStyle = a.hue > 0.5 ? '#243646' : '#1b2c3a';
+  ctx.beginPath(); ctx.ellipse(0, 0, 4.2 * shut, 9, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = 'rgba(190, 210, 220, .4)'; ctx.lineWidth = 0.8;
+  ctx.beginPath(); ctx.ellipse(0, 0, 4.2 * shut, 9, 0, 0, Math.PI * 2); ctx.stroke();
+  ctx.strokeStyle = 'rgba(255,255,255,.25)';
+  ctx.beginPath(); ctx.moveTo(-1, -6); ctx.lineTo(-1.2, 5); ctx.stroke();
+  ctx.restore();
+}
+function drawLimpet(a) {
+  ctx.save(); ctx.translate(a.x, a.y); ctx.rotate(a.rot);
+  shadow(0, 0, 9, 7);
+  ctx.fillStyle = '#b7aa96';
+  ctx.beginPath(); ctx.ellipse(0, 0, 9, 7.2, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#d9d0c0';
+  ctx.beginPath(); ctx.ellipse(0, 0, 5.5, 4.3, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = 'rgba(90,70,50,.35)'; ctx.lineWidth = 0.7;
+  for (let i = 0; i < 6; i++) {
+    const ang = i / 6 * Math.PI;
+    ctx.beginPath(); ctx.moveTo(Math.cos(ang) * 2, Math.sin(ang) * 1.6); ctx.lineTo(Math.cos(ang) * 8.5, Math.sin(ang) * 6.6); ctx.stroke();
+  }
+  ctx.restore();
+}
+function drawSpiral(scale, hue) {
+  const light = hue > 0.66 ? '#f4efe2' : hue > 0.33 ? '#e7d3ae' : '#d7b98a';
+  const dark = hue > 0.66 ? '#c8b48a' : '#b08960';
+  ctx.scale(scale, scale * 0.82);
+  for (let i = 4; i >= 0; i--) {
+    ctx.fillStyle = i % 2 ? light : dark;
+    ctx.beginPath();
+    ctx.ellipse(-i * 0.7, i * 0.35, 2.2 + (4 - i) * 1.15, 1.8 + (4 - i) * 0.95, 0.5, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.fillStyle = '#fbf6ea';
+  ctx.beginPath(); ctx.arc(1.2, -0.3, 1.15, 0, Math.PI * 2); ctx.fill();
+}
+function drawHermit(a, t) {
+  ctx.save(); ctx.translate(a.x, a.y); ctx.rotate(a.heading);
+  const sc = 0.62 + a.shell * 0.28;
+  shadow(0, 1, 7 * sc, 5 * sc);
+  ctx.strokeStyle = '#c47a48'; ctx.lineWidth = 1.3; ctx.lineCap = 'round';
+  for (let side = -1; side <= 1; side += 2) {
+    for (let i = 0; i < 3; i++) {
+      ctx.beginPath();
+      ctx.moveTo(-2 + i * 2, side * 2);
+      ctx.lineTo(-4 + i * 3, side * (5 + (i % 2)));
+      ctx.stroke();
+    }
+  }
+  ctx.fillStyle = '#e08448';
+  ctx.beginPath(); ctx.ellipse(5, 0, 4.2, 2.6, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = '#5a3018'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(8, -1.2); ctx.lineTo(12, -3.2); ctx.moveTo(8, 1); ctx.lineTo(11.5, 2.4); ctx.stroke();
+  ctx.fillStyle = '#2a180e';
+  ctx.beginPath(); ctx.arc(11.6, -3.3, 0.8, 0, 7); ctx.arc(11.2, 2.5, 0.8, 0, 7); ctx.fill();
+  ctx.save(); ctx.translate(-1, 0); drawSpiral(sc, a.hue); ctx.restore();
+  ctx.restore();
+}
+function drawSnail(a) {
+  ctx.save(); ctx.translate(a.x, a.y); ctx.rotate(a.heading);
+  const sc = 0.7 * a.sz;
+  shadow(0, 1, 7 * a.sz, 5 * a.sz);
+  ctx.fillStyle = '#6d5b48';
+  ctx.beginPath(); ctx.ellipse(5.5 * sc, 0.6, 4.2 * sc, 2.3 * sc, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = '#6d5b48'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(8 * sc, -0.4); ctx.lineTo(12 * sc, -2.4); ctx.moveTo(8 * sc, 1); ctx.lineTo(11 * sc, 2.2); ctx.stroke();
+  ctx.save(); drawSpiral(0.85 * a.sz, 0.2 + a.hue * 0.2); ctx.restore();
+  ctx.restore();
+}
+function drawFish(a, t) {
+  ctx.save(); ctx.translate(a.x, a.y); ctx.rotate(a.heading);
+  const s = a.sz, flick = Math.sin(t * 7 + a.phase) * 3;
+  shadow(0, 2, 12 * s, 5 * s);
+  ctx.fillStyle = a.hue > 0.5 ? '#3e7f78' : '#4d8c6e';
+  ctx.beginPath(); ctx.ellipse(0, 0, 15 * s, 6 * s, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#e7f6f1';
+  ctx.beginPath(); ctx.ellipse(1.2 * s, 1.2, 11.5 * s, 3.6 * s, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = a.hue > 0.5 ? '#3e7f78' : '#4d8c6e';
+  ctx.beginPath(); ctx.moveTo(-11 * s, 0); ctx.lineTo(-18 * s, -4 * s + flick * 0.3); ctx.lineTo(-18 * s, 4 * s + flick * 0.3); ctx.fill();
+  ctx.fillStyle = '#10241f';
+  ctx.beginPath(); ctx.arc(8 * s, -0.6, 1.15, 0, 7); ctx.fill();
+  ctx.fillStyle = 'rgba(255,255,255,.8)';
+  ctx.beginPath(); ctx.arc(8.4 * s, -0.9, 0.4, 0, 7); ctx.fill();
+  ctx.restore();
+}
+function drawShrimp(a) {
+  ctx.save(); ctx.translate(a.x, a.y); ctx.rotate(a.heading); ctx.scale(a.sz, a.sz);
+  shadow(0, 2, 8, 3);
+  ctx.strokeStyle = 'rgba(120,60,50,.7)'; ctx.lineWidth = 0.7;
+  ctx.beginPath(); ctx.moveTo(6, 0); ctx.lineTo(16, -4); ctx.moveTo(6, 0); ctx.lineTo(15, 3); ctx.stroke();
+  ctx.strokeStyle = a.hue > 0.5 ? '#f0b2a4' : '#e7c3b0';
+  ctx.lineWidth = 2.4; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(7, 0); ctx.quadraticCurveTo(0, -4, -7, 1); ctx.quadraticCurveTo(-11, 4, -13, 0); ctx.stroke();
+  ctx.fillStyle = 'rgba(255, 230, 220, .9)';
+  ctx.beginPath(); ctx.ellipse(4, 0, 3.4, 1.7, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.restore();
+}
+function drawStar(a, t) {
+  ctx.save(); ctx.translate(a.x, a.y); ctx.rotate(a.heading + Math.sin(t * 0.4 + a.phase) * 0.05);
+  shadow(0, 2, 12, 12);
+  ctx.fillStyle = a.hue > 0.55 ? '#e0923c' : '#d9844a';
+  for (let i = 0; i < 5; i++) {
+    ctx.rotate((Math.PI * 2) / 5);
+    ctx.beginPath(); ctx.ellipse(8, 0, 8.5, 3.5, 0, 0, Math.PI * 2); ctx.fill();
+  }
+  ctx.beginPath(); ctx.arc(0, 0, 5, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = 'rgba(120, 55, 20, .35)';
+  ctx.beginPath(); ctx.arc(1.2, -0.8, 1.3, 0, 7); ctx.arc(-1.4, 1, 1, 0, 7); ctx.fill();
+  ctx.restore();
+}
+function drawCrab(a, t) {
+  ctx.save(); ctx.translate(a.x, a.y); ctx.rotate(a.heading);
+  const wiggle = Math.sin(t * 6 + a.phase) * 1.2;
+  shadow(0, 2, 9, 7);
+  ctx.strokeStyle = '#8d4a32'; ctx.lineWidth = 1.3;
+  for (let side = -1; side <= 1; side += 2) {
+    for (let i = 0; i < 3; i++) {
+      ctx.beginPath();
+      ctx.moveTo(side * 3, -2 + i * 2.2);
+      ctx.lineTo(side * (9 + wiggle), -5 + i * 3.4);
+      ctx.stroke();
+    }
+  }
+  ctx.fillStyle = '#c4623e';
+  ctx.beginPath(); ctx.ellipse(0, 0, 8, 6.4, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#a24e32';
+  ctx.beginPath(); ctx.arc(-6, -6, 2.3, 0, 7); ctx.arc(6, -6, 2.3, 0, 7); ctx.fill();
+  ctx.fillStyle = '#f2e2c8';
+  ctx.beginPath(); ctx.arc(-2, -1, 0.7, 0, 7); ctx.arc(2, -1, 0.7, 0, 7); ctx.fill();
+  ctx.restore();
+}
+function drawAmp(a, t) {
+  ctx.save(); ctx.translate(a.x, a.y); ctx.rotate(Math.sin(t * 10 + a.phase) * 0.6 + a.heading);
+  ctx.strokeStyle = '#d8c6a4'; ctx.lineWidth = 1.4; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.arc(0, 0, 3.2, 0.4, 2.6); ctx.stroke();
+  ctx.restore();
+}
+function drawLedge(L) {
+  ctx.save(); ctx.translate(L.x, L.y); ctx.rotate(L.rot);
+  ctx.fillStyle = 'rgba(20, 16, 12, .5)';
+  ctx.beginPath(); ctx.ellipse(4, 8, L.len * 0.42, 9, 0, 0, Math.PI * 2); ctx.fill();
+  const g = ctx.createLinearGradient(0, -14, 0, 12);
+  g.addColorStop(0, '#a39a8e'); g.addColorStop(1, '#3a342f');
+  ctx.fillStyle = g;
+  ctx.beginPath(); ctx.ellipse(0, -1, L.len * 0.46, 11, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = 'rgba(255,255,255,.2)';
+  ctx.beginPath(); ctx.ellipse(-4, -4, L.len * 0.16, 3.2, -0.4, 0, Math.PI * 2); ctx.fill();
+  ctx.restore();
+}
+function drawStone(s, vis) {
+  ctx.save(); ctx.translate(s.x, s.y); ctx.rotate(s.rot);
+  shadow(0, 2, s.rx, s.ry);
+  const sc = Math.max(0.07, Math.abs(Math.cos(vis * Math.PI)));
+  ctx.scale(sc, 1);
+  const under = vis > 0.5;
+  const g = ctx.createLinearGradient(-s.rx, -s.ry, s.rx, s.ry);
+  if (under) { g.addColorStop(0, '#4a4038'); g.addColorStop(1, '#2a241e'); }
+  else {
+    const tone = 150 + s.tone * 40;
+    g.addColorStop(0, 'rgb(' + (tone + 24) + ',' + (tone + 16) + ',' + (tone + 6) + ')');
+    g.addColorStop(1, 'rgb(' + (tone - 30) + ',' + (tone - 34) + ',' + (tone - 40) + ')');
+  }
+  ctx.fillStyle = g;
+  ctx.beginPath(); ctx.ellipse(0, 0, s.rx, s.ry, 0, 0, Math.PI * 2); ctx.fill();
+  if (!under) {
+    ctx.fillStyle = 'rgba(255,255,255,.2)';
+    ctx.beginPath(); ctx.ellipse(-s.rx * 0.25, -s.ry * 0.35, s.rx * 0.35, s.ry * 0.22, -0.4, 0, Math.PI * 2); ctx.fill();
+  }
+  ctx.restore();
+}
+function drawShell(s) {
+  ctx.save(); ctx.translate(s.x, s.y); shadow(0, 1, 6, 4); drawSpiral(0.55 + s.size * 0.22, s.hue); ctx.restore();
+}
+
+function drawWorld(dt) {
+  const t0 = performance.now();
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.fillStyle = '#4a453f';
+  ctx.fillRect(0, 0, innerWidth, innerHeight);
+  // the wide pool doesn't fill a tall phone; keep the spare shore from looking like a flat void
+  for (let i = 0; i < 8; i++) {
+    const x = innerWidth * (0.08 + (i % 4) * 0.28);
+    const y = innerHeight * (i < 4 ? 0.16 : 0.78);
+    const rad = 80 + (i % 3) * 36;
+    const g = ctx.createRadialGradient(x, y - 10, 8, x, y, rad);
+    g.addColorStop(0, i % 2 ? 'rgba(92, 86, 78, .9)' : 'rgba(54, 49, 44, .85)');
+    g.addColorStop(1, 'rgba(74, 69, 63, 0)');
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.ellipse(x, y, rad, rad * 0.62, i * 0.7, 0, Math.PI * 2); ctx.fill();
+  }
+  ctx.setTransform(dpr * view.s, 0, 0, dpr * view.s, dpr * view.ox, dpr * view.oy);
+  if (!backdropReady) paintBackdrop();
+  ctx.drawImage(backdrop, 0, 0);
+  // sea foam, redrawn so the shore keeps breathing
+  ctx.beginPath();
+  const sy0 = SIM.shoreY(0);
+  ctx.moveTo(0, sy0);
+  for (let x = 0; x <= SIM.W; x += 10) {
+    const y = SIM.shoreY(x) + Math.sin(x * 0.05 + visT * 1.4) * 1.6;
+    ctx.lineTo(x, y);
+  }
+  ctx.strokeStyle = world.night > 0.5 ? 'rgba(220,230,240,.35)' : 'rgba(255,255,255,.65)';
+  ctx.lineWidth = 2; ctx.stroke();
+  ctx.strokeStyle = 'rgba(255,255,255,.25)'; ctx.lineWidth = 5; ctx.stroke();
+
+  // wet gleam from the sea into the pool as the tide tops up
+  const open = SIM.clamp((world.water - 0.86) / 0.14, 0, 1);
+  if (open > 0.04) {
+    ctx.save();
+    ctx.globalAlpha = 0.22 * open;
+    const cg = ctx.createLinearGradient(0, 150, 0, 340);
+    cg.addColorStop(0, 'rgba(186, 224, 226, .2)');
+    cg.addColorStop(0.45, 'rgba(120, 186, 190, .9)');
+    cg.addColorStop(1, 'rgba(120, 186, 190, 0)');
+    ctx.fillStyle = cg;
+    const half = 54 + open * 36;
+    ctx.beginPath();
+    ctx.moveTo(SIM.CX - half, 148);
+    ctx.quadraticCurveTo(SIM.CX - half * 0.8, 230, SIM.CX - half * 0.55, 330);
+    ctx.lineTo(SIM.CX + half * 0.55, 330);
+    ctx.quadraticCurveTo(SIM.CX + half * 0.8, 230, SIM.CX + half, 148);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  for (const p of world.algae) {
+    if (p.g < 0.04) continue;
+    ctx.fillStyle = 'rgba(46, 120, 72,' + (0.18 + p.g * 0.55).toFixed(3) + ')';
+    ctx.beginPath(); ctx.ellipse(p.x, p.y, 10 + p.g * 12, 7 + p.g * 8, p.x * 0.01, 0, Math.PI * 2); ctx.fill();
+  }
+  for (const b of world.bits) {
+    ctx.fillStyle = b.player ? '#efe0bc' : '#d2c09a';
+    ctx.beginPath(); ctx.arc(b.x, b.y, b.player ? 2.3 : 1.6, 0, 7); ctx.fill();
+  }
+  for (const a of world.animals) if (a.type === 'limpet') drawLimpet(a);
+  for (const a of world.animals) if (a.type === 'mussel') drawMussel(a);
+  for (const s of world.shells) if (s.hold < 0 && s.buried < 0) drawShell(s);
+  for (const a of world.animals) if (a.type === 'anemone') drawAnemone(a, visT);
+  for (const a of world.animals) {
+    if (a.type === 'periwinkle') drawSnail(a);
+    else if (a.type === 'starfish') drawStar(a, visT);
+    else if (a.type === 'hermit') drawHermit(a, visT);
+    else if (a.type === 'shorecrab' && isVisible(a)) drawCrab(a, visT);
+    else if (a.type === 'amphipod' && isVisible(a)) drawAmp(a, visT);
+    else if (a.type === 'shrimp' && a.hide < 0.8) drawShrimp(a);
+  }
+  for (const a of world.animals) if (a.type === 'goby') drawFish(a, visT);
+  for (const L of world.ledges) drawLedge(L);
+  for (const s of world.stones) drawStone(s, flipVis[s.id] || 0);
+
+  // clear water, then the moving light on it
+  ctx.save();
+  traceContour(ctx, world.threshold);
+  ctx.clip();
+  const warm = SIM.clamp((world.temp - 14) / 14, 0, 1);
+  const cr = (48 + warm * 36) | 0, cg = (132 + warm * 20 - world.night * 30) | 0, cb = (148 - warm * 28 + world.night * 20) | 0;
+  const wg = ctx.createRadialGradient(SIM.CX, SIM.CY, 20, SIM.CX, SIM.CY, 280);
+  wg.addColorStop(0, 'rgba(' + (cr - 10) + ',' + (cg - 16) + ',' + (cb - 8) + ',' + (0.2 + (1 - world.water) * 0.08) + ')');
+  wg.addColorStop(1, 'rgba(' + cr + ',' + cg + ',' + cb + ',0.12)');
+  ctx.fillStyle = wg;
+  ctx.fillRect(SIM.CX - SIM.RX - 40, SIM.CY - SIM.RY - 40, SIM.RX * 2 + 80, SIM.RY * 2 + 80);
+  paintCaustics(visT);
+  ctx.globalCompositeOperation = 'screen';
+  ctx.globalAlpha = 0.72 - world.night * 0.28;
+  const pad = 30;
+  ctx.drawImage(caustic, SIM.CX - SIM.RX - pad, SIM.CY - SIM.RY - pad, SIM.RX * 2 + pad * 2, SIM.RY * 2 + pad * 2);
+  ctx.restore();
+
+  // shoreline
+  ctx.save();
+  traceContour(ctx, world.threshold);
+  ctx.strokeStyle = 'rgba(255,255,255,.38)';
+  ctx.lineWidth = 2.2;
+  ctx.stroke();
+  ctx.strokeStyle = 'rgba(90, 70, 50, .25)';
+  ctx.lineWidth = 10;
+  ctx.stroke();
+  ctx.restore();
+
+  if (world.wave > 0.02) {
+    const y = 170 + (1 - world.wave) * (SIM.CY + 20 - 170);
+    ctx.save();
+    traceContour(ctx, Math.max(0.02, world.threshold - 0.08));
+    ctx.clip();
+    ctx.globalAlpha = 0.5 * Math.min(1, world.wave * 1.4);
+    ctx.fillStyle = 'rgba(255,255,255,.85)';
+    ctx.beginPath();
+    ctx.moveTo(0, y);
+    for (let x = 0; x <= SIM.W; x += 16) ctx.lineTo(x, y + Math.sin(x * 0.05 + visT * 6) * 3.5);
+    ctx.lineTo(SIM.W, y + 16); ctx.lineTo(0, y + 16); ctx.fill();
+    ctx.restore();
+  }
+  if (world.hot) {
+    ctx.save();
+    traceContour(ctx, 0.02);
+    ctx.clip();
+    ctx.globalAlpha = 0.16;
+    ctx.strokeStyle = 'rgba(196, 140, 80, .85)';
+    ctx.lineWidth = 2;
+    for (let i = 0; i < 4; i++) {
+      const y = SIM.CY - 40 + i * 28;
+      ctx.beginPath();
+      for (let x = SIM.CX - 180; x <= SIM.CX + 180; x += 12) {
+        const yy = y + Math.sin(x * 0.05 + visT * 2 + i) * 3;
+        if (x === SIM.CX - 180) ctx.moveTo(x, yy); else ctx.lineTo(x, yy);
+      }
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  if (world.night > 0.05) {
+    ctx.save();
+    ctx.globalCompositeOperation = 'multiply';
+    ctx.fillStyle = 'rgba(28, 40, 78,' + (0.15 + world.night * 0.45).toFixed(3) + ')';
+    ctx.fillRect(0, 0, SIM.W, SIM.H);
+    ctx.restore();
+    ctx.save();
+    traceContour(ctx, world.threshold);
+    ctx.clip();
+    const mg = ctx.createRadialGradient(SIM.CX - 40, SIM.CY - 30, 10, SIM.CX, SIM.CY, 220);
+    mg.addColorStop(0, 'rgba(210, 230, 255,' + (0.12 * world.night).toFixed(3) + ')');
+    mg.addColorStop(1, 'rgba(210, 230, 255, 0)');
+    ctx.fillStyle = mg;
+    ctx.fillRect(0, 0, SIM.W, SIM.H);
+    ctx.restore();
+  }
+
+  for (let i = fx.length - 1; i >= 0; i--) {
+    const p = fx[i];
+    p.age += dt;
+    if (p.age >= p.life) { fx.splice(i, 1); continue; }
+    const u = p.age / p.life;
+    if (p.kind === 'rip') {
+      ctx.strokeStyle = 'rgba(230, 248, 246,' + (0.45 * (1 - u)).toFixed(3) + ')';
+      ctx.lineWidth = 1.4;
+      ctx.beginPath(); ctx.ellipse(p.x, p.y, 6 + u * 34, (6 + u * 34) * 0.72, 0, 0, Math.PI * 2); ctx.stroke();
+    } else if (p.kind === 'bub') {
+      p.y += p.vy * dt;
+      ctx.strokeStyle = 'rgba(240, 252, 255,' + (0.7 * (1 - u)).toFixed(3) + ')';
+      ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.arc(p.x, p.y, p.r + u, 0, Math.PI * 2); ctx.stroke();
+    } else if (p.kind === 'spark') {
+      p.x += p.vx * dt; p.y += p.vy * dt;
+      ctx.fillStyle = 'rgba(232, 255, 246,' + (1 - u).toFixed(3) + ')';
+      ctx.beginPath(); ctx.arc(p.x, p.y, 1.8, 0, 7); ctx.fill();
+      ctx.fillStyle = 'rgba(140, 255, 220,' + (0.35 * (1 - u)).toFixed(3) + ')';
+      ctx.beginPath(); ctx.arc(p.x, p.y, 5.5, 0, 7); ctx.fill();
+    } else if (p.kind === 'sand') {
+      p.x += p.vx * dt; p.y += p.vy * dt; p.vy += 20 * dt;
+      ctx.fillStyle = 'rgba(90, 70, 50,' + (0.5 * (1 - u)).toFixed(3) + ')';
+      ctx.fillRect(p.x, p.y, 2, 2);
+    }
+  }
+  lastDraw = performance.now() - t0;
+}
+
+function drainSfx() {
+  if (world.wavePing) { world.wavePing = 0; playWave(); }
+  if (world.swapPing) { world.swapPing = 0; playClick(); setTimeout(playClick, 90); discover('hermit'); }
+}
+function watch(dt) {
+  for (const a of world.animals) {
+    if (!isVisible(a)) continue;
+    seen[a.type] = (seen[a.type] || 0) + dt;
+    if (seen[a.type] > 16) discover(a.type);
+  }
+}
+function animateStones(dt) {
+  for (const s of world.stones) {
+    const target = s.flipped ? 1 : 0;
+    const cur = flipVis[s.id] || 0;
+    flipVis[s.id] = cur + (target - cur) * Math.min(1, dt * 6);
+  }
+}
+
+let last = performance.now();
+function frame(now) {
+  const dt = Math.min(0.05, (now - last) / 1000) || 0;
+  last = now;
+  visT += paused ? dt * 0.25 : dt;
+  if (paused) SIM.refresh(world);
+  if (!paused && !hidden) SIM.stepWorld(world, dt);
+  animateStones(dt);
+  if (!paused && !hidden) watch(dt);
+  // a shrimp now and then pricks the surface; at night that wakes a spark
+  if (!paused && !hidden && world.animals.some((a) => a.type === 'shrimp' && a.hide < 0.5) && Math.random() < dt * 0.35) {
+    const list = world.animals.filter((a) => a.type === 'shrimp' && a.hide < 0.5);
+    const s = list[(Math.random() * list.length) | 0];
+    if (s) {
+      pushFx({ kind: 'rip', x: s.x, y: s.y, age: 0, life: 0.8 });
+      if (world.night > 0.5 && Math.random() < 0.5) pushFx({ kind: 'spark', x: s.x, y: s.y, vx: 0, vy: -4, age: 0, life: 0.8 });
+      if (soundOn && Math.random() < 0.4) playBubble(0.35);
+    }
+  }
+  drainSfx();
+  if (bed && soundOn && ac) {
+    const g = 0.04 + world.water * 0.03 + Math.sin(visT * 0.7) * 0.008;
+    bed.gain.setTargetAtTime(hidden ? 0.0001 : g, ac.currentTime, 0.4);
+  }
+  drawWorld(dt);
+  $('status').textContent = statusText();
+  if (hintLeft > 0) { hintLeft -= dt; if (hintLeft <= 0) $('hint').classList.add('gone'); }
+  if (toastLeft > 0) { toastLeft -= dt; if (toastLeft <= 0) $('toast').classList.remove('show'); }
+  requestAnimationFrame(frame);
+}
+
+addEventListener('resize', resize);
+document.addEventListener('visibilitychange', () => {
+  hidden = document.hidden;
+  if (bed && ac) bed.gain.setTargetAtTime(hidden || !soundOn ? 0.0001 : 0.05, ac.currentTime, 0.3);
+});
+skyButton();
+resize();
+requestAnimationFrame(frame);
+
+window.TP = {
+  world,
+  sim: SIM,
+  step(dt) { SIM.stepWorld(world, dt); },
+  fastForward(sec) { SIM.stepWorld(world, sec); },
+  stats() { return SIM.statsOf(world); },
+  poke(x, y) { SIM.poke(world, x, y); noticeNear(x, y, 80); },
+  feedAt(x, y) { return SIM.feed(world, x, y); },
+  flipAt(x, y) { return tryFlip(x, y); },
+  animals() { return world.animals.map((a) => ({ type: a.type, x: a.x, y: a.y, hide: a.hide, home: a.home, open: a.open, shell: a.shell })); },
+  stones() { return world.stones.map((s) => ({ id: s.id, x: s.x, y: s.y, flipped: s.flipped, rx: s.rx })); },
+  clientOf(x, y) {
+    const r = cv.getBoundingClientRect();
+    return { x: r.left + view.ox + x * view.s, y: r.top + view.oy + y * view.s };
+  },
+  setFeed, setJournal, setPause, setSound,
+  found() { return [...found]; },
+  discover,
+  drawMs() { return lastDraw; },
+  view() { return view; },
+  status() { return statusText(); },
+};
+</script>
+</body>
+</html>
