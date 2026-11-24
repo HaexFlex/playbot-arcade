@@ -1617,6 +1617,7 @@ function renderTilt(t) {
   cx.drawImage(T.canvas, T.sx, T.sy, T.wCss, oh * s);
   drawWindowGlow(t);
   drawIcicleDrips(t);
+  drawPetals(t);
   drawLanterns(t);
   drawFireflies(t);
   // mist where the river falls off the front edge
@@ -1707,7 +1708,7 @@ function rasterTrees(T, data) {
     }
   }
   st.hayDrawn = nh;
-  const stride = N > 120 ? 2 : 1;
+  const stride = N > 120 ? 2 : 1; const PS = st.petalSrc = []; // blossoming crowns that let petals go (drawPetals)
   if (cp * stride < 1.5) return;
   let n = 0, nl = 0, nb = 0, npx = 0; const qbl = LS.blossom;
   for (let y = 1; y < N - 1; y += stride) for (let x = 1; x < N - 1; x += stride) {
@@ -1741,7 +1742,7 @@ function rasterTrees(T, data) {
           if (twig && ((px + py) & 1)) continue;
           if (lit > 0.05) { data[q] = lr; data[q + 1] = lg; data[q + 2] = lb; } else { data[q] = dr; data[q + 1] = dg; data[q + 2] = db; } data[q + 3] = 255; }
       }
-      nl++; if (bl) nb++;
+      nl++; if (bl) { nb++; if (bl > 30 && PS.length < 180 && ((x * 7 + y * 13) % 3) === 0) PS.push(ccx, ccy, rad); }
     } else {
       const hgt = cp * sc * (1.5 + 1.5 * tv) * (0.85 + grain[i + N] * 0.5), w = hgt * 0.36;
       let lr = 52 + 150 * hz + 110 * sad, lg = 112 + 110 * hz + 10 * sad, lb = 62 + 180 * hz - 20 * sad, dr = 30 + 170 * hz + 90 * sad, dg = 76 + 150 * hz + 10 * sad, db = 46 + 200 * hz - 16 * sad;
@@ -2242,6 +2243,33 @@ function drawIcicleDrips(t) {
   }
   cx.restore();
 }
+// petals: in the blossom weeks a few white and pink petals let go of the blossoming crowns and drift down on the wind
+// (on the screen canvas; capped, stateless: each petal j loops through a short flight from a crown picked per loop).
+// The wind follows the weather: it blows the way the next or current rain cloud travels (mostly west → east), harder
+// under rain and much harder in a storm (more petals torn off, flying flatter and further); rain also beats them down faster.
+const PETAL_MAX = isPhone ? 26 : 44, PETAL_C = [[255, 255, 255], [255, 200, 220], [246, 160, 192]];
+function petalWind() { const S = st.S, W = S.wx, dir = W && W.vx < 0 ? -1 : 1, r = S.rainNow || 0, sto = W && W.storm ? r : 0; return dir * (0.45 + 0.9 * r + 1.6 * sto + 0.15 * Math.sin(st.time * 0.23)); }
+function drawPetals(t) {
+  const T = tilt, PS = st.petalSrc, q = LS.blossom; st.petalsDrawn = 0; st.petalWind = 0; st.petalDrift = 0; st.petalFall = 0; let sdx = 0, sdy = 0;
+  if (!T || !PS || PS.length < 3 || q < 0.05) return;
+  const w = petalWind(), aw = Math.abs(w), rn = st.S.rainNow || 0, nS = PS.length / 3, u = Math.max(2, T.cp * T.s * persp(st.S.N * 0.6, st.S.N));
+  const n = Math.min(PETAL_MAX, Math.round(PETAL_MAX * q * Math.min(1, 0.55 + 0.25 * aw) * Math.min(1, nS / 6 + 0.3)));
+  st.petalWind = w; const dim = 1 - LT.night * 0.55;
+  cx.save();
+  for (let j = 0; j < n; j++) {
+    const L = 3.4 + ((j * 0.618) % 1) * 2.4, f = t / L + j * 0.37, cyc = Math.floor(f), ph = f - cyc;
+    const hsh = Math.abs(Math.sin(j * 127.1 + cyc * 311.7) * 43758.5453), k = (Math.floor(hsh) % nS) * 3, h2 = hsh % 1, h3 = (hsh * 7.31) % 1;
+    const tau = ph * L, x0 = T.sx + (PS[k] + (h2 - 0.5) * PS[k + 2] * 1.5) * T.s, y0 = T.sy + (PS[k + 1] + (h3 - 0.3) * PS[k + 2]) * T.s;
+    const x = x0 + w * u * 1.8 * tau + Math.sin(t * 2.1 + j * 1.9) * u * 0.45 * (1 + 0.6 * h3);
+    const y = y0 + u * (0.9 + 0.5 * h2) * tau * (1 + rn * 0.9) / (1 + 0.25 * Math.max(0, aw - 1)) + Math.sin(t * 3.3 + j * 2.7) * u * 0.12;
+    if (x < -8 || x > innerWidth + 8 || y > innerHeight + 8) continue;
+    const a = q * Math.min(1, ph * 6) * (1 - smooth(0.78, 1, ph)); if (a < 0.04) continue;
+    const C = PETAL_C[j % 3], spin = t * (2.4 + (j % 4) * 0.7) + j, rx = Math.max(2.4, u * 0.6), ry = Math.max(1.1, rx * (0.35 + 0.5 * Math.abs(Math.cos(spin))));
+    cx.fillStyle = litC(C[0] * dim + 40 * (1 - dim), C[1] * dim + 46 * (1 - dim), C[2] * dim + 70 * (1 - dim), a);
+    cx.beginPath(); cx.ellipse(x, y, rx, ry, spin * 0.5 + w * 0.3, 0, 7); cx.fill(); if (!st.petalsDrawn) st.petalAt = [x, y]; st.petalsDrawn++; sdx += (x - x0) / u; sdy += (y - y0) / u;
+  }
+  cx.restore(); if (st.petalsDrawn) { st.petalDrift = sdx / st.petalsDrawn; st.petalFall = sdy / st.petalsDrawn; } // mean drift and drop (in cells) of the petals in the air
+}
 // evening and night: happy cottages light their windows (a warm glow added on top of the tinted valley)
 function drawWindowGlow(t) {
   const T = tilt, W = st.wins; st.glowDrawn = 0; if (LT.glow < 0.02 || !W || !W.length || !T) return;
@@ -2551,7 +2579,7 @@ function frame(now) {
   const tc0 = performance.now(); computeColours(st.time); st.colMs = (st.colMs || 0) * 0.9 + (performance.now() - tc0) * 0.1;
   cx.setTransform(dpr, 0, 0, dpr, 0, 0);
   if (st.view === 'tilt') { tiltGeom(); drawSky(st.time, dtReal); renderTilt(st.time); }
-  else { drawSky(st.time, dtReal); renderTop(st.time); drawCottagesTop(); drawWindowGlowTop(st.time); }
+  else { drawSky(st.time, dtReal); renderTop(st.time); drawCottagesTop(); drawWindowGlowTop(st.time); st.petalsDrawn = 0; } // no petals in the map view (seen from far above they would be specks of dust)
   floeStep(S, dtReal); drawFloes();
   drawCottageBadges(st.time);
   drawNaturalRain(st.time); drawOverlays(st.time); drawShower(st.time);
