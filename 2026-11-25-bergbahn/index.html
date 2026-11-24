@@ -1,0 +1,1763 @@
+<!doctype html>
+<html lang="de-CH">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Bergbahn</title>
+<link rel="icon" href="../favicon.svg" type="image/svg+xml">
+<meta name="description" content="Baue eine Seilbahn durch ein Alpental. Masten, Kettenlinie, Gondeln, Kühe und Bauprüfung.">
+<style>
+html,body{margin:0;height:100%;background:#87b4d4;overflow:hidden;font-family:Palatino,"Palatino Linotype",Georgia,serif;color:#3a2a1c;-webkit-user-select:none;user-select:none;touch-action:none}
+canvas{position:fixed;inset:0;width:100%;height:100%;touch-action:none;display:block}
+#top{position:fixed;z-index:3;left:max(8px,env(safe-area-inset-left));top:max(8px,env(safe-area-inset-top));
+  display:flex;flex-direction:column;gap:6px;max-width:min(460px,calc(100vw - 72px));pointer-events:none}
+#hud{background:rgba(255,248,236,.9);border:2px solid rgba(90,58,36,.35);border-radius:14px;
+  padding:7px 12px 8px;box-shadow:0 2px 0 rgba(90,58,36,.12);line-height:1.35;pointer-events:none}
+#hud b{display:block;font-size:18px;font-weight:600;letter-spacing:.2px}
+#hud .row{font-size:14px;font-variant-numeric:tabular-nums}
+#hud .hint{font-size:13px;opacity:.85;margin-top:2px}
+#tools{display:flex;flex-wrap:wrap;gap:6px;pointer-events:auto}
+button{font:600 14px/1 Palatino,Georgia,serif;color:#3a2a1c;background:rgba(255,248,236,.94);
+  border:2px solid rgba(90,58,36,.4);border-radius:999px;min-height:40px;padding:0 12px;cursor:pointer}
+button:focus-visible{outline:2px solid #c4683a;outline-offset:2px}
+button:disabled{opacity:.45;cursor:default}
+#sound{position:fixed;z-index:4;right:max(8px,env(safe-area-inset-right));top:max(8px,env(safe-area-inset-top));
+  width:46px;height:46px;border-radius:50%;padding:0;display:flex;align-items:center;justify-content:center;font-size:20px}
+#toast{position:fixed;z-index:4;left:50%;top:42%;transform:translate(-50%,-50%);text-align:center;
+  background:rgba(255,248,236,.94);border:2px solid rgba(90,58,36,.35);border-radius:12px;
+  padding:8px 14px;max-width:min(420px,90vw);pointer-events:none;opacity:0;transition:opacity .3s;font-size:16px}
+#toast.show{opacity:1}
+#sheet{position:fixed;z-index:6;inset:0;background:rgba(28,22,16,.35);display:flex;align-items:center;justify-content:center;padding:16px}
+#sheet[hidden]{display:none}
+#card{background:#fff8ec;border:2px solid rgba(90,58,36,.45);border-radius:16px;padding:14px 16px 12px;
+  width:min(440px,100%);max-height:min(86vh,640px);overflow:auto;box-shadow:0 12px 40px rgba(40,24,12,.25)}
+#card h2{margin:0 0 8px;font-size:22px;font-weight:600}
+.block{border-top:1px solid rgba(90,58,36,.18);padding:8px 0}
+.block h3{margin:0 0 4px;font-size:16px}
+.kv{display:flex;justify-content:space-between;gap:12px;font-size:15px;font-variant-numeric:tabular-nums;padding:1px 0}
+.kv span:last-child{font-weight:600}
+#card .note{font-size:20px}
+#close{margin-top:8px}
+@media (max-width:700px){
+  #hud b{font-size:16px}#hud .row,#hud .hint{font-size:13px}
+  button{min-height:38px;font-size:13px;padding:0 10px}
+}
+@media (max-height:430px){
+  #hud{padding:3px 8px}#hud b{font-size:14px}#hud .row,#hud .hint{font-size:12px}
+  button,#sound{min-height:32px;height:32px;font-size:12px}
+  #sound{width:36px;height:36px;font-size:16px}
+  #toast{font-size:13px}
+}
+@media (prefers-reduced-motion:reduce){#toast{transition:none}}
+</style>
+</head>
+<body>
+<canvas id="view" aria-label="Bergbahn. Tippe ins Tal für die Talstation, dann Masten den Hang hinauf, und die Bergstation auf den Gipfel."></canvas>
+<div id="top">
+  <div id="hud" aria-live="polite">
+    <b>Bergbahn</b>
+    <div class="row" id="stat">Fahrgäste 0 · Wind leicht</div>
+    <div class="row" id="lineStat">Linie 1 · Talstation setzen</div>
+    <div class="hint" id="hint">Tippe ins Tal für die Talstation.</div>
+  </div>
+  <div id="tools">
+    <button type="button" id="season">Sommer</button>
+    <button type="button" id="day">Tag</button>
+    <button type="button" id="exam">Prüfung</button>
+    <button type="button" id="run" disabled>Fahren</button>
+    <button type="button" id="newline">Linie 2</button>
+    <button type="button" id="reset">Neu</button>
+  </div>
+</div>
+<button type="button" id="sound" aria-pressed="false" aria-label="Ton aus. Tippen zum Einschalten." title="Ton (M)">🔇</button>
+<div id="toast" role="status"></div>
+<div id="sheet" hidden>
+  <div id="card" role="dialog" aria-labelledby="sheetTitle">
+    <h2 id="sheetTitle">Bauprüfung</h2>
+    <div id="sheetBody"></div>
+    <button type="button" id="close">Schliessen</button>
+  </div>
+</div>
+<script>
+'use strict';
+(function () {
+  const $ = id => document.getElementById(id);
+  const TAU = Math.PI * 2;
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+  const lerp = (a, b, t) => a + (b - a) * t;
+  function hash(i) {
+    let x = Math.imul(i | 0, 374761393) + 668265263 | 0;
+    x = Math.imul(x ^ (x >>> 13), 1274126177);
+    return ((x ^ (x >>> 16)) >>> 0) / 4294967296;
+  }
+  function hex(h) { const n = parseInt(h.slice(1), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; }
+  function asRgb(c) { return typeof c === 'string' ? hex(c) : c; }
+  function rgb(c, a) {
+    const v = asRgb(c);
+    if (a == null) return 'rgb(' + (v[0] | 0) + ',' + (v[1] | 0) + ',' + (v[2] | 0) + ')';
+    return 'rgba(' + (v[0] | 0) + ',' + (v[1] | 0) + ',' + (v[2] | 0) + ',' + a + ')';
+  }
+  function mix(a, b, t) {
+    const A = asRgb(a), B = asRgb(b);
+    return [lerp(A[0], B[0], t), lerp(A[1], B[1], t), lerp(A[2], B[2], t)];
+  }
+
+  const WORLD_W = 1000, WORLD_H = 760;
+  const KNOTS = [
+    [0, 76], [100, 84], [190, 98], [260, 128],
+    [340, 168], [410, 214], [470, 258],
+    [505, 340],
+    [545, 362], [610, 400],
+    [645, 488],
+    [690, 512], [760, 548], [840, 578], [920, 598], [1000, 608]
+  ];
+  const PYLON_H = 70, STATION_H = 52, CLEAR = 8, TREE_PAD = 3;
+  const MIN_SPAN = 50, MAX_SPAN = 158, CLIFF = 1.15;
+  const KEY = 'playbot-bergbahn';
+  const COLS = ['#d64545', '#3d7ec4', '#e0a030', '#3f8f46', '#c46b2c', '#7a4ea3'];
+
+  function terrainY(x) {
+    x = clamp(x, 0, 1000);
+    for (let i = 0; i < KNOTS.length - 1; i++) {
+      const a = KNOTS[i], b = KNOTS[i + 1];
+      if (x >= a[0] && x <= b[0]) {
+        const t = (x - a[0]) / (b[0] - a[0] || 1);
+        return a[1] + (b[1] - a[1]) * t;
+      }
+    }
+    return KNOTS[KNOTS.length - 1][1];
+  }
+  function slopeAt(x) {
+    const e = 1.2;
+    const x0 = clamp(x - e, 0, 1000), x1 = clamp(x + e, 0, 1000);
+    return (terrainY(x1) - terrainY(x0)) / (x1 - x0 || 1);
+  }
+  function treeTop(x) {
+    if (Math.abs(slopeAt(x)) > 1.05) return 0;
+    if (x > 315 && x < 468) return 43;
+    if (x >= 548 && x < 608) return 22;
+    return 0;
+  }
+  function sampleXs(x1, x2) {
+    const lo = Math.min(x1, x2), hi = Math.max(x1, x2);
+    const raw = [lo, hi];
+    const step = 3;
+    for (let x = Math.ceil((lo + 0.01) / step) * step; x < hi - 0.01; x += step) raw.push(x);
+    for (let i = 0; i < KNOTS.length; i++) {
+      const k = KNOTS[i][0];
+      if (k > lo + 0.05 && k < hi - 0.05) raw.push(k);
+    }
+    raw.sort((a, b) => a - b);
+    const out = [];
+    for (let i = 0; i < raw.length; i++) {
+      if (!out.length || raw[i] - out[out.length - 1] > 0.04) out.push(raw[i]);
+    }
+    if (x1 > x2) out.reverse();
+    return out;
+  }
+  function catenary(x1, y1, x2, y2) {
+    const dx = x2 - x1, dy = y2 - y1;
+    if (Math.abs(dx) < 1) return null;
+    const a = Math.max(54, Math.abs(dx) * 0.95);
+    const h = dx / 2;
+    const sh = Math.sinh(h / a);
+    if (!isFinite(sh) || Math.abs(sh) < 1e-8) return null;
+    const d = a * Math.asinh(dy / (2 * a * sh));
+    if (!isFinite(d)) return null;
+    const x0 = (x1 + x2) / 2 - d;
+    const c = y1 - a * Math.cosh((x1 - x0) / a);
+    return function (x) { return c + a * Math.cosh((x - x0) / a); };
+  }
+  function spanProblem(x1, h1, x2, h2) {
+    const f = catenary(x1, terrainY(x1) + h1, x2, terrainY(x2) + h2);
+    if (!f) return 'near';
+    const xs = sampleXs(x1, x2);
+    let ground = false, tree = false;
+    for (let i = 0; i < xs.length; i++) {
+      const x = xs[i], cy = f(x), g = terrainY(x), tr = treeTop(x);
+      if (cy < g + CLEAR - 0.05) ground = true;
+      else if (tr && cy < g + CLEAR + tr + TREE_PAD - 0.05) tree = true;
+    }
+    if (ground) return 'ground';
+    if (tree) return 'tree';
+    return null;
+  }
+
+  const MSG = {
+    valley: 'Die Talstation gehört ins Tal.',
+    cliff: 'Hier ist es zu steil für einen Masten.',
+    far: 'Zu weit vom letzten Masten.',
+    near: 'Zu nah am letzten Masten.',
+    back: 'Der Masten muss bergwärts stehen.',
+    ground: 'Das Seil streift den Hang.',
+    tree: 'Das Seil streift die Bäume.',
+    summit: 'Die Bergstation gehört auf den Gipfel.',
+    sky: 'Tippe auf den Hang.',
+    done: 'Diese Linie ist schon fertig.',
+    okvalley: 'Talstation steht.',
+    okpylon: 'Mast steht.',
+    oksummit: 'Bergstation steht. Gute Fahrt.'
+  };
+
+  const view = $('view');
+  const ctx = view.getContext('2d', { alpha: false });
+  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  let viewW = 800, viewH = 600, scale = 1, originX = 0, originY = 0;
+  let simT = 0, winterAmt = 0, winterTarget = 0, nightAmt = 0, nightTarget = 0;
+  let running = false, carried = 0, active = 0, dirty = false, saveT = 0;
+  let lastReason = '', lastToast = '', hover = null, ptr = null, resetArm = 0;
+  let windSlowTold = false, sheetOpen = false;
+  const frameDts = [];
+  const clouds = [
+    { x: 80, y: 700, r: 34, z: 0.35 },
+    { x: 280, y: 730, r: 26, z: 0.55 },
+    { x: 520, y: 690, r: 42, z: 0.3 },
+    { x: 760, y: 720, r: 30, z: 0.5 },
+    { x: 940, y: 705, r: 24, z: 0.4 }
+  ];
+  const birds = [
+    { x: 200, y: 680, p: 0.4, s: 28 },
+    { x: 640, y: 710, p: 2.2, s: 34 }
+  ];
+  const flakes = Array.from({ length: 48 }, (_, i) => ({
+    x: hash(i + 1) * 1000, y: hash(i + 80) * 760, z: 0.4 + hash(i + 20) * 0.8, p: hash(i + 40) * 7
+  }));
+  const smokes = [];
+  const TREES = [];
+  for (let x = 326; x <= 458; x += 16) {
+    const h = treeTop(x);
+    if (h) TREES.push({ x: x, h: h, k: hash(x | 0) });
+  }
+  for (let x = 556; x <= 598; x += 18) {
+    const h = treeTop(x);
+    if (h) TREES.push({ x: x, h: h, k: hash((x + 3) | 0) });
+  }
+  const FLOWERS = [];
+  for (let i = 0; i < 26; i++) {
+    const x = 165 + hash(i + 11) * 200;
+    if (treeTop(x) === 0 && Math.abs(slopeAt(x)) < 0.85) FLOWERS.push({ x: x, c: i % 4, k: hash(i + 90) });
+  }
+  const cows = [
+    { x: 236, dir: 1, phase: 0.2, bell: 1.2 },
+    { x: 278, dir: -1, phase: 1.4, bell: 2.1 },
+    { x: 318, dir: 1, phase: 2.3, bell: 0.6 }
+  ];
+  let cogX = 220, cogDir = 1;
+
+  function emptyLine() {
+    return {
+      phase: 'valley', valley: null, summit: null, pylons: [],
+      queue: [], riders: [], cabins: [], samples: [], supports: [],
+      spawnT: 1.2, len: 0
+    };
+  }
+  let lines = [emptyLine()];
+
+  function supportsOf(line) {
+    const s = [];
+    if (line.valley == null) return s;
+    s.push({ x: line.valley, h: STATION_H, kind: 'valley' });
+    for (let i = 0; i < line.pylons.length; i++) s.push({ x: line.pylons[i], h: PYLON_H, kind: 'pylon' });
+    if (line.summit != null) s.push({ x: line.summit, h: STATION_H, kind: 'summit' });
+    return s;
+  }
+  function rebuild(line) {
+    const sup = supportsOf(line);
+    line.supports = sup;
+    const samples = [];
+    if (sup.length >= 2) {
+      let dist = 0, px = sup[0].x, py = terrainY(px) + sup[0].h;
+      samples.push({ x: px, y: py, s: 0, sup: 0 });
+      for (let i = 0; i < sup.length - 1; i++) {
+        const a = sup[i], b = sup[i + 1];
+        const y1 = terrainY(a.x) + a.h, y2 = terrainY(b.x) + b.h;
+        const f = catenary(a.x, y1, b.x, y2);
+        const xs = sampleXs(a.x, b.x);
+        for (let k = 1; k < xs.length; k++) {
+          const x = xs[k], y = f(x);
+          dist += Math.hypot(x - px, y - py);
+          samples.push({ x: x, y: y, s: dist, sup: (k === xs.length - 1) ? i + 1 : -1 });
+          px = x; py = y;
+        }
+      }
+    }
+    line.samples = samples;
+    line.len = samples.length ? samples[samples.length - 1].s : 0;
+  }
+  function pointAt(line, s) {
+    const samples = line.samples;
+    if (!samples.length) return null;
+    s = clamp(s, 0, line.len);
+    let lo = 0, hi = samples.length - 1;
+    while (lo < hi - 1) {
+      const m = (lo + hi) >> 1;
+      if (samples[m].s < s) lo = m; else hi = m;
+    }
+    const a = samples[lo], b = samples[hi];
+    const t = (b.s - a.s) < 1e-4 ? 0 : (s - a.s) / (b.s - a.s);
+    return {
+      x: a.x + (b.x - a.x) * t,
+      y: a.y + (b.y - a.y) * t
+    };
+  }
+  function comfortWord(c) {
+    if (c >= 5.4) return 'sehr gut';
+    if (c >= 4.7) return 'gut';
+    if (c >= 4.0) return 'genügend';
+    if (c >= 3.2) return 'knapp';
+    return 'ruppig';
+  }
+  function survey(line) {
+    if (!line || line.phase !== 'done') return null;
+    const sup = supportsOf(line);
+    let maxAng = 0, maxSag = 0;
+    for (let i = 0; i < sup.length - 1; i++) {
+      const a = sup[i], b = sup[i + 1];
+      const y1 = terrainY(a.x) + a.h, y2 = terrainY(b.x) + b.h;
+      const f = catenary(a.x, y1, b.x, y2);
+      if (!f) continue;
+      const xs = sampleXs(a.x, b.x);
+      let px = xs[0], py = f(px);
+      for (let k = 0; k < xs.length; k++) {
+        const x = xs[k], cy = f(x);
+        const t = (x - a.x) / (b.x - a.x || 1);
+        maxSag = Math.max(maxSag, y1 + (y2 - y1) * t - cy);
+        if (k) maxAng = Math.max(maxAng, Math.abs(Math.atan2(cy - py, x - px)) * 180 / Math.PI);
+        px = x; py = cy;
+      }
+    }
+    const pylons = line.pylons.length;
+    const comfort = clamp(6 - Math.max(0, maxSag - 12) * 0.08 - Math.max(0, maxAng - 48) * 0.035, 1, 6);
+    const note = clamp(comfort - Math.max(0, pylons - 5) * 0.12, 1, 6);
+    return {
+      pylons: pylons, cost: pylons * 80000,
+      maxAng: maxAng, maxSag: maxSag, comfort: comfort, note: note, word: comfortWord(comfort)
+    };
+  }
+  function francs(n) {
+    return String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, "'");
+  }
+  function num(n) { return n.toFixed(1).replace('.', ','); }
+
+  function seedQueue() {
+    const q = [];
+    for (let i = 0; i < 5; i++) q.push({ col: i % 6 });
+    return q;
+  }
+  function fail(reason) {
+    lastReason = reason;
+    if (MSG[reason]) toast(MSG[reason]);
+    return { ok: false, reason: reason };
+  }
+  function tryPlace(x, y) {
+    const line = lines[active];
+    if (!line) return fail('done');
+    if (sheetOpen) return { ok: false, reason: 'sheet' };
+    if (line.phase === 'done') return fail('done');
+    if (!Number.isFinite(x) || !Number.isFinite(y)) return fail('sky');
+    x = clamp(x, 0, 1000);
+    const gy = terrainY(x);
+    if (y > gy + 96) return fail('sky');
+    if (line.phase === 'valley') return placeValley(line, x);
+    return placeSupport(line, x);
+  }
+  function placeValley(line, x) {
+    const sl = Math.abs(slopeAt(x)), gy = terrainY(x);
+    if (x < 72 || x > 205 || gy > 118 || sl > 0.42) return fail('valley');
+    line.valley = x;
+    line.phase = 'pylon';
+    line.queue = seedQueue();
+    lastReason = 'ok';
+    toast(MSG.okvalley);
+    changed();
+    return { ok: true, reason: 'ok' };
+  }
+  function placeSupport(line, x) {
+    const prev = line.pylons.length
+      ? { x: line.pylons[line.pylons.length - 1], h: PYLON_H }
+      : { x: line.valley, h: STATION_H };
+    const dx = x - prev.x;
+    const sl = slopeAt(x), gy = terrainY(x);
+    if (x >= 888 && gy >= 575) {
+      if (!(x >= 900 && gy >= 590 && Math.abs(sl) < 0.35)) return fail('summit');
+      if (dx < -0.5) return fail('back');
+      if (dx < MIN_SPAN) return fail('near');
+      if (dx > MAX_SPAN) return fail('far');
+      const hit = spanProblem(prev.x, prev.h, x, STATION_H);
+      if (hit) return fail(hit);
+      line.summit = x;
+      line.phase = 'done';
+      rebuild(line);
+      lastReason = 'ok';
+      toast(MSG.oksummit);
+      changed();
+      return { ok: true, reason: 'ok' };
+    }
+    if (dx < -0.5) return fail('back');
+    if (Math.abs(sl) > CLIFF) return fail('cliff');
+    if (dx < MIN_SPAN) return fail('near');
+    if (dx > MAX_SPAN) return fail('far');
+    const hit = spanProblem(prev.x, prev.h, x, PYLON_H);
+    if (hit) return fail(hit);
+    line.pylons.push(+x.toFixed(2));
+    lastReason = 'ok';
+    toast(MSG.okpylon);
+    changed();
+    return { ok: true, reason: 'ok' };
+  }
+
+  function makeCabin(s, dir, at, wait, phase) {
+    return { s: s, dir: dir, at: at, wait: wait, speed: 0, prevSpeed: 0, passengers: 0, swing: 0, clack: -1, phase: phase };
+  }
+  function bootCabins(line) {
+    if (!line.len) rebuild(line);
+    if (!line.len) { line.cabins = []; return; }
+    const a = makeCabin(0, 1, 'bottom', 0.35, 0.4);
+    const b = makeCabin(line.len, -1, 'top', 0.55, 2.2);
+    board(line, a);
+    line.cabins = [a, b];
+  }
+  function board(line, cabin) {
+    const n = Math.min(4, line.queue.length);
+    line.queue.splice(0, n);
+    cabin.passengers = n;
+  }
+  function arriveTop(line, cabin) {
+    if (cabin.passengers > 0) {
+      carried += cabin.passengers;
+      for (let i = 0; i < cabin.passengers; i++) {
+        line.riders.push({
+          x: line.summit - 6 - i * 8,
+          v: 34 + (i % 3) * 6,
+          col: (cabin.phase + i) % 6 | 0,
+          phase: i
+        });
+      }
+      cabin.passengers = 0;
+      dirty = true;
+    }
+    cabin.s = line.len;
+    cabin.wait = 1.15;
+    cabin.at = 'top';
+    cabin.dir = -1;
+    cabin.speed = 0;
+  }
+  function arriveBottom(line, cabin) {
+    cabin.s = 0;
+    cabin.at = 'bottom';
+    cabin.dir = 1;
+    cabin.wait = 1.05;
+    cabin.speed = 0;
+    board(line, cabin);
+  }
+
+  function windAt(t) {
+    const base = 0.28 + 0.18 * Math.sin(t * 0.07) + 0.08 * Math.sin(t * 0.23);
+    const gust = Math.pow(Math.max(0, Math.sin(t * 0.11)), 10) * 0.85;
+    return clamp(base + gust, 0, 1);
+  }
+  function windWord(w) {
+    if (w < 0.22) return 'ruhig';
+    if (w < 0.4) return 'leicht';
+    if (w < 0.62) return 'mässig';
+    if (w < 0.8) return 'stark';
+    return 'stürmisch';
+  }
+  function cruise(w) {
+    const slow = w > 0.66 ? 1 - (w - 0.66) * 1.35 : 1;
+    return 118 * clamp(slow, 0.42, 1);
+  }
+
+  let toastT = 0, toastOn = false;
+  function toast(text) {
+    if (stepping) return;
+    lastToast = text;
+    const el = $('toast');
+    el.textContent = text;
+    el.classList.add('show');
+    toastOn = true;
+    toastT = 0;
+  }
+  function hintFor(line) {
+    if (!line || line.phase === 'valley') return 'Tippe ins Tal für die Talstation.';
+    if (line.phase === 'pylon' && line.pylons.length < 3) return 'Setze Masten den Hang hinauf. Das Seil hängt als Kettenlinie.';
+    if (line.phase === 'pylon') return 'Weiter bergwärts, dann die Bergstation auf den Gipfel.';
+    if (!running) return 'Die Linie steht. Fahren schickt die Gondeln los.';
+    return 'Gondeln unterwegs. Gäste fahren hinauf und steigen zu Fuss oder auf Ski ab.';
+  }
+  function lineLabel(line, i) {
+    if (!line || line.phase === 'valley') return 'Linie ' + (i + 1) + ' · Talstation setzen';
+    if (line.phase === 'pylon') return 'Linie ' + (i + 1) + ' · ' + line.pylons.length + ' Masten';
+    const sv = survey(line);
+    const note = sv ? ' · Note ' + num(sv.note) : '';
+    return 'Linie ' + (i + 1) + ' · ' + line.pylons.length + ' Masten' + note + (running ? ' · fährt' : ' · bereit');
+  }
+  function updateLabels() {
+    const w = windAt(simT);
+    const slow = w > 0.66 && running;
+    const stat = 'Fahrgäste ' + carried + ' · Wind ' + windWord(w) + (slow ? ' · langsam' : '');
+    if ($('stat').textContent !== stat) $('stat').textContent = stat;
+    const ls = lineLabel(lines[active], active);
+    if ($('lineStat').textContent !== ls) $('lineStat').textContent = ls;
+    const hint = hintFor(lines[active]);
+    if ($('hint').textContent !== hint) $('hint').textContent = hint;
+    $('season').textContent = winterTarget > 0.5 ? 'Winter' : 'Sommer';
+    $('day').textContent = nightTarget > 0.5 ? 'Nacht' : 'Tag';
+    const can = lines.some(l => l.phase === 'done');
+    $('run').disabled = !can;
+    $('run').textContent = running ? 'Halt' : 'Fahren';
+    $('newline').textContent = lines.length > 1 ? 'Linie ' + (active + 1) : 'Linie 2';
+  }
+  function changed() {
+    dirty = true;
+    updateLabels();
+  }
+
+  function resize() {
+    const dpr = Math.min(2, devicePixelRatio || 1);
+    viewW = Math.max(1, innerWidth);
+    viewH = Math.max(1, innerHeight);
+    view.width = Math.round(viewW * dpr);
+    view.height = Math.round(viewH * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    scale = Math.min((viewW - 12) / WORLD_W, (viewH - 8) / WORLD_H);
+    originX = (viewW - WORLD_W * scale) / 2;
+    originY = viewH;
+  }
+  function toS(x, y) { return [originX + x * scale, originY - y * scale]; }
+  function fromS(px, py) { return { x: (px - originX) / scale, y: (originY - py) / scale }; }
+
+  let stepping = false;
+  function step(dt) {
+    dt = clamp(dt || 0, 0, 0.05);
+    if (!dt) return;
+    simT += dt;
+    const ease = reduce ? 1 : Math.min(1, dt * 2.2);
+    winterAmt = lerp(winterAmt, winterTarget, ease);
+    nightAmt = lerp(nightAmt, nightTarget, ease);
+    const wind = windAt(simT);
+    if (running && wind > 0.72 && !windSlowTold) {
+      windSlowTold = true;
+      toast('Wind stark — die Bahn fährt langsamer.');
+    }
+    if (wind < 0.6) windSlowTold = false;
+
+    for (let i = 0; i < clouds.length; i++) {
+      const c = clouds[i];
+      c.x -= (8 + wind * 36) * c.z * dt * (reduce ? 0.25 : 1);
+      if (c.x < -80) c.x = 1080;
+    }
+    for (let i = 0; i < birds.length; i++) {
+      const b = birds[i];
+      b.x += b.s * dt * (reduce ? 0.3 : 1);
+      if (b.x > 1100) b.x = -40;
+    }
+    if (winterAmt > 0.15) {
+      for (let i = 0; i < flakes.length; i++) {
+        const f = flakes[i];
+        f.y -= (18 + wind * 30) * f.z * dt;
+        f.x += Math.sin(simT * 0.8 + f.p) * 8 * dt + wind * 16 * dt;
+        if (f.y < 40) { f.y = 760; f.x = hash((i + simT * 10) | 0) * 1000; }
+      }
+    }
+    cogX += cogDir * 16 * dt;
+    if (cogX > 430) { cogX = 430; cogDir = -1; }
+    if (cogX < 210) { cogX = 210; cogDir = 1; }
+
+    if (winterAmt < 0.55) {
+      for (let i = 0; i < cows.length; i++) {
+        const cow = cows[i];
+        cow.phase += dt * 2.2;
+        cow.x += cow.dir * 6 * dt;
+        if (cow.x > 340) cow.dir = -1;
+        if (cow.x < 220) cow.dir = 1;
+        cow.bell -= dt;
+        if (cow.bell <= 0) {
+          cow.bell = 2.4 + hash((i + simT * 4) | 0) * 3.2;
+          cowbell(cow.x);
+        }
+      }
+    }
+
+    if (running) {
+      for (let li = 0; li < lines.length; li++) {
+        const line = lines[li];
+        if (line.phase !== 'done' || !line.len) continue;
+        if (line.queue.length < 6) {
+          line.spawnT -= dt;
+          if (line.spawnT <= 0) {
+            line.queue.push({ col: (line.queue.length + li + (simT * 3 | 0)) % 6 });
+            line.spawnT = 1.35;
+          }
+        }
+        for (let ci = 0; ci < line.cabins.length; ci++) {
+          const cabin = line.cabins[ci];
+          const prevS = cabin.s;
+          cabin.prevSpeed = cabin.speed;
+          if (cabin.wait > 0) {
+            cabin.wait -= dt;
+            cabin.speed += (0 - cabin.speed) * Math.min(1, dt * 4);
+            if (cabin.wait <= 0) cabin.speed = 0;
+          } else {
+            const target = cruise(wind);
+            cabin.speed += (target - cabin.speed) * Math.min(1, dt * 0.85);
+            cabin.s += cabin.dir * cabin.speed * dt;
+            if (cabin.s >= line.len) arriveTop(line, cabin);
+            else if (cabin.s <= 0) arriveBottom(line, cabin);
+            else passPylon(line, cabin, prevS);
+          }
+          const accel = (cabin.speed - cabin.prevSpeed) / dt;
+          const sway = Math.sin(simT * 1.55 + cabin.phase) * wind * 0.30;
+          const calm = Math.sin(simT * 0.9 + cabin.phase) * 0.035;
+          let targetSwing = clamp(-cabin.dir * accel * 0.012 + sway + calm, -0.48, 0.48);
+          if (reduce) targetSwing *= 0.25;
+          cabin.swing += (targetSwing - cabin.swing) * Math.min(1, dt * 3.2);
+        }
+        for (let r = line.riders.length - 1; r >= 0; r--) {
+          const rider = line.riders[r];
+          rider.phase += dt * 6;
+          rider.x -= rider.v * dt;
+          if (rider.x < line.valley - 16) line.riders.splice(r, 1);
+        }
+      }
+    }
+
+    if (toastOn) {
+      toastT += dt;
+      if (toastT > 2.4) { toastOn = false; $('toast').classList.remove('show'); }
+    }
+    if (dirty) { saveT += dt; if (saveT > 0.6) save(); }
+    if ((simT * 5 | 0) !== ((simT - dt) * 5 | 0)) updateLabels();
+    syncAudio();
+  }
+  function passPylon(line, cabin, prevS) {
+    const samples = line.samples;
+    const lo = Math.min(prevS, cabin.s), hi = Math.max(prevS, cabin.s);
+    for (let i = 0; i < samples.length; i++) {
+      const p = samples[i];
+      if (p.sup > 0 && p.sup < line.supports.length - 1 && p.s >= lo && p.s <= hi) {
+        if (cabin.clack !== p.sup) {
+          cabin.clack = p.sup;
+          cabin.swing += cabin.dir * 0.08;
+          clack();
+        }
+        return;
+      }
+    }
+  }
+
+  function save() {
+    dirty = false; saveT = 0;
+    try {
+      const data = {
+        v: 1, carried: carried | 0, winter: winterTarget > 0.5, night: nightTarget > 0.5,
+        running: !!running, active: active,
+        lines: lines.map(line => ({
+          valley: line.valley, summit: line.summit, pylons: line.pylons.slice(),
+          queue: line.queue.map(q => q.col | 0),
+          cabins: line.cabins.map(c => ({
+            s: +c.s.toFixed(2), dir: c.dir, at: c.at, wait: +c.wait.toFixed(2), passengers: c.passengers | 0
+          }))
+        }))
+      };
+      localStorage.setItem(KEY, JSON.stringify(data));
+    } catch (e) {}
+  }
+  function load() {
+    let raw = null;
+    try { raw = JSON.parse(localStorage.getItem(KEY) || 'null'); } catch (e) { raw = null; }
+    if (!raw || raw.v !== 1) return;
+    carried = Math.max(0, raw.carried | 0);
+    winterTarget = winterAmt = raw.winter ? 1 : 0;
+    nightTarget = nightAmt = raw.night ? 1 : 0;
+    const built = [];
+    const src = Array.isArray(raw.lines) ? raw.lines.slice(0, 2) : [];
+    for (let i = 0; i < src.length; i++) {
+      const item = src[i];
+      const line = emptyLine();
+      if (!replay(line, item)) continue;
+      if (Array.isArray(item.queue)) {
+        line.queue = item.queue.slice(0, 8).map(c => ({ col: (c | 0) % 6 }));
+      }
+      built.push({ line: line, cabins: item.cabins });
+    }
+    if (!built.length) built.push({ line: emptyLine(), cabins: null });
+    lines = built.map(b => b.line);
+    active = clamp(raw.active | 0, 0, lines.length - 1);
+    running = !!raw.running && lines.some(l => l.phase === 'done');
+    if (running) {
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        if (line.phase !== 'done') continue;
+        const saved = built[i].cabins;
+        if (Array.isArray(saved) && saved.length && line.len) {
+          line.cabins = saved.slice(0, 3).map((c, k) => {
+            const cab = makeCabin(clamp(+c.s || 0, 0, line.len), c.dir < 0 ? -1 : 1, c.at === 'top' ? 'top' : 'bottom', Math.max(0, +c.wait || 0), k + 0.5);
+            cab.passengers = clamp(c.passengers | 0, 0, 4);
+            return cab;
+          });
+        } else bootCabins(line);
+      }
+    }
+  }
+  function replay(line, item) {
+    if (!item || !Number.isFinite(+item.valley)) return false;
+    const valley = placeValley(line, +item.valley);
+    if (!valley.ok) return false;
+    const pylons = Array.isArray(item.pylons) ? item.pylons : [];
+    for (let i = 0; i < pylons.length; i++) {
+      const r = placeSupport(line, +pylons[i]);
+      if (!r.ok) return false;
+    }
+    if (item.summit != null && Number.isFinite(+item.summit)) {
+      const r = placeSupport(line, +item.summit);
+      if (!r.ok) return false;
+    }
+    return true;
+  }
+
+  let soundOn = false, userChoseMute = false, ac = null, master = null, windGain = null, windFilter = null, humGain = null, humFilter = null;
+  let bellNext = 0, clackNext = 0;
+  try { userChoseMute = localStorage.getItem(KEY + '-mute') === '1'; } catch (e) {}
+  function startAudio() {
+    if (ac) {
+      if (ac.state === 'suspended') ac.resume().catch(function () {});
+      return;
+    }
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return;
+    try { ac = new AC(); } catch (e) { ac = null; return; }
+    master = ac.createGain();
+    master.gain.value = 0;
+    master.connect(ac.destination);
+    const len = ac.sampleRate * 2;
+    const buffer = ac.createBuffer(1, len, ac.sampleRate);
+    const data = buffer.getChannelData(0);
+    let b0 = 0;
+    for (let i = 0; i < len; i++) {
+      const w = Math.random() * 2 - 1;
+      b0 = b0 * 0.985 + w * 0.015;
+      data[i] = b0 * 3.4;
+    }
+    const src = ac.createBufferSource();
+    src.buffer = buffer; src.loop = true;
+    windFilter = ac.createBiquadFilter();
+    windFilter.type = 'bandpass';
+    windFilter.frequency.value = 520;
+    windFilter.Q.value = 0.55;
+    windGain = ac.createGain();
+    windGain.gain.value = 0;
+    src.connect(windFilter); windFilter.connect(windGain); windGain.connect(master);
+    const src2 = ac.createBufferSource();
+    src2.buffer = buffer; src2.loop = true;
+    humFilter = ac.createBiquadFilter();
+    humFilter.type = 'lowpass';
+    humFilter.frequency.value = 240;
+    humGain = ac.createGain();
+    humGain.gain.value = 0;
+    src2.connect(humFilter); humFilter.connect(humGain); humGain.connect(master);
+    src.start(); src2.start();
+    if (ac.state === 'suspended') ac.resume().catch(function () {});
+  }
+  function tone(f0, f1, dur, vol, type) {
+    if (!ac || !soundOn || stepping) return;
+    const t0 = ac.currentTime;
+    const o = ac.createOscillator();
+    o.type = type || 'sine';
+    o.frequency.setValueAtTime(Math.max(40, f0), t0);
+    o.frequency.exponentialRampToValueAtTime(Math.max(40, f1), t0 + dur);
+    const g = ac.createGain();
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.exponentialRampToValueAtTime(Math.max(0.0002, vol), t0 + Math.min(0.02, dur * 0.35));
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+    o.connect(g); g.connect(master);
+    o.start(t0); o.stop(t0 + dur + 0.02);
+  }
+  function cowbell() {
+    if (!ac || !soundOn || stepping || winterAmt > 0.45) return;
+    const t = ac.currentTime;
+    if (t < bellNext) return;
+    bellNext = t + 0.28;
+    tone(498, 430, 0.22, 0.035, 'sine');
+    tone(748, 690, 0.26, 0.022, 'triangle');
+  }
+  function clack() {
+    if (!ac || !soundOn || stepping) return;
+    const t = ac.currentTime;
+    if (t < clackNext) return;
+    clackNext = t + 0.09;
+    const o = ac.createOscillator(), g = ac.createGain(), f = ac.createBiquadFilter();
+    f.type = 'bandpass'; f.frequency.value = 380; f.Q.value = 3;
+    o.type = 'square';
+    o.frequency.setValueAtTime(160, t);
+    o.frequency.exponentialRampToValueAtTime(70, t + 0.05);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(0.028, t + 0.006);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.07);
+    o.connect(f); f.connect(g); g.connect(master);
+    o.start(t); o.stop(t + 0.08);
+  }
+  function syncAudio() {
+    if (!ac || !master) return;
+    const audible = soundOn && !document.hidden;
+    master.gain.setTargetAtTime(audible ? 0.85 : 0, ac.currentTime, 0.06);
+    const w = windAt(simT);
+    if (windGain) windGain.gain.setTargetAtTime(audible ? 0.012 + w * 0.05 : 0, ac.currentTime, 0.25);
+    if (windFilter) windFilter.frequency.setTargetAtTime(280 + w * 640, ac.currentTime, 0.3);
+    if (humGain) humGain.gain.setTargetAtTime(audible && running ? 0.018 + w * 0.01 : 0, ac.currentTime, 0.2);
+    if (humFilter) humFilter.frequency.setTargetAtTime(160 + Math.sin(simT * 3) * 20, ac.currentTime, 0.2);
+  }
+  function paintSound() {
+    const b = $('sound');
+    b.textContent = soundOn ? '🔊' : '🔇';
+    b.setAttribute('aria-pressed', soundOn ? 'true' : 'false');
+    b.setAttribute('aria-label', soundOn ? 'Ton ein. Tippen zum Ausschalten.' : 'Ton aus. Tippen zum Einschalten.');
+  }
+  function setSound(on) {
+    soundOn = !!on;
+    if (soundOn) startAudio();
+    paintSound();
+    try { localStorage.setItem(KEY + '-mute', soundOn ? '0' : '1'); } catch (e) {}
+    syncAudio();
+  }
+  function unlock() {
+    if (!userChoseMute && !soundOn) setSound(true);
+    else if (ac && ac.state === 'suspended') ac.resume().catch(function () {});
+    else if (soundOn) startAudio();
+  }
+
+  function openSheet() {
+    const blocks = [];
+    let any = false;
+    for (let i = 0; i < lines.length; i++) {
+      const sv = survey(lines[i]);
+      if (!sv) continue;
+      any = true;
+      blocks.push(
+        '<div class="block"><h3>Linie ' + (i + 1) + '</h3>' +
+        '<div class="kv"><span>Masten</span><span>' + sv.pylons + '</span></div>' +
+        '<div class="kv"><span>Kosten</span><span>CHF ' + francs(sv.cost) + '</span></div>' +
+        '<div class="kv"><span>Grösste Neigung</span><span>' + num(sv.maxAng) + '°</span></div>' +
+        '<div class="kv"><span>Grösster Durchhang</span><span>' + num(sv.maxSag) + ' m</span></div>' +
+        '<div class="kv"><span>Komfort</span><span>' + sv.word + '</span></div>' +
+        '<div class="kv note"><span>Note</span><span>' + num(sv.note) + '</span></div></div>'
+      );
+    }
+    if (!any) { toast('Noch keine fertige Linie.'); return; }
+    $('sheetBody').innerHTML = blocks.join('');
+    sheetOpen = true;
+    $('sheet').hidden = false;
+  }
+  function closeSheet() {
+    sheetOpen = false;
+    $('sheet').hidden = true;
+  }
+  function addLine() {
+    if (lines.length >= 2) {
+      active = active === 0 ? 1 : 0;
+      toast(active === 0 ? 'Linie 1 gewählt.' : 'Linie 2 gewählt.');
+      updateLabels();
+      return;
+    }
+    if (lines[0].phase !== 'done') { toast('Zuerst die erste Linie fertigbauen.'); return; }
+    lines.push(emptyLine());
+    active = 1;
+    toast('Zweite Linie: Tippe ins Tal.');
+    changed();
+  }
+  function doReset() {
+    if (resetArm < simT) {
+      resetArm = simT + 2.6;
+      toast('Nochmals Neu zum Löschen.');
+      return;
+    }
+    resetArm = 0;
+    lines = [emptyLine()];
+    active = 0;
+    running = false;
+    hover = null;
+    toast('Linien gelöscht. Die Fahrgäste bleiben gezählt.');
+    changed();
+    save();
+  }
+  function toggleRun() {
+    if (!lines.some(l => l.phase === 'done')) { toast('Noch keine fertige Linie.'); return; }
+    running = !running;
+    if (running) {
+      for (let i = 0; i < lines.length; i++) {
+        if (lines[i].phase === 'done' && !lines[i].cabins.length) bootCabins(lines[i]);
+      }
+    }
+    updateLabels();
+    dirty = true;
+  }
+
+  function draw() {
+    const skyTop = mix(mix('#8ec6ea', '#f0b56a', clamp(winterAmt * 0.15, 0, 1)), '#0c1430', nightAmt);
+    const skyMid = mix(mix('#d5eef8', '#f3d2a4', winterAmt * 0.2), '#1a2748', nightAmt);
+    const skyLow = mix(mix('#d5eef8', '#e7f2f6', winterAmt * 0.4), '#24365c', nightAmt);
+    const g = ctx.createLinearGradient(0, 0, 0, viewH);
+    g.addColorStop(0, rgb(skyTop));
+    g.addColorStop(0.55, rgb(skyMid));
+    g.addColorStop(1, rgb(skyLow));
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, viewW, viewH);
+
+    if (nightAmt > 0.35) {
+      for (let i = 0; i < 48; i++) {
+        const x = hash(i + 3) * viewW, y = hash(i + 19) * viewH * 0.55;
+        const tw = 0.35 + 0.65 * Math.max(0, Math.sin(simT * 1.4 + i));
+        ctx.fillStyle = 'rgba(255,248,230,' + (tw * nightAmt).toFixed(3) + ')';
+        ctx.fillRect(x, y, 1.6, 1.6);
+      }
+    }
+    const sunU = nightAmt > 0.5 ? 0 : 1 - nightAmt;
+    if (sunU > 0.05) {
+      const sx = viewW * 0.78, sy = viewH * 0.16;
+      ctx.fillStyle = rgb(mix('#fff4c8', '#fff4c8', 0), 0.35 * sunU);
+      ctx.beginPath(); ctx.arc(sx, sy, 46, 0, TAU); ctx.fill();
+      ctx.fillStyle = 'rgba(255,244,210,' + sunU + ')';
+      ctx.beginPath(); ctx.arc(sx, sy, 22, 0, TAU); ctx.fill();
+    }
+    if (nightAmt > 0.2) {
+      const mx = viewW * 0.8, my = viewH * 0.15, mr = 16;
+      ctx.fillStyle = rgb([232, 236, 246], nightAmt);
+      ctx.beginPath(); ctx.arc(mx, my, mr, 0, TAU); ctx.fill();
+      ctx.fillStyle = rgb(mix('#d5dbe8', '#0c1430', 0.15), 0.45 * nightAmt);
+      ctx.beginPath(); ctx.arc(mx - 5, my - 3, 4, 0, TAU); ctx.fill();
+      ctx.beginPath(); ctx.arc(mx + 4, my + 4, 3, 0, TAU); ctx.fill();
+    }
+
+    ridge([[-20, 500], [80, 560], [180, 520], [300, 610], [420, 545], [540, 500]], mix('#d5e4f2', '#8ea0b8', nightAmt), 0.55);
+    ridge([[40, 470], [160, 530], [280, 490], [400, 575], [520, 520], [640, 460]], mix('#c3d5e8', '#7e92aa', nightAmt), 0.72);
+
+    for (let i = 0; i < clouds.length; i++) {
+      const c = clouds[i];
+      const p = toS(c.x, c.y);
+      const r = c.r * scale;
+      ctx.fillStyle = rgb(mix('#fffdf8', '#c9d4e6', nightAmt * 0.65), 0.88);
+      blob(p[0], p[1], r);
+    }
+    for (let i = 0; i < birds.length; i++) drawBird(birds[i]);
+
+    drawGround();
+    drawRocks();
+    drawSnowCap();
+    drawWaterfall();
+    drawTrees();
+    drawVillage();
+    drawFlowers();
+    drawTrack();
+    drawCows();
+    for (let i = 0; i < lines.length; i++) drawLine(lines[i], i);
+    drawPreview();
+    drawTrain();
+    if (winterAmt > 0.12) drawFlakes();
+    if (nightAmt > 0.25) drawLights();
+  }
+  function ridge(points, col, alpha) {
+    ctx.beginPath();
+    const base = toS(points[0][0], 360);
+    ctx.moveTo(base[0], base[1]);
+    for (let i = 0; i < points.length; i++) {
+      const p = toS(points[i][0], points[i][1]);
+      ctx.lineTo(p[0], p[1]);
+    }
+    const end = toS(points[points.length - 1][0], 360);
+    ctx.lineTo(end[0], end[1]);
+    ctx.closePath();
+    ctx.fillStyle = rgb(col, alpha * (1 - nightAmt * 0.35));
+    ctx.fill();
+  }
+  function blob(x, y, r) {
+    ctx.beginPath();
+    ctx.arc(x, y, r * 0.7, 0, TAU);
+    ctx.arc(x - r * 0.55, y + r * 0.15, r * 0.5, 0, TAU);
+    ctx.arc(x + r * 0.55, y + r * 0.12, r * 0.48, 0, TAU);
+    ctx.fill();
+  }
+  function drawBird(b) {
+    const p = toS(b.x, b.y + Math.sin(simT * 2 + b.p) * 8);
+    const s = Math.max(4, 7 * scale);
+    const wing = Math.sin(simT * 6 + b.p) * s;
+    ctx.strokeStyle = rgb(mix('#2c3344', '#d5def0', nightAmt * 0.4));
+    ctx.lineWidth = 1.4;
+    ctx.beginPath();
+    ctx.moveTo(p[0] - s, p[1] + wing);
+    ctx.quadraticCurveTo(p[0] - s * 0.3, p[1], p[0], p[1]);
+    ctx.quadraticCurveTo(p[0] + s * 0.3, p[1], p[0] + s, p[1] + wing);
+    ctx.stroke();
+  }
+  function groundPath() {
+    const x0 = -500, x1 = 1500;
+    ctx.beginPath();
+    let p = toS(x0, 0);
+    ctx.moveTo(p[0], p[1]);
+    for (let x = x0; x <= x1; x += 8) {
+      p = toS(x, terrainY(x));
+      ctx.lineTo(p[0], p[1]);
+    }
+    p = toS(x1, 0);
+    ctx.lineTo(p[0], p[1]);
+    ctx.closePath();
+  }
+  function drawGround() {
+    groundPath();
+    const top = mix(mix('#c5de78', '#f7fbfe', winterAmt), '#243044', nightAmt * 0.72);
+    const mid = mix(mix('#7eae46', '#e3eef6', winterAmt), '#1c2838', nightAmt * 0.72);
+    const bot = mix(mix('#3d6b30', '#b7c6d4', winterAmt), '#121820', nightAmt * 0.78);
+    const skin = ctx.createLinearGradient(0, originY - 640 * scale, 0, originY);
+    skin.addColorStop(0, rgb(top));
+    skin.addColorStop(0.42, rgb(mid));
+    skin.addColorStop(1, rgb(bot));
+    ctx.fillStyle = skin;
+    ctx.fill();
+    drawSurface();
+    ctx.beginPath();
+    for (let x = 0; x <= 1000; x += 4) {
+      const p = toS(x, terrainY(x));
+      if (x === 0) ctx.moveTo(p[0], p[1]); else ctx.lineTo(p[0], p[1]);
+    }
+    ctx.strokeStyle = rgb(mix('#3f6a28', '#f7fbff', winterAmt * 0.85));
+    ctx.lineWidth = Math.max(1.5, scale * 2);
+    ctx.stroke();
+    if (winterAmt < 0.85) {
+      ctx.strokeStyle = rgb(mix('#3f6a28', '#c5d4b0', winterAmt), 1 - winterAmt);
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      for (let i = 0; i < 18; i++) {
+        const x = 150 + i * 14;
+        const y = terrainY(x);
+        const lean = Math.sin(simT * 1.4 + i) * windAt(simT) * 4;
+        const a = toS(x, y);
+        const b = toS(x + lean, y + 7);
+        ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]);
+      }
+      ctx.stroke();
+    }
+  }
+  function drawSurface() {
+    for (let x = 0; x < 1000; x += 10) {
+      const x2 = x + 10;
+      const y1 = terrainY(x), y2 = terrainY(x2);
+      const sl = Math.abs(y2 - y1) / 10;
+      if (sl > 1.15) continue;
+      if (winterAmt < 0.7 && y1 > 545) continue;
+      let col;
+      if (x > 318 && x < 500) col = mix('#356c38', '#d5e0ea', winterAmt * 0.55);
+      else if (x > 540 && x < 630) col = mix('#6d8f48', '#e4eef4', winterAmt * 0.75);
+      else col = mix('#9bc85a', '#f4f8fb', winterAmt * 0.82);
+      col = mix(col, '#1a2434', nightAmt * 0.45);
+      const depth = sl > 0.8 ? 10 : 16;
+      ctx.beginPath();
+      let p = toS(x, y1); ctx.moveTo(p[0], p[1]);
+      p = toS(x2, y2); ctx.lineTo(p[0], p[1]);
+      p = toS(x2, y2 - depth); ctx.lineTo(p[0], p[1]);
+      p = toS(x, y1 - depth); ctx.lineTo(p[0], p[1]);
+      ctx.closePath();
+      ctx.fillStyle = rgb(col);
+      ctx.fill();
+    }
+  }
+  function drawRocks() {
+    ctx.fillStyle = rgb(mix('#8d847c', '#6a737c', nightAmt * 0.25));
+    for (let i = 0; i < KNOTS.length - 1; i++) {
+      const a = KNOTS[i], b = KNOTS[i + 1];
+      const sl = (b[1] - a[1]) / (b[0] - a[0]);
+      if (sl < 1.2) continue;
+      ctx.beginPath();
+      let p = toS(a[0] - 6, a[1] - 4);
+      ctx.moveTo(p[0], p[1]);
+      p = toS(b[0] + 4, b[1]);
+      ctx.lineTo(p[0], p[1]);
+      p = toS(b[0] + 2, b[1] - 58);
+      ctx.lineTo(p[0], p[1]);
+      p = toS(a[0] - 4, a[1] - 28);
+      ctx.lineTo(p[0], p[1]);
+      ctx.closePath();
+      ctx.fill();
+      ctx.strokeStyle = rgb(mix('#6a625c', '#3e4650', nightAmt * 0.3), 0.7);
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      for (let k = 1; k <= 3; k++) {
+        const t = k / 4;
+        const x = lerp(a[0], b[0], t), y = lerp(a[1], b[1], t);
+        const q = toS(x - 4, y - 6);
+        const r = toS(x + 8, y - 8);
+        ctx.moveTo(q[0], q[1]); ctx.lineTo(r[0], r[1]);
+      }
+      ctx.stroke();
+    }
+  }
+  function drawSnowCap() {
+    const lineY = lerp(548, 70, winterAmt);
+    ctx.beginPath();
+    let started = false;
+    for (let x = 0; x <= 1000; x += 4) {
+      const y = terrainY(x);
+      if (y < lineY && winterAmt < 0.92) continue;
+      const p = toS(x, y + (winterAmt > 0.4 ? 2 : 8));
+      if (!started) { ctx.moveTo(p[0], p[1]); started = true; }
+      else ctx.lineTo(p[0], p[1]);
+    }
+    if (!started) return;
+    for (let x = 1000; x >= 0; x -= 4) {
+      const y = terrainY(x);
+      if (y < lineY && winterAmt < 0.92) continue;
+      const p = toS(x, y);
+      ctx.lineTo(p[0], p[1]);
+    }
+    ctx.closePath();
+    ctx.fillStyle = rgb(mix('#f4f8fc', '#d5e2f0', nightAmt * 0.35), winterAmt > 0.5 ? 0.96 : 0.92);
+    ctx.fill();
+  }
+  function drawWaterfall() {
+    ctx.strokeStyle = 'rgba(255,255,255,' + (0.45 - nightAmt * 0.15) + ')';
+    ctx.lineWidth = Math.max(1, scale * 1.4);
+    ctx.beginPath();
+    for (let k = 0; k < 3; k++) {
+      const x = 496 + k * 3;
+      for (let y = 338; y > 300; y -= 6) {
+        const wob = Math.sin(simT * 4 + y * 0.2 + k) * 1.2;
+        const p = toS(x + wob, y);
+        if (y === 338) ctx.moveTo(p[0], p[1]); else ctx.lineTo(p[0], p[1]);
+      }
+    }
+    ctx.stroke();
+  }
+  function drawTrees() {
+    for (let i = 0; i < TREES.length; i++) {
+      const tr = TREES[i];
+      const lean = Math.sin(simT * 1.1 + tr.k * 6) * windAt(simT) * (reduce ? 1 : 5);
+      const y = terrainY(tr.x);
+      const foot = toS(tr.x, y);
+      const top = toS(tr.x + lean, y + tr.h);
+      const mid = toS(tr.x + lean * 0.4, y + tr.h * 0.55);
+      ctx.fillStyle = rgb(mix('#5a3d28', '#3a2c22', nightAmt * 0.4));
+      const tw = Math.max(1.5, 2.2 * scale);
+      ctx.fillRect(foot[0] - tw / 2, top[1], tw, foot[1] - top[1]);
+      ctx.fillStyle = rgb(mix('#2f6a34', '#1c3a28', nightAmt * 0.45));
+      tri(top[0], top[1], Math.max(6, tr.h * scale * 0.42));
+      tri(mid[0], mid[1], Math.max(7, tr.h * scale * 0.5));
+      if (winterAmt > 0.25) {
+        ctx.fillStyle = rgb([244, 248, 252], Math.min(0.95, winterAmt));
+        ctx.beginPath();
+        ctx.moveTo(top[0], top[1]);
+        ctx.lineTo(top[0] - 5 * scale, top[1] + 6 * scale);
+        ctx.lineTo(top[0] + 6 * scale, top[1] + 5 * scale);
+        ctx.fill();
+      }
+    }
+  }
+  function tri(x, y, r) {
+    ctx.beginPath();
+    ctx.moveTo(x, y - r * 0.15);
+    ctx.lineTo(x - r, y + r);
+    ctx.lineTo(x + r, y + r);
+    ctx.closePath();
+    ctx.fill();
+  }
+  function drawVillage() {
+    house(24, 34, 28, '#a33b32');
+    church(58);
+    house(104, 40, 26, '#8d4a32');
+    hut(934);
+    for (let i = smokes.length - 1; i >= 0; i--) {
+      const s = smokes[i];
+      s.t += 0.016;
+      s.y += 10 * 0.016;
+      s.x += 4 * 0.016;
+      if (s.t > 1) smokes.splice(i, 1);
+    }
+    if (smokes.length < 8 && hash((simT * 8) | 0) > 0.72) {
+      smokes.push({ x: 40, y: terrainY(40) + 62, t: 0 });
+      smokes.push({ x: 948, y: terrainY(948) + 48, t: 0 });
+    }
+    ctx.fillStyle = 'rgba(230,230,230,0.45)';
+    for (let i = 0; i < smokes.length; i++) {
+      const s = smokes[i];
+      const p = toS(s.x + s.t * 10, s.y + s.t * 16);
+      ctx.beginPath();
+      ctx.arc(p[0], p[1], (2 + s.t * 5) * scale, 0, TAU);
+      ctx.fill();
+    }
+  }
+  function house(x, w, wall, roof) {
+    const y = terrainY(x);
+    const a = toS(x - w / 2, y);
+    const b = toS(x + w / 2, y + wall);
+    const roofL = toS(x - w / 2 - 4, y + wall);
+    const roofR = toS(x + w / 2 + 4, y + wall);
+    const roofT = toS(x, y + wall + 16);
+    ctx.fillStyle = rgb(mix('#f3e2c4', '#c9b49a', nightAmt * 0.25));
+    ctx.fillRect(Math.min(a[0], b[0]), b[1], Math.abs(b[0] - a[0]), a[1] - b[1]);
+    ctx.fillStyle = roof;
+    ctx.beginPath();
+    ctx.moveTo(roofL[0], roofL[1]); ctx.lineTo(roofT[0], roofT[1]); ctx.lineTo(roofR[0], roofR[1]);
+    ctx.closePath(); ctx.fill();
+    if (winterAmt > 0.4) {
+      ctx.fillStyle = 'rgba(255,255,255,0.9)';
+      ctx.beginPath();
+      ctx.moveTo(roofL[0], roofL[1] + 2); ctx.lineTo(roofT[0], roofT[1] - 1); ctx.lineTo(roofR[0], roofR[1] + 2);
+      ctx.closePath(); ctx.fill();
+    }
+    windowAt(x - 8, y + 12, 7, 8);
+    windowAt(x + 8, y + 12, 7, 8);
+    const d = toS(x, y);
+    ctx.fillStyle = '#6b3a28';
+    ctx.fillRect(d[0] - 4 * scale, d[1] - 12 * scale, 8 * scale, 12 * scale);
+  }
+  function windowAt(x, y, w, h) {
+    const p = toS(x, y);
+    const lit = nightAmt > 0.45;
+    ctx.fillStyle = lit ? '#ffd27a' : '#9ec4d4';
+    ctx.fillRect(p[0] - w * scale / 2, p[1] - h * scale, w * scale, h * scale);
+    if (lit) {
+      ctx.fillStyle = 'rgba(255,200,110,0.28)';
+      ctx.beginPath(); ctx.arc(p[0], p[1] - h * scale / 2, 10 * scale, 0, TAU); ctx.fill();
+    }
+  }
+  function church(x) {
+    const y = terrainY(x);
+    const w = 36;
+    house(x, w, 32, '#8e2e2e');
+    const base = toS(x, y + 48);
+    const top = toS(x, y + 108);
+    ctx.fillStyle = rgb(mix('#f7f1e4', '#d9d0c4', nightAmt * 0.2));
+    ctx.fillRect(base[0] - 5 * scale, top[1], 10 * scale, base[1] - top[1]);
+    ctx.fillStyle = '#8e2e2e';
+    ctx.beginPath();
+    ctx.moveTo(base[0] - 8 * scale, top[1] + 8 * scale);
+    ctx.lineTo(base[0], top[1] - 10 * scale);
+    ctx.lineTo(base[0] + 8 * scale, top[1] + 8 * scale);
+    ctx.fill();
+    ctx.strokeStyle = '#5c4632';
+    ctx.lineWidth = 1.4;
+    ctx.beginPath();
+    ctx.moveTo(base[0], top[1] - 10 * scale);
+    ctx.lineTo(base[0], top[1] - 20 * scale);
+    ctx.moveTo(base[0] - 4 * scale, top[1] - 16 * scale);
+    ctx.lineTo(base[0] + 4 * scale, top[1] - 16 * scale);
+    ctx.stroke();
+    const ck = toS(x, y + 62);
+    ctx.fillStyle = nightAmt > 0.5 ? '#ffe7b0' : '#f7f4ea';
+    ctx.beginPath(); ctx.arc(ck[0], ck[1], 5 * scale, 0, TAU); ctx.fill();
+    ctx.strokeStyle = '#5c4632';
+    ctx.beginPath(); ctx.arc(ck[0], ck[1], 5 * scale, 0, TAU); ctx.stroke();
+  }
+  function hut(x) {
+    const y = terrainY(x);
+    house(x, 38, 22, '#7a3b32');
+    const pole = toS(x + 16, y + 46);
+    const tip = toS(x + 16, y + 64);
+    ctx.strokeStyle = '#5c4632';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(pole[0], pole[1]); ctx.lineTo(tip[0], tip[1]); ctx.stroke();
+    drawFlag(x + 16, y + 64, 14);
+  }
+  function drawFlag(x, y, size) {
+    const wave = Math.sin(simT * 3 + x) * windAt(simT) * 2;
+    const p = toS(x + wave, y);
+    const s = size * scale;
+    ctx.fillStyle = '#d32f2f';
+    ctx.fillRect(p[0], p[1], s * 0.72, s * 0.55);
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(p[0] + s * 0.3, p[1] + s * 0.08, s * 0.12, s * 0.4);
+    ctx.fillRect(p[0] + s * 0.16, p[1] + s * 0.2, s * 0.4, s * 0.12);
+  }
+  function drawFlowers() {
+    if (winterAmt > 0.55) return;
+    for (let i = 0; i < FLOWERS.length; i++) {
+      const f = FLOWERS[i];
+      const p = toS(f.x, terrainY(f.x) + 2);
+      const colors = ['#e15b64', '#f2d24a', '#f4f4f4', '#d47ad4'];
+      ctx.fillStyle = colors[f.c];
+      ctx.globalAlpha = 1 - winterAmt;
+      ctx.beginPath(); ctx.arc(p[0], p[1], Math.max(1.2, 1.7 * scale), 0, TAU); ctx.fill();
+      ctx.globalAlpha = 1;
+    }
+  }
+  function drawTrack() {
+    ctx.strokeStyle = rgb(mix('#6a5848', '#d5dde6', winterAmt * 0.5));
+    ctx.lineWidth = Math.max(1, scale);
+    ctx.beginPath();
+    for (let x = 210; x <= 430; x += 6) {
+      const p = toS(x, terrainY(x) + 2);
+      if (x === 210) ctx.moveTo(p[0], p[1]); else ctx.lineTo(p[0], p[1]);
+    }
+    ctx.stroke();
+    for (let x = 214; x <= 426; x += 10) {
+      const a = toS(x, terrainY(x) + 0.5);
+      const b = toS(x, terrainY(x) + 4);
+      ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.stroke();
+    }
+  }
+  function drawTrain() {
+    const y = terrainY(cogX);
+    const body = toS(cogX, y + 16);
+    const s = scale;
+    ctx.fillStyle = '#b4332a';
+    roundRect(body[0] - 16 * s, body[1] - 12 * s, 28 * s, 14 * s, 3 * s);
+    ctx.fillStyle = '#f2d48a';
+    ctx.fillRect(body[0] - 8 * s, body[1] - 9 * s, 6 * s, 6 * s);
+    ctx.fillRect(body[0] + 2 * s, body[1] - 9 * s, 6 * s, 6 * s);
+    ctx.fillStyle = '#333';
+    wheel(cogX - 8, y + 4);
+    wheel(cogX + 8, y + 4);
+    ctx.strokeStyle = '#222';
+    ctx.lineWidth = 1;
+    const cog = toS(cogX + 8, y + 4);
+    ctx.beginPath(); ctx.arc(cog[0], cog[1], 3.2 * s, 0, TAU); ctx.stroke();
+    const car = toS(cogX - 26, y + 14);
+    ctx.fillStyle = '#245a86';
+    roundRect(car[0] - 12 * s, car[1] - 10 * s, 20 * s, 12 * s, 2 * s);
+    ctx.fillStyle = nightAmt > 0.45 ? '#ffd27a' : '#d5ecf5';
+    ctx.fillRect(car[0] - 6 * s, car[1] - 7 * s, 5 * s, 5 * s);
+  }
+  function wheel(x, y) {
+    const p = toS(x, y);
+    ctx.beginPath(); ctx.arc(p[0], p[1], Math.max(2, 3.1 * scale), 0, TAU); ctx.fill();
+  }
+  function roundRect(x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + w, y, x + w, y + h, r);
+    ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r);
+    ctx.arcTo(x, y, x + w, y, r);
+    ctx.closePath();
+    ctx.fill();
+  }
+  function drawCows() {
+    if (winterAmt > 0.82) return;
+    ctx.globalAlpha = 1 - winterAmt;
+    for (let i = 0; i < cows.length; i++) {
+      const cow = cows[i];
+      const y = terrainY(cow.x);
+      const bob = Math.abs(Math.sin(cow.phase)) * 1.4;
+      const p = toS(cow.x, y + 10 + bob);
+      const s = scale;
+      ctx.fillStyle = '#f4efe4';
+      ctx.beginPath(); ctx.ellipse(p[0], p[1], 12 * s, 7 * s, 0, 0, TAU); ctx.fill();
+      ctx.fillStyle = '#5c4636';
+      ctx.beginPath(); ctx.arc(p[0] - 3 * s, p[1] - 1 * s, 2.2 * s, 0, TAU); ctx.fill();
+      ctx.beginPath(); ctx.arc(p[0] + 4 * s, p[1] + 1 * s, 1.6 * s, 0, TAU); ctx.fill();
+      const head = toS(cow.x + cow.dir * 12, y + 14 + bob);
+      ctx.fillStyle = '#f7f3ea';
+      ctx.beginPath(); ctx.arc(head[0], head[1], 4.2 * s, 0, TAU); ctx.fill();
+      ctx.fillStyle = '#3a2a1c';
+      ctx.beginPath(); ctx.arc(head[0] + cow.dir * 2 * s, head[1] + 0.5 * s, 1.1 * s, 0, TAU); ctx.fill();
+      const bell = toS(cow.x + cow.dir * 6, y + 6 + Math.sin(cow.phase) * 1.2);
+      ctx.fillStyle = '#e1b84a';
+      ctx.beginPath();
+      ctx.moveTo(bell[0] - 2 * s, bell[1]);
+      ctx.lineTo(bell[0] + 2 * s, bell[1]);
+      ctx.lineTo(bell[0], bell[1] + 4 * s);
+      ctx.fill();
+      ctx.strokeStyle = '#5c4636';
+      ctx.lineWidth = Math.max(1, s);
+      const hoof = y;
+      for (let k = -1; k <= 1; k += 2) {
+        const a = toS(cow.x + k * 6, hoof + (Math.sin(cow.phase + k) > 0 ? 0 : 2));
+        const b = toS(cow.x + k * 6, hoof + 8);
+        ctx.beginPath(); ctx.moveTo(b[0], b[1]); ctx.lineTo(a[0], a[1]); ctx.stroke();
+      }
+    }
+    ctx.globalAlpha = 1;
+  }
+  function drawLine(line, index) {
+    const color = index === 0 ? '#9c2b24' : '#1f5f8a';
+    const sup = line.phase === 'done' ? line.supports : supportsOf(line);
+    if (line.valley != null) drawStation(line.valley, color, true);
+    for (let i = 0; i < line.pylons.length; i++) drawPylon(line.pylons[i], color);
+    if (line.summit != null) drawStation(line.summit, color, false);
+    if (sup.length >= 2) {
+      ctx.strokeStyle = nightAmt > 0.6 ? '#d5dde8' : '#2a3038';
+      ctx.lineWidth = Math.max(1.25, scale * 1.35);
+      ctx.beginPath();
+      let moved = false;
+      for (let i = 0; i < sup.length - 1; i++) {
+        const a = sup[i], b = sup[i + 1];
+        const f = catenary(a.x, terrainY(a.x) + a.h, b.x, terrainY(b.x) + b.h);
+        if (!f) continue;
+        const xs = sampleXs(a.x, b.x);
+        for (let k = 0; k < xs.length; k++) {
+          const p = toS(xs[k], f(xs[k]));
+          if (!moved) { ctx.moveTo(p[0], p[1]); moved = true; }
+          else ctx.lineTo(p[0], p[1]);
+        }
+      }
+      ctx.stroke();
+    }
+    for (let i = 0; i < line.queue.length; i++) {
+      const x = line.valley - 16 - i * 12;
+      drawPerson(x, terrainY(x), line.queue[i].col, winterAmt > 0.55, simT * 3 + i, false);
+    }
+    for (let i = 0; i < line.riders.length; i++) {
+      const r = line.riders[i];
+      drawPerson(r.x, terrainY(r.x), r.col, winterAmt > 0.55, r.phase, true);
+    }
+    for (let i = 0; i < line.cabins.length; i++) drawCabin(line, line.cabins[i], color);
+  }
+  function drawStation(x, color, valley) {
+    const y = terrainY(x);
+    const w = valley ? 46 : 40;
+    const a = toS(x - w / 2, y);
+    const top = toS(x, y + STATION_H);
+    ctx.fillStyle = rgb(mix('#c9854a', '#8a6240', nightAmt * 0.25));
+    ctx.fillRect(a[0], top[1] + 8 * scale, w * scale, a[1] - (top[1] + 8 * scale));
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    const l = toS(x - w / 2 - 3, y + 30);
+    const r = toS(x + w / 2 + 3, y + 30);
+    const t = toS(x, y + 46);
+    ctx.moveTo(l[0], l[1]); ctx.lineTo(t[0], t[1]); ctx.lineTo(r[0], r[1]); ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = '#2a3038';
+    ctx.lineWidth = Math.max(1, scale);
+    ctx.beginPath();
+    const foot = toS(x, y + 30);
+    ctx.moveTo(foot[0], foot[1]); ctx.lineTo(top[0], top[1]); ctx.stroke();
+    ctx.beginPath(); ctx.arc(top[0], top[1], Math.max(2, 2.4 * scale), 0, TAU); ctx.stroke();
+    windowAt(x - 10, y + 16, 8, 8);
+    windowAt(x + 10, y + 16, 8, 8);
+    if (nightAmt > 0.4) {
+      const lamp = toS(x, y + STATION_H + 2);
+      glow(lamp[0], lamp[1], 16 * scale, 0.35 * nightAmt);
+    }
+  }
+  function drawPylon(x, color) {
+    const y0 = terrainY(x), y1 = y0 + PYLON_H;
+    const foot = toS(x, y0), top = toS(x, y1);
+    const h = foot[1] - top[1];
+    const w = Math.max(4, h * 0.18);
+    ctx.strokeStyle = rgb(mix('#3c4652', '#c5ced6', nightAmt * 0.25));
+    ctx.lineWidth = Math.max(1, scale * 1.1);
+    ctx.beginPath();
+    ctx.moveTo(foot[0] - w, foot[1]); ctx.lineTo(top[0] - w * 0.28, top[1]);
+    ctx.moveTo(foot[0] + w, foot[1]); ctx.lineTo(top[0] + w * 0.28, top[1]);
+    for (let i = 1; i <= 4; i++) {
+      const yy = foot[1] - h * i / 5;
+      const ww = w * (1 - i / 5 * 0.65);
+      ctx.moveTo(foot[0] - ww, yy); ctx.lineTo(foot[0] + ww, yy);
+      if (i % 2) {
+        ctx.moveTo(foot[0] - ww, yy); ctx.lineTo(foot[0] + ww * 0.7, yy - h / 5);
+      }
+    }
+    ctx.stroke();
+    ctx.strokeStyle = color;
+    ctx.lineWidth = Math.max(1.4, scale * 1.4);
+    ctx.beginPath();
+    ctx.moveTo(top[0] - w * 0.7, top[1]); ctx.lineTo(top[0] + w * 0.7, top[1]);
+    ctx.stroke();
+    ctx.strokeStyle = '#2a3038';
+    ctx.beginPath(); ctx.arc(top[0], top[1], Math.max(1.8, 2.3 * scale), 0, TAU); ctx.stroke();
+  }
+  function drawCabin(line, cabin, color) {
+    const p = pointAt(line, cabin.s);
+    if (!p) return;
+    const hang = 18;
+    const swing = cabin.swing;
+    const cx = p.x + Math.sin(swing) * hang;
+    const cy = p.y - Math.cos(swing) * hang;
+    const a = toS(p.x, p.y);
+    const b = toS(cx, cy);
+    ctx.strokeStyle = '#2a3038';
+    ctx.lineWidth = Math.max(1, scale);
+    ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.stroke();
+    ctx.save();
+    ctx.translate(b[0], b[1]);
+    ctx.rotate(swing * 0.35);
+    const s = scale;
+    if (nightAmt > 0.35) glow(0, 4 * s, 16 * s, 0.4 * nightAmt);
+    ctx.fillStyle = color;
+    roundRect(-10 * s, 2 * s, 20 * s, 13 * s, 3 * s);
+    ctx.fillStyle = '#f4e2c0';
+    ctx.beginPath(); ctx.moveTo(-11 * s, 2 * s); ctx.lineTo(0, -3 * s); ctx.lineTo(11 * s, 2 * s); ctx.fill();
+    const lit = nightAmt > 0.4;
+    ctx.fillStyle = lit ? '#ffd27a' : '#d7eef8';
+    ctx.fillRect(-6 * s, 5 * s, 5 * s, 5 * s);
+    ctx.fillRect(1.5 * s, 5 * s, 5 * s, 5 * s);
+    if (cabin.passengers > 0) {
+      ctx.fillStyle = '#3a2a1c';
+      const n = Math.min(4, cabin.passengers);
+      for (let i = 0; i < n; i++) {
+        ctx.beginPath();
+        ctx.arc((-6 + i * 4) * s, 8 * s, 1.3 * s, 0, TAU);
+        ctx.fill();
+      }
+    }
+    ctx.restore();
+  }
+  function drawPerson(x, y, col, skier, phase, moving) {
+    const bob = moving ? Math.abs(Math.sin(phase)) * 1.6 : 0;
+    const lean = skier && moving ? 3 : 0;
+    const hip = toS(x, y + 8 + bob);
+    const head = toS(x + lean * 0.2, y + 18 + bob);
+    const s = scale;
+    ctx.strokeStyle = '#3a2a1c';
+    ctx.lineWidth = Math.max(1, s);
+    ctx.beginPath();
+    if (moving && !skier) {
+      const step = Math.sin(phase) * 3;
+      const a = toS(x - 2, y + Math.max(0, step));
+      const b = toS(x + 2, y + Math.max(0, -step));
+      ctx.moveTo(hip[0], hip[1]); ctx.lineTo(a[0], a[1]);
+      ctx.moveTo(hip[0], hip[1]); ctx.lineTo(b[0], b[1]);
+    } else {
+      const a = toS(x - 2, y);
+      const b = toS(x + 2, y);
+      ctx.moveTo(hip[0], hip[1]); ctx.lineTo(a[0], a[1]);
+      ctx.moveTo(hip[0], hip[1]); ctx.lineTo(b[0], b[1]);
+    }
+    ctx.stroke();
+    ctx.strokeStyle = COLS[col % 6];
+    ctx.lineWidth = Math.max(1.6, 2 * s);
+    ctx.beginPath(); ctx.moveTo(hip[0], hip[1]); ctx.lineTo(head[0], head[1] + 2 * s); ctx.stroke();
+    ctx.fillStyle = '#f0c9a0';
+    ctx.beginPath(); ctx.arc(head[0], head[1], Math.max(2, 2.4 * s), 0, TAU); ctx.fill();
+    if (!skier) {
+      ctx.fillStyle = COLS[(col + 3) % 6];
+      ctx.fillRect(head[0] + 1 * s, hip[1] - 2 * s, 4 * s, 5 * s);
+    } else {
+      ctx.strokeStyle = '#222';
+      ctx.lineWidth = Math.max(1, s);
+      const ski = toS(x + lean, y + 0.6);
+      ctx.beginPath();
+      ctx.moveTo(ski[0] - 8 * s, ski[1]); ctx.lineTo(ski[0] + 8 * s, ski[1] + 1);
+      ctx.stroke();
+    }
+  }
+  function drawPreview() {
+    if (!hover || sheetOpen) return;
+    const line = lines[active];
+    if (!line || line.phase === 'done' || line.phase === 'valley') {
+      if (line && line.phase === 'valley') {
+        const p = toS(hover.x, terrainY(hover.x));
+        ctx.strokeStyle = 'rgba(90,58,36,0.45)';
+        ctx.strokeRect(p[0] - 8, p[1] - 18, 16, 18);
+      }
+      return;
+    }
+    const prev = line.pylons.length
+      ? { x: line.pylons[line.pylons.length - 1], h: PYLON_H }
+      : { x: line.valley, h: STATION_H };
+    if (prev.x == null) return;
+    const gy = terrainY(hover.x);
+    if (hover.y > gy + 96) return;
+    const summitish = hover.x >= 888 && gy >= 575;
+    const h = summitish ? STATION_H : PYLON_H;
+    const f = catenary(prev.x, terrainY(prev.x) + prev.h, hover.x, gy + h);
+    if (!f) return;
+    const dx = hover.x - prev.x;
+    const sl = Math.abs(slopeAt(hover.x));
+    const hit = (dx < MIN_SPAN || dx > MAX_SPAN || (!summitish && sl > CLIFF)) ? 'bad' : spanProblem(prev.x, prev.h, hover.x, h);
+    ctx.strokeStyle = hit ? 'rgba(176,48,40,0.75)' : 'rgba(42,48,56,0.55)';
+    ctx.setLineDash([5, 4]);
+    ctx.lineWidth = Math.max(1, scale);
+    ctx.beginPath();
+    const xs = sampleXs(prev.x, hover.x);
+    for (let i = 0; i < xs.length; i++) {
+      const p = toS(xs[i], f(xs[i]));
+      if (i === 0) ctx.moveTo(p[0], p[1]); else ctx.lineTo(p[0], p[1]);
+    }
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+  function drawFlakes() {
+    ctx.fillStyle = 'rgba(255,255,255,' + (0.35 + winterAmt * 0.5) + ')';
+    const n = reduce ? 16 : flakes.length;
+    for (let i = 0; i < n; i++) {
+      const f = flakes[i];
+      const p = toS(f.x, f.y);
+      ctx.fillRect(p[0], p[1], Math.max(1.2, f.z * 2), Math.max(1.2, f.z * 2));
+    }
+  }
+  function glow(x, y, r, a) {
+    const g = ctx.createRadialGradient(x, y, 0, x, y, r);
+    g.addColorStop(0, 'rgba(255,214,140,' + a + ')');
+    g.addColorStop(1, 'rgba(255,214,140,0)');
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(x, y, r, 0, TAU); ctx.fill();
+  }
+  function drawLights() {
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      if (line.valley != null) {
+        const p = toS(line.valley, terrainY(line.valley) + 20);
+        glow(p[0], p[1], 22 * scale, 0.18 * nightAmt);
+      }
+    }
+    const hutL = toS(934, terrainY(934) + 28);
+    glow(hutL[0], hutL[1], 20 * scale, 0.22 * nightAmt);
+    const ch = toS(58, terrainY(58) + 40);
+    glow(ch[0], ch[1], 18 * scale, 0.16 * nightAmt);
+  }
+
+  function onPointerDown(e) {
+    if (e.button != null && e.button !== 0) return;
+    if (sheetOpen) return;
+    ptr = e.pointerId;
+    try { view.setPointerCapture(e.pointerId); } catch (err) {}
+    unlock();
+    const rect = view.getBoundingClientRect();
+    hover = fromS(e.clientX - rect.left, e.clientY - rect.top);
+  }
+  function onPointerMove(e) {
+    const rect = view.getBoundingClientRect();
+    hover = fromS(e.clientX - rect.left, e.clientY - rect.top);
+  }
+  function onPointerUp(e) {
+    if (ptr == null || e.pointerId !== ptr) return;
+    ptr = null;
+    if (sheetOpen) return;
+    const rect = view.getBoundingClientRect();
+    const w = fromS(e.clientX - rect.left, e.clientY - rect.top);
+    tryPlace(w.x, w.y);
+  }
+
+  view.addEventListener('pointerdown', onPointerDown);
+  view.addEventListener('pointermove', onPointerMove);
+  view.addEventListener('pointerup', onPointerUp);
+  view.addEventListener('pointercancel', function () { ptr = null; });
+  $('sound').addEventListener('pointerdown', function (e) {
+    e.stopPropagation(); e.preventDefault();
+    userChoseMute = soundOn;
+    setSound(!soundOn);
+  });
+  $('season').addEventListener('click', function () {
+    unlock();
+    winterTarget = winterTarget > 0.5 ? 0 : 1;
+    updateLabels(); dirty = true;
+  });
+  $('day').addEventListener('click', function () {
+    unlock();
+    nightTarget = nightTarget > 0.5 ? 0 : 1;
+    updateLabels(); dirty = true;
+  });
+  $('exam').addEventListener('click', function () { unlock(); openSheet(); });
+  $('close').addEventListener('click', closeSheet);
+  $('sheet').addEventListener('pointerdown', function (e) { if (e.target === $('sheet')) closeSheet(); });
+  $('run').addEventListener('click', function () { unlock(); toggleRun(); });
+  $('newline').addEventListener('click', function () { unlock(); addLine(); });
+  $('reset').addEventListener('click', function () { unlock(); doReset(); });
+  addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') { closeSheet(); return; }
+    const tag = (e.target && e.target.tagName) || '';
+    if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+    if (e.key === 'm' || e.key === 'M') { userChoseMute = soundOn; setSound(!soundOn); }
+    else if (e.key === 'n' || e.key === 'N') { nightTarget = nightTarget > 0.5 ? 0 : 1; dirty = true; }
+    else if (e.key === 'w' || e.key === 'W') { winterTarget = winterTarget > 0.5 ? 0 : 1; dirty = true; }
+    else if (e.key === 'p' || e.key === 'P') openSheet();
+    else if (e.key === 'f' || e.key === 'F') toggleRun();
+    else if (e.key === 'l' || e.key === 'L') addLine();
+    else if (e.key === 'r' || e.key === 'R') doReset();
+    updateLabels();
+  });
+  addEventListener('resize', resize);
+  document.addEventListener('visibilitychange', syncAudio);
+
+  function medianFrame() {
+    if (!frameDts.length) return 0;
+    const s = frameDts.slice().sort(function (a, b) { return a - b; });
+    return s[s.length >> 1];
+  }
+  function publicState() {
+    const w = windAt(simT);
+    return {
+      carried: carried,
+      active: active,
+      running: running,
+      winter: winterTarget > 0.5,
+      night: nightTarget > 0.5,
+      wind: +w.toFixed(3),
+      windWord: windWord(w),
+      slow: w > 0.66,
+      lastReason: lastReason,
+      lastToast: lastToast,
+      soundOn: soundOn,
+      cogX: +cogX.toFixed(2),
+      cows: winterAmt < 0.55 ? cows.length : 0,
+      frameMs: +medianFrame().toFixed(2),
+      lines: lines.map(function (line, i) {
+        const sv = survey(line);
+        return {
+          phase: line.phase,
+          valley: line.valley,
+          summit: line.summit,
+          pylons: line.pylons.slice(),
+          queue: line.queue.length,
+          riders: line.riders.length,
+          length: +line.len.toFixed(1),
+          note: sv ? +sv.note.toFixed(2) : null,
+          comfort: sv ? +sv.comfort.toFixed(2) : null,
+          cost: sv ? sv.cost : null,
+          maxAng: sv ? +sv.maxAng.toFixed(2) : null,
+          maxSag: sv ? +sv.maxSag.toFixed(2) : null,
+          word: sv ? sv.word : null,
+          cabins: line.cabins.map(function (c) {
+            return { s: +c.s.toFixed(2), dir: c.dir, passengers: c.passengers, swing: +c.swing.toFixed(3), at: c.at };
+          })
+        };
+      })
+    };
+  }
+
+  load();
+  // Replay toasts the build; clear that so a fresh visit stays quiet.
+  lastToast = '';
+  toastOn = false;
+  $('toast').classList.remove('show');
+  resize();
+  updateLabels();
+  paintSound();
+
+  let last = performance.now();
+  function frame(now) {
+    const dt = Math.min(0.05, (now - last) / 1000);
+    last = now;
+    if (dt > 0 && dt < 0.2) {
+      frameDts.push(dt * 1000);
+      if (frameDts.length > 180) frameDts.shift();
+    }
+    if (!stepping) step(reduce ? Math.min(dt, 0.033) : dt);
+    draw();
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+
+  window.__bergbahn = {
+    ready: true,
+    terrainY: terrainY,
+    slopeAt: slopeAt,
+    treeTop: treeTop,
+    clientFromWorld: function (x, y) {
+      const p = toS(x, y);
+      const rect = view.getBoundingClientRect();
+      return { x: rect.left + p[0], y: rect.top + p[1] };
+    },
+    worldFromClient: function (x, y) {
+      const rect = view.getBoundingClientRect();
+      return fromS(x - rect.left, y - rect.top);
+    },
+    place: function (x, y) {
+      return tryPlace(x, y == null ? terrainY(x) + 4 : y);
+    },
+    state: publicState,
+    fastForward: function (sec) {
+      stepping = true;
+      const h = 1 / 60;
+      const n = Math.max(0, Math.round(sec / h));
+      for (let i = 0; i < n; i++) step(h);
+      stepping = false;
+      updateLabels();
+    },
+    toggleRun: toggleRun,
+    setSeason: function (winter) { winterTarget = winter ? 1 : 0; winterAmt = winterTarget; updateLabels(); dirty = true; },
+    setNight: function (night) { nightTarget = night ? 1 : 0; nightAmt = nightTarget; updateLabels(); dirty = true; },
+    saveNow: function () { save(); },
+    resize: resize
+  };
+})();
+</script>
+</body>
+</html>
