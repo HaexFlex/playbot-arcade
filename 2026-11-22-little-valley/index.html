@@ -2555,7 +2555,7 @@ function adapt(dt) {
 // and thunder after lightning, wind (stronger in winter and storms), birds by day in the forest, crickets on
 // summer evenings, an owl at night, the creak and clack of turning mill wheels, cowbells near the village.
 // window.LV_AUDIO holds the levels (0..1) and gains so tests can check them without listening.
-const AU = { want: false, on: false, started: false, state: 'none', nodes: 0, live: 0, L: {}, G: {}, ev: { chirp: 0, cricket: 0, owl: 0, clack: 0, creak: 0, bell: 0, thunder: 0, plop: 0, slurp: 0, splash: 0, knock: 0, well: 0, rustle: 0, rumble: 0, drip: 0, squeak: 0, thump: 0 }, flow: 0, riverPan: 0, veg: 0, ticks: 0, vol: 1, snowCover: 0, rainMuffle: 0, rainCut: 9000, masterT: 0, melt: 0, meltPan: 0 };
+const AU = { want: false, on: false, started: false, state: 'none', nodes: 0, live: 0, L: {}, G: {}, ev: { chirp: 0, cricket: 0, owl: 0, clack: 0, creak: 0, bell: 0, thunder: 0, plop: 0, slurp: 0, splash: 0, knock: 0, well: 0, rustle: 0, rumble: 0, drip: 0, squeak: 0, thump: 0, crunch: 0, skate: 0 }, flow: 0, riverPan: 0, veg: 0, ticks: 0, vol: 1, snowCover: 0, rainMuffle: 0, rainCut: 9000, masterT: 0, melt: 0, meltPan: 0 };
 window.LV_AUDIO = AU;
 const AU_KEY = 'lv-sound', AU_MASTER = 0.45, AU_DT = 0.25;
 const AU_MAX = { river: 0.55, rain: 0.42, wind: 0.2, birds: 0.42, crickets: 0.13, owl: 0.38, mill: 0.42, cows: 0.26, thunder: 0.85, melt: 0.3 }; // full-level gain per layer
@@ -2747,13 +2747,34 @@ function sndRustle(x) { // planting: a soft leafy rustle, a few dry crackles ove
   for (let k = 0, n = 2 + (Math.random() * 3 | 0); k < n; k++) noiseHit('fx', AG.white, t + 0.03 + Math.random() * 0.22, 0.05, 'highpass', 3500 + Math.random() * 2500, 0.7, 0.1 + Math.random() * 0.06, pan, 0.008);
   AU.ev.rustle++;
 }
+function sndCrunch(x, k) { // Raise, Dig or Smooth in dry snow: a soft, granular crunch (packed snow squeaking under the spade)
+  if (!fxOn()) return; const t = AG.ac.currentTime + 0.02, pan = fxPan(x), n = 4 + (Math.random() * 4 | 0), len = 0.16 + Math.random() * 0.08;
+  for (let q = 0; q < n; q++) { const a = t + len * (q / n) + Math.random() * 0.02;
+    noiseHit('fx', AG.white, a, 0.05, 'bandpass', 1300 + Math.random() * 2200, 1.4, (0.12 + Math.random() * 0.08) * k, pan, 0.009); }
+  noiseHit('fx', AG.brown, t, 0.22, 'lowpass', 420, 0.7, 0.16 * k, pan, 0.05); // the body of the snow giving way
+  AU.ev.crunch++;
+}
+function sndSkate(pan, k) { // a skater pushes off: a long, soft 'shhk' of a blade on the ice, with a tiny ring of steel
+  if (!fxOn()) return; const t = AG.ac.currentTime + 0.03 + Math.random() * 0.15, dur = 0.42 + Math.random() * 0.25;
+  const { e, fl } = noiseHit('fx', AG.white, t, dur + 0.1, 'bandpass', 5200, 2.2, 0, pan, 0.1);
+  fl.frequency.setValueAtTime(5200 + Math.random() * 900, t); fl.frequency.exponentialRampToValueAtTime(2600 + Math.random() * 500, t + dur);
+  e.gain.cancelScheduledValues(t); e.gain.setValueAtTime(0, t); e.gain.linearRampToValueAtTime(0.07 * k, t + dur * 0.35); e.gain.linearRampToValueAtTime(0, t + dur);
+  const g = auVoice('fx', t + dur * 0.9, 0.3, pan), o = osc('sine', 3900 + Math.random() * 500, t + dur * 0.9, 0.3, g);
+  g.gain.setValueAtTime(0, t + dur * 0.9); g.gain.linearRampToValueAtTime(0.012 * k, t + dur * 0.9 + 0.004); g.gain.setTargetAtTime(0, t + dur * 0.9 + 0.01, 0.05); void o;
+  AU.ev.skate++;
+}
 function fxBrush(S, g, x) { // while a brush is held: splash or slurp now and then where there is water under the finger (Plant rustles on land)
   if (!fxOn() || !g) return; const tool = st.tool;
   if (tool === 'plant') { const now = st.time; if (now - (AU.fxT || -9) < 0.3) return; const N = S.N, i = Math.round(g[1]) * N + Math.round(g[0]); if (!(i >= 0 && i < N * N) || S.d[i] > 0.3) return; AU.fxT = now + Math.random() * 0.12; sndRustle(x); return; }
   if (tool !== 'raise' && tool !== 'lower' && tool !== 'smooth' && tool !== 'drain') return;
   const N = S.N, gx = Math.round(g[0]), gy = Math.round(g[1]); let w = 0;
   for (let v = -1; v <= 1; v++) for (let u = -1; u <= 1; u++) { const X = gx + u, Y = gy + v; if (X >= 0 && Y >= 0 && X < N && Y < N) w = Math.max(w, S.d[Y * N + X]); }
-  const now = st.time, gap = tool === 'drain' ? 0.42 : 0.34; if (w < 0.08 || now - (AU.fxT || -9) < gap) return; AU.fxT = now + Math.random() * 0.1;
+  const now = st.time, gap = tool === 'drain' ? 0.42 : 0.34;
+  if (w < 0.08 && tool !== 'drain' && S.snow) { // no water but snow under the finger: crunch instead (at most every 0.3 s)
+    let sn = 0; for (let v = -1; v <= 1; v++) for (let u = -1; u <= 1; u++) { const X = gx + u, Y = gy + v; if (X >= 0 && Y >= 0 && X < N && Y < N) sn = Math.max(sn, S.snow[Y * N + X]); }
+    if (sn > 0.02 && now - (AU.fxT || -9) >= 0.3) { AU.fxT = now + Math.random() * 0.1; sndCrunch(x, 0.6 + 0.4 * clamp01(sn * 8)); }
+    return; }
+  if (w < 0.08 || now - (AU.fxT || -9) < gap) return; AU.fxT = now + Math.random() * 0.1;
   if (tool === 'drain') sndSlurp(x, 0.6 + 0.4 * clamp01(w)); else sndSplash(x, 0.5 + 0.5 * clamp01(w));
 }
 // ---- the levels follow the valley (cheap: one pass over the grid, four times a second)
@@ -2810,6 +2831,10 @@ function auTick(dt) {
   if (L.owl > 0.05 && t - (AU.owlT || -99) > 6 && R() < 0.06 * L.owl * AU_DT) { owl(at()); AU.owlT = t; }
   if (L.mill > 0) { AU.millPh = (AU.millPh || 0) + AU_DT * Math.min(4, 0.6 + 0.9 * AU.turn); while (AU.millPh >= 1) { AU.millPh--; clack(at(), 0.3); } if (R() < 0.25 * AU_DT) creak(at(), 0.3); }
   if (L.cows > 0.02 && R() < 0.3 * L.cows * AU_DT) bell(at(), R() * 1.2 - 0.6);
+  // skaters on the ice (by day, they are drawn): now and then one of them pushes off with a soft blade swish, panned to where they skate
+  if (st.skatersDrawn > 0 && st.skateSpots && st.skateSpots.length && t - (AU.skateT || -9) > 0.9 && R() < Math.min(0.8, 0.35 + 0.1 * st.skatersDrawn)) {
+    const S = st.S, N = S.N, i0 = st.skateSpots[(R() * st.skateSpots.length) | 0], q = proj(i0 % N, (i0 / N) | 0);
+    sndSkate(q && innerWidth > 0 ? Math.max(-0.7, Math.min(0.7, (q[0] / innerWidth) * 1.4 - 0.7)) : 0, 0.8 + 0.2 * R()); AU.skateT = t; }
   const bolts = st.bolts || 0; if (bolts > (AU.bolts || 0)) { thunder(t + 0.5 + R() * 1.8, 0.6 + 0.4 * clamp01(LT.storm)); } AU.bolts = bolts;
   AU.nodes = AG.base + AU.live;
 }

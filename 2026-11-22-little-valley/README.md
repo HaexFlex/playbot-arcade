@@ -136,6 +136,8 @@ gives a soft splash, the Sponge slurps, planting rustles like leaves, a new spri
 gets three hammer taps and a tiny house-warming bell, and a new well drops its bucket down the shaft
 with a splash far below (a dull knock if the ground is dry or rocky). The flour cart's wooden wheel squeaks
 softly as it rolls (a little lighter on the way home), and the sacks come off with two dull thumps.
+In winter, digging or raising dry snow crunches softly under the spade, and the little skaters on a
+frozen lake push off now and then with a soft swish of their blades.
 
 ## Valley wishes
 Tap the **Wishes** star for a small panel of twelve gentle goals, each with three stars:
