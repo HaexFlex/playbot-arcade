@@ -1602,6 +1602,7 @@ function renderTilt(t) {
       }
     }
   }
+  rasterPuddles(T, data);
   if (st.trees !== false) { const t0 = performance.now(); rasterTrees(T, data); st.treeMs = (st.treeMs || 0) * 0.9 + (performance.now() - t0) * 0.1; }
   rasterCottages(T, data);
   rasterSkaters(T, data);
@@ -1644,6 +1645,62 @@ function hayWatch(S) {
     HAY.prev[k] = r; const age = S.time - HAY.at[k]; if (age >= 0 && age < HAY_T) live++;
   }
   st.hayPlots = live;
+}
+// puddles that freeze on spring nights: after rain in early spring a few shallow puddles stand on flat, dry-ish ground
+// along the footpaths and the moist river banks (capped, picked per cell by a stable hash, the spot list refreshed every
+// few seconds). They dry up about a sim day after the last rain (faster in a drought). On cold nights and early mornings
+// of early spring a thin pale ice skin grows over them; the morning sun thaws it (gone by ~10:00), it comes back in the
+// evening (from ~18:00). Rain on them keeps them open. Only in the 3D view (in the map view they would be specks).
+const PUDDLE_MAX = isPhone ? 24 : 40, PUD = { S: null, t: -1e9, list: [], N: 0 };
+function puddleIceAt(h) { return h >= 21 || h < 6.5 ? 1 : h < 12 ? 1 - smooth(6.5, 10, h) : smooth(18, 21, h); }
+function updPuddles() {
+  const S = st.S; if (st.puddleS !== S) { st.puddleS = S; st.puddleRainT = -1e9; }
+  if ((S.rainNow || 0) > 0.05 || st.shower > 0) st.puddleRainT = S.time;
+  const day = S.P.dayLen || 720, age = Math.max(0, S.time - st.puddleRainT) * (LT.dry > 0.05 ? 4 : 1);
+  const yf = S.P.seasons ? LV.yearFrac(S) : 0.3, spring = S.P.seasons && yf < 0.2 ? 1 - smooth(0.14, 0.2, yf) : 0;
+  st.puddleWet = spring * Math.max(0, 1 - age / (day * 1.2));
+  st.puddleIce = st.puddleWet > 0.02 ? Math.min(1, puddleIceAt(LT.h) * (1 - Math.min(1, LT.rain * 2)) * Math.min(1, spring * 1.5)) : 0;
+}
+function puddleSpots(S) {
+  const N = S.N, H = N * 0.27, h = S.h, L = [], str = N > 120 ? 2 : 1;
+  for (let y = 2; y < N - 2; y += str) for (let x = 2; x < N - 2; x += str) {
+    const i = y * N + x; if (S.d[i] > 0.02 || S.snow[i] > 0.02 || S.tree[i] > 0.35 || S.field[i] > 0.5 || h[i] / H > 0.5) continue;
+    const sl = Math.max(Math.abs(h[i] - h[i - 1]), Math.abs(h[i] - h[i + 1]), Math.abs(h[i] - h[i - N]), Math.abs(h[i] - h[i + N])); if (sl > 0.3) continue;
+    const bank = S.moist[i] > 0.4 && x > 3 && y > 3 && x < N - 4 && y < N - 4 && (S.d[i - 3] > 0.05 || S.d[i + 3] > 0.05 || S.d[i - 3 * N] > 0.05 || S.d[i + 3 * N] > 0.05);
+    if (!(S.path[i] > 0.3 || bank)) continue; // along a footpath or on a flat river/lake bank
+    const hs = (Math.imul(i, 2654435761) >>> 0) / 4294967296; if (hs > (S.path[i] > 0.3 ? 0.4 : 0.3)) continue;
+    L.push([hs, i]);
+  }
+  L.sort((a, b) => a[0] - b[0]); return L.slice(0, PUDDLE_MAX).map(e => e[1]).sort((a, b) => a - b); // back to front
+}
+function rasterPuddles(T, data) {
+  const S = st.S, N = S.N, ow = T.ow, oh = T.oh, pick = T.pick, cp = T.cp; st.puddlesDrawn = 0; st.icyPuddles = 0; st.puddleIcePx = 0;
+  if (!(st.puddleWet > 0.02) || cp < 1.4) return;
+  if (PUD.S !== S || PUD.N !== N || st.time - PUD.t > 3 || st.time < PUD.t) { PUD.S = S; PUD.N = N; PUD.t = st.time; PUD.list = puddleSpots(S); }
+  const ice = st.puddleIce, skin = smooth(0.12, 0.6, ice), wet = Math.min(1, st.puddleWet * 2.5);
+  for (const i of PUD.list) {
+    if (S.d[i] > 0.03 || S.snow[i] > 0.02) continue;
+    const x = i % N, y = (i / N) | 0, sc = persp(y, N), hz = 0.22 * (1 - y / N) * (1 - y / N);
+    const hs = (Math.imul(i, 40503) >>> 0) % 997 / 997, sz = wet * (0.55 + 0.5 * hs);
+    const ox = (x + 0.5 - N / 2) * cp * sc + ow / 2, oy = baseY(T, y + 0.5, N) - surf[i] * cp * T.hEx * sc;
+    const rx = Math.max(1.6, cp * sc * 1.7 * sz), ry = Math.max(1, rx * 0.45), bx = ox | 0, by = oy | 0;
+    if (bx < rx + 2 || by < ry + 2 || bx >= ow - rx - 2 || by >= oh - ry - 2) continue;
+    const pc = pick[(by + 1) * ow + bx]; if (pc < 0 || Math.abs(pc % N - x) > 2 || Math.abs(((pc / N) | 0) - y) > 2) continue;
+    let np = 0, icy = 0;
+    for (let py = Math.floor(oy - ry); py <= Math.ceil(oy + ry); py++) {
+      const dy = (py - oy) / ry; if (dy * dy > 1) continue; const hw = rx * Math.sqrt(1 - dy * dy), row = py * ow;
+      for (let px = Math.round(ox - hw); px <= Math.round(ox + hw); px++) {
+        const e = ((px - ox) / rx) ** 2 + dy * dy, rim = e > 0.6;
+        // open water: a dark sky-grey mirror; ice: pale blue-white, a lighter streak across the top-left, a white glint
+        let r = rim ? 92 : 78, g = rim ? 104 : 98, b = rim ? 112 : 124;
+        if (skin > 0) { const lit = (px - ox) / rx + dy < -0.5 ? 1 : 0, gl = px === bx - 1 && py === Math.round(oy - ry * 0.3) ? 1 : 0;
+          const ir = gl ? 255 : lit ? 236 : rim ? 196 : 212, ig = gl ? 255 : lit ? 244 : rim ? 214 : 228, ib = gl ? 255 : lit ? 250 : rim ? 226 : 240;
+          r += (ir - r) * skin; g += (ig - g) * skin; b += (ib - b) * skin; if (skin > 0.5) icy++; }
+        const q = (row + px) * 4; data[q] = r + (215 - r) * hz; data[q + 1] = g + (232 - g) * hz; data[q + 2] = b + (245 - b) * hz; np++;
+      }
+    }
+    if (np) { st.puddlesDrawn++; st.puddleIcePx += icy; if (icy) st.icyPuddles++; }
+  }
 }
 // little pine trees on forest cells, rasterised straight into the tilt buffer (back to front),
 // only where the cell itself is visible (pick buffer), so ridges hide the trees behind them
@@ -2575,11 +2632,11 @@ function frame(now) {
   }
   hayWatch(S);
   if (st.wake > 0) st.wake -= dtReal;
-  updLight(); skyHints();
+  updLight(); skyHints(); updPuddles();
   const tc0 = performance.now(); computeColours(st.time); st.colMs = (st.colMs || 0) * 0.9 + (performance.now() - tc0) * 0.1;
   cx.setTransform(dpr, 0, 0, dpr, 0, 0);
   if (st.view === 'tilt') { tiltGeom(); drawSky(st.time, dtReal); renderTilt(st.time); }
-  else { drawSky(st.time, dtReal); renderTop(st.time); drawCottagesTop(); drawWindowGlowTop(st.time); st.petalsDrawn = 0; } // no petals in the map view (seen from far above they would be specks of dust)
+  else { drawSky(st.time, dtReal); renderTop(st.time); drawCottagesTop(); drawWindowGlowTop(st.time); st.petalsDrawn = 0; st.puddlesDrawn = 0; st.icyPuddles = 0; st.puddleIcePx = 0; } // no petals in the map view (seen from far above they would be specks of dust)
   floeStep(S, dtReal); drawFloes();
   drawCottageBadges(st.time);
   drawNaturalRain(st.time); drawOverlays(st.time); drawShower(st.time);
