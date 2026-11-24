@@ -131,6 +131,7 @@ button.on{background:#ffe680;box-shadow:0 2px 0 #e0b93a,0 0 0 3px #ffd23f,0 4px 
 /* volume slider (sound part 2b): a small pill beside the speaker button */
 #volPop{position:fixed;display:none;align-items:center;gap:8px;padding:8px 12px;background:#fffdf4f2;border-radius:16px;box-shadow:0 4px 16px #0003;z-index:30;width:230px;box-sizing:border-box}
 #volPop.show{display:flex;animation:win .18s ease-out}
+#volPop{flex-wrap:wrap}#volPop #dayTog{height:auto;min-height:32px;width:auto;box-shadow:none;flex-direction:row;flex-basis:100%;margin-top:2px;padding:6px 8px;border:1px solid #2f7d3a33;border-radius:10px;background:#fff;font:600 13px system-ui,sans-serif;color:#2f5a33;cursor:pointer}#volPop #dayTog.on{background:#fff3c4;border-color:#e0a82e}
 #volPop .vi{font-size:20px;width:26px;text-align:center}#volPop b{font-size:13px;color:#2f7d3a;width:40px;text-align:right}
 #volRange{flex:1;min-width:0;height:32px;accent-color:#3aa0e0}
 /* calendar strip: the year and a 4-season bar with today's marker, under the clock (placed by placeCal) */
@@ -1407,8 +1408,13 @@ function computeColours(t) {
 const NIGHT_A = 0.46, NIGHT_C = [16, 26, 72], WARM_C = [255, 140, 60];
 const LT = { dry: 0, storm: 0, flash: 0, h: 8, elev: 0.5, s: 0.14, night: 0, warm: 0, glow: 0, rain: 0, Lx: -0.62, Lz: 0.72, na: 0, wa: 0, ra: 0 };
 function bump(h, c, w) { return Math.max(0, 1 - Math.abs(h - c) / w); }
+// "always day" (a setting in the speaker's hold-popover): the light swings gently between 7:30 and 17:30 over each
+// sim day instead of going through evening and night. Only the look and sound follow it: the sim clock, weather
+// and seasons run exactly as before.
+const DAY_KEY = 'lv-always-day'; try { st.alwaysDay = localStorage.getItem(DAY_KEY) === '1'; } catch (e) { st.alwaysDay = false; }
+function dayHour(S) { const f = S.time / (S.P.dayLen || 720) + 0.1; return 12.5 - 5 * Math.cos(2 * Math.PI * (f - Math.floor(f))); }
 function updLight() {
-  const S = st.S, h = st.fixedHour != null ? st.fixedHour : LV.clockHour(S); LT.h = h;
+  const S = st.S, h = st.fixedHour != null ? st.fixedHour : st.alwaysDay ? dayHour(S) : LV.clockHour(S); LT.h = h;
   const sunUp = h > 6 && h < 20, s = sunUp ? (h - 6) / 14 : h >= 20 ? 1 : 0;
   LT.s = s; LT.elev = sunUp ? Math.sin(Math.PI * s) : 0;
   LT.night = h >= 22 || h < 4 ? 1 : h >= 19.4 ? smooth(19.4, 21.7, h) : h < 6.5 ? 1 - smooth(4, 6.4, h) : 0;
@@ -2765,7 +2771,7 @@ function auTick(dt) {
 
 // ---- volume (sound part 2b): hold (or right-click) the speaker, or press + / -, for a small slider
 const volPop = document.createElement('div'); volPop.id = 'volPop'; volPop.setAttribute('role', 'dialog'); volPop.setAttribute('aria-label', 'Volume');
-volPop.innerHTML = '<span class="vi">🔈</span><input id="volRange" type="range" min="0" max="150" step="5" aria-label="Volume"><b id="volVal"></b>';
+volPop.innerHTML = '<span class="vi">🔈</span><input id="volRange" type="range" min="0" max="150" step="5" aria-label="Volume"><b id="volVal"></b><button id="dayTog" type="button" aria-pressed="false"></button>';
 document.body.appendChild(volPop);
 const volRange = $('volRange'), volVal = $('volVal'); let volT = 0, volHold = 0, volLong = false;
 function volShow() { volRange.value = Math.round(AU.vol * 100); volVal.textContent = Math.round(AU.vol * 100) + '%';
@@ -2789,6 +2795,12 @@ bSound.addEventListener('contextmenu', e => { e.preventDefault(); clearTimeout(v
 bSound.onclick = () => { if (volLong) { volLong = false; return; } setSound(!AU.want); }; // a long press opens the slider instead of toggling
 setVolume(Math.round(AU.vol * 100), true);
 window.LV_VOL = { show: volShow, hide: volHide, set: setVolume };
+const dayTog = $('dayTog');
+function dayLabel() { dayTog.textContent = st.alwaysDay ? '☀️ Always day: on' : '🌙 Day and night'; dayTog.setAttribute('aria-pressed', st.alwaysDay ? 'true' : 'false'); dayTog.classList.toggle('on', st.alwaysDay); }
+function setAlwaysDay(on) { st.alwaysDay = !!on; try { localStorage.setItem(DAY_KEY, on ? '1' : '0'); } catch (e) { /* private mode */ } dayLabel(); hint(on ? '☀️ Always day (the clock still runs)' : '🌙 Day and night again'); }
+dayTog.onclick = () => { setAlwaysDay(!st.alwaysDay); volArm(); };
+dayLabel();
+window.LV_DAY = { set: setAlwaysDay, get: () => st.alwaysDay, hour: () => LT.h };
 
 // ---------- valley wishes (v5): an optional goal mode with stars ----------
 // A star button opens a small panel of gentle wishes that are checked against the real valley about

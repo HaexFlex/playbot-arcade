@@ -192,3 +192,5 @@ conserving), sediment erosion and deposition with semi-Lagrangian transport, and
 slumping of steep slopes. Rendering is a software-drawn tilted 3D view on a 2D canvas.
 
 See `PLAN.md` for where it is going.
+
+**Always day:** hold the 🔊 speaker button and tap "☀️ Always day" if you prefer the valley without nights. Only the light changes; time, seasons and weather run as usual. The choice is remembered.
