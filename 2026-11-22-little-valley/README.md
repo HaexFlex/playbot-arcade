@@ -56,7 +56,8 @@ valley gets the same rain.
 (`screenshot-dusk.png`: evening with lit windows; `screenshot-rain.png`: a rain cloud over the valley.)
 
 **Seasons**: a year lasts four valley days (one per season, about 7 minutes at 1x) and starts in
-spring; the season shows as an emoji in the title pill (🌸 🌻 🍂 ❄️). In autumn the leafy trees
+spring; the season shows as an emoji in the title pill (🌸 🌻 🍂 ❄️). In early spring the leafy trees
+blossom white and pink while their first leaves come (on the map too), for about a third of the spring. In autumn the leafy trees
 turn orange, red and gold, then lose their leaves. From late autumn snow falls on the peaks and the
 snow line creeps down the mountains through the winter until only the low valley floor stays green.
 The snow is real: it is water stored on the ground, and in spring, as the snow line climbs back up,
