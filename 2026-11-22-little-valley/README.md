@@ -93,6 +93,12 @@ so the next morning brings fresh ones. Now and then at dusk the red fox itself t
 a small orange fox with a white-tipped bushy tail; it stops to sniff the snow and leaves its own prints as it
 goes. None in falling snow or storms, or in the map view. (`screenshot-fox.png`: fox tracks on a winter morning.)
 
+**Hoar frost**: after a clear, cold winter night the trees wake up white-rimed: the pine and leafy crowns
+(and the bare winter twigs) go frosty white with a bright rim on their edges and the open grass turns pale.
+When the sun is up, little sparkles wander over the frosted crowns, and the frost fades as the day warms
+(gone by late morning). None after a cloudy or snowy night, in rain, snowfall or storms, or in the map view.
+(`screenshot-frost.png`: a white-rimed winter morning.)
+
 **Snowmen**: when the snow reaches the village, little snowmen with red scarves and dark hats
 appear in the cottage gardens, and they melt with the snow in spring.
 
