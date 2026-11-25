@@ -127,6 +127,12 @@ miller keeps the race clear when the banks slump. It never cuts through a house,
 the sluice and the stakes too.
 (`screenshot-millrace.png`: the miller digging the race beside the river, stakes ahead.)
 
+**Millpond**: once a mill race wheel turns, the miller puts a little weir board across the race just above the
+wheel and digs out a small pond behind it. Water spills over the board in a white curtain, and in a dry spell
+the pond keeps the wheel turning long after a plain race has stopped. When the flow gets very low the miller
+lowers the board, or pulls it right out so the race runs freely again, and puts it back when plenty of water comes.
+The map view marks the board with a little plank and a white spill line.
+
 **Butterflies**: on sunny days from spring to early autumn, butterflies flutter over the flower meadows. They
 bob along in a jittery little flight, settle on a flower for a few seconds with their wings slowly opening and
 closing, and then flutter on to the next one. There are cabbage whites with black wing tips, lemon-yellow

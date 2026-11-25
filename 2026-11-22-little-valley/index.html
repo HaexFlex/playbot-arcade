@@ -354,7 +354,8 @@ function millStep(S, c, i, tl) {
   const rw = c.wheel.race, dmin = rw ? RACE_WD : 0.2, smin = rw ? RACE_SP : 0.8;
   const wx = Math.max(1, Math.min(N - 2, Math.round(c.wheel.x * N))), wy = Math.max(1, Math.min(N - 2, Math.round(c.wheel.y * N)));
   let sp = 0; // the best flow right at the wheel (its paddles span a cell around it)
-  for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) { const j = (wy + dy) * N + wx + dx; if (d[j] > dmin) sp = Math.max(sp, Math.hypot(u[j], v[j])); }
+  const pc = rw && c.race && c.race.pk >= 1 && !(c.race.wc < 0) && S.P.millpond !== false ? pondCells(S, c.race) : null, still = pc ? new Set([...pc.pond, ...pc.side, pc.weir]) : null; // with a millpond the wheel turns from what falls over the board
+  for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) { const j = (wy + dy) * N + wx + dx; if (d[j] > dmin && !(still && still.has(j))) sp = Math.max(sp, Math.hypot(u[j], v[j])); }
   c.turn = sp > smin ? Math.round(sp * 100) / 100 : 0;
 }
 // A mill race: a cottage a little too far from a fast river for a wheel (no fast cell within N*0.03, but some
@@ -407,16 +408,93 @@ function raceStep(S, c, i, tl) { // returns true once the race has a wheel pit w
   const r = c.race, cells = raceCells(S, r), n = cells.length;
   r.k = Math.min(n, r.k + tl * RACE_DIG); r.n = n;
   const dug = Math.floor(r.k), si = r.si * N, so = r.so * N;
+  const pw = c.wheel && c.wheel.race && dug >= n && S.P.millpond !== false ? pondIdx(S, r, cells) : -1; // the weir board's cell (-1: no millpond yet)
   for (let k = 0; k < dug; k++) {
     const j = cells[k], bed = si + (so - si) * k / Math.max(1, n - 1);
-    if (h[j] > bed) h[j] = bed;
+    if (h[j] > bed && !(k === pw && r.pk > 0)) h[j] = bed;
     S.tree[j] = 0; S.field[j] = 0; S.path[j] = 0;
     for (const o of [j - 1, j + 1, j - N, j + N]) if (h[o] > bed + RACE_BANK) { h[o] = bed + RACE_BANK; S.tree[o] *= 0.5; S.field[o] = 0; }
   }
+  if (pw > 0) pondStep(S, c, r, cells, pw, tl);
   if (dug < n || c.wheel) return false;
   const P = (a) => Math.max(1, Math.min(N - 2, Math.round(a * N))), wj = P(r.wy) * N + P(r.wx);
   if (d[wj] < RACE_WD) return false;
   c.wheel = { x: r.wx, y: r.wy, race: true }; return true;
+}
+// Millpond (2026-11-25, on by default; S.P.millpond === false turns it off; see PLAN.md and tools/millpond-check.js).
+// A millpond behind a little weir: once its race wheel turns, the miller digs the two race cells just above the
+// weir (the cell before the wheel pit) POND_DEEP below the bed and widens them into a little pond (their side
+// cells POND_SIDE deep), and sets a weir board across the race there, WEIR_H above the bed (below the banks,
+// RACE_BANK). The race fills the pond and runs over the board onto the wheel. When the river stops (the intake
+// runs dry), the miller lifts the board a little whenever the wheel stands still (WEIR_LIFT per s), so the pond
+// lets its water out bit by bit and keeps the wheel turning through a dry spell; once the river runs again he
+// drops the board back (WEIR_DROP per s) and the pond fills up. r.pk: 0..1 dug, r.po: 0..1 board lifted (saved).
+// Current version: the pond and its side cells are dug from the race as it is (r.wb = the weir cell's height when
+// it is set out, r.pb = POND_DEEP below), earth banks (pc.bank) and posts (pc.abut) are kept at WEIR_H + WEIR_ABUT
+// above r.wb, the wheel pit below the board is kept dug out, and in a dry spell (intake under POND_RUN) a hatch in
+// the board lets POND_FLOW of pond water per s onto the board while the wheel turns slower than WEIR_SLOW.
+// 2026-11-25 (2nd run): the board follows the flow (r.wc = its height now above r.wb, saved): when the pond no longer runs
+// over it by WEIR_OVER the miller lowers it (WEIR_LIFT per s) to just under the water, down to the wheel pit's bed if need be
+// (pulled right out, r.wc < 0); when plenty runs over again he raises it back slowly (WEIR_RAISE per s, at most r.wh).
+// 2026-11-25 (3rd run): with the board pulled right out he takes its posts out too (pc.abut down to the board's sill) and stops banking
+// the pond, and the wheel counts every cell round it again, so the race widens and the late flow turns the wheel like a plain race;
+// once plenty runs over again and the board goes back in, posts and banks are packed again.
+const POND_DEEP = 0.9, POND_SIDE = 0.6, POND_DIG = 0.1, WEIR_H = 0.55, WEIR_ABUT = 0.35, WEIR_LIFT = 0.25, WEIR_DROP = 0.5, POND_RUN = 0.12, WEIR_SLOW = 0, POND_FLOW = 0.25, WEIR_FREE = 0.15, WEIR_OVER = 0.03, WEIR_RAISE = 0.02;
+function pondIdx(S, r, cells) { // index (in the race cells) of the weir board, or -1 if the race is too short
+  const N = S.N, P = (a) => Math.max(1, Math.min(N - 2, Math.round(a * N))), wj = P(r.wy) * N + P(r.wx), m = cells.indexOf(wj);
+  return m >= 4 ? m - 1 : -1;
+}
+function pondCells(S, r) { // { weir, pond: [race cells], side: [widened cells], abut: [the board's side posts], intake } or null
+  const cells = raceCells(S, r), w = pondIdx(S, r, cells); if (w < 0) return null;
+  const N = S.N, pond = [cells[w - 2], cells[w - 1]], rc = new Set(cells), down = new Set(cells.slice(w + 1)), side = [], abut = [], wj = cells[w];
+  const adj = (a, b) => Math.abs(a % N - b % N) + Math.abs(((a / N) | 0) - ((b / N) | 0)) === 1;
+  const nearHome = o => { for (const q of S.cottages) { if (q.ruin) continue; const qc = cottageCell(S, q); if (Math.abs(qc % N - o % N) <= 1 && Math.abs(((qc / N) | 0) - ((o / N) | 0)) <= 1) return true; } return false; };
+  for (const o of [wj - 1, wj + 1, wj - N, wj + N]) if (!rc.has(o)) abut.push(o);
+  for (const j of pond) for (const o of [j - 1, j + 1, j - N, j + N]) {
+    if (rc.has(o) || side.indexOf(o) >= 0 || abut.indexOf(o) >= 0 || nearHome(o)) continue;
+    let leak = false; for (const q of cells) if (q !== pond[0] && q !== pond[1] && adj(o, q)) leak = true; // only touches the pond, never the race
+    if (!leak) side.push(o);
+  }
+  const bank = [], inlet = cells[w - 3], inn = new Set([...pond, ...side, wj]); // earth banks all round, so it only fills from the race and only lets out over the board
+  for (const j of inn) for (const o of [j - 1, j + 1, j - N, j + N]) if (!inn.has(o) && !rc.has(o) && bank.indexOf(o) < 0 && abut.indexOf(o) < 0) bank.push(o);
+  return { weir: wj, wk: w, pond, side, abut, bank, inlet, intake: cells[0] };
+}
+function pondStep(S, c, r, cells, w, tl) {
+  const N = S.N, h = S.h, d = S.d;
+  const pc = pondCells(S, r); if (!pc) return;
+  if (!(r.pk > 0)) { // set out the pond from the race as it is now (the river has worn it below the dug bed)
+    r.wb = h[pc.weir] / N; let lo = 1e9, sv = h[pc.weir] + d[pc.weir]; for (const j of pc.pond) { lo = Math.min(lo, h[j]); sv = Math.max(sv, h[j] + d[j]); }
+    r.wh = Math.max(0.05, Math.min(WEIR_H, sv - h[pc.weir] - WEIR_FREE)); // the board stands a little below the race's water, so the race still runs over it
+    r.pb = (Math.min(lo, h[pc.weir]) - POND_DEEP) / N; r.pk = 0; S.pondsDug = (S.pondsDug || 0) + 1;
+  }
+  r.pk = Math.min(1, r.pk + tl * POND_DIG);
+  const wb = r.wb * N, pb = wb + (r.pb * N - wb) * r.pk, sb = wb + (r.pb * N + (POND_DEEP - POND_SIDE) - wb) * r.pk;
+  for (const j of pc.pond) if (h[j] > pb) h[j] = pb;
+  for (const j of pc.side) { if (h[j] > sb) h[j] = sb; S.tree[j] = 0; S.field[j] = 0; S.path[j] = 0; }
+  let lvl = 0; for (const j of pc.pond) lvl = Math.max(lvl, h[j] + d[j]);
+  const running = d[pc.intake] > POND_RUN; r.shut = running ? 0 : 1; // the river stopped
+  const wh = r.wh || WEIR_H; if (typeof r.wc !== 'number' || !isFinite(r.wc)) r.wc = wh; // r.wc: how high the board stands now above r.wb (up to r.wh; below 0 when it is pulled right out; saved)
+  if (r.pk >= 1) { // the board follows the flow: when the pond no longer runs over it (the river runs low), the miller lowers it to
+    // just under the water, so the thin late flow still reaches the wheel; when plenty runs over again he raises it back, slowly
+    // (all the way out of the race if need be: then the sluice under it runs at the wheel pit's bed, which the water wears down)
+    const over = lvl - (wb + r.wc), lo = Math.min(0, h[cells[w + 1]] - wb);
+    if (over < WEIR_OVER) r.wc = Math.max(lo, Math.min(r.wc, lvl - wb - WEIR_OVER), r.wc - WEIR_LIFT * tl);
+    else if (over > WEIR_OVER * 3) r.wc = Math.min(wh, r.wc + WEIR_RAISE * tl, lvl - wb - WEIR_OVER);
+  }
+  const crest = wb + Math.min(wh, r.wc) * r.pk; h[pc.weir] = crest; // the board (the miller keeps it set: erosion never cuts it)
+  let pbed = 1e9; for (const j of pc.pond) pbed = Math.min(pbed, h[j]); if (r.wc < 0) pbed += 0.1; else pbed = 1e9; // with the board pulled out he digs the pit down to the pond's bed, so no sill of sand holds the pond back
+  for (let k = w + 1; k < Math.min(cells.length, w + 3); k++) { const j = cells[k], pit = Math.min(wb - 0.05 * (k - w), pbed - 0.05 * (k - w)); if (h[j] > pit) h[j] = pit; } // and keeps the wheel pit below it dug out (sand settles where the water drops)
+  r.po = 0;
+  if (r.pk >= 1 && !(c.turn > WEIR_SLOW)) { // the wheel slows (the river runs low): open the hatch in the board, a little water at a time
+    let have = 0; const src = [...pc.pond, ...pc.side]; for (const j of src) have += d[j];
+    const want = Math.min(have * 0.5, POND_FLOW * tl);
+    if (want > 1e-4) { for (const j of src) d[j] -= d[j] / have * want; d[cells[w + 1]] += want; r.po = 1; r.rel = (r.rel || 0) + want; }
+  }
+  const top = wb + ((r.wh || WEIR_H) + WEIR_ABUT) * r.pk; // earth packed against the board's posts and banked round the pond, so the water goes over the board, not round it
+  if (r.pk >= 1 && r.wc < 0) { for (const j of pc.abut) if (h[j] > crest) h[j] = crest; } // board pulled right out: he takes its posts out too, so the race widens like a plain one
+  else { for (const j of pc.abut) if (h[j] < top) h[j] = top;
+    for (const j of pc.bank) if (h[j] < top) { h[j] = top; S.field[j] = 0; } }
+  S.tree[pc.weir] = 0; S.field[pc.weir] = 0; S.path[pc.weir] = 0;
 }
 // ---------- the village grows: fields, footpaths and new cottages ----------
 // field: crop cover 0..1 (> 0.3 shows a field), ripe: 0..1.3 (green → golden, harvested at 1.3, then sown again),
@@ -1241,7 +1319,7 @@ function unpackShare(bytes, seed, opts) {
   if (hasNaN(S)) throw new Error('share link has broken numbers');
   return S;
 }
-const API = { findRoute, ROUTE_CLIMB, waterfalls, FALL_DROP, FALL_Q, FALL_M, packState, unpackState, packShare, unpackShare, initLife,  iceStep, iceJam, totalIce, ICE_HOLD, JAM_MIN, JAM_Y, FLOE_PTS, eventRain, droughtOf, droughtAt, weatherEvent, STORM_AMP, yearFrac, yearFracAt, yearLen, yearNum, season, snowLine, snowFalling, leafState, snowStep, totalSnow, SEASONS, clockHour, dayFrac, planRain, rainCell, weatherStep, mulberry32, hashStr, makeNoise, randomSeedName, generateTerrain, create, seedLife, step, applyTool, totalWater, totalTerrain, resample, lifeStep, countTrees, countLife, leafy, treeHappy, cottageMood, cottageCell, countVillage, waterNear, wellYield, WELL_MIN, WELL_HIGH, MILL_T, MILL_RIPEN, raceCells, raceR, RACE_T, RACE_DIG, RACE_SP, FLOOD_RUIN, GROW_MAX, KIDS_MAX, GROW_T, plotSize, plotOf, plotCrop, hasNaN, DEFAULTS };
+const API = { pondCells, POND_DEEP, WEIR_H, findRoute, ROUTE_CLIMB, waterfalls, FALL_DROP, FALL_Q, FALL_M, packState, unpackState, packShare, unpackShare, initLife,  iceStep, iceJam, totalIce, ICE_HOLD, JAM_MIN, JAM_Y, FLOE_PTS, eventRain, droughtOf, droughtAt, weatherEvent, STORM_AMP, yearFrac, yearFracAt, yearLen, yearNum, season, snowLine, snowFalling, leafState, snowStep, totalSnow, SEASONS, clockHour, dayFrac, planRain, rainCell, weatherStep, mulberry32, hashStr, makeNoise, randomSeedName, generateTerrain, create, seedLife, step, applyTool, totalWater, totalTerrain, resample, lifeStep, countTrees, countLife, leafy, treeHappy, cottageMood, cottageCell, countVillage, waterNear, wellYield, WELL_MIN, WELL_HIGH, MILL_T, MILL_RIPEN, raceCells, raceR, RACE_T, RACE_DIG, RACE_SP, FLOOD_RUIN, GROW_MAX, KIDS_MAX, GROW_T, plotSize, plotOf, plotCrop, hasNaN, DEFAULTS };
 if (typeof module !== 'undefined' && module.exports) module.exports = API; else root.LV = API;
 })(typeof window !== 'undefined' ? window : globalThis);
 </script>
@@ -2239,7 +2317,7 @@ const raceSnd = new WeakMap();
 function raceXY(T, x, y) { const S = st.S, N = S.N, i = y * N + x, sc = persp(y, N); return [(x + 0.5 - N / 2) * T.cp * sc + T.ow / 2, baseY(T, y, N) - (S.h[i] + S.d[i]) * T.cp * T.hEx * sc, sc]; }
 function raceSeen(T, x, y, bx, by) { const N = st.S.N, pc = T.pick[Math.min(T.oh - 1, Math.max(0, by + 1)) * T.ow + bx]; return !(pc >= 0 && (Math.abs(pc % N - x) > 4 || Math.abs(((pc / N) | 0) - y) > 5)); }
 function rasterRaces(T, put) {
-  const S = st.S, N = S.N, ow = T.ow, oh = T.oh, cp = T.cp, now = performance.now() / 1000; let races = 0, stakes = 0, diggers = 0, sluices = 0;
+  const S = st.S, N = S.N, ow = T.ow, oh = T.oh, cp = T.cp, now = performance.now() / 1000; let races = 0, stakes = 0, diggers = 0, sluices = 0, weirs = 0;
   for (const c of S.cottages) {
     if (!c.race || c.ruin) continue; races++;
     const cells = LV.raceCells(S, c.race), n = cells.length, dug = Math.min(n, Math.floor(c.race.k));
@@ -2250,6 +2328,17 @@ function rasterRaces(T, put) {
         for (let px = bx - w; px <= bx + w; px++) { put(px, by - hh + 1, 150, 110, 66); put(px, by - hh + 2, 120, 84, 48); }
         sluices++;
       }
+    }
+    if (S.P.millpond !== false && c.race.pk > 0 && !(c.race.wc < 0)) { // the weir board in front of the wheel, two posts and a plank, the pond's water spilling over it
+      const pc = LV.pondCells(S, c.race);
+      if (pc) { const j = pc.weir, x = j % N, y = (j / N) | 0, sc = persp(y, N), bx = Math.round((x + 0.5 - N / 2) * cp * sc + ow / 2), by = Math.round(baseY(T, y, N) - S.h[j] * cp * T.hEx * sc), w = Math.max(4, Math.round(cp * sc * 1.1)), hh = Math.max(4, Math.round(cp * sc * 0.9));
+        // readable at small cells too (desktop 192²: cp about 3): 2 px posts with a dark edge, a 3-row plank with a lit top, a white curtain of spill below it
+        if (bx > w + 2 && by > hh + 3 && bx < ow - w - 2 && by < oh - 5 && raceSeen(T, x, y, bx, by)) {
+          for (let py = by - hh - 1; py <= by + 3; py++) { put(bx - w - 1, py, 46, 32, 20); put(bx - w, py, 92, 66, 40); put(bx + w, py, 92, 66, 40); put(bx + w + 1, py, 46, 32, 20); } // the posts
+          put(bx - w, by - hh - 2, 120, 90, 56); put(bx + w, by - hh - 2, 120, 90, 56); // post caps
+          for (let px = bx - w + 1; px < bx + w; px++) { put(px, by - 1, 196, 156, 100); put(px, by, 150, 110, 66); put(px, by + 1, 112, 78, 46); put(px, by + 2, 60, 42, 26); } // the plank (its lit top edge is the board's crest)
+          if (S.d[j] > 0.02) { const ph = st.paused ? 0 : Math.floor(now * 6) % 2; for (let px = bx - w + 1; px < bx + w; px++) { put(px, by - 2, 214, 234, 246); if ((px + ph) % 2 === 0) { put(px, by + 3, 236, 246, 252); put(px, by + 4, 190, 220, 238); } } } // water over the crest and a white curtain falling off it
+          weirs++; st.weirPos = [bx, by, w, hh, ow]; } }
     }
     if (dug >= n) continue;
     for (let k = dug + 2; k < n; k += 3) { // survey stakes along the line still to dig
@@ -2271,7 +2360,7 @@ function rasterRaces(T, put) {
     diggers++;
     const ls = raceSnd.get(c) || 0; if (!st.paused && now - ls > RACE_SPADE) { raceSnd.set(c, now); sndSpade(T.sx + bx * T.s); }
   }
-  st.racesDrawn = races; st.raceStakes = stakes; st.raceDiggers = diggers; st.raceSluices = sluices;
+  st.racesDrawn = races; st.raceStakes = stakes; st.raceDiggers = diggers; st.raceSluices = sluices; st.raceWeirs = weirs;
 }
 // the flour cart: when three sacks wait by a mill's door, the miller loads them onto a little handcart
 // (after the full pile has stood CART_LOAD s of grinding) and pulls it to the nearest dry, standing cottage (a dry road: no water deeper than CART_WET on the way),
@@ -2427,6 +2516,15 @@ function drawCottagesTop() {
     if (dug < n) { cx.fillStyle = '#f4ecd6'; for (let k = dug + 2; k < n; k += 3) { const j = cells[k], p = proj(j % N + 0.5, ((j / N) | 0) + 0.5); if (p) cx.fillRect(p[0] - 1.5, p[1] - 1.5, 3, 3); }
       const j = cells[dug], p = proj(j % N + 0.5, ((j / N) | 0) + 0.5); if (p) { cx.fillStyle = '#7a6046'; cx.beginPath(); cx.arc(p[0], p[1], Math.max(2.5, s * 0.2), 0, 7); cx.fill(); } }
     st.racesTop++;
+  }
+  // the millpond's weir board on the map (on unless S.P.millpond === false): a plank bar with a lit edge and a white spill line while water runs over it
+  st.weirsTop = 0;
+  if (S.P.millpond !== false) for (const c of S.cottages) {
+    if (!c.race || c.ruin || !(c.race.pk > 0) || c.race.wc < 0) continue; const pc = LV.pondCells(S, c.race); if (!pc) continue;
+    const j = pc.weir, p = proj(j % N + 0.5, ((j / N) | 0) + 0.5); if (!p) continue; const bw = Math.max(9, s * 0.8), bh = Math.max(3, s * 0.26);
+    cx.fillStyle = '#3a2814'; cx.fillRect(p[0] - bw / 2 - 1, p[1] - bh / 2 - 1, bw + 2, bh + 2); cx.fillStyle = '#9a6c3c'; cx.fillRect(p[0] - bw / 2, p[1] - bh / 2, bw, bh); cx.fillStyle = '#d4a868'; cx.fillRect(p[0] - bw / 2, p[1] - bh / 2, bw, Math.max(1, bh * 0.3));
+    if (S.d[j] > 0.02) { cx.fillStyle = 'rgba(240,248,255,.95)'; cx.fillRect(p[0] - bw / 2, p[1] + bh / 2 + 1, bw, 1.5); }
+    st.weirsTop++;
   }
   cx.restore(); st.cottagesTop = n;
 }
@@ -4408,6 +4506,7 @@ function frame(now) {
     // cottages: count and happy count (ruins only when there are some)
     if (S.grown > (st.grownSeen || 0)) hint('The village grows: a new cottage by the water!'); st.grownSeen = S.grown;
     { let dig = 0; for (const c of S.cottages) if (c.race && !c.ruin && c.race.k < (c.race.n || 1e9)) dig++; if (dig > (st.racesDigging || 0)) { hint('A cottage digs a mill race to bring the river to its wheel!'); st.raceHints = (st.raceHints || 0) + 1; } st.racesDigging = dig; }
+    if (S.P.millpond !== false) { let ponds = 0; for (const c of S.cottages) if (c.race && !c.ruin && c.race.pk > 0) ponds++; if (ponds > (st.pondsSeen || 0)) { hint('A miller builds a weir: the little millpond keeps the wheel turning in a dry spell'); st.pondHints = (st.pondHints || 0) + 1; } st.pondsSeen = ponds; } // millpond on by default (S.P.millpond === false turns it off)
     const fl = V.fields ? ` · ${V.fields} field${V.fields > 1 ? 's' : ''}` : '';
     const ru = V.ruins ? ` · ${V.ruins} ruin${V.ruins > 1 ? 's' : ''}` : '';
     const mi = V.mills ? ` · ${V.mills} mill${V.mills > 1 ? 's' : ''}` : '';
