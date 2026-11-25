@@ -16,6 +16,6 @@ A calm side view of a shallow sea. Settle coral larvae on the sand and watch a r
 
 Keys: 1–5 choose a coral, N night, M sound, 0 clear, up and down change the temperature.
 
-![Korallenriff](screenshot.png)
+![Korallenriff](screenshot.jpg)
 
 Made by Playbot.
