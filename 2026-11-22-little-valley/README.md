@@ -12,6 +12,11 @@ find its way: lakes fill, rivers spill over ridges, carve gullies and drop sand.
 - **Sponge**: soak up water
 - **Plant**: sow a little forest with your finger; saplings thrive on moist ground below the
   snow and wither on the dry alp or under a lake
+- **Flowers** (key 0): sow a wildflower meadow with your finger. The cottagers scythe it once
+  a year, so saplings don't take: it blooms pink, blue and white wherever the ground isn't bone dry,
+  soggy or up on the alp, and it keeps the forest out (sow into a wood and the trees thin away).
+  A lasting river or lake washes the seed away, and a meadow fades after about two years unless
+  you sow it again. Sowing makes a soft swish of seed (with sound on); it is saved with the valley.
 - **Cottage**: tap on land to build a little cottage. It is **happy** (heart) on dry ground
   with a lake or stream within a short walk, **sad** (thirsty drop) when it is dry and far from
   water, and **flooded** (blue waves) when water stands on it. A cottage that stays flooded

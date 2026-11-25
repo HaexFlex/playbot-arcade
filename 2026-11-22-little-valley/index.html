@@ -41,14 +41,14 @@ button.on{background:#ffe680;box-shadow:0 2px 0 #e0b93a,0 0 0 3px #ffd23f,0 4px 
 @media (orientation:landscape) and (max-height:520px){
   #top{padding:6px calc(env(safe-area-inset-right) + 66px) 0 calc(env(safe-area-inset-left) + 74px)}.pill{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:70vw;padding:5px 11px}#title b{font-size:15px}#title b{margin-right:5px}#seedName{font-size:11.5px}#clock{font-size:11.5px;margin-left:5px}#stats{font-size:11px}
   #tools{left:calc(env(safe-area-inset-left) + 6px);top:50%;bottom:auto;transform:translateY(-50%);flex-direction:column;gap:4px;padding:5px}
-  #tools button{width:58px;height:calc((100vh - 74px) / 9);max-height:56px;min-height:34px}
+  #tools button{width:58px;height:calc((100vh - 60px) / 10);max-height:54px;min-height:31px}
   #tools button svg{width:28px;height:28px}
   #ctl{right:calc(env(safe-area-inset-right) + 6px);top:50%;transform:translateY(-50%);gap:4px;padding:5px}
   #ctl button{width:50px;height:calc((100vh - 76px) / 8);max-height:50px;min-height:36px}
   #ctl button svg{width:22px;height:22px}#ctl button span{font-size:10px}
   #hint{top:40px;font-size:14px}
 }
-@media (max-width:430px){#title b{font-size:16px}#seedName{font-size:12px}#tools button span{font-size:10.5px;letter-spacing:-.01em}}
+@media (max-width:430px){#title b{font-size:16px}#seedName{font-size:12px}#tools button span{font-size:10px;letter-spacing:-.02em}}
 /* narrow portrait phones: the stats pill (trees, happy share, flowers) gets its own row under the title */
 @media (orientation:portrait) and (max-width:600px){#top{flex-wrap:wrap;row-gap:6px}#top .pill{max-width:calc(100vw - 20px)}#stats{margin-left:auto}#hint{top:calc(env(safe-area-inset-top) + 92px)}}
 /* valley wishes (v5): star button, panel, toast */
@@ -235,7 +235,7 @@ function create(N, seed, opts) {
   const P = Object.assign({}, DEFAULTS, opts || {});
   const n = N * N, F = () => new Float32Array(n);
   const T = generateTerrain(N, seed);
-  const S = { N, seed: String(seed), P, h: T.h, d: F(), s: F(), fL: F(), fR: F(), fT: F(), fB: F(), u: F(), v: F(), tmp: F(), tmp2: F(), ero: F(), wet: F(), dep: F(), veg: F(), tree: F(), bloom: F(), moist: F(), fert: F(), flood: F(), rush: F(), field: F(), ripe: F(), path: F(), tend: new Uint8Array(n), h0: null, springs: [], cottages: [], grown: 0, vtick: 0, steps: 0, time: 0, wx: null, rainNow: 0, dryNow: 0, dr: null, snow: F(), ice: F(), yearOff: 0, icePeak: 0, jam: null };
+  const S = { N, seed: String(seed), P, h: T.h, d: F(), s: F(), fL: F(), fR: F(), fT: F(), fB: F(), u: F(), v: F(), tmp: F(), tmp2: F(), ero: F(), wet: F(), dep: F(), veg: F(), tree: F(), bloom: F(), sown: F(), moist: F(), fert: F(), flood: F(), rush: F(), field: F(), ripe: F(), path: F(), tend: new Uint8Array(n), h0: null, springs: [], cottages: [], grown: 0, vtick: 0, steps: 0, time: 0, wx: null, rainNow: 0, dryNow: 0, dr: null, snow: F(), ice: F(), yearOff: 0, icePeak: 0, jam: null };
   S.h0 = new Float32Array(S.h);
   initLife(S);
   return S;
@@ -262,6 +262,7 @@ function initLife(S) {
   }
 }
 // flowers: rich meadow, not under the forest, not soggy, not up on the alp; patchy by fertility
+const SOWN_YEARS = 2, SOWN_SCYTHE = 0.03; // a sown meadow lasts about two years unless sown again; trees in it thin out by 0.03 per sim s at full strength
 function bloomTarget(g, t, m, hn, f) {
   return smoothstep(0.35, 0.75, g) * (1 - smoothstep(0.25, 0.55, t)) * smoothstep(0.08, 0.2, m) * (1 - smoothstep(0.8, 0.98, m)) * (1 - smoothstep(0.42, 0.56, hn)) * smoothstep(-0.25, 0.15, f);
 }
@@ -677,6 +678,7 @@ function groundWater(hn) { return 0.32 * (1 - smoothstep(0.12, 0.6, hn)); }
 
 function lifeStep(S) {
   const { N, h, d, u, v, veg, tree, moist, dep, fert, flood, rush, bloom } = S, H = N * 0.27, m2 = S.tmp;
+  const sown = S.sown, sownFade = SOWN_YEARS > 0 ? 1 / (SOWN_YEARS * yearLen(S)) : 0; // sown wildflower meadows (tool 'flowers') fade over SOWN_YEARS
   const ev = Math.max(1, Math.round(S.P.lifeEvery / (S.P.boost > 1 ? Math.min(S.P.boost, 3) : 1))), tl = ev * S.P.dt; // sim seconds since the last life step
   const rainK = S.P.rain > 0 ? Math.min(0.5, S.P.rain * 20) : 0, k0 = S.steps, D = S.dryNow || 0;
   const gwK = 1 - 0.75 * D, relax = 0.01 + 0.03 * D, spread = 0.86 - 0.12 * D, treeDry = 0.004 * (1 - 0.95 * D); // a drought dries the ground (trees rest)
@@ -701,8 +703,9 @@ function lifeStep(S) {
     flood[i] = fl;
     let ru = rush[i]; ru = di > 0.6 && sp > 3.5 ? ru + tl : ru * (di > 0.1 ? 0.98 : 0.9); rush[i] = ru;
     let g = veg[i], t = tree[i], fb = bloom[i];
-    if (ru > RUSH_SCOUR && sp > 3.5 && di > 0.6) { g -= 0.05; t -= 0.015; fb -= 0.08; } // a lasting river scours its bed
-    else if (fl > FLOOD_MEADOW) { g -= 0.02; fb -= 0.04; if (fl > FLOOD_TREE) t -= 0.006; } // drowning in a lake that stays
+    const sw = sown ? sown[i] : 0;
+    if (ru > RUSH_SCOUR && sp > 3.5 && di > 0.6) { g -= 0.05; t -= 0.015; fb -= 0.08; if (sw > 0) sown[i] = sw * 0.9; } // a lasting river scours its bed (and washes the sown seed away)
+    else if (fl > FLOOD_MEADOW) { g -= 0.02; fb -= 0.04; if (fl > FLOOD_TREE) t -= 0.006; if (sw > 0) sown[i] = sw * 0.95; } // drowning in a lake that stays
     else if (di > 0.1) { /* wet for now: no growth, no harm */ }
     else {
       const m = moist[i], alpine = 1 - smoothstep(0.55, 0.75, hn), rock = 1 - smoothstep(1.1, 1.8, sl);
@@ -718,7 +721,11 @@ function lifeStep(S) {
         }
       } else if (m + 0.35 * fert[i] < 0.2 || hn >= 0.6 || sl > 1.5) t -= (hn >= 0.6 || sl > 1.5) ? 0.004 : treeDry;
       if (dep[i] > 1.5) t -= 0.003; // buried by sand
-      const bt = bloomTarget(g, t, m, hn, fert[i]) * (dep[i] > 0.8 ? 0.3 : 1);
+      let bt = bloomTarget(g, t, m, hn, fert[i]) * (dep[i] > 0.8 ? 0.3 : 1);
+      if (sw > 0) { // a sown wildflower meadow: the cottagers scythe it once a year, so saplings don't take; it blooms wherever it isn't bone dry, soggy or up on the alp
+        t -= SOWN_SCYTHE * sw * tl; g += (Math.max(g, 0.7 * sw) - g) * 0.03;
+        bt = Math.max(bt, sw * smoothstep(0.03, 0.15, m) * (1 - smoothstep(0.85, 0.98, m)) * (1 - smoothstep(0.5, 0.6, hn)) * (dep[i] > 0.8 ? 0.3 : 1));
+        sown[i] = Math.max(0, sw - sownFade * tl); }
       fb += (bt - fb) * (bt > fb ? 0.012 : 0.02);
     }
     veg[i] = g < 0 ? 0 : g > 1 ? 1 : g; tree[i] = t < 0 ? 0 : t > 1 ? 1 : t; bloom[i] = fb < 0 ? 0 : fb > 1 ? 1 : fb;
@@ -810,6 +817,19 @@ function applyTool(S, tool, gx, gy, rad, dtReal, strength) {
       const w = 1 - dd * 0.6;
       S.tree[i] += (0.85 - S.tree[i]) * a * w * (cellRand(i, 3) < 0.8 ? 1 : 0.3); // a few gaps so it looks sown
       S.veg[i] += (1 - S.veg[i]) * a * 0.5; n++;
+    }
+    return n;
+  } else if (tool === 'flowers') {
+    // sow wildflowers: a meadow mix the cottagers keep scythed, so it blooms where the valley lets it (not under water)
+    const r = Math.max(1, rad), r2 = r * r, a = Math.min(1, k * 2.5);
+    const x0 = Math.max(1, Math.floor(gx - r)), x1 = Math.min(N - 2, Math.ceil(gx + r));
+    const y0 = Math.max(1, Math.floor(gy - r)), y1 = Math.min(N - 2, Math.ceil(gy + r));
+    let n = 0;
+    for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) {
+      const dd = ((x - gx) * (x - gx) + (y - gy) * (y - gy)) / r2; if (dd >= 1) continue;
+      const i = y * N + x; if (d[i] > 0.1) continue;
+      const w = (1 - dd * 0.6) * (cellRand(i, 5) < 0.85 ? 1 : 0.4);
+      S.sown[i] += (1 - S.sown[i]) * a * w; S.veg[i] += (1 - S.veg[i]) * a * 0.4; S.bloom[i] += (0.35 * S.sown[i] - S.bloom[i]) * a * 0.5 * (S.bloom[i] < 0.35 * S.sown[i] ? 1 : 0); n++;
     }
     return n;
   } else if (tool === 'well') {
@@ -1189,7 +1209,7 @@ function resample(S, N2) {
     const i = y * N2 + x, px = x * sc, py = y * sc;
     T.h[i] = lerp(S.h, px, py) * hs; T.d[i] = lerp(S.d, px, py) * hs; T.s[i] = lerp(S.s, px, py) * hs;
     T.wet[i] = lerp(S.wet, px, py); T.dep[i] = lerp(S.dep, px, py) * hs; T.h0[i] = lerp(S.h0, px, py) * hs;
-    T.veg[i] = lerp(S.veg, px, py); T.tree[i] = lerp(S.tree, px, py); T.moist[i] = lerp(S.moist, px, py); T.fert[i] = lerp(S.fert, px, py); T.flood[i] = lerp(S.flood, px, py); T.rush[i] = lerp(S.rush, px, py); T.bloom[i] = lerp(S.bloom, px, py); T.field[i] = lerp(S.field, px, py); T.ripe[i] = lerp(S.ripe, px, py); T.path[i] = lerp(S.path, px, py); T.snow[i] = lerp(S.snow, px, py) * hs; T.ice[i] = lerp(S.ice, px, py);
+    T.veg[i] = lerp(S.veg, px, py); T.tree[i] = lerp(S.tree, px, py); T.moist[i] = lerp(S.moist, px, py); T.fert[i] = lerp(S.fert, px, py); T.flood[i] = lerp(S.flood, px, py); if (S.sown) T.sown[i] = lerp(S.sown, px, py); T.rush[i] = lerp(S.rush, px, py); T.bloom[i] = lerp(S.bloom, px, py); T.field[i] = lerp(S.field, px, py); T.ripe[i] = lerp(S.ripe, px, py); T.path[i] = lerp(S.path, px, py); T.snow[i] = lerp(S.snow, px, py) * hs; T.ice[i] = lerp(S.ice, px, py);
   }
   T.springs = S.springs.map(sp => Object.assign({}, sp)); T.cottages = S.cottages.map(c => Object.assign({}, c, c.wheel ? { wheel: Object.assign({}, c.wheel) } : {}, c.race ? { race: Object.assign({}, c.race) } : {})); T.grown = S.grown; T.vtick = S.vtick; T.steps = S.steps; T.time = S.time; T.wx = S.wx ? Object.assign({}, S.wx) : null; T.rainNow = S.rainNow || 0; T.yearOff = S.yearOff || 0; T.icePeak = S.icePeak || 0; T.jam = S.jam ? Object.assign({}, S.jam) : null; T.dryNow = S.dryNow || 0; T.drOver = S.drOver ? Object.assign({}, S.drOver) : null;
   return T;
@@ -1319,7 +1339,7 @@ function unpackShare(bytes, seed, opts) {
   if (hasNaN(S)) throw new Error('share link has broken numbers');
   return S;
 }
-const API = { pondCells, POND_DEEP, WEIR_H, findRoute, ROUTE_CLIMB, waterfalls, FALL_DROP, FALL_Q, FALL_M, packState, unpackState, packShare, unpackShare, initLife,  iceStep, iceJam, totalIce, ICE_HOLD, JAM_MIN, JAM_Y, FLOE_PTS, eventRain, droughtOf, droughtAt, weatherEvent, STORM_AMP, yearFrac, yearFracAt, yearLen, yearNum, season, snowLine, snowFalling, leafState, snowStep, totalSnow, SEASONS, clockHour, dayFrac, planRain, rainCell, weatherStep, mulberry32, hashStr, makeNoise, randomSeedName, generateTerrain, create, seedLife, step, applyTool, totalWater, totalTerrain, resample, lifeStep, countTrees, countLife, leafy, treeHappy, cottageMood, cottageCell, countVillage, waterNear, wellYield, WELL_MIN, WELL_HIGH, MILL_T, MILL_RIPEN, raceCells, raceR, RACE_T, RACE_DIG, RACE_SP, FLOOD_RUIN, GROW_MAX, KIDS_MAX, GROW_T, plotSize, plotOf, plotCrop, hasNaN, DEFAULTS };
+const API = { SOWN_YEARS, SOWN_SCYTHE, pondCells, POND_DEEP, WEIR_H, findRoute, ROUTE_CLIMB, waterfalls, FALL_DROP, FALL_Q, FALL_M, packState, unpackState, packShare, unpackShare, initLife,  iceStep, iceJam, totalIce, ICE_HOLD, JAM_MIN, JAM_Y, FLOE_PTS, eventRain, droughtOf, droughtAt, weatherEvent, STORM_AMP, yearFrac, yearFracAt, yearLen, yearNum, season, snowLine, snowFalling, leafState, snowStep, totalSnow, SEASONS, clockHour, dayFrac, planRain, rainCell, weatherStep, mulberry32, hashStr, makeNoise, randomSeedName, generateTerrain, create, seedLife, step, applyTool, totalWater, totalTerrain, resample, lifeStep, countTrees, countLife, leafy, treeHappy, cottageMood, cottageCell, countVillage, waterNear, wellYield, WELL_MIN, WELL_HIGH, MILL_T, MILL_RIPEN, raceCells, raceR, RACE_T, RACE_DIG, RACE_SP, FLOOD_RUIN, GROW_MAX, KIDS_MAX, GROW_T, plotSize, plotOf, plotCrop, hasNaN, DEFAULTS };
 if (typeof module !== 'undefined' && module.exports) module.exports = API; else root.LV = API;
 })(typeof window !== 'undefined' ? window : globalThis);
 </script>
@@ -1339,6 +1359,7 @@ const IC = {
   spring: '<path d="M6 30c3-4 19-4 22 0z" fill="#8a6a48"/><path d="M17 28c-6 0-8-5-8-9 0-6 8-15 8-15s8 9 8 15c0 4-2 9-8 9z" fill="#4fb6ee" stroke="#2a83c4" stroke-width="1.6"/><path d="M13 18c0 3 1 5 3 6" stroke="#fff" stroke-width="2" fill="none" stroke-linecap="round"/><path d="M28 6v5M25.5 8.5h5" stroke="#ffc533" stroke-width="2" stroke-linecap="round"/>',
   drain: '<rect x="5" y="9" width="24" height="17" rx="5" fill="#ffd84a" stroke="#d6a91f" stroke-width="1.8"/><circle cx="12" cy="15" r="2" fill="#e3b52c"/><circle cx="20" cy="19" r="2.4" fill="#e3b52c"/><circle cx="24" cy="13" r="1.6" fill="#e3b52c"/><circle cx="11" cy="21.5" r="1.4" fill="#e3b52c"/><path d="M9 30l1-2M17 31l1-3M25 30l1-2" stroke="#3a9be0" stroke-width="2" stroke-linecap="round"/>',
   plant: '<path d="M5 30c4-3 20-3 24 0z" fill="#8a6a48"/><path d="M17 29V17" stroke="#7a5233" stroke-width="2.6" stroke-linecap="round"/><circle cx="17" cy="12" r="8" fill="#6cc04a" stroke="#3f8f34" stroke-width="1.6"/><circle cx="14" cy="10" r="2.6" fill="#a6e07a"/><path d="M28 4v5M25.5 6.5h5" stroke="#ffc533" stroke-width="2" stroke-linecap="round"/><path d="M6 20c0-4 3-6 6-6 0 4-3 6-6 6z" fill="#5fb548"/>',
+  flowers: '<path d="M4 30c4-3 22-3 26 0z" fill="#6cc04a"/><path d="M10 29v-9M17 29V14M24 29v-8" stroke="#3f8f34" stroke-width="1.8" stroke-linecap="round"/><path d="M17 24c-3-1-4-3-4-5 2 0 4 2 4 5zM24 25c2-1 3-3 3-4-2 0-3 2-3 4z" fill="#5fb548"/><g fill="#ff7ab8"><circle cx="17" cy="9" r="2.6"/><circle cx="21.4" cy="12" r="2.6"/><circle cx="12.6" cy="12" r="2.6"/><circle cx="19.6" cy="16.6" r="2.6"/><circle cx="14.4" cy="16.6" r="2.6"/></g><circle cx="17" cy="13.2" r="2.2" fill="#ffd84a"/><g fill="#8fb8ff"><circle cx="10" cy="17" r="2"/><circle cx="7.6" cy="19.4" r="2"/><circle cx="12.4" cy="19.4" r="2"/></g><circle cx="10" cy="19" r="1.2" fill="#fff"/><circle cx="24" cy="18.5" r="3" fill="#fff" stroke="#e3b52c" stroke-width="1"/><circle cx="24" cy="18.5" r="1.2" fill="#ffc533"/><path d="M28 4v5M25.5 6.5h5" stroke="#ffc533" stroke-width="2" stroke-linecap="round"/>',
   cottage: '<path d="M4 30c4-2 22-2 26 0z" fill="#6cc04a"/><rect x="8" y="16" width="18" height="13" fill="#f4e6c4" stroke="#b39463" stroke-width="1.4"/><path d="M5 17.5 17 7l12 10.5z" fill="#c8513a" stroke="#8e3424" stroke-width="1.4" stroke-linejoin="round"/><rect x="22" y="7" width="3.4" height="6" fill="#8e3424"/><rect x="11" y="19" width="5" height="4.6" fill="#ffd45a" stroke="#b39463" stroke-width="1"/><rect x="19" y="21" width="4.4" height="8" fill="#7a5233"/><path d="M26 3c2 0 2 2 4 2" stroke="#c9d6e2" stroke-width="1.8" fill="none" stroke-linecap="round"/>',
   well: '<path d="M4 30c4-2 22-2 26 0z" fill="#6cc04a"/><path d="M9 7 17 3l8 4z" fill="#c8513a" stroke="#8e3424" stroke-width="1.3" stroke-linejoin="round"/><path d="M11 7v12M23 7v12" stroke="#7a5233" stroke-width="2.2"/><path d="M11 11h12" stroke="#7a5233" stroke-width="1.4"/><path d="M17 11v4" stroke="#8a8a8a" stroke-width="1"/><rect x="15.5" y="15" width="3" height="3" fill="#7a5233"/><rect x="8" y="19" width="18" height="10" rx="2" fill="#b9b2a6" stroke="#77706a" stroke-width="1.4"/><path d="M8 23h18M13 19v4M21 19v4M10 23v6M17 23v6M24 23v6" stroke="#8d867c" stroke-width="1"/><ellipse cx="17" cy="19.5" rx="7" ry="1.6" fill="#3a9be0"/>',
   play: '<path d="M9 5l18 11L9 27z" fill="#3fae5a"/>', pause: '<rect x="7" y="5" width="6" height="22" rx="2" fill="#e8792b"/><rect x="19" y="5" width="6" height="22" rx="2" fill="#e8792b"/>',
@@ -1363,6 +1384,7 @@ const TOOLS = [
   ['spring', 'Spring', 'Tap to place a spring (tap it again to remove)'],
   ['drain', 'Sponge', 'Wipe to soak up water and springs'],
   ['plant', 'Plant', 'Hold to plant trees: they love moist ground below the snow'],
+  ['flowers', 'Flowers', 'Hold to sow wildflowers: the cottagers scythe the meadow, so it blooms and keeps the forest out'],
   ['cottage', 'Cottage', 'Tap on land to build a cottage: it loves water nearby and dry feet'],
   ['well', 'Well', 'Tap a thirsty cottage to dig a well (lowland groundwater, not on the rock)']
 ];
@@ -1418,6 +1440,9 @@ function digWell(g) {
     if (c && LV.cottageMood(S, c) === 'happy') { if (RESCUE.seed !== S.seed) { RESCUE.seed = S.seed; RESCUE.n = 0; } RESCUE.n++; st.rescues = RESCUE.n; msg = 'A well for a thirsty cottage! It drinks fresh water and is happy again'; } }
   hint(msg); statT = 0;
 }
+// first sowing ever (remembered in localStorage): one short hint on what the meadow does
+const SOW_KEY = 'lv-sow-hint'; let sowHinted = false; try { sowHinted = localStorage.getItem(SOW_KEY) === '1'; } catch (e) { /* private mode */ }
+function sowHint(n) { if (sowHinted || !(n > 0)) return; sowHinted = true; st.sowHintT = st.time; try { localStorage.setItem(SOW_KEY, '1'); } catch (e) { /* private mode */ } setTimeout(() => hint('🌼 Sown! It blooms in a while. Rivers wash it away, and it fades after two years unless you sow again'), 900); }
 function setTool(id) { st.tool = id; updUI(); hint(TOOLS.find(t => t[0] === id)[2]); }
 function updUI() {
   for (const [id] of TOOLS) $('t-' + id).classList.toggle('on', st.tool === id);
@@ -2886,7 +2911,7 @@ function drawOverlays(t) {
   const rad = SIZES[st.size][1] * N;
   if (st.tool === 'rain' && P.down) { drawRainCloud(g, rad, t); return; }
   if (st.tool === 'spring' || st.tool === 'cottage' || st.tool === 'well') return;
-  const col = { raise: '#ff9f43', lower: '#8a5a30', smooth: '#ffffff', drain: '#ffd84a', rain: '#3a9be0', plant: '#3fae5a' }[st.tool];
+  const col = { raise: '#ff9f43', lower: '#8a5a30', smooth: '#ffffff', drain: '#ffd84a', rain: '#3a9be0', plant: '#3fae5a', flowers: '#ff7ab8' }[st.tool];
   cx.save(); cx.strokeStyle = col; cx.lineWidth = P.down ? 3 : 2; cx.setLineDash(P.down ? [] : [6, 5]); cx.globalAlpha = 0.9;
   cx.beginPath();
   for (let k = 0; k <= 32; k++) { const a = k / 32 * 6.283; const q = proj(Math.max(0, Math.min(N - 1, g[0] + Math.cos(a) * rad)), Math.max(0, Math.min(N - 1, g[1] + Math.sin(a) * rad))); if (!q) continue; k ? cx.lineTo(q[0], q[1]) : cx.moveTo(q[0], q[1]); }
@@ -4346,7 +4371,7 @@ cv.addEventListener('pointerup', up); cv.addEventListener('pointercancel', up);
 cv.addEventListener('pointerleave', e => { if (st.ptr && !st.ptr.down) st.ptr = null; });
 document.addEventListener('gesturestart', e => e.preventDefault());
 document.addEventListener('keydown', e => {
-  const k = e.key.toLowerCase(); const map = { '1': 'raise', '2': 'lower', '3': 'smooth', '4': 'rain', '5': 'spring', '6': 'drain', '7': 'plant', '8': 'cottage', '9': 'well' };
+  const k = e.key.toLowerCase(); const map = { '1': 'raise', '2': 'lower', '3': 'smooth', '4': 'rain', '5': 'spring', '6': 'drain', '7': 'plant', '8': 'cottage', '9': 'well', '0': 'flowers' };
   if (map[k]) setTool(map[k]); else if (k === ' ') { e.preventDefault(); bPlay.click(); } else if (k === 'v') bView.click(); else if (k === 'n') $('c-new').click(); else if (k === 'r') $('c-reset').click(); else if (k === 's') bShower.click(); else if (k === 'b') bSize.click(); else if (k === 'f') bSpeed.click(); else if (k === '+' || k === '=') { volShow(); setVolume(AU.vol * 100 + 10); } else if (k === '-' || k === '_') { volShow(); setVolume(AU.vol * 100 - 10); } else if (k === 'escape') volHide();
 });
 
@@ -4474,7 +4499,7 @@ function frame(now) {
   const P = st.ptr;
   if (P && P.down && st.tool !== 'spring' && st.tool !== 'cottage' && st.tool !== 'well') {
     const g = unproj(P.x, P.y); P.g = g;
-    if (g) { fxBrush(S, g, P.x); LV.applyTool(S, st.tool, g[0], g[1], SIZES[st.size][1] * S.N, dtReal); }
+    if (g) { fxBrush(S, g, P.x); const res = LV.applyTool(S, st.tool, g[0], g[1], SIZES[st.size][1] * S.N, dtReal); if (st.tool === 'flowers') sowHint(res); }
   }
   // weather
   if (st.shower > 0) { st.shower -= dtReal; S.P.rain = 0.05; if (st.shower <= 0) { st.shower = 0; S.P.rain = 0; updUI(); } } else S.P.rain = 0;
@@ -4537,7 +4562,7 @@ function adapt(dt) {
 // and thunder after lightning, wind (stronger in winter and storms), birds by day in the forest, crickets on
 // summer evenings, an owl at night, the creak and clack of turning mill wheels, cowbells near the village.
 // window.LV_AUDIO holds the levels (0..1) and gains so tests can check them without listening.
-const AU = { want: false, on: false, started: false, state: 'none', nodes: 0, live: 0, L: {}, G: {}, ev: { chirp: 0, cricket: 0, owl: 0, clack: 0, creak: 0, bell: 0, thunder: 0, plop: 0, slurp: 0, splash: 0, knock: 0, well: 0, rustle: 0, rumble: 0, drip: 0, squeak: 0, thump: 0, crunch: 0, skate: 0, icicle: 0, puddle: 0, peep: 0, twit: 0, bat: 0, pipe: 0, whirr: 0, honk: 0, crane: 0, frank: 0, tsee: 0, zit: 0, murmur: 0, spade: 0 }, flow: 0, riverPan: 0, veg: 0, ticks: 0, vol: 1, snowCover: 0, rainMuffle: 0, rainCut: 9000, masterT: 0, melt: 0, meltPan: 0 };
+const AU = { want: false, on: false, started: false, state: 'none', nodes: 0, live: 0, L: {}, G: {}, ev: { chirp: 0, cricket: 0, owl: 0, clack: 0, creak: 0, bell: 0, thunder: 0, plop: 0, slurp: 0, splash: 0, knock: 0, well: 0, rustle: 0, rumble: 0, drip: 0, squeak: 0, thump: 0, crunch: 0, skate: 0, icicle: 0, puddle: 0, peep: 0, twit: 0, bat: 0, pipe: 0, whirr: 0, honk: 0, crane: 0, frank: 0, tsee: 0, zit: 0, murmur: 0, spade: 0, sow: 0 }, flow: 0, riverPan: 0, veg: 0, ticks: 0, vol: 1, snowCover: 0, rainMuffle: 0, rainCut: 9000, masterT: 0, melt: 0, meltPan: 0 };
 window.LV_AUDIO = AU;
 const AU_KEY = 'lv-sound', AU_MASTER = 0.45, AU_DT = 0.25;
 const AU_MAX = { river: 0.55, rain: 0.42, wind: 0.2, birds: 0.42, crickets: 0.13, owl: 0.38, mill: 0.42, cows: 0.26, thunder: 0.85, melt: 0.3 }; // full-level gain per layer
@@ -4734,6 +4759,12 @@ function sndRustle(x) { // planting: a soft leafy rustle, a few dry crackles ove
   for (let k = 0, n = 2 + (Math.random() * 3 | 0); k < n; k++) noiseHit('fx', AG.white, t + 0.03 + Math.random() * 0.22, 0.05, 'highpass', 3500 + Math.random() * 2500, 0.7, 0.1 + Math.random() * 0.06, pan, 0.008);
   AU.ev.rustle++;
 }
+function sndSow(x) { // sowing wildflowers: a light airy swish of seed leaving the hand, and a few tiny seed ticks landing
+  if (!fxOn()) return; const t = AG.ac.currentTime + 0.02, pan = fxPan(x);
+  const { fl } = noiseHit('fx', AG.pink, t, 0.28, 'bandpass', 4200 + Math.random() * 800, 0.9, 0.09, pan, 0.1); fl.frequency.setValueAtTime(fl.frequency.value, t); fl.frequency.linearRampToValueAtTime(2600, t + 0.26);
+  for (let k = 0, n = 3 + (Math.random() * 3 | 0); k < n; k++) noiseHit('fx', AG.white, t + 0.12 + Math.random() * 0.2, 0.025, 'highpass', 6000 + Math.random() * 2500, 0.8, 0.05 + Math.random() * 0.04, pan, 0.004);
+  AU.ev.sow++;
+}
 function sndCrunch(x, k) { // Raise, Dig or Smooth in dry snow: a soft, granular crunch (packed snow squeaking under the spade)
   if (!fxOn()) return; const t = AG.ac.currentTime + 0.02, pan = fxPan(x), n = 4 + (Math.random() * 4 | 0), len = 0.16 + Math.random() * 0.08;
   for (let q = 0; q < n; q++) { const a = t + len * (q / n) + Math.random() * 0.02;
@@ -4839,7 +4870,7 @@ function sndPeep(pan, k) { // a duckling: two or three tiny soft peeps (fx bus, 
 }
 function fxBrush(S, g, x) { // while a brush is held: splash or slurp now and then where there is water under the finger (Plant rustles on land)
   if (!fxOn() || !g) return; const tool = st.tool;
-  if (tool === 'plant') { const now = st.time; if (now - (AU.fxT || -9) < 0.3) return; const N = S.N, i = Math.round(g[1]) * N + Math.round(g[0]); if (!(i >= 0 && i < N * N) || S.d[i] > 0.3) return; AU.fxT = now + Math.random() * 0.12; sndRustle(x); return; }
+  if (tool === 'plant' || tool === 'flowers') { const now = st.time; if (now - (AU.fxT || -9) < 0.3) return; const N = S.N, i = Math.round(g[1]) * N + Math.round(g[0]); if (!(i >= 0 && i < N * N) || S.d[i] > (tool === 'flowers' ? 0.1 : 0.3)) return; AU.fxT = now + Math.random() * 0.12; if (tool === 'plant') sndRustle(x); else sndSow(x); return; }
   if (tool !== 'raise' && tool !== 'lower' && tool !== 'smooth' && tool !== 'drain') return;
   const N = S.N, gx = Math.round(g[0]), gy = Math.round(g[1]); let w = 0;
   for (let v = -1; v <= 1; v++) for (let u = -1; u <= 1; u++) { const X = gx + u, Y = gy + v; if (X >= 0 && Y >= 0 && X < N && Y < N) w = Math.max(w, S.d[Y * N + X]); }
