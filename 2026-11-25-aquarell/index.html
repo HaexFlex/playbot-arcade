@@ -1,0 +1,1316 @@
+<!DOCTYPE html>
+<html lang="de-CH">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light">
+<title>Aquarell</title>
+<style>
+  :root {
+    --ink: #2c2824;
+    --muted: #6f675d;
+    --desk: #e6ded0;
+    --panel: #ebe3d6;
+    --line: #cfc4b4;
+    --accent: #3c5568;
+    --accent-ink: #f4efe6;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0;
+    height: 100%;
+    overflow: hidden;
+    background: var(--desk);
+    color: var(--ink);
+    font-family: Inter, "Helvetica Neue", Helvetica, Arial, sans-serif;
+  }
+  body {
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  #app {
+    height: 100%;
+    height: 100dvh;
+    display: flex;
+    flex-direction: column;
+    max-width: 100%;
+    overflow: hidden;
+  }
+  #stage {
+    flex: 1 1 auto;
+    min-width: 0;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+  }
+  header {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 10px 14px 0;
+    padding-top: calc(8px + env(safe-area-inset-top));
+  }
+  h1 {
+    font-family: "Iowan Old Style", Palatino, "Palatino Linotype", "Noto Serif", Georgia, serif;
+    font-weight: 500;
+    font-size: 1.45rem;
+    letter-spacing: 0.01em;
+    margin: 0;
+    line-height: 1.1;
+  }
+  header p {
+    margin: 2px 0 0;
+    color: var(--muted);
+    font-size: 0.82rem;
+    line-height: 1.3;
+    max-width: 42rem;
+  }
+  main {
+    flex: 1 1 auto;
+    min-height: 96px;
+    min-width: 0;
+    display: flex;
+    padding: 8px 12px 6px;
+  }
+  canvas {
+    flex: 1 1 auto;
+    width: 100%;
+    height: 100%;
+    min-width: 0;
+    min-height: 0;
+    display: block;
+    touch-action: none;
+    cursor: crosshair;
+    border-radius: 3px;
+    background: #f4efe6;
+    box-shadow: 0 1px 0 rgba(80, 55, 30, 0.06), 0 10px 28px rgba(70, 50, 30, 0.08);
+  }
+  footer {
+    flex: 0 0 auto;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 10px;
+    width: 100%;
+    max-width: 100%;
+    padding: 6px 12px calc(10px + env(safe-area-inset-bottom));
+    background: var(--panel);
+    border-top: 1px solid var(--line);
+  }
+  .tools, .palette, .actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    min-width: 0;
+    max-width: 100%;
+  }
+  button {
+    min-height: 36px;
+    min-width: 36px;
+    padding: 6px 12px;
+    white-space: nowrap;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    background: transparent;
+    color: var(--ink);
+    font: inherit;
+    font-size: 0.92rem;
+    line-height: 1.2;
+    touch-action: manipulation;
+  }
+  button:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+  .tools button[aria-pressed="true"] {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: var(--accent-ink);
+  }
+  .size {
+    flex: 1 1 180px;
+    min-width: 0;
+    max-width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--muted);
+    font-size: 0.86rem;
+  }
+  .size span { flex: 0 0 auto; }
+  input[type="range"] {
+    flex: 1 1 auto;
+    width: 100%;
+    min-width: 0;
+    height: 36px;
+    margin: 0;
+    accent-color: var(--accent);
+    background: transparent;
+  }
+  .palette button {
+    width: 36px;
+    height: 36px;
+    padding: 0;
+    border-radius: 50%;
+    border: 1px solid rgba(40, 30, 20, 0.25);
+  }
+  .palette button[aria-checked="true"] {
+    box-shadow: 0 0 0 2px var(--panel), 0 0 0 4px var(--ink);
+  }
+  .actions button { background: #f7f2ea; }
+  #ton[aria-pressed="true"] {
+    background: var(--accent);
+    color: var(--accent-ink);
+    border-color: var(--accent);
+  }
+  @media (max-height: 520px) and (orientation: landscape) {
+    #app { flex-direction: row; }
+    header { padding: 8px 10px 0; }
+    header p { display: none; }
+    h1 { font-size: 1.2rem; }
+    main { padding: 6px 8px 8px; }
+    footer {
+      width: min(248px, 46vw);
+      max-height: 100%;
+      overflow-x: hidden;
+      overflow-y: auto;
+      align-content: flex-start;
+      border-top: 0;
+      border-left: 1px solid var(--line);
+      padding: 8px 10px calc(8px + env(safe-area-inset-bottom));
+    }
+  }
+  @media (max-width: 420px) {
+    header { padding-left: 10px; padding-right: 10px; }
+    h1 { font-size: 1.28rem; }
+    header p { font-size: 0.76rem; }
+    footer { padding-left: 8px; padding-right: 8px; gap: 6px; }
+    .tools button, .actions button { padding-left: 10px; padding-right: 10px; }
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="stage">
+    <header>
+      <div>
+        <h1>Aquarell</h1>
+        <p>Nass in nass. Die Farbe blüht und trocknet mit weichem Rand.</p>
+      </div>
+      <button id="ton" type="button" aria-pressed="false">Ton aus</button>
+    </header>
+    <main id="sheet">
+      <canvas id="paper" aria-label="Malfläche"></canvas>
+    </main>
+  </div>
+  <footer>
+    <div class="tools" role="radiogroup" aria-label="Werkzeug">
+      <button type="button" data-tool="pinsel" aria-pressed="true" title="Farbe auftragen">Pinsel</button>
+      <button type="button" data-tool="wasser" aria-pressed="false" title="Nass in nass">Wasser</button>
+      <button type="button" data-tool="foehn" aria-pressed="false" title="Stelle trocknen">Föhn</button>
+      <button type="button" data-tool="schwamm" aria-pressed="false" title="Farbe abheben">Schwamm</button>
+    </div>
+    <label class="size">
+      <span id="size-label">Grösse</span>
+      <input id="size" type="range" min="1" max="100" value="36" aria-labelledby="size-label">
+    </label>
+    <div class="palette" role="radiogroup" aria-label="Farben"></div>
+    <div class="actions">
+      <button id="neu" type="button">Neues Blatt</button>
+      <button id="save" type="button">Speichern</button>
+    </div>
+  </footer>
+</div>
+<script>
+'use strict';
+
+const PAPER = [0.973, 0.954, 0.924];
+const SIM = {
+  diffuse: 0.042,
+  evap: 0.00155,
+  capTh: 0.16,
+  capT: 0.062,
+  flow: 0.48,
+  flowMax: 0.24,
+  depBase: 0.0025,
+  depDry: 0.1,
+  depGran: 0.042,
+  depRim: 0.09,
+  pinWater: 0.5,
+  pinPig: 0.3,
+  washWater: 1.05,
+  foehn: 0.5,
+  foehnDep: 0.34,
+  sponge: 0.5,
+  odScale: 3.2
+};
+
+const PIGMENTS = [
+  { id: 'zitrone', name: 'Zitrone', hex: '#e4c84a', gran: 0.06, stain: 0.22 },
+  { id: 'orange', name: 'Orange', hex: '#e06e34', gran: 0.18, stain: 0.34 },
+  { id: 'krapplack', name: 'Krapplack', hex: '#c44758', gran: 0.1, stain: 0.9 },
+  { id: 'ultramarin', name: 'Ultramarin', hex: '#3d4e98', gran: 0.95, stain: 0.28 },
+  { id: 'preussisch', name: 'Preussischblau', hex: '#1d4a72', gran: 0.16, stain: 0.92 },
+  { id: 'smaragd', name: 'Smaragd', hex: '#1c7a58', gran: 0.12, stain: 0.62 },
+  { id: 'siena', name: 'Siena', hex: '#8b4c28', gran: 0.82, stain: 0.48 },
+  { id: 'payne', name: 'Paynegrau', hex: '#3c4550', gran: 0.48, stain: 0.58 }
+];
+
+function odOf(hex) {
+  const rgb = [1, 3, 5].map((i) => parseInt(hex.substr(i, 2), 16) / 255);
+  return rgb.map((v, i) => -Math.log(Math.max(0.025, Math.min(0.98, v / PAPER[i]))));
+}
+PIGMENTS.forEach((p) => { p.od = odOf(p.hex); });
+
+const canvas = document.getElementById('paper');
+const sheet = document.getElementById('sheet');
+const sizeEl = document.getElementById('size');
+const tonBtn = document.getElementById('ton');
+const paletteEl = document.querySelector('.palette');
+const toolBtns = [...document.querySelectorAll('.tools button')];
+
+let tool = 'pinsel';
+let pigment = PIGMENTS[3];
+let tonOn = false;
+let audioCtx = null;
+let noiseBuf = null;
+let lastRustle = 0;
+let neuArmed = 0;
+
+let W = 0;
+let H = 0;
+let w0, w1, s0, s1, d0, wet, gran0, gran1, stain0, stain1, dstain, paper;
+let active, stack, stackN = 0;
+const queue = [];
+let qh = 0;
+let running = false;
+let dirty = true;
+let presenter = null;
+
+function clamp(v, a, b) { return v < a ? a : v > b ? b : v; }
+function smooth01(e0, e1, x) {
+  const t = clamp((x - e0) / (e1 - e0), 0, 1);
+  return t * t * (3 - 2 * t);
+}
+function hash2(x, y) {
+  let n = Math.imul(x | 0, 374761393) + Math.imul(y | 0, 668265263);
+  n = (n ^ (n >>> 13)) | 0;
+  n = Math.imul(n, 1274126177);
+  return ((n ^ (n >>> 16)) >>> 0) / 4294967296;
+}
+function noise2(x, y) {
+  const x0 = Math.floor(x);
+  const y0 = Math.floor(y);
+  const fx = x - x0;
+  const fy = y - y0;
+  const sx = fx * fx * (3 - 2 * fx);
+  const sy = fy * fy * (3 - 2 * fy);
+  const a = hash2(x0, y0);
+  const b = hash2(x0 + 1, y0);
+  const c = hash2(x0, y0 + 1);
+  const d = hash2(x0 + 1, y0 + 1);
+  return a + (b - a) * sx + (c - a) * sy + (a - b - c + d) * sx * sy;
+}
+function paperAt(x, y) {
+  const p = 0.33;
+  return noise2(x * p, y * p) * 0.62
+    + noise2(x * p * 2.13 + 5.2, y * p * 2.13 + 1.7) * 0.26
+    + noise2(x * p * 4.35 + 9.1, y * p * 4.35 + 3.4) * 0.12;
+}
+
+function alloc(w, h, prev) {
+  const next = {
+    w0: new Float32Array(w * h),
+    w1: new Float32Array(w * h),
+    s0: new Float32Array(w * h * 3),
+    s1: new Float32Array(w * h * 3),
+    d0: new Float32Array(w * h * 3),
+    wet: new Uint8Array(w * h),
+    gran0: new Float32Array(w * h),
+    gran1: new Float32Array(w * h),
+    stain0: new Float32Array(w * h),
+    stain1: new Float32Array(w * h),
+    dstain: new Float32Array(w * h),
+    paper: new Float32Array(w * h),
+    active: new Uint8Array(w * h),
+    stack: new Int32Array(w * h),
+    stackB: new Int32Array(w * h),
+    wetNext: new Uint8Array(w * h),
+    _n: 0
+  };
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) next.paper[y * w + x] = paperAt(x, y);
+  }
+  if (prev && prev.W > 1 && prev.H > 1) {
+    const sx = prev.W / w;
+    const sy = prev.H / h;
+    for (let y = 0; y < h; y++) {
+      const fy = clamp((y + 0.5) * sy - 0.5, 0, prev.H - 1.001);
+      const y0 = fy | 0;
+      const y1 = Math.min(prev.H - 1, y0 + 1);
+      const ty = fy - y0;
+      for (let x = 0; x < w; x++) {
+        const fx = clamp((x + 0.5) * sx - 0.5, 0, prev.W - 1.001);
+        const x0 = fx | 0;
+        const x1 = Math.min(prev.W - 1, x0 + 1);
+        const tx = fx - x0;
+        const i00 = y0 * prev.W + x0;
+        const i10 = y0 * prev.W + x1;
+        const i01 = y1 * prev.W + x0;
+        const i11 = y1 * prev.W + x1;
+        const i = y * w + x;
+        const sample = (arr, ch) => {
+          const a = arr[i00 * 3 + ch];
+          const b = arr[i10 * 3 + ch];
+          const c = arr[i01 * 3 + ch];
+          const d = arr[i11 * 3 + ch];
+          return (a + (b - a) * tx) * (1 - ty) + (c + (d - c) * tx) * ty;
+        };
+        const sample1 = (arr) => {
+          const a = arr[i00], b = arr[i10], c = arr[i01], d = arr[i11];
+          return (a + (b - a) * tx) * (1 - ty) + (c + (d - c) * tx) * ty;
+        };
+        next.w0[i] = sample1(prev.w0);
+        next.wet[i] = next.w0[i] > 0.02 ? 1 : 0;
+        next.d0[i * 3] = sample(prev.d0, 0);
+        next.d0[i * 3 + 1] = sample(prev.d0, 1);
+        next.d0[i * 3 + 2] = sample(prev.d0, 2);
+        next.s0[i * 3] = sample(prev.s0, 0);
+        next.s0[i * 3 + 1] = sample(prev.s0, 1);
+        next.s0[i * 3 + 2] = sample(prev.s0, 2);
+        next.gran0[i] = sample1(prev.gran0);
+        next.stain0[i] = sample1(prev.stain0);
+        next.dstain[i] = sample1(prev.dstain);
+        const mass = next.s0[i * 3] + next.s0[i * 3 + 1] + next.s0[i * 3 + 2];
+        if (next.wet[i] || mass > 0.004) {
+          next.active[i] = 1;
+          next.stack[next._n++] = i;
+        }
+      }
+    }
+  }
+  return next;
+}
+
+let stackB;
+let wetNext;
+let paperSerial = 0;
+
+function adopt(buf) {
+  w0 = buf.w0; w1 = buf.w1;
+  s0 = buf.s0; s1 = buf.s1;
+  d0 = buf.d0; wet = buf.wet; wetNext = buf.wetNext;
+  gran0 = buf.gran0; gran1 = buf.gran1;
+  stain0 = buf.stain0; stain1 = buf.stain1;
+  dstain = buf.dstain; paper = buf.paper;
+  active = buf.active; stack = buf.stack; stackB = buf.stackB;
+  stackN = buf._n || 0;
+  paperSerial++;
+}
+
+function mark(i) {
+  if (active[i]) return;
+  active[i] = 1;
+  stack[stackN++] = i;
+}
+
+function clearSheet() {
+  if (!w0) return;
+  w0.fill(0); w1.fill(0); s0.fill(0); s1.fill(0); d0.fill(0);
+  wet.fill(0); gran0.fill(0); gran1.fill(0);
+  stain0.fill(0); stain1.fill(0); dstain.fill(0);
+  active.fill(0);
+  stackN = 0;
+  queue.length = 0;
+  qh = 0;
+  dirty = true;
+  kick();
+}
+
+function addSuspended(i, r, g, b, gran, stain) {
+  const m = r + g + b;
+  if (m <= 1e-8) return;
+  const i3 = i * 3;
+  const old = s0[i3] + s0[i3 + 1] + s0[i3 + 2];
+  s0[i3] = Math.min(SIM.odScale, s0[i3] + r);
+  s0[i3 + 1] = Math.min(SIM.odScale, s0[i3 + 1] + g);
+  s0[i3 + 2] = Math.min(SIM.odScale, s0[i3 + 2] + b);
+  const tot = old + m;
+  gran0[i] = (gran0[i] * old + gran * m) / tot;
+  stain0[i] = (stain0[i] * old + stain * m) / tot;
+}
+
+function applyDab(d) {
+  const rad = Math.max(1.5, d.rad);
+  const x0 = Math.max(0, Math.floor(d.x - rad));
+  const x1 = Math.min(W - 1, Math.ceil(d.x + rad));
+  const y0 = Math.max(0, Math.floor(d.y - rad));
+  const y1 = Math.min(H - 1, Math.ceil(d.y + rad));
+  const inner = rad * 0.2;
+  for (let y = y0; y <= y1; y++) {
+    for (let x = x0; x <= x1; x++) {
+      const dx = x - d.x;
+      const dy = y - d.y;
+      const dist = Math.hypot(dx, dy);
+      if (dist > rad) continue;
+      const fall = smooth01(rad, inner, dist) * d.press;
+      if (fall <= 0.001) continue;
+      const i = y * W + x;
+      mark(i);
+      if (x > 0) mark(i - 1);
+      if (x + 1 < W) mark(i + 1);
+      if (y > 0) mark(i - W);
+      if (y + 1 < H) mark(i + W);
+      if (d.tool === 'pinsel') {
+        w0[i] = Math.min(1.45, w0[i] + SIM.pinWater * fall);
+        if (w0[i] > 0.02) wet[i] = 1;
+        const k = SIM.pinPig * fall;
+        addSuspended(i, d.od[0] * k, d.od[1] * k, d.od[2] * k, d.gran, d.stain);
+      } else if (d.tool === 'wasser') {
+        w0[i] = Math.min(1.55, w0[i] + SIM.washWater * fall);
+        wet[i] = 1;
+      } else if (d.tool === 'foehn') {
+        const k = clamp(SIM.foehn * fall, 0, 0.92);
+        w0[i] *= (1 - k);
+        const dep = clamp(SIM.foehnDep * fall, 0, 0.85);
+        const i3 = i * 3;
+        const er = s0[i3] * dep;
+        const eg = s0[i3 + 1] * dep;
+        const eb = s0[i3 + 2] * dep;
+        const em = er + eg + eb;
+        const dm = d0[i3] + d0[i3 + 1] + d0[i3 + 2];
+        d0[i3] += er; d0[i3 + 1] += eg; d0[i3 + 2] += eb;
+        s0[i3] -= er; s0[i3 + 1] -= eg; s0[i3 + 2] -= eb;
+        if (dm + em > 1e-6) dstain[i] = (dstain[i] * dm + stain0[i] * em) / (dm + em);
+        if (w0[i] < 0.015) { w0[i] = 0; wet[i] = 0; }
+      } else if (d.tool === 'schwamm') {
+        const k = clamp(SIM.sponge * fall, 0, 0.85);
+        const i3 = i * 3;
+        s0[i3] *= (1 - k);
+        s0[i3 + 1] *= (1 - k);
+        s0[i3 + 2] *= (1 - k);
+        const lift = k * (1 - dstain[i] * 0.75);
+        d0[i3] *= (1 - lift);
+        d0[i3 + 1] *= (1 - lift);
+        d0[i3 + 2] *= (1 - lift);
+        w0[i] *= (1 - 0.45 * fall);
+        if (w0[i] < 0.015) { w0[i] = 0; wet[i] = 0; }
+      }
+    }
+  }
+}
+
+function growFront() {
+  const n0 = stackN;
+  for (let k = 0; k < n0; k++) {
+    const i = stack[k];
+    if (!wet[i] || w0[i] <= SIM.capTh) continue;
+    const x = i % W;
+    const y = (i / W) | 0;
+    if (x > 0) mark(i - 1);
+    if (x + 1 < W) mark(i + 1);
+    if (y > 0) mark(i - W);
+    if (y + 1 < H) mark(i + W);
+  }
+}
+
+function stepWater() {
+  growFront();
+  w1.fill(0);
+  const nstack = stackN;
+  for (let k = 0; k < nstack; k++) {
+    const i = stack[k];
+    const x = i % W;
+    const y = (i / W) | 0;
+    const w = w0[i];
+    if (wet[i]) {
+      let wn = w;
+      if (x > 0) {
+        const j = i - 1;
+        if (wet[j]) wn += (w0[j] - w) * SIM.diffuse;
+        else if (w > SIM.capTh) wn -= w * SIM.capT;
+      }
+      if (x + 1 < W) {
+        const j = i + 1;
+        if (wet[j]) wn += (w0[j] - w) * SIM.diffuse;
+        else if (w > SIM.capTh) wn -= w * SIM.capT;
+      }
+      if (y > 0) {
+        const j = i - W;
+        if (wet[j]) wn += (w0[j] - w) * SIM.diffuse;
+        else if (w > SIM.capTh) wn -= w * SIM.capT;
+      }
+      if (y + 1 < H) {
+        const j = i + W;
+        if (wet[j]) wn += (w0[j] - w) * SIM.diffuse;
+        else if (w > SIM.capTh) wn -= w * SIM.capT;
+      }
+      const ev = SIM.evap * (wn < 0.14 ? 1.85 : wn > 0.55 ? 0.62 : 1);
+      wn = Math.max(0, wn - ev);
+      if (wn < 0.01) { w1[i] = 0; wetNext[i] = 0; }
+      else { w1[i] = wn; wetNext[i] = 1; }
+    } else {
+      let take = 0;
+      if (x > 0 && wet[i - 1] && w0[i - 1] > SIM.capTh) take += w0[i - 1] * SIM.capT;
+      if (x + 1 < W && wet[i + 1] && w0[i + 1] > SIM.capTh) take += w0[i + 1] * SIM.capT;
+      if (y > 0 && wet[i - W] && w0[i - W] > SIM.capTh) take += w0[i - W] * SIM.capT;
+      if (y + 1 < H && wet[i + W] && w0[i + W] > SIM.capTh) take += w0[i + W] * SIM.capT;
+      if (take > 0.004) { w1[i] = take; wetNext[i] = 1; }
+      else { w1[i] = 0; wetNext[i] = 0; }
+    }
+  }
+  for (let k = 0; k < nstack; k++) wet[stack[k]] = wetNext[stack[k]];
+  const tmp = w0; w0 = w1; w1 = tmp;
+}
+
+function splat(j, r, g, b, gran, stain) {
+  const m = r + g + b;
+  if (m <= 1e-8) return;
+  const j3 = j * 3;
+  const old = s1[j3] + s1[j3 + 1] + s1[j3 + 2];
+  s1[j3] += r;
+  s1[j3 + 1] += g;
+  s1[j3 + 2] += b;
+  const tot = old + m;
+  gran1[j] = (gran1[j] * old + gran * m) / tot;
+  stain1[j] = (stain1[j] * old + stain * m) / tot;
+}
+
+function stepPigment() {
+  s1.fill(0);
+  const nstack = stackN;
+  for (let k = 0; k < nstack; k++) {
+    const i = stack[k];
+    const i3 = i * 3;
+    const r = s0[i3];
+    const g = s0[i3 + 1];
+    const b = s0[i3 + 2];
+    const mass = r + g + b;
+    if (mass < 1e-6) continue;
+    const gran = gran0[i];
+    const stain = stain0[i];
+    if (!wet[i]) {
+      splat(i, r, g, b, gran, stain);
+      continue;
+    }
+    const x = i % W;
+    const y = (i / W) | 0;
+    const w = w0[i];
+    let fL = 0, fR = 0, fU = 0, fD = 0;
+    if (x > 0 && wet[i - 1]) fL = clamp((w - w0[i - 1]) * SIM.flow, 0, SIM.flowMax);
+    if (x + 1 < W && wet[i + 1]) fR = clamp((w - w0[i + 1]) * SIM.flow, 0, SIM.flowMax);
+    if (y > 0 && wet[i - W]) fU = clamp((w - w0[i - W]) * SIM.flow, 0, SIM.flowMax);
+    if (y + 1 < H && wet[i + W]) fD = clamp((w - w0[i + W]) * SIM.flow, 0, SIM.flowMax);
+    let out = fL + fR + fU + fD;
+    if (out > 0.72) {
+      const s = 0.72 / out;
+      fL *= s; fR *= s; fU *= s; fD *= s;
+      out = 0.72;
+    }
+    const keep = 1 - out;
+    splat(i, r * keep, g * keep, b * keep, gran, stain);
+    if (fL) splat(i - 1, r * fL, g * fL, b * fL, gran, stain);
+    if (fR) splat(i + 1, r * fR, g * fR, b * fR, gran, stain);
+    if (fU) splat(i - W, r * fU, g * fU, b * fU, gran, stain);
+    if (fD) splat(i + W, r * fD, g * fD, b * fD, gran, stain);
+  }
+
+  for (let k = 0; k < nstack; k++) {
+    const i = stack[k];
+    const i3 = i * 3;
+    let r = s1[i3];
+    let g = s1[i3 + 1];
+    let b = s1[i3 + 2];
+    const mass = r + g + b;
+    if (mass < 1e-6) continue;
+    const x = i % W;
+    const y = (i / W) | 0;
+    const w = w0[i];
+    let dep;
+    if (!wet[i] || w < 0.01) dep = 1;
+    else {
+      const h = paper[i];
+      dep = SIM.depBase + SIM.depDry * smooth01(0.2, 0.015, w);
+      dep += gran1[i] * (1 - h) * SIM.depGran * smooth01(0.02, 0.2, w);
+      let dryN = 0;
+      let contrast = 0;
+      if (x === 0 || !wet[i - 1]) dryN++;
+      else contrast = Math.max(contrast, w - w0[i - 1]);
+      if (x + 1 >= W || !wet[i + 1]) dryN++;
+      else contrast = Math.max(contrast, w - w0[i + 1]);
+      if (y === 0 || !wet[i - W]) dryN++;
+      else contrast = Math.max(contrast, w - w0[i - W]);
+      if (y + 1 >= H || !wet[i + W]) dryN++;
+      else contrast = Math.max(contrast, w - w0[i + W]);
+      if (dryN) dep += Math.min(0.28, SIM.depRim * dryN * smooth01(0.55, 0.05, w));
+      if (w < 0.34 && contrast > 0.05) dep += Math.min(0.16, contrast * 0.28);
+      dep = clamp(dep, 0, 0.7);
+    }
+    const er = r * dep;
+    const eg = g * dep;
+    const eb = b * dep;
+    const em = er + eg + eb;
+    const dm = d0[i3] + d0[i3 + 1] + d0[i3 + 2];
+    d0[i3] += er; d0[i3 + 1] += eg; d0[i3 + 2] += eb;
+    s1[i3] = r - er; s1[i3 + 1] = g - eg; s1[i3 + 2] = b - eb;
+    if (dm + em > 1e-6) dstain[i] = (dstain[i] * dm + stain1[i] * em) / (dm + em);
+  }
+
+  const ts = s0; s0 = s1; s1 = ts;
+  const tg = gran0; gran0 = gran1; gran1 = tg;
+  const tt = stain0; stain0 = stain1; stain1 = tt;
+}
+
+function rebuild() {
+  const prevN = stackN;
+  for (let k = 0; k < prevN; k++) stackB[k] = stack[k];
+  for (let k = 0; k < prevN; k++) active[stackB[k]] = 0;
+  stackN = 0;
+  for (let k = 0; k < prevN; k++) {
+    const i = stackB[k];
+    const i3 = i * 3;
+    const mass = s0[i3] + s0[i3 + 1] + s0[i3 + 2];
+    if (wet[i] || w0[i] > 0.008 || mass > 0.0035) {
+      mark(i);
+      if (wet[i] && w0[i] > SIM.capTh * 0.85) {
+        const x = i % W;
+        const y = (i / W) | 0;
+        if (x > 0) mark(i - 1);
+        if (x + 1 < W) mark(i + 1);
+        if (y > 0) mark(i - W);
+        if (y + 1 < H) mark(i + W);
+      }
+    }
+  }
+}
+
+let lastStepMs = 0;
+let lastDrawMs = 0;
+function simulate() {
+  const t0 = performance.now();
+  let guard = 0;
+  while (qh < queue.length && guard < 28) {
+    applyDab(queue[qh++]);
+    guard++;
+  }
+  if (qh === queue.length && qh > 0) { queue.length = 0; qh = 0; }
+  if (stackN === 0) { lastStepMs = performance.now() - t0; return false; }
+  stepWater();
+  stepPigment();
+  rebuild();
+  lastStepMs = performance.now() - t0;
+  return true;
+}
+
+function chooseSim(cssW, cssH, kind) {
+  const gpu = kind === 'webgl';
+  let sw = Math.round(clamp(cssW * (gpu ? 0.8 : 0.48), 112, gpu ? 560 : 210));
+  sw = Math.max(64, Math.round(sw / 4) * 4);
+  let sh = Math.round(sw * (cssH / Math.max(1, cssW)));
+  sh = Math.max(64, Math.round(sh / 4) * 4);
+  const cap = gpu ? 200000 : 40000;
+  if (sw * sh > cap) {
+    const s = Math.sqrt(cap / (sw * sh));
+    sw = Math.max(64, Math.round((sw * s) / 4) * 4);
+    sh = Math.max(64, Math.round((sh * s) / 4) * 4);
+  }
+  return [sw, sh];
+}
+
+function createGL(cnv) {
+  const gl = cnv.getContext('webgl2', {
+    alpha: false,
+    antialias: false,
+    depth: false,
+    stencil: false,
+    preserveDrawingBuffer: false,
+    powerPreference: 'high-performance'
+  });
+  if (!gl) return null;
+  const vsSrc = `#version 300 es
+layout(location=0) in vec2 a;
+void main(){ gl_Position = vec4(a, 0.0, 1.0); }`;
+  const fsSrc = `#version 300 es
+precision highp float;
+uniform sampler2D uSus;
+uniform sampler2D uDep;
+uniform sampler2D uPaper;
+uniform vec2 uCanvas;
+uniform float uScale;
+out vec4 frag;
+float hash(vec2 p){
+  vec3 p3 = fract(vec3(p.xyx) * 0.1031);
+  p3 += dot(p3, p3.yzx + 33.33);
+  return fract((p3.x + p3.y) * p3.z);
+}
+float noise(vec2 p){
+  vec2 i = floor(p);
+  vec2 f = fract(p);
+  f = f * f * (3.0 - 2.0 * f);
+  float a = hash(i);
+  float b = hash(i + vec2(1.0, 0.0));
+  float c = hash(i + vec2(0.0, 1.0));
+  float d = hash(i + vec2(1.0, 1.0));
+  return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
+}
+void main(){
+  vec2 uv = vec2(gl_FragCoord.x / uCanvas.x, 1.0 - gl_FragCoord.y / uCanvas.y);
+  vec4 sus = texture(uSus, uv);
+  vec3 dep = texture(uDep, uv).rgb;
+  float h = texture(uPaper, uv).r;
+  vec3 od = (sus.rgb + dep) * uScale;
+  float fiber = noise(gl_FragCoord.xy * 0.72);
+  vec3 paper = vec3(0.973, 0.954, 0.924);
+  paper *= mix(0.978, 1.018, h);
+  paper *= mix(0.991, 1.01, fiber);
+  vec3 col = paper * exp(-od);
+  float wetness = sus.a;
+  col *= mix(1.0, 0.972, smoothstep(0.1, 0.75, wetness));
+  float edge = min(min(uv.x, uv.y), min(1.0 - uv.x, 1.0 - uv.y));
+  col *= mix(0.90, 1.0, smoothstep(0.0, 0.03, edge));
+  frag = vec4(col, 1.0);
+}`;
+  function compile(type, src) {
+    const sh = gl.createShader(type);
+    gl.shaderSource(sh, src);
+    gl.compileShader(sh);
+    if (!gl.getShaderParameter(sh, gl.COMPILE_STATUS)) {
+      throw new Error(gl.getShaderInfoLog(sh) || 'shader');
+    }
+    return sh;
+  }
+  let prog;
+  try {
+    prog = gl.createProgram();
+    gl.attachShader(prog, compile(gl.VERTEX_SHADER, vsSrc));
+    gl.attachShader(prog, compile(gl.FRAGMENT_SHADER, fsSrc));
+    gl.bindAttribLocation(prog, 0, 'a');
+    gl.linkProgram(prog);
+    if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) {
+      throw new Error(gl.getProgramInfoLog(prog) || 'link');
+    }
+  } catch (err) {
+    return null;
+  }
+  const buf = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
+  const loc = {
+    sus: gl.getUniformLocation(prog, 'uSus'),
+    dep: gl.getUniformLocation(prog, 'uDep'),
+    paper: gl.getUniformLocation(prog, 'uPaper'),
+    canvas: gl.getUniformLocation(prog, 'uCanvas'),
+    scale: gl.getUniformLocation(prog, 'uScale')
+  };
+  function makeTex() {
+    const t = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, t);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    return t;
+  }
+  const texSus = makeTex();
+  const texDep = makeTex();
+  const texPaper = makeTex();
+  let susBytes = new Uint8Array(0);
+  let depBytes = new Uint8Array(0);
+  let paperBytes = new Uint8Array(0);
+  let texW = 0;
+  let texH = 0;
+  let uploadedSerial = -1;
+
+  function ensure(w, h) {
+    if (texW === w && texH === h) return;
+    texW = w; texH = h;
+    const count = w * h * 4;
+    susBytes = new Uint8Array(count);
+    depBytes = new Uint8Array(count);
+    paperBytes = new Uint8Array(count);
+    gl.bindTexture(gl.TEXTURE_2D, texSus);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, w, h, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+    gl.bindTexture(gl.TEXTURE_2D, texDep);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, w, h, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+    gl.bindTexture(gl.TEXTURE_2D, texPaper);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, w, h, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+    uploadedSerial = -1;
+  }
+  function uploadPaper() {
+    if (!paper || paper.length !== texW * texH) return;
+    const n = texW * texH;
+    for (let i = 0; i < n; i++) {
+      const v = clamp(paper[i] * 255, 0, 255) | 0;
+      const p = i * 4;
+      paperBytes[p] = v;
+      paperBytes[p + 1] = v;
+      paperBytes[p + 2] = v;
+      paperBytes[p + 3] = 255;
+    }
+    gl.bindTexture(gl.TEXTURE_2D, texPaper);
+    gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, texW, texH, gl.RGBA, gl.UNSIGNED_BYTE, paperBytes);
+  }
+  function draw() {
+    if (!W || !H) return;
+    ensure(W, H);
+    if (uploadedSerial !== paperSerial) {
+      uploadPaper();
+      uploadedSerial = paperSerial;
+    }
+    const scale = 255 / SIM.odScale;
+    const n = W * H;
+    for (let i = 0; i < n; i++) {
+      const i3 = i * 3;
+      const p = i * 4;
+      susBytes[p] = clamp(s0[i3] * scale, 0, 255) | 0;
+      susBytes[p + 1] = clamp(s0[i3 + 1] * scale, 0, 255) | 0;
+      susBytes[p + 2] = clamp(s0[i3 + 2] * scale, 0, 255) | 0;
+      susBytes[p + 3] = clamp(w0[i] * 170, 0, 255) | 0;
+      depBytes[p] = clamp(d0[i3] * scale, 0, 255) | 0;
+      depBytes[p + 1] = clamp(d0[i3 + 1] * scale, 0, 255) | 0;
+      depBytes[p + 2] = clamp(d0[i3 + 2] * scale, 0, 255) | 0;
+      depBytes[p + 3] = 255;
+    }
+    gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
+    gl.bindTexture(gl.TEXTURE_2D, texSus);
+    gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, W, H, gl.RGBA, gl.UNSIGNED_BYTE, susBytes);
+    gl.bindTexture(gl.TEXTURE_2D, texDep);
+    gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, W, H, gl.RGBA, gl.UNSIGNED_BYTE, depBytes);
+    gl.useProgram(prog);
+    gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+    gl.enableVertexAttribArray(0);
+    gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+    gl.viewport(0, 0, cnv.width, cnv.height);
+    gl.uniform1i(loc.sus, 0);
+    gl.uniform1i(loc.dep, 1);
+    gl.uniform1i(loc.paper, 2);
+    gl.uniform2f(loc.canvas, cnv.width, cnv.height);
+    gl.uniform1f(loc.scale, SIM.odScale);
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, texSus);
+    gl.activeTexture(gl.TEXTURE1);
+    gl.bindTexture(gl.TEXTURE_2D, texDep);
+    gl.activeTexture(gl.TEXTURE2);
+    gl.bindTexture(gl.TEXTURE_2D, texPaper);
+    gl.drawArrays(gl.TRIANGLES, 0, 3);
+  }
+  function sample(nx, ny) {
+    draw();
+    const x = clamp(nx * cnv.width, 0, cnv.width - 1) | 0;
+    const y = clamp((1 - ny) * cnv.height, 0, cnv.height - 1) | 0;
+    const px = new Uint8Array(4);
+    gl.readPixels(x, y, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px);
+    return [px[0], px[1], px[2]];
+  }
+  return { kind: 'webgl', draw, sample, gl };
+}
+
+function create2D(cnv) {
+  const ctx = cnv.getContext('2d', { alpha: false });
+  const off = document.createElement('canvas');
+  const octx = off.getContext('2d', { alpha: false });
+  let image = null;
+  function ensure() {
+    if (off.width !== W || off.height !== H) {
+      off.width = W;
+      off.height = H;
+      image = octx.createImageData(W, H);
+    }
+  }
+  function draw() {
+    if (!W || !H) return;
+    ensure();
+    const img = image.data;
+    const n = W * H;
+    for (let i = 0; i < n; i++) {
+      const i3 = i * 3;
+      const h = paper[i];
+      const x = i % W;
+      const y = (i / W) | 0;
+      const fiber = hash2(x * 3 + 1, y * 5 + 2);
+      let pr = PAPER[0] * (0.945 + 0.085 * h) * (0.99 + 0.02 * fiber);
+      let pg = PAPER[1] * (0.945 + 0.085 * h) * (0.99 + 0.02 * fiber);
+      let pb = PAPER[2] * (0.945 + 0.085 * h) * (0.99 + 0.02 * fiber);
+      const r = pr * Math.exp(-(d0[i3] + s0[i3]));
+      const g = pg * Math.exp(-(d0[i3 + 1] + s0[i3 + 1]));
+      const b = pb * Math.exp(-(d0[i3 + 2] + s0[i3 + 2]));
+      const dark = 1 - 0.028 * clamp(w0[i] / 0.55, 0, 1);
+      const p = i * 4;
+      img[p] = clamp(r * dark * 255, 0, 255) | 0;
+      img[p + 1] = clamp(g * dark * 255, 0, 255) | 0;
+      img[p + 2] = clamp(b * dark * 255, 0, 255) | 0;
+      img[p + 3] = 255;
+    }
+    octx.putImageData(image, 0, 0);
+    ctx.imageSmoothingEnabled = true;
+    ctx.fillStyle = '#f3eee4';
+    ctx.fillRect(0, 0, cnv.width, cnv.height);
+    ctx.drawImage(off, 0, 0, cnv.width, cnv.height);
+  }
+  function sample(nx, ny) {
+    draw();
+    const x = clamp(nx * cnv.width, 0, cnv.width - 1) | 0;
+    const y = clamp(ny * cnv.height, 0, cnv.height - 1) | 0;
+    const px = ctx.getImageData(x, y, 1, 1).data;
+    return [px[0], px[1], px[2]];
+  }
+  return { kind: '2d', draw, sample };
+}
+
+function brushRadius(pressure) {
+  const t = Number(sizeEl.value) / 100;
+  const base = W * (0.012 + t * t * 0.105);
+  return Math.max(1.7, base * (0.68 + 0.5 * pressure));
+}
+function pressureOf(ev) {
+  if (ev.pointerType === 'pen') return clamp(ev.pressure || 0.4, 0.08, 1);
+  if (typeof ev.pressure === 'number' && ev.pressure > 0 && Math.abs(ev.pressure - 0.5) > 0.02 && ev.pointerType !== 'mouse') {
+    return clamp(ev.pressure, 0.08, 1);
+  }
+  return 0.74;
+}
+function enqueueAt(x, y, press) {
+  if (!W) return;
+  queue.push({
+    x, y,
+    rad: brushRadius(press),
+    press: 0.45 + 0.55 * press,
+    tool,
+    od: pigment.od,
+    gran: pigment.gran,
+    stain: pigment.stain
+  });
+  if (qh > 240) {
+    queue.splice(0, qh);
+    qh = 0;
+  }
+  kick();
+}
+
+let painting = false;
+let lastPt = null;
+function pointerPos(ev) {
+  const r = canvas.getBoundingClientRect();
+  const x = ((ev.clientX - r.left) / Math.max(1, r.width)) * W;
+  const y = ((ev.clientY - r.top) / Math.max(1, r.height)) * H;
+  return { x, y, p: pressureOf(ev) };
+}
+function strokeTo(pt) {
+  if (!lastPt) {
+    enqueueAt(pt.x, pt.y, pt.p);
+    lastPt = pt;
+    rustle();
+    return;
+  }
+  const dx = pt.x - lastPt.x;
+  const dy = pt.y - lastPt.y;
+  const dist = Math.hypot(dx, dy);
+  const step = Math.max(1.25, brushRadius(pt.p) * 0.5);
+  const n = Math.max(1, Math.min(18, Math.ceil(dist / step)));
+  for (let i = 1; i <= n; i++) {
+    const f = i / n;
+    enqueueAt(lastPt.x + dx * f, lastPt.y + dy * f, pt.p);
+  }
+  lastPt = pt;
+  rustle();
+}
+function onStrokeMove(ev) {
+  if (!painting) return;
+  const list = ev.getCoalescedEvents ? ev.getCoalescedEvents() : [ev];
+  for (let i = 0; i < list.length; i++) strokeTo(pointerPos(list[i]));
+}
+function endStroke() {
+  if (!painting) return;
+  painting = false;
+  lastPt = null;
+  window.removeEventListener('pointermove', onStrokeMove);
+  window.removeEventListener('pointerup', endStroke);
+  window.removeEventListener('pointercancel', endStroke);
+}
+canvas.addEventListener('pointerdown', (ev) => {
+  if (ev.button != null && ev.button !== 0) return;
+  endStroke();
+  painting = true;
+  lastPt = null;
+  window.addEventListener('pointermove', onStrokeMove);
+  window.addEventListener('pointerup', endStroke);
+  window.addEventListener('pointercancel', endStroke);
+  strokeTo(pointerPos(ev));
+  ev.preventDefault();
+});
+canvas.addEventListener('contextmenu', (ev) => ev.preventDefault());
+
+function setTool(next) {
+  tool = next;
+  toolBtns.forEach((b) => b.setAttribute('aria-pressed', b.dataset.tool === tool ? 'true' : 'false'));
+}
+toolBtns.forEach((b) => b.addEventListener('click', () => setTool(b.dataset.tool)));
+
+function selectPigment(p) {
+  pigment = p;
+  setTool('pinsel');
+  [...paletteEl.children].forEach((b) => b.setAttribute('aria-checked', b.dataset.id === p.id ? 'true' : 'false'));
+}
+PIGMENTS.forEach((p, idx) => {
+  const b = document.createElement('button');
+  b.type = 'button';
+  b.dataset.id = p.id;
+  b.title = p.name;
+  b.setAttribute('role', 'radio');
+  b.setAttribute('aria-label', p.name);
+  b.setAttribute('aria-checked', idx === 3 ? 'true' : 'false');
+  b.style.background = p.hex;
+  b.addEventListener('click', () => selectPigment(p));
+  paletteEl.appendChild(b);
+});
+
+document.getElementById('neu').addEventListener('click', () => {
+  const now = performance.now();
+  const btn = document.getElementById('neu');
+  if (neuArmed && now - neuArmed < 1600) {
+    if (now - neuArmed < 280) return;
+    clearSheet();
+    btn.textContent = 'Neues Blatt';
+    neuArmed = 0;
+  } else {
+    neuArmed = now;
+    btn.textContent = 'Sicher?';
+    setTimeout(() => {
+      if (btn.textContent === 'Sicher?' && performance.now() - neuArmed >= 1500) {
+        btn.textContent = 'Neues Blatt';
+        neuArmed = 0;
+      }
+    }, 1600);
+  }
+});
+
+function exportPNG() {
+  if (!presenter) return;
+  presenter.draw();
+  const out = document.createElement('canvas');
+  out.width = canvas.width;
+  out.height = canvas.height;
+  const ctx = out.getContext('2d');
+  if (presenter.kind === 'webgl') {
+    const gl = presenter.gl;
+    const w = canvas.width;
+    const h = canvas.height;
+    const raw = new Uint8Array(w * h * 4);
+    gl.readPixels(0, 0, w, h, gl.RGBA, gl.UNSIGNED_BYTE, raw);
+    const img = ctx.createImageData(w, h);
+    for (let y = 0; y < h; y++) {
+      const src = (h - 1 - y) * w * 4;
+      img.data.set(raw.subarray(src, src + w * 4), y * w * 4);
+    }
+    ctx.putImageData(img, 0, 0);
+  } else {
+    ctx.drawImage(canvas, 0, 0);
+  }
+  out.toBlob((blob) => {
+    if (!blob) return;
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'aquarell.png';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
+    window.__lastExportBytes = blob.size;
+  }, 'image/png');
+}
+document.getElementById('save').addEventListener('click', exportPNG);
+
+tonBtn.addEventListener('click', () => {
+  tonOn = !tonOn;
+  tonBtn.setAttribute('aria-pressed', tonOn ? 'true' : 'false');
+  tonBtn.textContent = tonOn ? 'Ton an' : 'Ton aus';
+  if (tonOn) ensureAudio();
+});
+
+function ensureAudio() {
+  if (audioCtx) return;
+  const AC = window.AudioContext || window.webkitAudioContext;
+  if (!AC) return;
+  try {
+    audioCtx = new AC();
+    const len = Math.floor(audioCtx.sampleRate * 0.8);
+    const buf = audioCtx.createBuffer(1, len, audioCtx.sampleRate);
+    const data = buf.getChannelData(0);
+    let b0 = 0;
+    let b1 = 0;
+    for (let i = 0; i < len; i++) {
+      const white = Math.random() * 2 - 1;
+      b0 = 0.996 * b0 + 0.03 * white;
+      b1 = 0.97 * b1 + 0.015 * white;
+      data[i] = b0 * 0.65 + b1 * 0.45;
+    }
+    noiseBuf = buf;
+  } catch (err) {
+    audioCtx = null;
+  }
+}
+function rustle() {
+  if (!tonOn) return;
+  const now = performance.now();
+  if (now - lastRustle < 80) return;
+  lastRustle = now;
+  ensureAudio();
+  if (!audioCtx || !noiseBuf) return;
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+  const src = audioCtx.createBufferSource();
+  src.buffer = noiseBuf;
+  const filter = audioCtx.createBiquadFilter();
+  const gain = audioCtx.createGain();
+  const t = audioCtx.currentTime;
+  let dur = 0.09;
+  let freq = 1300;
+  let vol = 0.014;
+  if (tool === 'wasser') { freq = 620; dur = 0.16; vol = 0.016; filter.Q.value = 0.5; filter.type = 'lowpass'; }
+  else if (tool === 'foehn') { freq = 1900; dur = 0.14; vol = 0.01; filter.Q.value = 0.35; filter.type = 'highpass'; }
+  else if (tool === 'schwamm') { freq = 480; dur = 0.11; vol = 0.016; filter.Q.value = 0.7; filter.type = 'bandpass'; }
+  else { freq = 1100 + Math.random() * 900; filter.Q.value = 0.8; filter.type = 'bandpass'; }
+  filter.frequency.value = freq;
+  gain.gain.setValueAtTime(vol, t);
+  gain.gain.exponentialRampToValueAtTime(0.0008, t + dur);
+  src.connect(filter);
+  filter.connect(gain);
+  gain.connect(audioCtx.destination);
+  const offset = Math.random() * Math.max(0.01, noiseBuf.duration - dur - 0.02);
+  src.start(t, offset, dur + 0.02);
+}
+
+window.addEventListener('keydown', (ev) => {
+  if (ev.metaKey || ev.ctrlKey || ev.altKey) return;
+  const tag = ev.target && ev.target.tagName;
+  if (tag === 'INPUT' && ev.key !== 'm' && ev.key !== 'M') return;
+  const k = ev.key;
+  if (k >= '1' && k <= '8') {
+    selectPigment(PIGMENTS[Number(k) - 1]);
+    ev.preventDefault();
+  } else if (k === 'p' || k === 'P') setTool('pinsel');
+  else if (k === 'w' || k === 'W') setTool('wasser');
+  else if (k === 'f' || k === 'F') setTool('foehn');
+  else if (k === 's' || k === 'S') setTool('schwamm');
+  else if (k === 'm' || k === 'M') tonBtn.click();
+  else if (k === '[' || k === ']') {
+    sizeEl.value = String(clamp(Number(sizeEl.value) + (k === ']' ? 6 : -6), 1, 100));
+    ev.preventDefault();
+  }
+});
+
+function fitCanvas() {
+  const rect = canvas.getBoundingClientRect();
+  const dpr = Math.min(window.devicePixelRatio || 1, 1.6);
+  let cw = Math.max(2, Math.round(rect.width * dpr));
+  let ch = Math.max(2, Math.round(rect.height * dpr));
+  const cap = 1500000;
+  if (cw * ch > cap) {
+    const s = Math.sqrt(cap / (cw * ch));
+    cw = Math.max(2, Math.round(cw * s));
+    ch = Math.max(2, Math.round(ch * s));
+  }
+  if (canvas.width !== cw || canvas.height !== ch) {
+    canvas.width = cw;
+    canvas.height = ch;
+  }
+  return rect;
+}
+
+function resize() {
+  const rect = fitCanvas();
+  if (rect.width < 2 || rect.height < 2) return;
+  const kind = presenter ? presenter.kind : 'webgl';
+  const [sw, sh] = chooseSim(rect.width, rect.height, kind);
+  if (sw !== W || sh !== H) {
+    const prev = W > 1 ? {
+      W, H, w0, s0, d0, gran0, stain0, dstain
+    } : null;
+    const buf = alloc(sw, sh, prev);
+    W = sw;
+    H = sh;
+    adopt(buf);
+    if (presenter && presenter.kind === 'webgl') {
+      /* paper texture refreshes on the next draw */
+    }
+  }
+  dirty = true;
+  kick();
+}
+
+function frame() {
+  let stepped = false;
+  if (W > 0 && (qh < queue.length || stackN > 0)) {
+    simulate();
+    stepped = true;
+  }
+  if ((stepped || dirty) && presenter) {
+    const td = performance.now();
+    presenter.draw();
+    lastDrawMs = performance.now() - td;
+  }
+  dirty = false;
+  if (qh < queue.length || stackN > 0) requestAnimationFrame(frame);
+  else running = false;
+}
+function kick() {
+  if (running) return;
+  running = true;
+  requestAnimationFrame(frame);
+}
+
+function boot() {
+  const params = new URLSearchParams(location.search);
+  const force2d = params.get('renderer') === '2d';
+  presenter = !force2d ? createGL(canvas) : null;
+  if (!presenter) presenter = create2D(canvas);
+  canvas.dataset.mode = presenter.kind;
+  resize();
+  canvas.dataset.ready = '1';
+  dirty = true;
+  kick();
+}
+
+let resizeQueued = false;
+const ro = new ResizeObserver(() => {
+  if (resizeQueued) return;
+  resizeQueued = true;
+  requestAnimationFrame(() => {
+    resizeQueued = false;
+    resize();
+  });
+});
+ro.observe(sheet);
+window.addEventListener('resize', () => {
+  if (resizeQueued) return;
+  resizeQueued = true;
+  requestAnimationFrame(() => { resizeQueued = false; resize(); });
+});
+
+window.__aq = {
+  get mode() { return presenter ? presenter.kind : ''; },
+  get size() { return { w: W, h: H, active: stackN }; },
+  get stepMs() { return lastStepMs; },
+  get drawMs() { return lastDrawMs; },
+  sampleSim(nx, ny) {
+    const x = clamp(nx * W, 0, W - 1) | 0;
+    const y = clamp(ny * H, 0, H - 1) | 0;
+    const i = y * W + x;
+    const i3 = i * 3;
+    return {
+      w: w0[i], wet: wet[i],
+      s: [s0[i3], s0[i3 + 1], s0[i3 + 2]],
+      d: [d0[i3], d0[i3 + 1], d0[i3 + 2]]
+    };
+  },
+  sampleColor(nx, ny) {
+    return presenter ? presenter.sample(nx, ny) : [0, 0, 0];
+  }
+};
+
+boot();
+</script>
+</body>
+</html>
