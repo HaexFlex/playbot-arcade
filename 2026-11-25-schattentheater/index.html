@@ -1,0 +1,2051 @@
+<!DOCTYPE html>
+<html lang="de-CH">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="dark">
+<title>Schattentheater</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect fill='%236e0c22' width='32' height='32' rx='6'/%3E%3Ccircle fill='%23f3c98a' cx='16' cy='16' r='7'/%3E%3C/svg%3E">
+<style>
+  :root {
+    --ink: #f6e7cf;
+    --muted: #e4cfb2;
+    --wood: #2a150f;
+    --wood-2: #3a2016;
+    --line: #5a3824;
+    --btn: #fff6e6;
+    --btn-ink: #3a2414;
+    --gold: #e6c27a;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0;
+    height: 100%;
+    max-width: 100%;
+    overflow: hidden;
+    background: #140a08;
+    color: var(--ink);
+    font-family: "Segoe UI", system-ui, sans-serif;
+    overscroll-behavior: none;
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+  #app {
+    height: 100%;
+    height: 100dvh;
+    width: 100%;
+    max-width: 100%;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    min-width: 0;
+  }
+  header, #dock {
+    background: var(--wood);
+    max-width: 100%;
+    min-width: 0;
+    flex: 0 0 auto;
+  }
+  header {
+    padding: 8px 10px 6px;
+    padding-top: max(8px, env(safe-area-inset-top));
+    border-bottom: 1px solid var(--line);
+  }
+  #dock {
+    padding: 8px 10px 10px;
+    padding-bottom: max(10px, env(safe-area-inset-bottom));
+    border-top: 1px solid var(--line);
+    background: var(--wood-2);
+  }
+  .titleRow {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 8px;
+    min-width: 0;
+  }
+  h1 {
+    margin: 0;
+    font-family: Georgia, "Palatino Linotype", Palatino, serif;
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    line-height: 1.1;
+  }
+  .tag {
+    font-size: 12px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #c8ae90;
+  }
+  .tools {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    align-items: center;
+    margin-top: 6px;
+    min-width: 0;
+    max-width: 100%;
+  }
+  #dock .tools { margin-top: 0; }
+  button {
+    min-height: 36px;
+    min-width: 36px;
+    max-width: 100%;
+    padding: 8px 12px;
+    border-radius: 999px;
+    border: 1px solid #c4a078;
+    background: var(--btn);
+    color: var(--btn-ink);
+    font: 600 14px/20px "Segoe UI", system-ui, sans-serif;
+    cursor: pointer;
+    touch-action: manipulation;
+  }
+  button:focus-visible {
+    outline: 2px solid var(--gold);
+    outline-offset: 2px;
+  }
+  button[aria-pressed="true"] {
+    background: #f0d7a4;
+    border-color: #a87830;
+  }
+  button.sel { box-shadow: inset 0 0 0 2px #a85a18; }
+  button.dim { opacity: 0.55; }
+  #stage {
+    flex: 1 1 auto;
+    min-height: 0;
+    min-width: 0;
+    position: relative;
+    background: #1c0e0a;
+  }
+  canvas {
+    width: 100%;
+    height: 100%;
+    display: block;
+    touch-action: none;
+    cursor: grab;
+  }
+  canvas.grabbing { cursor: grabbing; }
+  .note {
+    margin: 6px 0 0;
+    font-size: 14px;
+    line-height: 1.35;
+    color: var(--muted);
+    overflow-wrap: break-word;
+    min-width: 0;
+  }
+  @media (max-height: 430px) {
+    header { padding: 4px 8px 4px; }
+    #dock { padding: 4px 8px 6px; }
+    h1 { font-size: 17px; }
+    .tools { margin-top: 4px; gap: 4px; }
+    .note { margin-top: 4px; font-size: 13px; }
+    button { padding: 6px 10px; }
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <div class="titleRow">
+      <h1>Schattentheater</h1>
+      <span class="tag">Schattenspiel</span>
+    </div>
+    <div class="tools" id="controls">
+      <button type="button" id="btnVorhang" aria-pressed="true">Vorhang auf</button>
+      <button type="button" id="btnRec" aria-pressed="false">Aufnehmen</button>
+      <button type="button" id="btnPlay" aria-pressed="false" aria-disabled="true" class="dim">Abspielen</button>
+      <button type="button" id="btnTon" aria-pressed="false" aria-label="Ton einschalten">Ton</button>
+      <button type="button" id="btnWeg">Weg</button>
+      <button type="button" id="btnLeer">Leeren</button>
+    </div>
+  </header>
+  <div id="stage"><canvas id="cv" aria-label="Schattenbühne. Figuren ziehen und an den Gelenken drehen."></canvas></div>
+  <div id="dock">
+    <div class="tools" id="cast" role="toolbar" aria-label="Figuren">
+      <button type="button" data-kind="drache">Drache</button>
+      <button type="button" data-kind="ritter">Ritter</button>
+      <button type="button" data-kind="prinzessin">Prinzessin</button>
+      <button type="button" data-kind="fuchs">Fuchs</button>
+      <button type="button" data-kind="hase">Hase</button>
+      <button type="button" data-kind="baum">Baum</button>
+      <button type="button" data-kind="schloss">Schloss</button>
+      <button type="button" data-kind="mond">Mond</button>
+    </div>
+    <p id="hint" class="note" role="status">Tippe eine Figur an oder zieh sie auf die Bühne. Näher bei der Lampe wird der Schatten grösser und weicher.</p>
+  </div>
+</div>
+<script>
+(function () {
+  "use strict";
+
+  var KEY = "schattentheater-v1";
+  var RECORD_S = 6;
+  var LAMP = { x: 0.10, y: 0.70 };
+  var SPOTS = {
+    drache: [0.36, 0.64],
+    ritter: [0.54, 0.60],
+    prinzessin: [0.68, 0.56],
+    fuchs: [0.40, 0.78],
+    hase: [0.52, 0.80],
+    baum: [0.84, 0.62],
+    schloss: [0.18, 0.36],
+    mond: [0.86, 0.22]
+  };
+  var ORDER = ["drache", "ritter", "prinzessin", "fuchs", "hase", "baum", "schloss", "mond"];
+  var BEAT = 0.36;
+  var MELODY = [
+    [72, 1], [76, 1], [79, 1], [76, 1],
+    [81, 1], [79, 1], [76, 1], [72, 1],
+    [74, 1], [77, 1], [79, 1], [74, 1],
+    [76, 2], [0, 1],
+    [79, 1], [77, 1], [74, 1], [72, 1],
+    [71, 1], [72, 2], [67, 1], [72, 1],
+    [0, 2]
+  ];
+
+  var KINDS = {
+    drache: {
+      name: "Drache", size: 1.06, body: 36,
+      hits: [{ x: 0, y: 8, r: 34 }, { x: 28, y: -8, r: 16 }],
+      box: [-58, -36, 58, 48],
+      bones: [
+        { parent: -1, ox: 22, oy: -8, len: 26, rest: -0.95, swing: 0.75, thick: 9 },
+        { parent: 0, ox: 0, oy: 0, len: 20, rest: 0.35, swing: 0.28, thick: 5 },
+        { parent: 0, ox: 4, oy: 6, len: 14, rest: 0.85, swing: 0.4, thick: 3.5 },
+        { parent: 0, ox: -2, oy: -6, len: 14, rest: -1.05, swing: 0.6, thick: 3 },
+        { parent: -1, ox: -4, oy: -12, len: 40, rest: -1.55, swing: 1.2, thick: 3.5 },
+        { parent: 4, ox: 0, oy: 0, len: 26, rest: 0.95, swing: 1.25, thick: 3 },
+        { parent: -1, ox: -34, oy: 4, len: 24, rest: 2.95, swing: 1.2, thick: 6 },
+        { parent: 6, ox: 0, oy: 0, len: 20, rest: 0.35, swing: 1.35, thick: 5 },
+        { parent: 7, ox: 0, oy: 0, len: 16, rest: 0.22, swing: 1.2, thick: 4 },
+        { parent: -1, ox: 14, oy: 14, len: 18, rest: 1.25, swing: 0.7, thick: 4 },
+        { parent: -1, ox: -14, oy: 14, len: 16, rest: 1.55, swing: 0.62, thick: 4 }
+      ]
+    },
+    ritter: {
+      name: "Ritter", size: 0.98, body: 28,
+      hits: [{ x: 0, y: -8, r: 24 }, { x: 2, y: -46, r: 16 }],
+      box: [-36, -62, 40, 46],
+      bones: [
+        { parent: -1, ox: 0, oy: -62, len: 22, rest: -0.85, swing: 1.45, thick: 3.5 },
+        { parent: -1, ox: 12, oy: -24, len: 16, rest: -0.7, swing: 0.9, thick: 4 },
+        { parent: 1, ox: 0, oy: 0, len: 32, rest: -0.35, swing: 0.45, thick: 2.4 },
+        { parent: -1, ox: -16, oy: -18, len: 12, rest: 2.5, swing: 0.55, thick: 4 },
+        { parent: -1, ox: 6, oy: 12, len: 24, rest: 1.18, swing: 0.72, thick: 5 },
+        { parent: -1, ox: -6, oy: 12, len: 22, rest: 1.68, swing: 0.66, thick: 4 },
+        { parent: -1, ox: -10, oy: -30, len: 40, rest: 2.05, swing: 1.05, thick: 7 }
+      ]
+    },
+    prinzessin: {
+      name: "Prinzessin", size: 0.98, body: 26,
+      hits: [{ x: 0, y: 6, r: 30 }, { x: 0, y: -46, r: 16 }],
+      box: [-40, -72, 40, 48],
+      bones: [
+        { parent: -1, ox: -4, oy: -50, len: 26, rest: 1.05, swing: 1.5, thick: 4 },
+        { parent: -1, ox: 12, oy: -28, len: 16, rest: -0.48, swing: 0.95, thick: 3 },
+        { parent: 1, ox: 0, oy: 0, len: 16, rest: -0.4, swing: 0.75, thick: 2 },
+        { parent: -1, ox: -2, oy: 4, len: 26, rest: 1.45, swing: 0.6, thick: 3 }
+      ]
+    },
+    fuchs: {
+      name: "Fuchs", size: 1.02, body: 26,
+      hits: [{ x: -2, y: 4, r: 28 }, { x: 30, y: -4, r: 14 }],
+      box: [-40, -28, 48, 32],
+      bones: [
+        { parent: -1, ox: 18, oy: -8, len: 12, rest: -0.7, swing: 0.6, thick: 6 },
+        { parent: 0, ox: 0, oy: 0, len: 16, rest: 0.5, swing: 0.22, thick: 4 },
+        { parent: 0, ox: -2, oy: -5, len: 14, rest: -0.85, swing: 0.75, thick: 3 },
+        { parent: 0, ox: 2, oy: -4, len: 12, rest: -1.25, swing: 0.7, thick: 3 },
+        { parent: -1, ox: -20, oy: -8, len: 18, rest: -2.2, swing: 1.45, thick: 5 },
+        { parent: 4, ox: 0, oy: 0, len: 16, rest: -0.55, swing: 1.5, thick: 7 },
+        { parent: -1, ox: 12, oy: 8, len: 18, rest: 1.3, swing: 0.55, thick: 3.2 },
+        { parent: -1, ox: 2, oy: 9, len: 18, rest: 1.55, swing: 0.5, thick: 3.2 },
+        { parent: -1, ox: -10, oy: 8, len: 16, rest: 1.4, swing: 0.5, thick: 3.2 },
+        { parent: -1, ox: -18, oy: 6, len: 15, rest: 1.7, swing: 0.48, thick: 3 }
+      ]
+    },
+    hase: {
+      name: "Hase", size: 0.84, body: 22,
+      hits: [{ x: 0, y: 4, r: 18 }, { x: 18, y: -8, r: 14 }],
+      box: [-28, -24, 36, 30],
+      bones: [
+        { parent: -1, ox: 8, oy: -12, len: 8, rest: -1.15, swing: 0.5, thick: 7 },
+        { parent: 0, ox: -1, oy: -2, len: 34, rest: -0.45, swing: 1.6, thick: 3.2 },
+        { parent: 0, ox: 3, oy: -1, len: 30, rest: 0.2, swing: 1.5, thick: 3 },
+        { parent: -1, ox: -14, oy: -4, len: 7, rest: 2.6, swing: 0.45, thick: 5 },
+        { parent: -1, ox: -2, oy: 10, len: 14, rest: 1.15, swing: 0.65, thick: 4.5 },
+        { parent: 4, ox: 0, oy: 0, len: 16, rest: -0.85, swing: 0.5, thick: 3.5 },
+        { parent: -1, ox: 10, oy: 8, len: 12, rest: 1.25, swing: 0.55, thick: 3 }
+      ]
+    },
+    baum: {
+      name: "Baum", size: 1.12, body: 18,
+      hits: [{ x: 0, y: 16, r: 18 }, { x: 0, y: -24, r: 26 }],
+      box: [-18, -46, 20, 52],
+      bones: [
+        { parent: -1, ox: -2, oy: -8, len: 34, rest: 2.48, swing: 0.55, thick: 4 },
+        { parent: 0, ox: 0, oy: 0, len: 16, rest: -0.42, swing: 0.8, thick: 2 },
+        { parent: -1, ox: 3, oy: -22, len: 40, rest: -0.42, swing: 0.58, thick: 4 },
+        { parent: 2, ox: 0, oy: 0, len: 18, rest: 0.48, swing: 0.85, thick: 2 },
+        { parent: -1, ox: 0, oy: -28, len: 16, rest: -1.55, swing: 0.4, thick: 3 }
+      ]
+    },
+    schloss: {
+      name: "Schloss", size: 1.16, body: 48,
+      hits: [{ x: 0, y: -4, r: 52 }],
+      box: [-78, -90, 82, 52],
+      bones: [
+        { parent: -1, ox: -50, oy: -64, len: 20, rest: -0.15, swing: 1.4, thick: 2 },
+        { parent: -1, ox: 52, oy: -80, len: 22, rest: 0.12, swing: 1.45, thick: 2 },
+        { parent: -1, ox: 0, oy: 16, len: 26, rest: 1.2, swing: 0.4, thick: 5 }
+      ]
+    },
+    mond: {
+      name: "Mond", size: 0.94, body: 30,
+      hits: [{ x: -4, y: 0, r: 30 }],
+      box: [-36, -36, 40, 40],
+      bones: [
+        { parent: -1, ox: 8, oy: 16, len: 14, rest: 0.85, swing: 0.85, thick: 3 },
+        { parent: 0, ox: 0, oy: 0, len: 12, rest: 0.4, swing: 1.25, thick: 2 }
+      ]
+    }
+  };
+
+  var cv = document.getElementById("cv");
+  var ctx = cv.getContext("2d");
+  var stage = document.getElementById("stage");
+  var hintEl = document.getElementById("hint");
+  var btnVorhang = document.getElementById("btnVorhang");
+  var btnRec = document.getElementById("btnRec");
+  var btnPlay = document.getElementById("btnPlay");
+  var btnTon = document.getElementById("btnTon");
+  var castBar = document.getElementById("cast");
+  var reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  var scratch = document.createElement("canvas");
+  var sctx = scratch.getContext("2d");
+  var noisePat = null;
+  var cssW = 0;
+  var cssH = 0;
+  var dpr = 1;
+  var geo = null;
+
+  var actx = null;
+  var master = null;
+  var musicArmed = false;
+  var noteTime = 0;
+  var noteStep = 0;
+
+  var state = {
+    cast: [],
+    selected: null,
+    curtain: 1,
+    curtainPos: 1,
+    phase: "idle",
+    rec: null,
+    recT0: 0,
+    lastSample: 0,
+    playT0: 0,
+    bow: 0,
+    soundOn: false,
+    gestured: false,
+    drag: null,
+    ghost: null,
+    clock: 0,
+    skipClick: false,
+    note: "",
+    noteUntil: 0,
+    afterShow: false,
+    saveTimer: 0
+  };
+
+  function clamp(v, a, b) { return v < a ? a : v > b ? b : v; }
+  function isNum(v) { return typeof v === "number" && isFinite(v); }
+  function round3(v) { return Math.round(v * 1000) / 1000; }
+  function kindById(id) { return KINDS[id] || null; }
+  function find(kind) {
+    for (var i = 0; i < state.cast.length; i++) {
+      if (state.cast[i].kind === kind) return state.cast[i];
+    }
+    return null;
+  }
+
+  function makePuppet(kind, x, y) {
+    var spec = kindById(kind);
+    var bones = [];
+    for (var i = 0; i < spec.bones.length; i++) {
+      bones.push({ rest: spec.bones[i].rest, off: 0, vel: 0 });
+    }
+    return { kind: kind, x: x, y: y, vx: 0, vy: 0, maxSwing: 0, bones: bones };
+  }
+
+  function lightFor(nx, ny) {
+    var dx = nx - LAMP.x;
+    var dy = ny - LAMP.y;
+    var dist = Math.hypot(dx, dy);
+    var t = clamp((dist - 0.05) / 1.02, 0, 1);
+    return {
+      dist: dist,
+      t: t,
+      scale: 1.58 - t * 0.9,
+      blur: (1 - t) * (1 - t) * 6.5
+    };
+  }
+
+  function resize() {
+    var rect = cv.getBoundingClientRect();
+    dpr = Math.min(2, window.devicePixelRatio || 1);
+    var w = Math.max(1, Math.round(rect.width * dpr));
+    var h = Math.max(1, Math.round(rect.height * dpr));
+    if (cv.width !== w || cv.height !== h) {
+      cv.width = w;
+      cv.height = h;
+    }
+    cssW = rect.width;
+    cssH = rect.height;
+  }
+
+  function computeGeom() {
+    var m = Math.max(6, Math.min(cssW, cssH) * 0.02);
+    var frame = { x: m, y: m * 0.4, w: Math.max(10, cssW - m * 2), h: Math.max(10, cssH - m * 1.2) };
+    var inset = clamp(Math.min(cssW, cssH) * 0.04, 8, 26);
+    var paper = {
+      x: frame.x + inset,
+      y: frame.y + inset * 1.15,
+      w: Math.max(10, frame.w - inset * 2),
+      h: Math.max(10, frame.h - inset * 1.9)
+    };
+    var lamp = {
+      x: paper.x + paper.w * LAMP.x,
+      y: paper.y + paper.h * LAMP.y
+    };
+    return { frame: frame, paper: paper, lamp: lamp };
+  }
+
+  function pixelScale(p, g) {
+    var light = lightFor(p.x, p.y);
+    var spec = kindById(p.kind);
+    var base = clamp(Math.min(g.paper.h * 0.36, g.paper.w * 0.3), 76, 148);
+    return (base / 150) * light.scale * spec.size;
+  }
+
+  function layout(p) {
+    var spec = kindById(p.kind);
+    var ends = [];
+    for (var i = 0; i < spec.bones.length; i++) {
+      var b = spec.bones[i];
+      var st = p.bones[i];
+      var parentA = b.parent < 0 ? 0 : ends[b.parent].a;
+      var a = parentA + st.rest + st.off;
+      var x0 = b.parent < 0 ? b.ox : ends[b.parent].x1 + (b.ox || 0);
+      var y0 = b.parent < 0 ? b.oy : ends[b.parent].y1 + (b.oy || 0);
+      ends.push({
+        x0: x0,
+        y0: y0,
+        x1: x0 + Math.cos(a) * b.len,
+        y1: y0 + Math.sin(a) * b.len,
+        a: a
+      });
+    }
+    return ends;
+  }
+
+  function screenOf(p, g) {
+    return {
+      x: g.paper.x + p.x * g.paper.w,
+      y: g.paper.y + p.y * g.paper.h,
+      sc: pixelScale(p, g)
+    };
+  }
+
+  function stepBones(p, dt) {
+    if (state.phase === "play" || state.phase === "bow") return;
+    var spec = kindById(p.kind);
+    var ends = layout(p);
+    var dragBone = (state.drag && state.drag.puppet === p && state.drag.bone >= 0) ? state.drag.bone : -1;
+    for (var i = 0; i < p.bones.length; i++) {
+      if (i === dragBone) continue;
+      var b = p.bones[i];
+      var a = ends[i].a;
+      var perp = -p.vx * Math.sin(a) + p.vy * Math.cos(a);
+      var target = clamp(-perp * spec.bones[i].swing * 0.0016, -0.9, 0.9);
+      var acc = (target - b.off) * 34 - b.vel * 7.2;
+      b.vel += acc * dt;
+      b.off += b.vel * dt;
+      if (b.off > 1.05) { b.off = 1.05; b.vel *= -0.15; }
+      if (b.off < -1.05) { b.off = -1.05; b.vel *= -0.15; }
+      var mag = Math.abs(b.off);
+      if (mag > p.maxSwing) p.maxSwing = mag;
+    }
+  }
+
+  function decayVel(p, dt, held) {
+    if (held) return;
+    var k = Math.exp(-7 * dt);
+    p.vx *= k;
+    p.vy *= k;
+  }
+
+  function oval(c, x, y, rx, ry, rot) {
+    c.beginPath();
+    c.ellipse(x, y, Math.max(0.4, rx), Math.max(0.4, ry), rot || 0, 0, Math.PI * 2);
+    c.fill();
+  }
+
+  function limb(c, x0, y0, x1, y1, r0, r1) {
+    var ang = Math.atan2(y1 - y0, x1 - x0);
+    var px = Math.sin(ang);
+    var py = -Math.cos(ang);
+    c.beginPath();
+    c.moveTo(x0 + px * r0, y0 + py * r0);
+    c.lineTo(x1 + px * r1, y1 + py * r1);
+    c.lineTo(x1 - px * r1, y1 - py * r1);
+    c.lineTo(x0 - px * r0, y0 - py * r0);
+    c.closePath();
+    c.fill();
+    oval(c, x0, y0, r0, r0, 0);
+    oval(c, x1, y1, r1, r1, 0);
+  }
+
+  function bone(c, ends, i, r0, r1) {
+    var e = ends[i];
+    limb(c, e.x0, e.y0, e.x1, e.y1, r0, r1);
+  }
+
+  function hole(c, x, y, rx, ry) {
+    c.save();
+    c.globalCompositeOperation = "destination-out";
+    c.beginPath();
+    c.ellipse(x, y, rx, ry || rx, 0, 0, Math.PI * 2);
+    c.fill();
+    c.restore();
+  }
+
+  function star(c, x, y, r, inner) {
+    c.beginPath();
+    for (var i = 0; i < 10; i++) {
+      var R = i % 2 ? inner : r;
+      var a = -Math.PI / 2 + i * Math.PI / 5;
+      var px = x + Math.cos(a) * R;
+      var py = y + Math.sin(a) * R;
+      if (i === 0) c.moveTo(px, py);
+      else c.lineTo(px, py);
+    }
+    c.closePath();
+    c.fill();
+  }
+
+  function flag(c, e) {
+    c.beginPath();
+    c.moveTo(e.x0, e.y0);
+    c.quadraticCurveTo((e.x0 + e.x1) / 2, (e.y0 + e.y1) / 2 - 7, e.x1, e.y1);
+    c.lineTo(e.x0, e.y0 + 11);
+    c.closePath();
+    c.fill();
+    c.fillRect(e.x0 - 1.4, e.y0 - 4, 2.8, 16);
+  }
+
+  function earOval(c, e, w) {
+    var ang = Math.atan2(e.y1 - e.y0, e.x1 - e.x0);
+    var len = Math.hypot(e.x1 - e.x0, e.y1 - e.y0);
+    c.save();
+    c.translate((e.x0 + e.x1) / 2, (e.y0 + e.y1) / 2);
+    c.rotate(ang);
+    oval(c, 0, 0, Math.max(2, len / 2), w, 0);
+    c.restore();
+  }
+
+  function drawDrache(c, ends) {
+    var wing = ends[4];
+    var tip = ends[5];
+    c.beginPath();
+    c.moveTo(wing.x0 + 4, wing.y0 + 6);
+    c.lineTo(wing.x1, wing.y1);
+    c.lineTo(tip.x1, tip.y1);
+    c.quadraticCurveTo(wing.x1 + 8, wing.y1 + 22, wing.x0 + 10, wing.y0 + 10);
+    c.closePath();
+    c.fill();
+    bone(c, ends, 6, 6, 4.5);
+    bone(c, ends, 7, 4.5, 3.5);
+    bone(c, ends, 8, 3.5, 5);
+    var tail = ends[8];
+    c.beginPath();
+    c.moveTo(tail.x1, tail.y1);
+    c.lineTo(tail.x1 + Math.cos(tail.a + 0.8) * 11, tail.y1 + Math.sin(tail.a + 0.8) * 11);
+    c.lineTo(tail.x1 + Math.cos(tail.a) * 16, tail.y1 + Math.sin(tail.a) * 16);
+    c.lineTo(tail.x1 + Math.cos(tail.a - 0.8) * 11, tail.y1 + Math.sin(tail.a - 0.8) * 11);
+    c.closePath();
+    c.fill();
+    bone(c, ends, 10, 4.2, 2.8);
+    oval(c, -2, 6, 34, 16, -0.12);
+    for (var s = 0; s < 4; s++) {
+      var sx = -18 + s * 11;
+      var sy = -6;
+      c.beginPath();
+      c.moveTo(sx, sy);
+      c.lineTo(sx + 4, sy - 10);
+      c.lineTo(sx + 9, sy + 1);
+      c.closePath();
+      c.fill();
+    }
+    bone(c, ends, 9, 4.2, 2.8);
+    bone(c, ends, 0, 8, 6.5);
+    var neck = ends[0];
+    oval(c, neck.x1 - 2, neck.y1, 12, 10, neck.a);
+    bone(c, ends, 3, 2.6, 1.4);
+    bone(c, ends, 1, 5, 2.6);
+    bone(c, ends, 2, 3.2, 1.6);
+    hole(c, neck.x1 + 2, neck.y1 - 3, 1.8, 1.8);
+  }
+
+  function drawRitter(c, ends) {
+    bone(c, ends, 6, 8, 4);
+    bone(c, ends, 5, 5, 3.5);
+    bone(c, ends, 4, 5.5, 3.6);
+    c.beginPath();
+    c.moveTo(-16, -36);
+    c.lineTo(16, -34);
+    c.lineTo(18, 14);
+    c.lineTo(8, 18);
+    c.lineTo(-10, 18);
+    c.lineTo(-16, 8);
+    c.closePath();
+    c.fill();
+    var sh = ends[3];
+    c.save();
+    c.translate(sh.x1, sh.y1);
+    c.rotate(sh.a);
+    c.beginPath();
+    c.moveTo(0, -20);
+    c.lineTo(18, -10);
+    c.lineTo(16, 8);
+    c.quadraticCurveTo(0, 24, -16, 8);
+    c.lineTo(-18, -10);
+    c.closePath();
+    c.fill();
+    c.restore();
+    bone(c, ends, 1, 4.6, 3.6);
+    bone(c, ends, 2, 4.2, 1.8);
+    var sw = ends[2];
+    c.save();
+    c.translate(sw.x0, sw.y0);
+    c.rotate(sw.a);
+    c.fillRect(-9, -2.4, 16, 4.8);
+    c.restore();
+    c.beginPath();
+    c.moveTo(-12, -34);
+    c.lineTo(-11, -50);
+    c.quadraticCurveTo(-4, -68, 4, -66);
+    c.quadraticCurveTo(16, -62, 15, -44);
+    c.lineTo(14, -32);
+    c.closePath();
+    c.fill();
+    c.fillRect(12, -52, 4, 16);
+    var pl = ends[0];
+    c.beginPath();
+    c.moveTo(pl.x0, pl.y0);
+    c.quadraticCurveTo((pl.x0 + pl.x1) / 2 - 6, (pl.y0 + pl.y1) / 2, pl.x1, pl.y1);
+    c.lineWidth = 6;
+    c.stroke();
+    hole(c, 4, -48, 3.4, 1.7);
+    c.save();
+    c.globalCompositeOperation = "destination-out";
+    c.translate(sh.x1, sh.y1);
+    c.rotate(sh.a);
+    c.fillRect(-2.2, -12, 4.4, 22);
+    c.fillRect(-10, -2.2, 20, 4.4);
+    c.restore();
+  }
+
+  function drawPrinzessin(c, ends) {
+    c.beginPath();
+    c.moveTo(-10, -30);
+    c.quadraticCurveTo(-42, 8, -30, 40);
+    c.lineTo(32, 40);
+    c.quadraticCurveTo(38, 6, 12, -30);
+    c.closePath();
+    c.fill();
+    bone(c, ends, 3, 3, 2);
+    oval(c, 0, -18, 8, 12, 0);
+    oval(c, 0, -46, 12, 12, 0);
+    c.beginPath();
+    c.moveTo(-11, -52);
+    c.lineTo(-8, -66);
+    c.lineTo(-2, -54);
+    c.lineTo(0, -70);
+    c.lineTo(3, -54);
+    c.lineTo(8, -66);
+    c.lineTo(12, -52);
+    c.closePath();
+    c.fill();
+    bone(c, ends, 0, 4.5, 2.5);
+    bone(c, ends, 1, 3.2, 2.4);
+    bone(c, ends, 2, 1.8, 1.2);
+    var w = ends[2];
+    star(c, w.x1, w.y1, 6, 2.6);
+    hole(c, 3, -46, 1.8, 1.8);
+  }
+
+  function drawFuchs(c, ends) {
+    var t1 = ends[4];
+    var t2 = ends[5];
+    oval(c, (t1.x0 + t1.x1) / 2, (t1.y0 + t1.y1) / 2, 9, 7, t1.a);
+    oval(c, t2.x1, t2.y1, 11, 8, t2.a);
+    bone(c, ends, 8, 3.3, 2.2);
+    bone(c, ends, 9, 3.3, 2.2);
+    oval(c, -2, 2, 24, 12, -0.06);
+    bone(c, ends, 7, 3.3, 2.2);
+    bone(c, ends, 6, 3.3, 2.2);
+    bone(c, ends, 0, 6, 5);
+    var neck = ends[0];
+    oval(c, neck.x1, neck.y1, 10, 8, 0);
+    var sn = ends[1];
+    c.beginPath();
+    c.moveTo(sn.x0 - 1, sn.y0 - 4);
+    c.lineTo(sn.x1, sn.y1);
+    c.lineTo(sn.x0 - 1, sn.y0 + 5);
+    c.closePath();
+    c.fill();
+    var ear = ends[2];
+    c.beginPath();
+    c.moveTo(ear.x0 - 4, ear.y0 + 2);
+    c.lineTo(ear.x1, ear.y1);
+    c.lineTo(ear.x0 + 5, ear.y0 + 3);
+    c.closePath();
+    c.fill();
+    var ear2 = ends[3];
+    c.beginPath();
+    c.moveTo(ear2.x0 - 3, ear2.y0 + 2);
+    c.lineTo(ear2.x1, ear2.y1);
+    c.lineTo(ear2.x0 + 4, ear2.y0 + 4);
+    c.closePath();
+    c.fill();
+    hole(c, neck.x1 + 2, neck.y1 - 1, 1.6, 1.6);
+  }
+
+  function drawHase(c, ends) {
+    oval(c, ends[3].x1, ends[3].y1, 7, 6, 0);
+    bone(c, ends, 4, 5, 3.4);
+    bone(c, ends, 5, 3.6, 2.8);
+    oval(c, 2, 4, 16, 13, 0);
+    bone(c, ends, 6, 3, 2.2);
+    bone(c, ends, 0, 6.5, 5.5);
+    var head = ends[0];
+    oval(c, head.x1, head.y1, 10, 9, 0);
+    earOval(c, ends[1], 3.3);
+    earOval(c, ends[2], 3);
+    hole(c, head.x1 + 2, head.y1 - 1, 1.5, 1.7);
+  }
+
+  function canopy(c, x, y, r) {
+    oval(c, x, y, r, r * 0.86, 0);
+  }
+
+  function drawBaum(c, ends) {
+    c.beginPath();
+    c.moveTo(-14, 46);
+    c.lineTo(-7, -8);
+    c.lineTo(8, -8);
+    c.lineTo(16, 46);
+    c.closePath();
+    c.fill();
+    bone(c, ends, 0, 4, 2.4);
+    bone(c, ends, 1, 2.2, 1.4);
+    bone(c, ends, 2, 4.2, 2.4);
+    bone(c, ends, 3, 2.2, 1.4);
+    bone(c, ends, 4, 3, 2);
+    canopy(c, ends[1].x1, ends[1].y1, 16);
+    canopy(c, ends[0].x1, ends[0].y1, 18);
+    canopy(c, ends[3].x1, ends[3].y1, 16);
+    canopy(c, ends[2].x1, ends[2].y1, 20);
+    canopy(c, ends[4].x1, ends[4].y1 - 4, 22);
+    canopy(c, 2, -18, 18);
+  }
+
+  function drawSchloss(c, ends) {
+    c.beginPath();
+    c.rect(-72, -48, 38, 92);
+    c.rect(-40, -18, 82, 62);
+    c.rect(36, -68, 42, 112);
+    c.rect(-10, 8, 18, 36);
+    c.rect(-58, -24, 8, 16);
+    c.rect(52, -40, 9, 18);
+    c.rect(58, -8, 8, 14);
+    c.fill("evenodd");
+    for (var i = 0; i < 4; i++) c.fillRect(-70 + i * 9, -58, 5, 12);
+    for (var j = 0; j < 6; j++) c.fillRect(-38 + j * 13, -28, 7, 12);
+    for (var k = 0; k < 4; k++) c.fillRect(40 + k * 10, -80, 6, 14);
+    flag(c, ends[0]);
+    flag(c, ends[1]);
+    var br = ends[2];
+    c.save();
+    c.translate(br.x0, br.y0);
+    c.rotate(br.a);
+    c.fillRect(-12, 0, 24, br.len || 26);
+    c.restore();
+  }
+
+  function drawMond(c, ends) {
+    c.beginPath();
+    c.arc(0, 0, 32, 0.62 * Math.PI, 1.72 * Math.PI, false);
+    c.arc(14, -1, 25, 1.52 * Math.PI, 0.78 * Math.PI, true);
+    c.closePath();
+    c.fill();
+    hole(c, -8, -5, 2.3, 2.6);
+    hole(c, -6, 7, 5, 2.4);
+    bone(c, ends, 0, 3, 2.2);
+    var s = ends[1];
+    star(c, s.x1, s.y1, 8, 3.3);
+  }
+
+  var DRAW = {
+    drache: drawDrache,
+    ritter: drawRitter,
+    prinzessin: drawPrinzessin,
+    fuchs: drawFuchs,
+    hase: drawHase,
+    baum: drawBaum,
+    schloss: drawSchloss,
+    mond: drawMond
+  };
+
+  function puppetBounds(spec, ends) {
+    var minX = spec.box[0] - 24;
+    var minY = spec.box[1] - 24;
+    var maxX = spec.box[2] + 24;
+    var maxY = spec.box[3] + 24;
+    for (var i = 0; i < ends.length; i++) {
+      var e = ends[i];
+      var m = spec.bones[i].thick + 14;
+      minX = Math.min(minX, e.x0 - m, e.x1 - m);
+      minY = Math.min(minY, e.y0 - m, e.y1 - m);
+      maxX = Math.max(maxX, e.x0 + m, e.x1 + m);
+      maxY = Math.max(maxY, e.y0 + m, e.y1 + m);
+    }
+    return { minX: minX, minY: minY, maxX: maxX, maxY: maxY };
+  }
+
+  function paintPuppet(p, g, alpha) {
+    var spec = kindById(p.kind);
+    var ends = layout(p);
+    var sc = pixelScale(p, g);
+    var light = lightFor(p.x, p.y);
+    var box = puppetBounds(spec, ends);
+    var pad = Math.ceil(light.blur * 3 + 10);
+    var bw = Math.max(4, (box.maxX - box.minX) * sc + pad * 2);
+    var bh = Math.max(4, (box.maxY - box.minY) * sc + pad * 2);
+    var sw = Math.max(1, Math.round(bw * dpr));
+    var sh = Math.max(1, Math.round(bh * dpr));
+    if (scratch.width !== sw || scratch.height !== sh) {
+      scratch.width = sw;
+      scratch.height = sh;
+    } else {
+      sctx.setTransform(1, 0, 0, 1, 0, 0);
+      sctx.clearRect(0, 0, scratch.width, scratch.height);
+    }
+    sctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    sctx.translate(pad - box.minX * sc, pad - box.minY * sc);
+    sctx.scale(sc, sc);
+    sctx.fillStyle = "#160d09";
+    sctx.strokeStyle = "#160d09";
+    sctx.lineCap = "round";
+    sctx.lineJoin = "round";
+    DRAW[p.kind](sctx, ends);
+    sctx.globalCompositeOperation = "destination-out";
+    sctx.fillStyle = "#000";
+    for (var i = 0; i < ends.length; i++) {
+      if (spec.bones[i].thick < 3.5) continue;
+      sctx.beginPath();
+      sctx.arc(ends[i].x0, ends[i].y0, 2.15, 0, Math.PI * 2);
+      sctx.fill();
+    }
+    sctx.globalCompositeOperation = "source-over";
+    var origin = screenOf(p, g);
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    if (light.blur > 0.45) ctx.filter = "blur(" + light.blur.toFixed(2) + "px)";
+    ctx.drawImage(scratch, origin.x + box.minX * sc - pad, origin.y + box.minY * sc - pad, bw, bh);
+    ctx.filter = "none";
+    ctx.restore();
+    return { origin: origin, ends: ends, spec: spec };
+  }
+
+  function distToSeg(px, py, x0, y0, x1, y1) {
+    var dx = x1 - x0;
+    var dy = y1 - y0;
+    var len2 = dx * dx + dy * dy;
+    var t = len2 < 0.001 ? 0 : clamp(((px - x0) * dx + (py - y0) * dy) / len2, 0, 1);
+    var x = x0 + dx * t;
+    var y = y0 + dy * t;
+    return { d: Math.hypot(px - x, py - y), t: t };
+  }
+
+  function hitTest(px, py) {
+    var g = geo;
+    if (!g) return null;
+    var list = state.cast.slice().sort(function (a, b) {
+      if (a === state.selected) return 1;
+      if (b === state.selected) return -1;
+      return a.y - b.y;
+    });
+    for (var i = list.length - 1; i >= 0; i--) {
+      var p = list[i];
+      var s = screenOf(p, g);
+      var lx = (px - s.x) / s.sc;
+      var ly = (py - s.y) / s.sc;
+      var spec = kindById(p.kind);
+      var ends = layout(p);
+      var best = -1;
+      var bestD = 1e9;
+      for (var bi = 0; bi < ends.length; bi++) {
+        var e = ends[bi];
+        var hit = distToSeg(lx, ly, e.x0, e.y0, e.x1, e.y1);
+        var rad = Math.max(9, spec.bones[bi].thick + 7);
+        if (hit.t > 0.28 && hit.d < rad && hit.d < bestD) {
+          best = bi;
+          bestD = hit.d;
+        }
+      }
+      var hits = spec.hits || [{ x: 0, y: 0, r: spec.body }];
+      var onBody = false;
+      for (var hi = 0; hi < hits.length; hi++) {
+        if (Math.hypot(lx - hits[hi].x, ly - hits[hi].y) < hits[hi].r) onBody = true;
+      }
+      if (onBody && (best < 0 || bestD > 7)) return { puppet: p, bone: -1 };
+      if (best >= 0) return { puppet: p, bone: best };
+      if (onBody) return { puppet: p, bone: -1 };
+    }
+    return null;
+  }
+
+  function canvasPoint(clientX, clientY) {
+    var r = cv.getBoundingClientRect();
+    return { x: clientX - r.left, y: clientY - r.top };
+  }
+
+  function normFromCanvas(x, y) {
+    var g = geo;
+    if (!g) return null;
+    var nx = (x - g.paper.x) / g.paper.w;
+    var ny = (y - g.paper.y) / g.paper.h;
+    if (nx < -0.02 || ny < -0.02 || nx > 1.02 || ny > 1.02) return null;
+    return { x: clamp(nx, 0.06, 0.94), y: clamp(ny, 0.08, 0.92) };
+  }
+
+  function setVel(p, nx, ny, dt) {
+    var g = geo;
+    if (!g || dt < 0.006) return;
+    var rawVx = (nx - p.x) / dt * g.paper.w;
+    var rawVy = (ny - p.y) / dt * g.paper.h;
+    p.vx = p.vx * 0.35 + clamp(rawVx, -2200, 2200) * 0.65;
+    p.vy = p.vy * 0.35 + clamp(rawVy, -2200, 2200) * 0.65;
+  }
+
+  function poseBone(p, index, localX, localY) {
+    var spec = kindById(p.kind).bones[index];
+    var ends = layout(p);
+    var e = ends[index];
+    var ang = Math.atan2(localY - e.y0, localX - e.x0);
+    var parentWorld = spec.parent < 0 ? 0 : ends[spec.parent].a;
+    var rest = ang - parentWorld;
+    var init = spec.rest;
+    while (rest - init > Math.PI) rest -= Math.PI * 2;
+    while (init - rest > Math.PI) rest += Math.PI * 2;
+    rest = clamp(rest, init - 1.35, init + 1.35);
+    p.bones[index].rest = rest;
+    p.bones[index].off = 0;
+    p.bones[index].vel = 0;
+  }
+
+  function localOf(p, clientX, clientY) {
+    var pt = canvasPoint(clientX, clientY);
+    var s = screenOf(p, geo);
+    return { x: (pt.x - s.x) / s.sc, y: (pt.y - s.y) / s.sc, pt: pt };
+  }
+
+  function hintNow() {
+    var now = performance.now();
+    if (state.note && now < state.noteUntil) {
+      if (!(state.note === "Die Bühne ist leer." && state.cast.length)) return state.note;
+    }
+    if (state.phase === "record") {
+      var left = Math.max(0, RECORD_S - (now - state.recT0) / 1000);
+      return "Aufnahme läuft. Noch " + Math.ceil(left) + " Sekunden. Beweg die Figuren.";
+    }
+    if (state.phase === "bow") return "Gleich beginnt die Vorstellung.";
+    if (state.phase === "play") return "Die Vorstellung läuft.";
+    if (state.afterShow) return "Vorbei. Nochmal mit Abspielen, oder nimm eine neue Vorstellung auf.";
+    if (!state.cast.length) {
+      return "Tippe eine Figur an oder zieh sie auf die Bühne. Näher bei der Lampe wird der Schatten grösser und weicher.";
+    }
+    return "Zieh eine Figur über die Bühne. Näher bei der Lampe wird ihr Schatten grösser und weicher. Gelenke lassen sich drehen.";
+  }
+
+  function syncHint() {
+    var text = hintNow();
+    if (hintEl.textContent !== text) hintEl.textContent = text;
+  }
+
+  function flash(text) {
+    state.note = text;
+    state.noteUntil = performance.now() + 2800;
+    state.afterShow = false;
+    syncHint();
+  }
+
+  function syncControls() {
+    var recOn = state.phase === "record";
+    var playOn = state.phase === "play" || state.phase === "bow";
+    btnRec.textContent = recOn ? "Stopp" : "Aufnehmen";
+    btnRec.setAttribute("aria-pressed", recOn ? "true" : "false");
+    btnPlay.textContent = playOn ? "Stopp" : "Abspielen";
+    btnPlay.setAttribute("aria-pressed", playOn ? "true" : "false");
+    var canPlay = !!(state.rec && state.rec.frames && state.rec.frames.length > 1);
+    var dim = !canPlay && !playOn;
+    btnPlay.setAttribute("aria-disabled", dim ? "true" : "false");
+    btnPlay.classList.toggle("dim", dim);
+    btnVorhang.textContent = state.curtain ? "Vorhang auf" : "Vorhang zu";
+    btnVorhang.setAttribute("aria-pressed", state.curtain ? "true" : "false");
+    btnTon.setAttribute("aria-pressed", state.soundOn ? "true" : "false");
+    btnTon.setAttribute("aria-label", state.soundOn ? "Ton ausschalten" : "Ton einschalten");
+    var buttons = castBar.querySelectorAll("button");
+    for (var i = 0; i < buttons.length; i++) {
+      var id = buttons[i].getAttribute("data-kind");
+      var on = !!find(id);
+      buttons[i].setAttribute("aria-pressed", on ? "true" : "false");
+      buttons[i].classList.toggle("sel", !!(state.selected && state.selected.kind === id));
+    }
+    syncHint();
+  }
+
+  function placeNew(kind) {
+    if (find(kind)) {
+      state.selected = find(kind);
+      flash("Diese Figur steht schon auf der Bühne.");
+      syncControls();
+      return;
+    }
+    var spot = SPOTS[kind];
+    var p = makePuppet(kind, spot[0], spot[1]);
+    state.cast.push(p);
+    state.selected = p;
+    state.note = "";
+    state.noteUntil = 0;
+    state.afterShow = false;
+    persistSoon();
+    syncControls();
+  }
+
+  function removeSelected() {
+    if (!state.selected) {
+      flash("Tippe zuerst eine Figur an.");
+      return;
+    }
+    var idx = state.cast.indexOf(state.selected);
+    if (idx >= 0) state.cast.splice(idx, 1);
+    state.selected = state.cast.length ? state.cast[state.cast.length - 1] : null;
+    persistSoon();
+    syncControls();
+  }
+
+  function clearStage() {
+    state.cast = [];
+    state.selected = null;
+    state.ghost = null;
+    state.rec = null;
+    state.phase = "idle";
+    state.afterShow = false;
+    flash("Die Bühne ist leer.");
+    persistSoon();
+    syncControls();
+  }
+
+  function sampleCast() {
+    var items = [];
+    for (var i = 0; i < state.cast.length; i++) {
+      var p = state.cast[i];
+      var rest = [];
+      var off = [];
+      for (var b = 0; b < p.bones.length; b++) {
+        rest.push(round3(p.bones[b].rest));
+        off.push(round3(p.bones[b].off));
+      }
+      items.push({ kind: p.kind, x: round3(p.x), y: round3(p.y), rest: rest, off: off });
+    }
+    return items;
+  }
+
+  function pushSample(t) {
+    if (!state.rec) return;
+    state.rec.frames.push({ t: round3(t), items: sampleCast() });
+    state.lastSample = t;
+  }
+
+  function startRecord() {
+    if (state.phase === "play" || state.phase === "bow") stopShow(false);
+    if (!state.cast.length) {
+      flash("Stell zuerst Figuren auf die Bühne.");
+      return;
+    }
+    state.phase = "record";
+    state.afterShow = false;
+    state.rec = { frames: [] };
+    state.recT0 = performance.now();
+    pushSample(0);
+    syncControls();
+  }
+
+  function stopRecord() {
+    if (state.phase !== "record") return;
+    var t = (performance.now() - state.recT0) / 1000;
+    pushSample(Math.min(RECORD_S, t));
+    state.phase = "idle";
+    if (!state.rec.frames || state.rec.frames.length < 2 || t < 0.25) {
+      state.rec = null;
+      flash("Die Aufnahme war zu kurz.");
+      syncControls();
+      persistSoon();
+      return;
+    }
+    persistSoon();
+    beginShow();
+  }
+
+  function beginShow() {
+    if (!state.rec || state.rec.frames.length < 2) {
+      flash("Noch keine Aufnahme. Tippe zuerst auf Aufnehmen.");
+      return;
+    }
+    state.drag = null;
+    state.ghost = null;
+    cv.classList.remove("grabbing");
+    state.phase = "bow";
+    state.bow = 0;
+    state.curtain = 0;
+    swish();
+    state.afterShow = false;
+    syncControls();
+  }
+
+  function stopShow(announce) {
+    if (state.phase === "play") applyPlay((performance.now() - state.playT0) / 1000, true);
+    state.phase = "idle";
+    state.curtain = 1;
+    if (announce) state.afterShow = true;
+    syncControls();
+    persistSoon();
+  }
+
+  function applyItems(items) {
+    for (var i = 0; i < items.length; i++) {
+      var it = items[i];
+      var p = find(it.kind);
+      if (!p) continue;
+      p.x = it.x;
+      p.y = it.y;
+      p.vx = 0;
+      p.vy = 0;
+      for (var b = 0; b < p.bones.length; b++) {
+        if (it.rest && isNum(it.rest[b])) p.bones[b].rest = it.rest[b];
+        if (it.off && isNum(it.off[b])) p.bones[b].off = it.off[b];
+        p.bones[b].vel = 0;
+      }
+    }
+  }
+
+  function framePair(t) {
+    var frames = state.rec.frames;
+    var i = 0;
+    while (i < frames.length - 1 && frames[i + 1].t < t) i++;
+    var a = frames[i];
+    var b = frames[Math.min(i + 1, frames.length - 1)];
+    var span = Math.max(0.0001, b.t - a.t);
+    var u = clamp((t - a.t) / span, 0, 1);
+    return { a: a, b: b, u: u };
+  }
+
+  function mix(a, b, u) { return a + (b - a) * u; }
+
+  function applyPlay(t, finalFrame) {
+    if (!state.rec) return;
+    var last = state.rec.frames[state.rec.frames.length - 1];
+    if (finalFrame || t >= last.t) {
+      applyItems(last.items);
+      return;
+    }
+    var pair = framePair(t);
+    var mapB = {};
+    for (var i = 0; i < pair.b.items.length; i++) mapB[pair.b.items[i].kind] = pair.b.items[i];
+    for (var j = 0; j < pair.a.items.length; j++) {
+      var ia = pair.a.items[j];
+      var ib = mapB[ia.kind] || ia;
+      var p = find(ia.kind);
+      if (!p) continue;
+      p.x = mix(ia.x, ib.x, pair.u);
+      p.y = mix(ia.y, ib.y, pair.u);
+      p.vx = 0;
+      p.vy = 0;
+      for (var b = 0; b < p.bones.length; b++) {
+        var ra = ia.rest && isNum(ia.rest[b]) ? ia.rest[b] : p.bones[b].rest;
+        var rb = ib.rest && isNum(ib.rest[b]) ? ib.rest[b] : ra;
+        var oa = ia.off && isNum(ia.off[b]) ? ia.off[b] : 0;
+        var ob = ib.off && isNum(ib.off[b]) ? ib.off[b] : oa;
+        p.bones[b].rest = mix(ra, rb, pair.u);
+        p.bones[b].off = mix(oa, ob, pair.u);
+        p.bones[b].vel = 0;
+      }
+    }
+  }
+
+  function stepShow(dt) {
+    if (state.phase === "record") {
+      var t = (performance.now() - state.recT0) / 1000;
+      if (t >= RECORD_S) {
+        pushSample(RECORD_S);
+        state.phase = "idle";
+        persistSoon();
+        beginShow();
+        return;
+      }
+      if (t - state.lastSample >= 0.05) pushSample(t);
+      return;
+    }
+    if (state.phase === "bow") {
+      if (state.bow === 0 && state.curtainPos < 0.06) {
+        state.bow = 1;
+        state.curtain = 1;
+        swish();
+      } else if (state.bow === 1 && state.curtainPos > 0.96) {
+        state.phase = "play";
+        state.playT0 = performance.now();
+        syncControls();
+      }
+      return;
+    }
+    if (state.phase === "play") {
+      var elapsed = (performance.now() - state.playT0) / 1000;
+      var end = state.rec.frames[state.rec.frames.length - 1].t;
+      if (elapsed >= end) {
+        applyPlay(end, true);
+        state.phase = "idle";
+        state.afterShow = true;
+        syncControls();
+        persistSoon();
+      } else {
+        applyPlay(elapsed, false);
+      }
+    }
+  }
+
+  function toggleCurtain() {
+    if (state.phase === "bow") return;
+    state.curtain = state.curtain ? 0 : 1;
+    swish();
+    persistSoon();
+    syncControls();
+  }
+
+  function ensureAudio() {
+    if (actx) return true;
+    var AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return false;
+    try {
+      actx = new AC();
+      master = actx.createGain();
+      master.gain.value = 0;
+      var lp = actx.createBiquadFilter();
+      lp.type = "lowpass";
+      lp.frequency.value = 2400;
+      master.connect(lp);
+      lp.connect(actx.destination);
+      if (actx.state === "suspended") actx.resume().catch(function () {});
+      return true;
+    } catch (err) {
+      actx = null;
+      master = null;
+      return false;
+    }
+  }
+
+  function noteGesture() {
+    state.gestured = true;
+    if (state.soundOn && actx && actx.state === "suspended") {
+      actx.resume().catch(function () {});
+    }
+  }
+
+  function midiFreq(m) { return 440 * Math.pow(2, (m - 69) / 12); }
+
+  function boxNote(time, freq, dur) {
+    var o = actx.createOscillator();
+    var o2 = actx.createOscillator();
+    o.type = "sine";
+    o2.type = "sine";
+    o.frequency.setValueAtTime(freq, time);
+    o2.frequency.setValueAtTime(freq * 2.71, time);
+    var g = actx.createGain();
+    var g2 = actx.createGain();
+    g.gain.setValueAtTime(0.0001, time);
+    g.gain.exponentialRampToValueAtTime(0.05, time + 0.012);
+    g.gain.exponentialRampToValueAtTime(0.0001, time + dur);
+    g2.gain.setValueAtTime(0.0001, time);
+    g2.gain.exponentialRampToValueAtTime(0.012, time + 0.008);
+    g2.gain.exponentialRampToValueAtTime(0.0001, time + Math.min(0.16, dur));
+    var hp = actx.createBiquadFilter();
+    hp.type = "highpass";
+    hp.frequency.value = 160;
+    o.connect(g);
+    o2.connect(g2);
+    g.connect(hp);
+    g2.connect(hp);
+    hp.connect(master);
+    o.start(time);
+    o.stop(time + dur + 0.02);
+    o2.start(time);
+    o2.stop(time + dur + 0.02);
+  }
+
+  function syncMusic() {
+    var want = state.soundOn && state.gestured && !!actx;
+    if (want && !musicArmed) {
+      musicArmed = true;
+      noteTime = actx.currentTime + 0.05;
+      noteStep = 0;
+    }
+    if (!want) musicArmed = false;
+    if (master && actx) {
+      var t = actx.currentTime;
+      master.gain.cancelScheduledValues(t);
+      master.gain.setTargetAtTime(want ? 0.85 : 0, t, 0.04);
+    }
+  }
+
+  function tickMusic() {
+    if (!musicArmed || !actx) return;
+    if (noteTime < actx.currentTime - 0.08) noteTime = actx.currentTime + 0.02;
+    var horizon = actx.currentTime + 0.32;
+    var guard = 0;
+    while (noteTime < horizon && guard++ < 8) {
+      var step = MELODY[noteStep % MELODY.length];
+      if (step[0] > 0) boxNote(noteTime, midiFreq(step[0]), Math.max(0.16, step[1] * BEAT * 0.92));
+      noteTime += step[1] * BEAT;
+      noteStep++;
+    }
+  }
+
+  function swish() {
+    if (!state.soundOn || !state.gestured || !actx || !master) return;
+    try {
+      var sr = actx.sampleRate;
+      var dur = 0.42;
+      var len = Math.max(1, Math.floor(sr * dur));
+      var buf = actx.createBuffer(1, len, sr);
+      var data = buf.getChannelData(0);
+      for (var i = 0; i < len; i++) {
+        var e = Math.sin((i / len) * Math.PI);
+        data[i] = (Math.random() * 2 - 1) * e * e;
+      }
+      var src = actx.createBufferSource();
+      src.buffer = buf;
+      var bp = actx.createBiquadFilter();
+      bp.type = "bandpass";
+      bp.Q.value = 0.55;
+      var t = actx.currentTime;
+      bp.frequency.setValueAtTime(1700, t);
+      bp.frequency.exponentialRampToValueAtTime(220, t + dur);
+      var g = actx.createGain();
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.exponentialRampToValueAtTime(0.16, t + 0.05);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+      src.connect(bp);
+      bp.connect(g);
+      g.connect(master);
+      src.start(t);
+    } catch (err) { /* ignore */ }
+  }
+
+  function toggleSound() {
+    noteGesture();
+    state.soundOn = !state.soundOn;
+    if (state.soundOn && !ensureAudio()) state.soundOn = false;
+    syncMusic();
+    syncControls();
+  }
+
+  function serialize() {
+    return {
+      v: 1,
+      curtain: state.curtain,
+      cast: state.cast.map(function (p) {
+        return {
+          kind: p.kind,
+          x: round3(p.x),
+          y: round3(p.y),
+          rest: p.bones.map(function (b) { return round3(b.rest); }),
+          off: p.bones.map(function (b) { return round3(b.off); })
+        };
+      }),
+      show: state.rec && state.rec.frames.length > 1 ? { frames: state.rec.frames } : null
+    };
+  }
+
+  function persistNow() {
+    try { localStorage.setItem(KEY, JSON.stringify(serialize())); } catch (err) { /* private mode */ }
+  }
+
+  function persistSoon() {
+    if (state.saveTimer) clearTimeout(state.saveTimer);
+    state.saveTimer = setTimeout(persistNow, 160);
+  }
+
+  function restore() {
+    try {
+      var raw = localStorage.getItem(KEY);
+      if (!raw) return;
+      var data = JSON.parse(raw);
+      if (!data || data.v !== 1) return;
+      if (data.curtain === 0 || data.curtain === 1) {
+        state.curtain = data.curtain;
+        state.curtainPos = data.curtain;
+      }
+      state.cast = [];
+      if (Array.isArray(data.cast)) {
+        for (var i = 0; i < data.cast.length; i++) {
+          var item = data.cast[i];
+          if (!kindById(item.kind) || !isNum(item.x) || !isNum(item.y)) continue;
+          if (find(item.kind)) continue;
+          var p = makePuppet(item.kind, clamp(item.x, 0.06, 0.94), clamp(item.y, 0.08, 0.92));
+          if (Array.isArray(item.rest)) {
+            for (var r = 0; r < p.bones.length && r < item.rest.length; r++) {
+              if (isNum(item.rest[r])) p.bones[r].rest = item.rest[r];
+            }
+          }
+          if (Array.isArray(item.off)) {
+            for (var o = 0; o < p.bones.length && o < item.off.length; o++) {
+              if (isNum(item.off[o])) p.bones[o].off = clamp(item.off[o], -1.05, 1.05);
+            }
+          }
+          state.cast.push(p);
+        }
+      }
+      if (data.show && Array.isArray(data.show.frames) && data.show.frames.length > 1) {
+        state.rec = { frames: data.show.frames };
+      }
+    } catch (err) { /* ignore */ }
+  }
+
+  function armSkipClick() {
+    state.skipClick = true;
+    setTimeout(function () { state.skipClick = false; }, 0);
+  }
+
+  function onKindPointerDown(e) {
+    if (e.button !== undefined && e.button !== 0) return;
+    noteGesture();
+    var kind = e.currentTarget.getAttribute("data-kind");
+    var existing = find(kind);
+    state.drag = {
+      mode: "palette",
+      kind: kind,
+      pointer: e.pointerId,
+      sx: e.clientX,
+      sy: e.clientY,
+      moved: false,
+      existing: existing,
+      origin: existing ? { x: existing.x, y: existing.y } : null,
+      outside: false,
+      lastT: performance.now()
+    };
+    e.currentTarget.setPointerCapture(e.pointerId);
+  }
+
+  function onKindPointerMove(e) {
+    var d = state.drag;
+    if (!d || d.mode !== "palette" || e.pointerId !== d.pointer) return;
+    if (Math.hypot(e.clientX - d.sx, e.clientY - d.sy) > 7) d.moved = true;
+    if (!d.moved) return;
+    if (state.phase === "play" || state.phase === "bow") return;
+    var pt = canvasPoint(e.clientX, e.clientY);
+    var n = normFromCanvas(pt.x, pt.y);
+    var now = performance.now();
+    var dt = (now - d.lastT) / 1000;
+    d.lastT = now;
+    if (!n) {
+      d.outside = true;
+      if (!d.existing) state.ghost = null;
+      return;
+    }
+    d.outside = false;
+    if (d.existing) {
+      setVel(d.existing, n.x, n.y, dt);
+      d.existing.x = n.x;
+      d.existing.y = n.y;
+      state.selected = d.existing;
+    } else {
+      if (!state.ghost || state.ghost.kind !== d.kind) state.ghost = makePuppet(d.kind, n.x, n.y);
+      setVel(state.ghost, n.x, n.y, dt);
+      state.ghost.x = n.x;
+      state.ghost.y = n.y;
+    }
+  }
+
+  function finishPalette(d) {
+    if (state.phase === "play" || state.phase === "bow") {
+      state.ghost = null;
+      if (d.existing && d.origin) {
+        d.existing.x = d.origin.x;
+        d.existing.y = d.origin.y;
+      }
+      return;
+    }
+    if (!d.moved) {
+      if (d.existing) state.selected = d.existing;
+      else placeNew(d.kind);
+    } else if (d.existing) {
+      if (d.outside && d.origin) {
+        d.existing.x = d.origin.x;
+        d.existing.y = d.origin.y;
+      }
+      state.selected = d.existing;
+      state.afterShow = false;
+      persistSoon();
+    } else if (state.ghost && !d.outside) {
+      state.cast.push(state.ghost);
+      state.selected = state.ghost;
+      state.note = "";
+      state.noteUntil = 0;
+      state.afterShow = false;
+      persistSoon();
+    }
+    state.ghost = null;
+    syncControls();
+  }
+
+  function onKindPointerUp(e) {
+    var d = state.drag;
+    if (!d || d.mode !== "palette" || e.pointerId !== d.pointer) return;
+    finishPalette(d);
+    state.drag = null;
+    armSkipClick();
+  }
+
+  function onCanvasPointerDown(e) {
+    if (e.button !== undefined && e.button !== 0) return;
+    noteGesture();
+    if (state.phase === "play" || state.phase === "bow") return;
+    var pt = canvasPoint(e.clientX, e.clientY);
+    var hit = hitTest(pt.x, pt.y);
+    if (!hit) {
+      state.selected = null;
+      syncControls();
+      return;
+    }
+    state.selected = hit.puppet;
+    state.drag = {
+      mode: "stage",
+      pointer: e.pointerId,
+      puppet: hit.puppet,
+      bone: hit.bone,
+      lastT: performance.now()
+    };
+    cv.setPointerCapture(e.pointerId);
+    cv.classList.add("grabbing");
+    state.afterShow = false;
+    syncControls();
+  }
+
+  function onCanvasPointerMove(e) {
+    var d = state.drag;
+    if (!d || d.mode !== "stage" || e.pointerId !== d.pointer) return;
+    var now = performance.now();
+    var dt = (now - d.lastT) / 1000;
+    d.lastT = now;
+    if (d.bone >= 0) {
+      var local = localOf(d.puppet, e.clientX, e.clientY);
+      poseBone(d.puppet, d.bone, local.x, local.y);
+      return;
+    }
+    var pt = canvasPoint(e.clientX, e.clientY);
+    var n = normFromCanvas(pt.x, pt.y);
+    if (!n) return;
+    setVel(d.puppet, n.x, n.y, dt);
+    d.puppet.x = n.x;
+    d.puppet.y = n.y;
+  }
+
+  function onCanvasPointerUp(e) {
+    var d = state.drag;
+    if (!d || d.mode !== "stage" || e.pointerId !== d.pointer) return;
+    state.drag = null;
+    cv.classList.remove("grabbing");
+    persistSoon();
+  }
+
+  function nudge(dx, dy) {
+    var p = state.selected;
+    if (!p || state.phase === "play" || state.phase === "bow") return;
+    var nx = clamp(p.x + dx, 0.06, 0.94);
+    var ny = clamp(p.y + dy, 0.08, 0.92);
+    var g = geo;
+    if (g) {
+      p.vx = dx * g.paper.w * 8;
+      p.vy = dy * g.paper.h * 8;
+    }
+    p.x = nx;
+    p.y = ny;
+    state.afterShow = false;
+    persistSoon();
+  }
+
+  function onKey(e) {
+    noteGesture();
+    var k = e.key;
+    if (k >= "1" && k <= "8") {
+      var id = ORDER[Number(k) - 1];
+      var existing = find(id);
+      if (existing) state.selected = existing;
+      else placeNew(id);
+      syncControls();
+      e.preventDefault();
+      return;
+    }
+    if (k === "v" || k === "V") { toggleCurtain(); e.preventDefault(); }
+    else if (k === "a" || k === "A") {
+      if (state.phase === "record") stopRecord();
+      else startRecord();
+      e.preventDefault();
+    } else if (k === " " || k === "p" || k === "P") {
+      if (state.phase === "play" || state.phase === "bow") stopShow(true);
+      else beginShow();
+      e.preventDefault();
+    } else if (k === "m" || k === "M") { toggleSound(); e.preventDefault(); }
+    else if (k === "Delete" || k === "Backspace") { removeSelected(); e.preventDefault(); }
+    else if (k === "Escape") {
+      if (state.phase === "record") stopRecord();
+      else if (state.phase === "play" || state.phase === "bow") stopShow(true);
+    } else if (k === "ArrowLeft") { nudge(-0.02, 0); e.preventDefault(); }
+    else if (k === "ArrowRight") { nudge(0.02, 0); e.preventDefault(); }
+    else if (k === "ArrowUp") { nudge(0, -0.02); e.preventDefault(); }
+    else if (k === "ArrowDown") { nudge(0, 0.02); e.preventDefault(); }
+  }
+
+  function bind() {
+    var buttons = castBar.querySelectorAll("button");
+    for (var i = 0; i < buttons.length; i++) {
+      buttons[i].addEventListener("pointerdown", onKindPointerDown);
+      buttons[i].addEventListener("pointermove", onKindPointerMove);
+      buttons[i].addEventListener("pointerup", onKindPointerUp);
+      buttons[i].addEventListener("pointercancel", onKindPointerUp);
+      buttons[i].addEventListener("click", function (ev) {
+        if (state.skipClick) return;
+        var kind = ev.currentTarget.getAttribute("data-kind");
+        var existing = find(kind);
+        if (existing) { state.selected = existing; syncControls(); }
+        else placeNew(kind);
+      });
+    }
+    cv.addEventListener("pointerdown", onCanvasPointerDown);
+    cv.addEventListener("pointermove", onCanvasPointerMove);
+    cv.addEventListener("pointerup", onCanvasPointerUp);
+    cv.addEventListener("pointercancel", onCanvasPointerUp);
+    btnVorhang.addEventListener("click", function () { noteGesture(); toggleCurtain(); });
+    btnRec.addEventListener("click", function () {
+      noteGesture();
+      if (state.phase === "record") stopRecord();
+      else startRecord();
+    });
+    btnPlay.addEventListener("click", function () {
+      noteGesture();
+      if (state.phase === "play" || state.phase === "bow") stopShow(true);
+      else beginShow();
+    });
+    btnTon.addEventListener("click", toggleSound);
+    document.getElementById("btnWeg").addEventListener("click", function () { noteGesture(); removeSelected(); });
+    document.getElementById("btnLeer").addEventListener("click", function () { noteGesture(); clearStage(); });
+    document.addEventListener("keydown", onKey);
+    document.addEventListener("pointerdown", noteGesture, true);
+    window.addEventListener("resize", resize);
+    if (window.ResizeObserver) new ResizeObserver(resize).observe(stage);
+  }
+
+  function makeNoise() {
+    var c = document.createElement("canvas");
+    c.width = 140;
+    c.height = 140;
+    var g = c.getContext("2d");
+    var img = g.createImageData(140, 140);
+    for (var i = 0; i < img.data.length; i += 4) {
+      var v = 200 + Math.random() * 55;
+      img.data[i] = v;
+      img.data[i + 1] = v - 10;
+      img.data[i + 2] = v - 30;
+      img.data[i + 3] = Math.random() * 22;
+    }
+    g.putImageData(img, 0, 0);
+    noisePat = ctx.createPattern(c, "repeat");
+  }
+
+  var motes = [];
+  for (var mi = 0; mi < 16; mi++) {
+    motes.push({
+      x: Math.random() * 0.45,
+      y: 0.25 + Math.random() * 0.7,
+      r: 0.6 + Math.random() * 1.1,
+      p: Math.random() * Math.PI * 2,
+      s: 0.15 + Math.random() * 0.35
+    });
+  }
+
+  function roundRect(c, x, y, w, h, r) {
+    var rr = Math.min(r, w / 2, h / 2);
+    c.beginPath();
+    c.moveTo(x + rr, y);
+    c.arcTo(x + w, y, x + w, y + h, rr);
+    c.arcTo(x + w, y + h, x, y + h, rr);
+    c.arcTo(x, y + h, x, y, rr);
+    c.arcTo(x, y, x + w, y, rr);
+    c.closePath();
+  }
+
+  function drawCurtain(x, y, w, h, side) {
+    if (w < 2 || h < 2) return;
+    var g = ctx.createLinearGradient(x, y, x + w, y);
+    if (side < 0) {
+      g.addColorStop(0, "#4c0816");
+      g.addColorStop(0.55, "#9a2036");
+      g.addColorStop(1, "#3a0610");
+    } else {
+      g.addColorStop(0, "#3a0610");
+      g.addColorStop(0.45, "#9a2036");
+      g.addColorStop(1, "#4c0816");
+    }
+    ctx.fillStyle = g;
+    ctx.fillRect(x, y, w, h);
+    var folds = Math.max(2, Math.floor(w / 16));
+    for (var i = 0; i < folds; i++) {
+      ctx.fillStyle = i % 2 ? "rgba(0,0,0,0.16)" : "rgba(255,220,180,0.06)";
+      ctx.fillRect(x + (w / folds) * i, y, Math.max(1, w / folds * 0.5), h);
+    }
+    ctx.fillStyle = "#e6c56e";
+    if (side < 0) ctx.fillRect(x + w - 3, y, 3, h);
+    else ctx.fillRect(x, y, 3, h);
+    ctx.fillStyle = "#e2b656";
+    var fy = y + h - 8;
+    for (var fx = 0; fx < w; fx += 5) ctx.fillRect(x + fx, fy, 2, 8);
+  }
+
+  function drawValance(x, y, w) {
+    var drop = clamp(w * 0.055, 16, 40);
+    var n = Math.max(7, Math.round(w / 46));
+    var sw = w / n;
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    ctx.lineTo(x + w, y);
+    ctx.lineTo(x + w, y + drop * 0.28);
+    for (var i = n - 1; i >= 0; i--) {
+      var cx = x + (i + 0.5) * sw;
+      ctx.quadraticCurveTo(cx, y + drop, x + i * sw, y + drop * 0.28);
+    }
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = "#e6c56e";
+    ctx.fillRect(x, y, w, 3);
+  }
+
+  function drawLamp(x, y, t) {
+    var flick = reduce ? 1 : (0.92 + Math.sin(t * 8.5) * 0.05 + Math.sin(t * 13.2) * 0.03);
+    var glow = ctx.createRadialGradient(x, y, 4, x, y, 120 * flick);
+    glow.addColorStop(0, "rgba(255, 220, 140, 0.55)");
+    glow.addColorStop(0.35, "rgba(255, 170, 70, 0.16)");
+    glow.addColorStop(1, "rgba(255, 140, 40, 0)");
+    ctx.fillStyle = glow;
+    ctx.beginPath();
+    ctx.arc(x, y, 120 * flick, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  function drawLampHardware(x, y, t) {
+    var flick = reduce ? 1 : (0.9 + Math.sin(t * 9) * 0.08 + Math.sin(t * 14) * 0.04);
+    ctx.fillStyle = "#6e4318";
+    ctx.beginPath();
+    ctx.ellipse(x, y + 16, 16, 6, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "#d7a24a";
+    ctx.fillRect(x - 3, y - 10, 6, 26);
+    ctx.fillStyle = "rgba(255, 236, 196, 0.38)";
+    ctx.beginPath();
+    ctx.ellipse(x, y - 16, 8, 13, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "#ffb03a";
+    ctx.beginPath();
+    ctx.ellipse(x, y - 20, 3.1 * flick, 7.2 * flick, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "#fff6d8";
+    ctx.beginPath();
+    ctx.ellipse(x, y - 18, 1.3, 3.4 * flick, 0, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  function drawEmpty(g) {
+    if (state.cast.length || state.ghost || state.phase !== "idle") return;
+    ctx.save();
+    ctx.fillStyle = "rgba(110, 58, 18, 0.55)";
+    ctx.font = "600 " + clamp(g.paper.w * 0.038, 14, 22) + "px Georgia, serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    var text = "Zieh eine Figur auf die Bühne.";
+    var maxW = g.paper.w * 0.72;
+    var words = text.split(" ");
+    var lines = [];
+    var line = "";
+    for (var i = 0; i < words.length; i++) {
+      var trial = line ? line + " " + words[i] : words[i];
+      if (ctx.measureText(trial).width > maxW && line) {
+        lines.push(line);
+        line = words[i];
+      } else line = trial;
+    }
+    if (line) lines.push(line);
+    var lh = clamp(g.paper.w * 0.05, 18, 28);
+    var y0 = g.paper.y + g.paper.h * 0.42 - ((lines.length - 1) * lh) / 2;
+    for (var li = 0; li < lines.length; li++) {
+      ctx.fillText(lines[li], g.paper.x + g.paper.w * 0.56, y0 + li * lh);
+    }
+    ctx.restore();
+  }
+
+  function drawSelection(info) {
+    if (!info) return;
+    var o = info.origin;
+    var spec = info.spec;
+    ctx.save();
+    ctx.translate(o.x, o.y);
+    ctx.scale(o.sc, o.sc);
+    ctx.strokeStyle = "rgba(150, 72, 18, 0.75)";
+    ctx.lineWidth = 2 / o.sc;
+    ctx.setLineDash([5 / o.sc, 4 / o.sc]);
+    ctx.beginPath();
+    ctx.ellipse(0, 0, spec.body + 10, spec.body * 0.72 + 8, 0, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = "#e6c27a";
+    for (var i = 0; i < info.ends.length; i++) {
+      ctx.beginPath();
+      ctx.arc(info.ends[i].x0, info.ends[i].y0, 2.4, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  function render(t) {
+    geo = computeGeom();
+    var g = geo;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, cssW, cssH);
+    var fr = g.frame;
+    var wood = ctx.createLinearGradient(fr.x, fr.y, fr.x, fr.y + fr.h);
+    wood.addColorStop(0, "#6a4330");
+    wood.addColorStop(0.4, "#3d2418");
+    wood.addColorStop(1, "#2a160f");
+    ctx.fillStyle = wood;
+    roundRect(ctx, fr.x, fr.y, fr.w, fr.h, 14);
+    ctx.fill();
+
+    var paper = g.paper;
+    ctx.save();
+    roundRect(ctx, paper.x, paper.y, paper.w, paper.h, 4);
+    ctx.clip();
+    var pg = ctx.createLinearGradient(paper.x, paper.y, paper.x + paper.w, paper.y + paper.h);
+    pg.addColorStop(0, "#fff4d4");
+    pg.addColorStop(0.42, "#f3c98a");
+    pg.addColorStop(1, "#e09a52");
+    ctx.fillStyle = pg;
+    ctx.fillRect(paper.x, paper.y, paper.w, paper.h);
+    var pool = ctx.createRadialGradient(g.lamp.x, g.lamp.y, 10, g.lamp.x, g.lamp.y, paper.w * 0.72);
+    pool.addColorStop(0, "rgba(255, 236, 180, 0.85)");
+    pool.addColorStop(0.35, "rgba(255, 196, 110, 0.28)");
+    pool.addColorStop(1, "rgba(180, 80, 20, 0)");
+    ctx.fillStyle = pool;
+    ctx.fillRect(paper.x, paper.y, paper.w, paper.h);
+    if (noisePat) {
+      ctx.save();
+      ctx.globalAlpha = 0.22;
+      ctx.fillStyle = noisePat;
+      ctx.fillRect(paper.x, paper.y, paper.w, paper.h);
+      ctx.restore();
+    }
+    drawLamp(g.lamp.x, g.lamp.y, t);
+    for (var m = 0; m < motes.length; m++) {
+      var mote = motes[m];
+      var mx = paper.x + mote.x * paper.w + Math.sin(t * mote.s + mote.p) * 8;
+      var my = paper.y + mote.y * paper.h + Math.cos(t * mote.s * 0.7 + mote.p) * 5;
+      ctx.fillStyle = "rgba(255, 236, 190, 0.35)";
+      ctx.beginPath();
+      ctx.arc(mx, my, mote.r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    var ordered = state.cast.slice().sort(function (a, b) {
+      var da = lightFor(a.x, a.y).dist;
+      var db = lightFor(b.x, b.y).dist;
+      return db - da;
+    });
+    var selectedInfo = null;
+    for (var i = 0; i < ordered.length; i++) {
+      var info = paintPuppet(ordered[i], g, 1);
+      if (ordered[i] === state.selected) selectedInfo = info;
+    }
+    if (state.ghost) paintPuppet(state.ghost, g, 0.78);
+    drawEmpty(g);
+    var vig = ctx.createRadialGradient(
+      paper.x + paper.w * 0.5, paper.y + paper.h * 0.5, paper.w * 0.2,
+      paper.x + paper.w * 0.5, paper.y + paper.h * 0.45, paper.w * 0.72
+    );
+    vig.addColorStop(0, "rgba(90, 30, 8, 0)");
+    vig.addColorStop(1, "rgba(80, 28, 6, 0.28)");
+    ctx.fillStyle = vig;
+    ctx.fillRect(paper.x, paper.y, paper.w, paper.h);
+    ctx.restore();
+
+    ctx.strokeStyle = "#e6c27a";
+    ctx.lineWidth = 2;
+    roundRect(ctx, paper.x - 1, paper.y - 1, paper.w + 2, paper.h + 2, 5);
+    ctx.stroke();
+    drawSelection(selectedInfo);
+    drawLampHardware(g.lamp.x, g.lamp.y, t);
+
+    var cover = (1 - state.curtainPos) * 0.5 + 0.055;
+    var cw = paper.w * cover;
+    drawCurtain(paper.x - 8, fr.y, cw + 8, fr.h, -1);
+    drawCurtain(paper.x + paper.w - cw, fr.y, cw + 8, fr.h, 1);
+    ctx.fillStyle = "#7a1424";
+    drawValance(fr.x + 4, fr.y + 2, fr.w - 8);
+
+    if (state.phase === "play" || state.phase === "bow") {
+      ctx.fillStyle = "rgba(42, 16, 10, 0.72)";
+      ctx.font = "700 14px Georgia, serif";
+      ctx.textAlign = "left";
+      ctx.textBaseline = "top";
+      ctx.fillText("Vorstellung", paper.x + 12, paper.y + 10);
+    }
+  }
+
+  var last = performance.now();
+  function frame(now) {
+    var dt = clamp((now - last) / 1000, 0, 0.05);
+    last = now;
+    state.clock = now / 1000;
+    if (cssW < 2 || cssH < 2) resize();
+    var steps = 1;
+    var h = dt;
+    if (dt > 0.034) {
+      steps = 2;
+      h = dt / 2;
+    }
+    for (var s = 0; s < steps; s++) {
+      var held = null;
+      if (state.drag && (state.drag.mode === "stage" || state.drag.mode === "palette")) {
+        held = state.drag.puppet || state.drag.existing || state.ghost;
+      }
+      for (var i = 0; i < state.cast.length; i++) {
+        stepBones(state.cast[i], h);
+        decayVel(state.cast[i], h, state.cast[i] === held && !(state.drag && state.drag.bone >= 0));
+      }
+      if (state.ghost) {
+        stepBones(state.ghost, h);
+        decayVel(state.ghost, h, state.ghost === held);
+      }
+      if (reduce) state.curtainPos = state.curtain;
+      else {
+        var k = 1 - Math.exp(-8 * h);
+        state.curtainPos += (state.curtain - state.curtainPos) * k;
+        if (Math.abs(state.curtain - state.curtainPos) < 0.002) state.curtainPos = state.curtain;
+      }
+      stepShow(h);
+    }
+    render(state.clock);
+    syncHint();
+    tickMusic();
+    requestAnimationFrame(frame);
+  }
+
+  function clientOf(p, boneIndex) {
+    resize();
+    geo = computeGeom();
+    var s = screenOf(p, geo);
+    var r = cv.getBoundingClientRect();
+    var x = s.x;
+    var y = s.y;
+    if (boneIndex >= 0) {
+      var ends = layout(p);
+      var e = ends[boneIndex];
+      x = s.x + e.x1 * s.sc;
+      y = s.y + e.y1 * s.sc;
+    }
+    return { x: r.left + x, y: r.top + y };
+  }
+
+  restore();
+  makeNoise();
+  bind();
+  resize();
+  syncControls();
+  requestAnimationFrame(frame);
+
+  window.SCHATTEN = {
+    ready: true,
+    key: KEY,
+    puppetPoint: function (kind) {
+      var p = find(kind);
+      if (!p) return null;
+      return clientOf(p, -1);
+    },
+    bonePoint: function (kind, index) {
+      var p = find(kind);
+      if (!p) return null;
+      return clientOf(p, index);
+    },
+    metrics: function () {
+      return state.cast.map(function (p) {
+        var light = lightFor(p.x, p.y);
+        return {
+          kind: p.kind,
+          x: p.x,
+          y: p.y,
+          scale: light.scale,
+          blur: light.blur,
+          dist: light.dist
+        };
+      });
+    },
+    boneOff: function (kind, index) {
+      var p = find(kind);
+      if (!p || !p.bones[index]) return null;
+      return p.bones[index].off;
+    },
+    boneRest: function (kind, index) {
+      var p = find(kind);
+      if (!p || !p.bones[index]) return null;
+      return p.bones[index].rest;
+    },
+    maxSwing: function (kind) {
+      var p = find(kind);
+      return p ? p.maxSwing : 0;
+    },
+    resetSwing: function (kind) {
+      var p = find(kind);
+      if (p) p.maxSwing = 0;
+    },
+    phase: function () { return state.phase; },
+    curtain: function () { return state.curtain; },
+    soundOn: function () { return state.soundOn; },
+    gestured: function () { return state.gestured; },
+    hasAudio: function () { return !!actx; },
+    frames: function () { return state.rec && state.rec.frames ? state.rec.frames.length : 0; },
+    castKinds: function () { return state.cast.map(function (p) { return p.kind; }); }
+  };
+})();
+</script>
+</body>
+</html>
