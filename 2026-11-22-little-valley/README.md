@@ -142,6 +142,14 @@ Not in the morning or late afternoon (no thermals), in rain, storms or the map v
 as a skein of geese. With the sound on you hear their far, rolling trumpet call.
 (`screenshot-cranes.png`: cranes circling in a thermal over the autumn valley.)
 
+**Grey herons**: by day, all year round, a grey heron or two stands in the shallows where a lake or river meets
+the bank, still as a post on long legs, neck tucked in or stretched up. Now and then it strikes: the neck shoots
+down into the water, and sometimes it comes up with a little silver fish. Or it wades a few slow, high steps
+along the edge. When its shallows freeze or dry up, or just now and then, it flies off low with slow beats of its
+broad wings to another edge (with the sound on you hear a hoarse *fraank* as it takes off). Not at night, in
+storms or heavy rain, or in the map view.
+(`screenshot-heron.png`: a grey heron in the shallows.)
+
 **Snowmen**: when the snow reaches the village, little snowmen with red scarves and dark hats
 appear in the cottage gardens, and they melt with the snow in spring.
 

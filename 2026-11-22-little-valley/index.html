@@ -1696,6 +1696,7 @@ function renderTilt(t) {
   { const t0 = performance.now(); drawMidges(t); st.midgeMs = (st.midgeMs || 0) * 0.9 + (performance.now() - t0) * 0.1; }
   { const t0 = performance.now(); drawDragonflies(t); st.dfMs = (st.dfMs || 0) * 0.9 + (performance.now() - t0) * 0.1; }
   { const t0 = performance.now(); drawButterflies(t); st.btfMs = (st.btfMs || 0) * 0.9 + (performance.now() - t0) * 0.1; }
+  { const t0 = performance.now(); drawHerons(t); st.heronMs = (st.heronMs || 0) * 0.9 + (performance.now() - t0) * 0.1; }
   { const t0 = performance.now(); drawWebs(t); st.webMs = (st.webMs || 0) * 0.9 + (performance.now() - t0) * 0.1; }
   { const t0 = performance.now(); drawHoarFrost(t); st.frostMs = (st.frostMs || 0) * 0.9 + (performance.now() - t0) * 0.1; }
   { const t0 = performance.now(); drawFox(t); st.foxMs = (st.foxMs || 0) * 0.9 + (performance.now() - t0) * 0.1; }
@@ -3197,6 +3198,101 @@ function btfSpots(S, T) { // visible blooming meadow cells
   for (let y = 4; y < N - 4; y += s2) for (let x = 4; x < N - 4; x += s2) { const i = y * N + x; if (btfFlower(S, i) && duckSeen(T, S, x, y)) out.push([x, y]); }
   return out;
 }
+// grey herons: by day (6:30-20:00) in any season one or two herons (one on a phone) stand in the shallows at a lake or
+// river edge (open water 0.02-0.25 deep with dry ground next to it, on screen), still as a post, neck tucked or
+// stretched. After 3-7 s a heron either strikes (the neck shoots down; about 2 in 5 come up with a little silver fish
+// that it swallows) or wades a few cells along the edge with slow, high steps. When its shallows dry up or freeze, or
+// now and then just because, it flies off low with slow wing beats to another edge (with sound on a hoarse 'fraank'
+// as it takes off), or away if there is none. None at night, in a storm or heavy rain (>= 0.6), without open shallow
+// water, or in the map view. App-only. Hooks: st.heronsDrawn, st.heronAt (screen px of the first), st.heronStates
+// (state of each drawn: stand, wade, strike, fly), st.heronPts ([x, y, id]), st.heronStrikes, st.heronFish, st.heronFlights, st.heronSpots,
+// st.heronOnEdge (share of the standing ones on edge cells), st.heronH (bird height px), st.heronMs, __lv.HER.
+const HER_MAX = isPhone ? 1 : 2, HER = { S: null, src: [], rt: -1e9, birds: [], last: -1, strikes: 0, fish: 0, flights: 0 };
+function herEdge(S, i) { const N = S.N, d = S.d, ice = S.ice, x = i % N, y = (i / N) | 0;
+  if (x < 3 || y < 3 || x >= N - 3 || y >= N - 4 || !(d[i] > 0.02 && d[i] < 0.25) || (ice && ice[i] > 0.3)) return false;
+  return d[i - 1] < 0.02 || d[i + 1] < 0.02 || d[i - N] < 0.02 || d[i + N] < 0.02; }
+function herSpots(S, T) { const N = S.N, out = [], s2 = Math.max(1, N >> 6);
+  for (let y = 4; y < N - 4; y += s2) for (let x = 4; x < N - 4; x += s2) { const i = y * N + x; if (herEdge(S, i) && duckSeen(T, S, x, y)) out.push([x, y]); }
+  return out; }
+function drawHerons(t) {
+  const T = tilt, S = st.S, N = S.N; st.heronsDrawn = 0; st.heronAt = null; st.heronStates = []; st.heronPts = []; st.heronOnEdge = 0;
+  st.heronStrikes = HER.strikes; st.heronFish = HER.fish; st.heronFlights = HER.flights;
+  const now = performance.now() / 1000, dt = Math.max(0, Math.min(0.1, HER.last < 0 ? 0 : now - HER.last)); HER.last = now;
+  if (!T || T.s == null) return;
+  if (HER.S !== S) { HER.S = S; HER.birds = []; HER.rt = -1e9; }
+  const out = LT.h < 6.5 || LT.h >= 20 || LT.storm > 0.02 || LT.rain >= 0.6;
+  if (now - HER.rt > 3) { HER.rt = now; HER.src = herSpots(S, T); }
+  const src = HER.src; st.heronSpots = src.length;
+  const want = out || src.length < 3 ? 0 : HER_MAX;
+  const pu = Math.max(0.5, T.cp * T.s), cpx = 1 / pu; // cells per screen px
+  const near = (b, rMin, rMax) => { let q = null; for (let k = 0; k < 20; k++) { const c = src[(Math.random() * src.length) | 0], d = Math.hypot(c[0] - b.x, c[1] - b.y); if (d >= rMin && d <= rMax && !HER.birds.some(o => o !== b && Math.hypot(o.x - c[0], o.y - c[1]) < 6)) { q = c; break; } } return q; };
+  while (HER.birds.length < want) { // a new one flies in from the edge of the view to a free spot
+    if (!src.length) break; const b = { id: HER.id = (HER.id || 0) + 1, x: 0, y: 0, tx: 0, ty: 0, st: 'fly', t: 0, until: 0, face: 1, alt: 0, fishT: 0, neck: 0, a: 1, leave: false, sx: 0, sy: 0, fl: 0 };
+    const q = near({ x: N / 2, y: N / 2 }, 0, 1e9); if (!q) break; b.tx = q[0] + 0.5; b.ty = q[1] + 0.5;
+    b.x = b.sx = Math.random() < 0.5 ? 3 : N - 4; b.y = b.sy = Math.max(3, Math.min(N - 4, b.ty - 10 + Math.random() * 20)); b.fl = Math.hypot(b.tx - b.x, b.ty - b.y);
+    HER.birds.push(b); }
+  if (HER.birds.filter(o => !o.leave).length > want) for (const b of HER.birds) if (!b.leave && HER.birds.filter(o => !o.leave).length > want) { b.leave = true; b.st = 'fly'; b.sx = b.x; b.sy = b.y; b.tx = b.x < N / 2 ? 2 : N - 3; b.ty = b.y; b.fl = Math.abs(b.tx - b.x); b.t = 0; HER.flights++; if (AU.on) sndFrank(fxPan(null)); }
+  const cp = T.cp, ow = T.ow, oh = T.oh, s = T.s, grey = litC(132, 138, 146), dark = litC(54, 58, 66), pale = litC(214, 218, 220), bill = litC(214, 170, 60), leg = litC(150, 120, 80);
+  cx.save(); cx.lineCap = 'round'; cx.lineJoin = 'round';
+  for (let j = HER.birds.length - 1; j >= 0; j--) { const b = HER.birds[j]; b.t += dt;
+    if (b.leave) { b.a -= dt * 0.6; if (b.a <= 0) { HER.birds.splice(j, 1); continue; } } // flying away: gone in under 2 s
+    if (b.st === 'fly') { const dx = b.tx - b.x, dy = b.ty - b.y, d = Math.hypot(dx, dy), sp = 46 * cpx; // ~46 px/s
+      if (Math.abs(dx) > 0.05) b.face = dx > 0 ? 1 : -1;
+      const prog = 1 - d / Math.max(0.01, b.fl); b.alt = Math.max(0, Math.sin(Math.min(1, prog) * Math.PI)) * Math.min(10, 2 + b.fl * 0.25) + (prog < 0.9 ? 1 : 0) * Math.min(1, d);
+      if (d < 0.15) { if (b.leave) { HER.birds.splice(j, 1); continue; } b.st = 'stand'; b.t = 0; b.until = 3 + Math.random() * 4; b.alt = 0; b.neck = Math.random() < 0.5 ? 0 : 1; }
+      else { const st1 = Math.min(d, sp * dt); b.x += dx / d * st1; b.y += dy / d * st1; } }
+    else if (b.st === 'stand' || b.st === 'wade') { const ci = (b.y | 0) * N + (b.x | 0);
+      if (!herEdge(S, ci) && !(S.d[ci] > 0.01 && S.d[ci] < 0.35 && !(S.ice && S.ice[ci] > 0.3))) { // dried up or frozen: off to another edge
+        const q = near(b, 6, 60); b.st = 'fly'; b.t = 0; b.sx = b.x; b.sy = b.y; HER.flights++; if (AU.on) sndFrank(fxPan(null));
+        if (q) { b.tx = q[0] + 0.5; b.ty = q[1] + 0.5; } else { b.leave = true; b.tx = b.x < N / 2 ? 2 : N - 3; b.ty = b.y; } b.fl = Math.hypot(b.tx - b.x, b.ty - b.y); }
+      else if (b.st === 'wade') { const dx = b.tx - b.x, dy = b.ty - b.y, d = Math.hypot(dx, dy), step = 0.5 + 0.5 * Math.sin(b.t * 5); // slow, high steps: stop-go
+        if (d < 0.1) { b.st = 'stand'; b.t = 0; b.until = 3 + Math.random() * 4; } else { const st1 = Math.min(d, 9 * cpx * step * dt); b.x += dx / d * st1; b.y += dy / d * st1; if (Math.abs(dx) > 0.05) b.face = dx > 0 ? 1 : -1; } }
+      else if (b.t > b.until) { const r = Math.random();
+        if (r < 0.5) { b.st = 'strike'; b.t = 0; HER.strikes++; }
+        else if (r < 0.9) { const q = near(b, 1, 4); if (q) { b.st = 'wade'; b.t = 0; b.tx = q[0] + 0.5; b.ty = q[1] + 0.5; } else { b.t = 0; b.until = 2 + Math.random() * 3; } }
+        else { const q = near(b, 8, 60); if (q) { b.st = 'fly'; b.t = 0; b.sx = b.x; b.sy = b.y; b.tx = q[0] + 0.5; b.ty = q[1] + 0.5; b.fl = Math.hypot(b.tx - b.x, b.ty - b.y); HER.flights++; if (AU.on) sndFrank(fxPan(null)); } else { b.t = 0; b.until = 3; } } }
+      b.neck += ((b.st === 'wade' ? 0.3 : b.neck > 0.5 ? 1 : 0) - b.neck) * Math.min(1, dt * 2); }
+    else if (b.st === 'strike') { if (b.t > 0.7) { b.st = 'stand'; b.t = 0; b.until = 3 + Math.random() * 4; if (Math.random() < 0.4) { b.fishT = 1.6; HER.fish++; } } }
+    if (b.fishT > 0) b.fishT -= dt;
+    // project: water surface under it (or the ground), plus its flight height
+    const gx = b.x, gy = b.y, x0 = Math.min(N - 2, gx | 0), y0 = Math.min(N - 2, gy | 0), fx = gx - x0, fy = gy - y0, k0 = y0 * N + x0;
+    const hs = surf[k0] * (1 - fx) * (1 - fy) + surf[k0 + 1] * fx * (1 - fy) + surf[k0 + N] * (1 - fx) * fy + surf[k0 + N + 1] * fx * fy;
+    const sc = persp(gy, N), ox = (gx - N / 2) * cp * sc + ow / 2, oyG = baseY(T, gy, N) - hs * cp * T.hEx * sc;
+    const px = Math.round(ox), py = Math.round(oyG); if (px < 0 || px >= ow || py < 0 || py >= oh) continue;
+    if (b.st !== 'fly' || b.alt < 1.5) { const pc = T.pick[py * ow + px]; if (pc >= 0 && ((pc / N) | 0) > gy + 3) continue; }
+    const u = cp * sc * s, H = Math.max(isPhone ? 18 : 24, u * 2.6), X = T.sx + ox * s, Yg = T.sy + oyG * s, f = b.face, Y = Yg - b.alt * u;
+    const al = Math.max(0, Math.min(1, b.a)); cx.globalAlpha = 0.25 * al; cx.fillStyle = 'rgba(20,30,40,1)'; cx.beginPath(); cx.ellipse(X, Yg + 0.5, H * 0.32, H * 0.08, 0, 0, 7); cx.fill(); cx.globalAlpha = al;
+    if (b.st === 'fly' && b.alt > 0.4) { // in flight: neck drawn back, legs trailing, broad bowed wings beating slowly
+      const wb = Math.sin(b.t * 6.5), bx = X, by = Y - H * 0.3;
+      cx.strokeStyle = leg; cx.lineWidth = Math.max(1, H * 0.05); cx.beginPath(); cx.moveTo(bx - f * H * 0.2, by); cx.lineTo(bx - f * H * 0.62, by + H * 0.04); cx.stroke();
+      cx.fillStyle = grey; cx.beginPath(); cx.ellipse(bx, by, H * 0.24, H * 0.09, 0, 0, 7); cx.fill();
+      cx.fillStyle = pale; cx.beginPath(); cx.arc(bx + f * H * 0.24, by - H * 0.03, H * 0.075, 0, 7); cx.fill();
+      cx.strokeStyle = bill; cx.lineWidth = Math.max(1, H * 0.04); cx.beginPath(); cx.moveTo(bx + f * H * 0.3, by - H * 0.02); cx.lineTo(bx + f * H * 0.46, by); cx.stroke();
+      cx.fillStyle = dark; cx.beginPath(); cx.moveTo(bx - f * H * 0.12, by - H * 0.02); cx.quadraticCurveTo(bx + f * H * 0.02, by - H * 0.45 * wb - H * 0.05, bx + f * H * 0.2, by - H * 0.55 * wb); cx.lineTo(bx + f * H * 0.12, by - H * 0.02); cx.fill();
+      cx.fillStyle = grey; cx.beginPath(); cx.moveTo(bx - f * H * 0.14, by); cx.quadraticCurveTo(bx - f * H * 0.02, by - H * 0.4 * wb, bx + f * H * 0.12, by - H * 0.42 * wb); cx.lineTo(bx + f * H * 0.08, by); cx.fill();
+    } else { // standing in the water: long legs (the lower part under water), body, S-neck or a strike
+      const step = b.st === 'wade' ? Math.sin(b.t * 5) : 0, wl = Yg - H * 0.06; // waterline a little above the ground point
+      const hip = [X, Yg - H * 0.48];
+      cx.strokeStyle = leg; cx.lineWidth = Math.max(1, H * 0.045);
+      cx.beginPath(); cx.moveTo(hip[0], hip[1]); cx.lineTo(X - f * H * 0.06 + step * f * H * 0.08, wl); cx.moveTo(hip[0], hip[1]); cx.lineTo(X + f * H * 0.05 - step * f * H * 0.06, wl - Math.max(0, step) * H * 0.08); cx.stroke();
+      cx.globalAlpha = 0.5 * al; cx.strokeStyle = 'rgba(230,240,250,1)'; cx.lineWidth = 0.8; cx.beginPath(); cx.ellipse(X, wl + 0.5, H * 0.12, H * 0.035, 0, 0, 7); cx.stroke(); cx.globalAlpha = al; // ripple ring
+      const by = Yg - H * 0.6; cx.fillStyle = grey; cx.beginPath(); cx.ellipse(X - f * H * 0.02, by, H * 0.2, H * 0.11, -f * 0.45, 0, 7); cx.fill(); // body, tail low
+      cx.fillStyle = dark; cx.beginPath(); cx.ellipse(X - f * H * 0.08, by + H * 0.01, H * 0.13, H * 0.06, -f * 0.45, 0, 7); cx.fill(); // dark flight feathers
+      let hx, hy; const sx0 = X + f * H * 0.12, sy0 = by - H * 0.06;
+      if (b.st === 'strike') { const k = Math.sin(Math.min(1, b.t / 0.7) * Math.PI); hx = sx0 + f * H * (0.16 + 0.22 * k); hy = sy0 - H * 0.3 + H * 0.62 * k; }
+      else { hx = sx0 + f * H * (0.06 + 0.04 * b.neck); hy = sy0 - H * (0.16 + 0.22 * b.neck); }
+      cx.strokeStyle = pale; cx.lineWidth = Math.max(1.4, H * 0.07); cx.beginPath(); cx.moveTo(sx0, sy0); cx.quadraticCurveTo(sx0 - f * H * 0.08, (sy0 + hy) / 2, hx, hy); cx.stroke(); // S-neck
+      cx.fillStyle = pale; cx.beginPath(); cx.arc(hx, hy, H * 0.06, 0, 7); cx.fill();
+      cx.strokeStyle = dark; cx.lineWidth = Math.max(0.8, H * 0.025); cx.beginPath(); cx.moveTo(hx - f * H * 0.02, hy - H * 0.03); cx.lineTo(hx - f * H * 0.12, hy - H * 0.01); cx.stroke(); // black crest
+      const dn = b.st === 'strike' ? 0.6 : 0.12; cx.strokeStyle = bill; cx.lineWidth = Math.max(1, H * 0.04); cx.beginPath(); cx.moveTo(hx + f * H * 0.04, hy); cx.lineTo(hx + f * H * 0.2, hy + H * 0.2 * dn); cx.stroke();
+      if (b.fishT > 0) { cx.fillStyle = 'rgba(220,230,240,0.95)'; cx.beginPath(); cx.ellipse(hx + f * H * 0.16, hy + H * 0.04, H * 0.07, H * 0.025, f * 0.5, 0, 7); cx.fill(); } // a little silver fish
+    }
+    if (!st.heronsDrawn) st.heronAt = [X, Y]; st.heronsDrawn++; st.heronStates.push(b.st); st.heronPts.push([X, Y, b.id]); st.heronH = H;
+    if (b.st === 'stand' && herEdge(S, (b.y | 0) * N + (b.x | 0))) st.heronOnEdge++;
+  }
+  cx.restore();
+  const nSt = st.heronStates.filter(q => q === 'stand').length; st.heronOnEdge = nSt ? st.heronOnEdge / nSt : 0;
+}
 function drawButterflies(t) {
   const T = tilt, S = st.S, N = S.N; st.butterfliesDrawn = 0; st.btfAt = null; st.btfPerched = 0; st.btfKinds = 0; st.btfPts = [];
   const amt = st.btfAmt = btfAmt(), dt = Math.max(0, Math.min(0.1, t - BTF.last)); BTF.last = t;
@@ -4064,7 +4160,7 @@ function frame(now) {
   const tc0 = performance.now(); computeColours(st.time); st.colMs = (st.colMs || 0) * 0.9 + (performance.now() - tc0) * 0.1;
   cx.setTransform(dpr, 0, 0, dpr, 0, 0);
   if (st.view === 'tilt') { tiltGeom(); drawSky(st.time, dtReal); renderTilt(st.time); }
-  else { drawSky(st.time, dtReal); renderTop(st.time); drawCottagesTop(); drawWindowGlowTop(st.time); st.websDrawn = 0; st.webAt = []; st.webCells = []; st.webGlints = 0; WEB.webs.forEach(w => { w.a = 0; }); st.frostTrees = 0; st.frostGlints = 0; st.frostGlintAt = []; FR.src = []; FR.gl.forEach(g => { g.age = g.life; }); st.foxTracks = 0; st.foxPrints = 0; st.foxPrintCells = []; st.foxDrawn = 0; st.foxAt = null; if (FOX.fox) { FOX.fox = null; FOX.rest = 5; } FOX.last = st.time; st.glowwormsDrawn = 0; st.glowwormAt = []; st.glowwormCells = []; st.glowwormLvl = []; GW.worms.forEach(w => { w.a = 0; }); st.petalsDrawn = 0; st.mistDrawn = 0; st.mistDrift = 0; st.puddlesDrawn = 0; st.icyPuddles = 0; st.puddleIcePx = 0; st.splashKids = 0; st.splashHopping = 0; st.splashDrops = 0; st.splashSpots = 0; st.splashPuds = []; KID.on = false; st.batsDrawn = 0; st.batAt = null; st.midgesDrawn = 0; st.midgeSpecks = 0; st.midgeGlints = 0; st.midgeCols = []; MID.last = st.time; st.dragonfliesDrawn = 0; st.dfAt = null; st.butterfliesDrawn = 0; st.btfAt = null; BTF.flies.forEach(f => { f.a = 0; }); st.dfHover = 0; DF.last = st.time; st.duckFams = 0; st.ducksDrawn = 0; st.ducklingsDrawn = 0; st.duckLine = null; DUCK.last = null; st.swallowsDrawn = 0; st.swallowRings = 0; st.swallowAt = null; SW.last = st.time; st.bfDrawn = 0; st.bfSit = 0; st.bfFlying = 0; st.bfAtFeeder = 0; st.bfFeeders = 0; st.bfAt = []; st.bfFeederAt = []; BF.birds = []; BF.feeders = []; BF.home = null; BF.crowns = []; } // no petals in the map view (seen from far above they would be specks of dust)
+  else { drawSky(st.time, dtReal); renderTop(st.time); drawCottagesTop(); drawWindowGlowTop(st.time); st.heronsDrawn = 0; st.heronAt = null; st.heronStates = []; HER.birds = []; st.websDrawn = 0; st.webAt = []; st.webCells = []; st.webGlints = 0; WEB.webs.forEach(w => { w.a = 0; }); st.frostTrees = 0; st.frostGlints = 0; st.frostGlintAt = []; FR.src = []; FR.gl.forEach(g => { g.age = g.life; }); st.foxTracks = 0; st.foxPrints = 0; st.foxPrintCells = []; st.foxDrawn = 0; st.foxAt = null; if (FOX.fox) { FOX.fox = null; FOX.rest = 5; } FOX.last = st.time; st.glowwormsDrawn = 0; st.glowwormAt = []; st.glowwormCells = []; st.glowwormLvl = []; GW.worms.forEach(w => { w.a = 0; }); st.petalsDrawn = 0; st.mistDrawn = 0; st.mistDrift = 0; st.puddlesDrawn = 0; st.icyPuddles = 0; st.puddleIcePx = 0; st.splashKids = 0; st.splashHopping = 0; st.splashDrops = 0; st.splashSpots = 0; st.splashPuds = []; KID.on = false; st.batsDrawn = 0; st.batAt = null; st.midgesDrawn = 0; st.midgeSpecks = 0; st.midgeGlints = 0; st.midgeCols = []; MID.last = st.time; st.dragonfliesDrawn = 0; st.dfAt = null; st.butterfliesDrawn = 0; st.btfAt = null; BTF.flies.forEach(f => { f.a = 0; }); st.dfHover = 0; DF.last = st.time; st.duckFams = 0; st.ducksDrawn = 0; st.ducklingsDrawn = 0; st.duckLine = null; DUCK.last = null; st.swallowsDrawn = 0; st.swallowRings = 0; st.swallowAt = null; SW.last = st.time; st.bfDrawn = 0; st.bfSit = 0; st.bfFlying = 0; st.bfAtFeeder = 0; st.bfFeeders = 0; st.bfAt = []; st.bfFeederAt = []; BF.birds = []; BF.feeders = []; BF.home = null; BF.crowns = []; } // no petals in the map view (seen from far above they would be specks of dust)
   floeStep(S, dtReal); drawFloes();
   drawCottageBadges(st.time);
   drawNaturalRain(st.time); drawOverlays(st.time); drawShower(st.time);
@@ -4107,7 +4203,7 @@ function adapt(dt) {
 // and thunder after lightning, wind (stronger in winter and storms), birds by day in the forest, crickets on
 // summer evenings, an owl at night, the creak and clack of turning mill wheels, cowbells near the village.
 // window.LV_AUDIO holds the levels (0..1) and gains so tests can check them without listening.
-const AU = { want: false, on: false, started: false, state: 'none', nodes: 0, live: 0, L: {}, G: {}, ev: { chirp: 0, cricket: 0, owl: 0, clack: 0, creak: 0, bell: 0, thunder: 0, plop: 0, slurp: 0, splash: 0, knock: 0, well: 0, rustle: 0, rumble: 0, drip: 0, squeak: 0, thump: 0, crunch: 0, skate: 0, icicle: 0, puddle: 0, peep: 0, twit: 0, bat: 0, pipe: 0, whirr: 0, honk: 0, crane: 0, murmur: 0, spade: 0 }, flow: 0, riverPan: 0, veg: 0, ticks: 0, vol: 1, snowCover: 0, rainMuffle: 0, rainCut: 9000, masterT: 0, melt: 0, meltPan: 0 };
+const AU = { want: false, on: false, started: false, state: 'none', nodes: 0, live: 0, L: {}, G: {}, ev: { chirp: 0, cricket: 0, owl: 0, clack: 0, creak: 0, bell: 0, thunder: 0, plop: 0, slurp: 0, splash: 0, knock: 0, well: 0, rustle: 0, rumble: 0, drip: 0, squeak: 0, thump: 0, crunch: 0, skate: 0, icicle: 0, puddle: 0, peep: 0, twit: 0, bat: 0, pipe: 0, whirr: 0, honk: 0, crane: 0, frank: 0, murmur: 0, spade: 0 }, flow: 0, riverPan: 0, veg: 0, ticks: 0, vol: 1, snowCover: 0, rainMuffle: 0, rainCut: 9000, masterT: 0, melt: 0, meltPan: 0 };
 window.LV_AUDIO = AU;
 const AU_KEY = 'lv-sound', AU_MASTER = 0.45, AU_DT = 0.25;
 const AU_MAX = { river: 0.55, rain: 0.42, wind: 0.2, birds: 0.42, crickets: 0.13, owl: 0.38, mill: 0.42, cows: 0.26, thunder: 0.85, melt: 0.3 }; // full-level gain per layer
@@ -4365,6 +4461,12 @@ function sndCrane(pan, k) { // common cranes far overhead: a rolling, bugling 'g
     g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.014 * k, t + 0.03); g.gain.linearRampToValueAtTime(0.01 * k, t + d * 0.7); g.gain.linearRampToValueAtTime(0, t + d);
     setTimeout(() => { fl.disconnect(); am.disconnect(); lf.disconnect(); }, (t - ac.currentTime + d) * 1000 + 400); }
   AU.ev.crane++;
+}
+function sndFrank(pan) { // a grey heron taking off: one hoarse, harsh 'fraank' (a falling sawtooth through a lowpass), fx bus
+  if (!fxOn()) return; const ac = AG.ac, t = ac.currentTime + 0.03, d = 0.32, g = auVoice('fx', t, d + 0.1, pan), fl = ac.createBiquadFilter(); fl.type = 'lowpass'; fl.frequency.value = 1500; fl.Q.value = 3; fl.connect(g);
+  const o = osc('sawtooth', 330, t, d + 0.05, fl); o.frequency.linearRampToValueAtTime(260, t + d * 0.5); o.frequency.linearRampToValueAtTime(190, t + d);
+  g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.03, t + 0.02); g.gain.linearRampToValueAtTime(0.018, t + d * 0.6); g.gain.linearRampToValueAtTime(0, t + d);
+  setTimeout(() => fl.disconnect(), (t - ac.currentTime + d) * 1000 + 300); AU.ev.frank++;
 }
 function sndHonk(pan, k) { // wild geese high overhead: a faint, nasal double honk ('ahng-ahng'), far away (lowpassed), fx bus
   if (!fxOn()) return; const ac = AG.ac, t0 = ac.currentTime + 0.02 + Math.random() * 0.25, n = Math.random() < 0.35 ? 3 : 2, f0 = 380 + Math.random() * 90;
@@ -4755,7 +4857,7 @@ addEventListener('pagehide', () => autoSave('pagehide'));
 window.LV_AUTO = { AS, save: autoSave, get: asGet, put: asPut, clear: asClear, restore: autoRestore };
 
 
-window.__lv = { st, FR, FOX, foxEvening, BF, GS, CR, MU, murmEvening, AU, SW, updSound, LV, LT, leaf: LS, clockText, wheelAng, get col() { return [colR, colG, colB]; }, get tilt() { return tilt; }, get area() { return area; }, setTool, newWorld, unproj, proj, get S() { return st.S; }, floes, breakup: sndBreakup, yearTurn, flourT, SACK_T, carts, CART_LOAD, cartTarget, bakeT, FLOUR, smokeRGB, HAY, HAY_T, PUD, KID, DUCK };
+window.__lv = { st, FR, FOX, foxEvening, BF, GS, CR, HER, MU, murmEvening, AU, SW, updSound, LV, LT, leaf: LS, clockText, wheelAng, get col() { return [colR, colG, colB]; }, get tilt() { return tilt; }, get area() { return area; }, setTool, newWorld, unproj, proj, get S() { return st.S; }, floes, breakup: sndBreakup, yearTurn, flourT, SACK_T, carts, CART_LOAD, cartTarget, bakeT, FLOUR, smokeRGB, HAY, HAY_T, PUD, KID, DUCK };
 updUI(); updSound();
 const rawHash = (location.hash || '').slice(1);
 let fromHash = ''; try { fromHash = decodeURIComponent(rawHash); } catch (e) { fromHash = ''; }
