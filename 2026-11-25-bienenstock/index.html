@@ -1,0 +1,1955 @@
+<!doctype html>
+<html lang="de-CH">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Bienenstock</title>
+<meta name="description" content="Eine Wiese mit Bienenstock. Pflanze Blumen, sieh den Bienen beim Tanzen zu und fülle die Waben mit Honig.">
+<meta name="theme-color" content="#6d9444">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23e7b23a'/%3E%3Ccircle cx='16' cy='16' r='6' fill='%23fff4cc'/%3E%3C/svg%3E">
+<style>
+html{color-scheme:light;height:100%;height:100dvh}
+html,body{margin:0;height:100%;overflow:hidden;overscroll-behavior:none;background:#6d9444;font-family:system-ui,-apple-system,"Segoe UI",sans-serif;color:#2c2416;-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent;-webkit-touch-callout:none}
+*,*::before,*::after{box-sizing:border-box}
+#c{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:none}
+button{font:inherit;cursor:pointer;touch-action:manipulation}
+button:focus-visible{outline:2px solid #8a5a10;outline-offset:2px}
+#top{position:fixed;z-index:3;left:max(8px,env(safe-area-inset-left));top:max(8px,env(safe-area-inset-top));max-width:calc(100% - 16px);pointer-events:none;color:#f6f1e4;background:rgba(32,44,22,.74);border:1px solid rgba(255,248,230,.16);border-radius:14px;padding:8px 12px 9px;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+#top strong{display:block;font-size:16px;font-weight:650;letter-spacing:.01em}
+#stats{font-size:14px;margin-top:2px;line-height:1.3}
+#season{font-size:13px;opacity:.92;margin-top:2px;display:flex;align-items:center;gap:6px}
+#seasonDots{display:inline-flex;gap:4px}
+#seasonDots span{width:7px;height:7px;border-radius:50%;background:rgba(255,255,255,.35)}
+#seasonDots span.on{background:#f0d48a}
+#bar{position:fixed;z-index:3;left:0;right:0;bottom:0;display:flex;flex-wrap:wrap;justify-content:center;align-items:center;gap:6px;max-width:100%;padding:8px 8px calc(8px + env(safe-area-inset-bottom));pointer-events:none}
+#bar button{pointer-events:auto;min-width:40px;min-height:40px;padding:6px 8px;font-size:14px;line-height:1;white-space:nowrap;display:inline-flex;align-items:center;justify-content:center;gap:6px;background:rgba(255,248,236,.94);color:#2c2416;border:1px solid rgba(50,36,16,.28);border-radius:12px;box-shadow:0 1px 2px rgba(40,30,10,.18)}
+#bar button.on{background:#e7b23a;border-color:#a87410;color:#2a1c08}
+.sw{width:12px;height:12px;border-radius:50%;box-shadow:inset 0 0 0 1px rgba(0,0,0,.3);flex:none}
+#hint{position:fixed;z-index:3;left:max(8px,env(safe-area-inset-left));right:max(8px,env(safe-area-inset-right));bottom:calc(var(--bar, 76px) + 8px);text-align:center;pointer-events:none;color:#f7f3e8;background:rgba(36,44,24,.78);border-radius:12px;padding:8px 10px;font-size:14px;line-height:1.35;transition:opacity .6s ease}
+#hint.gone{opacity:0}
+#hint[hidden]{display:none}
+#toast{position:fixed;z-index:4;left:max(8px,env(safe-area-inset-left));top:calc(var(--top, 76px) + 8px);max-width:calc(100% - 16px);background:rgba(36,44,24,.92);color:#f7f3e8;border:1px solid rgba(240,212,138,.45);border-radius:12px;padding:8px 12px;font-size:14px;line-height:1.35}
+#toast[hidden]{display:none}
+@media (max-height:430px){
+  #hint{display:none}
+  #top{padding:3px 8px}
+  #top strong{font-size:14px}
+  #stats,#season{font-size:12px}
+  #seasonDots{display:none}
+  #bar{gap:4px;padding:4px 4px calc(4px + env(safe-area-inset-bottom))}
+  #bar button{min-width:36px;min-height:36px;padding:4px 6px;font-size:13px}
+}
+</style>
+</head>
+<body>
+<canvas id="c" aria-label="Bienenstock. Eine Wiese mit Stock. Tippe, um Blumen zu pflanzen."></canvas>
+<div id="top">
+  <strong>Bienenstock</strong>
+  <div id="stats">Bienen · Honig · Blüten</div>
+  <div id="season"><span id="seasonName">Frühling</span><span id="seasonDots" aria-hidden="true"><span></span><span></span><span></span><span></span></span></div>
+</div>
+<div id="bar" role="toolbar" aria-label="Bienenstock">
+  <button id="bSound" type="button" aria-pressed="false" aria-label="Ton einschalten" title="Ton (M)">Ton</button>
+  <button id="bWabe" type="button" aria-pressed="false" aria-label="Wabenansicht" title="Wabe (W)">Wabe</button>
+  <button type="button" data-sp="0" class="on" aria-pressed="true" aria-label="Gänseblümchen pflanzen" title="Gänseblümchen (1)"><span class="sw"></span><span class="tx">Gänse</span></button>
+  <button type="button" data-sp="1" aria-pressed="false" aria-label="Löwenzahn pflanzen" title="Löwenzahn (2)"><span class="sw"></span><span class="tx">Löwe</span></button>
+  <button type="button" data-sp="2" aria-pressed="false" aria-label="Klee pflanzen" title="Klee (3)"><span class="sw"></span><span class="tx">Klee</span></button>
+  <button type="button" data-sp="3" aria-pressed="false" aria-label="Mohn pflanzen" title="Mohn (4)"><span class="sw"></span><span class="tx">Mohn</span></button>
+  <button type="button" data-sp="4" aria-pressed="false" aria-label="Kornblume pflanzen" title="Kornblume (5)"><span class="sw"></span><span class="tx">Korn</span></button>
+  <button type="button" data-sp="5" aria-pressed="false" aria-label="Sonnenblume pflanzen" title="Sonnenblume (6)"><span class="sw"></span><span class="tx">Sonne</span></button>
+  <button type="button" data-sp="6" aria-pressed="false" aria-label="Aster pflanzen" title="Aster (7)"><span class="sw"></span><span class="tx">Aster</span></button>
+  <button type="button" data-sp="7" aria-pressed="false" aria-label="Schneeglöckchen pflanzen" title="Schneeglöckchen (8)"><span class="sw"></span><span class="tx">Schnee</span></button>
+</div>
+<div id="hint">Wähle eine Blume und tippe auf die Wiese. Die Bienen tanzen am Stock in Richtung einer guten Stelle.</div>
+<div id="toast" hidden role="status"></div>
+<script>
+'use strict';
+(function () {
+  const TAU = Math.PI * 2;
+  const KEY = 'playbot-bienenstock';
+  const MAX_BEES = 200;
+  const MAX_FLOWERS = 320;
+  const SEASON_LEN = 52;
+  const CELL = 64;
+  const REST = 0, OUT = 1, SIP = 2, BACK = 3, DANCE = 4, CLUSTER = 5;
+  const SEASON_NAMES = ['Frühling', 'Sommer', 'Herbst', 'Winter'];
+  const SEASON_TOAST = [
+    'Frühling. Die Wiese erwacht.',
+    'Sommer. Die Blüten stehen voll.',
+    'Herbst. Astern und späte Wärme.',
+    'Winter. Die Bienen rücken zusammen.'
+  ];
+  const SPECIES = [
+    { name: 'Gänseblümchen', swatch: '#f4f1e4', petal: '#f7f4ea', center: '#f0c53a', leaf: '#3d7a34', rich: 0.36, regen: 0.075, spread: 0.42, per: 1, sea: [1, 0.75, 0.22, 0], kind: 'daisy' },
+    { name: 'Löwenzahn', swatch: '#f0c81a', petal: '#f6d21e', center: '#e0ac0c', leaf: '#3f8a32', rich: 0.55, regen: 0.07, spread: 0.82, per: 1, sea: [1, 0.45, 0.05, 0], kind: 'dandelion' },
+    { name: 'Klee', swatch: '#e48ab0', petal: '#ef8eb4', center: '#d56b98', leaf: '#3f8f38', rich: 0.5, regen: 0.085, spread: 0.78, per: 1, sea: [0.35, 1, 0.55, 0], kind: 'clover' },
+    { name: 'Mohn', swatch: '#e23b34', petal: '#e23b34', center: '#2a1a1a', leaf: '#3c7a30', rich: 0.95, regen: 0.042, spread: 0.5, per: 0, sea: [0.15, 1, 0.2, 0], kind: 'poppy' },
+    { name: 'Kornblume', swatch: '#4c6fd6', petal: '#4c6fd6', center: '#2a3e8a', leaf: '#3e7a34', rich: 0.7, regen: 0.055, spread: 0.4, per: 0, sea: [0.2, 1, 0.7, 0], kind: 'corn' },
+    { name: 'Sonnenblume', swatch: '#f0b429', petal: '#f0b429', center: '#5a3416', leaf: '#3e7a32', rich: 1, regen: 0.038, spread: 0.28, per: 0, sea: [0, 0.55, 1, 0], kind: 'sun' },
+    { name: 'Aster', swatch: '#b48adf', petal: '#b48adf', center: '#f2d15a', leaf: '#3e7a34', rich: 0.66, regen: 0.06, spread: 0.36, per: 1, sea: [0, 0.2, 1, 0.12], kind: 'aster' },
+    { name: 'Schneeglöckchen', swatch: '#f7fbfd', petal: '#f7fbfd', center: '#d5efe4', leaf: '#6aaa58', rich: 0.3, regen: 0.07, spread: 0.26, per: 1, sea: [0.9, 0, 0, 0.35], kind: 'snow' }
+  ];
+
+  const params = new URLSearchParams(location.search);
+  const canvas = document.getElementById('c');
+  const ctx = canvas.getContext('2d', { alpha: false });
+  const statsEl = document.getElementById('stats');
+  const seasonNameEl = document.getElementById('seasonName');
+  const seasonDots = document.getElementById('seasonDots');
+  const bar = document.getElementById('bar');
+  const bSound = document.getElementById('bSound');
+  const bWabe = document.getElementById('bWabe');
+  const hintEl = document.getElementById('hint');
+  const toastEl = document.getElementById('toast');
+  const topEl = document.getElementById('top');
+  const reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  const axial = [];
+  (function buildAxial() {
+    const cells = [];
+    for (let q = -4; q <= 4; q++) {
+      for (let r = -4; r <= 4; r++) {
+        if (Math.abs(q + r) <= 4) cells.push([q, r, q * q + r * r + q * r]);
+      }
+    }
+    cells.sort(function (a, b) { return a[2] - b[2] || a[0] - b[0] || a[1] - b[1]; });
+    for (let i = 0; i < cells.length; i++) { axial.push(cells[i][0], cells[i][1]); }
+  })();
+  const honey = new Float32Array(axial.length / 2);
+  const combX = new Float64Array(honey.length);
+  const combY = new Float64Array(honey.length);
+
+  const flowers = [];
+  const bees = [];
+  const flowerDraw = [];
+  const beeDraw = [];
+  const ripples = [];
+  const particles = [];
+  for (let i = 0; i < 48; i++) particles.push({ x: 0, y: 0, vx: 0, vy: 0, life: 0, kind: 0, s: 2 });
+  const grid = [];
+  const bloomSpr = [];
+  const budSpr = [];
+  const beeSpr = [];
+  const grassLush = document.createElement('canvas');
+  const grassFrost = document.createElement('canvas');
+
+  let W = 0, H = 0, dpr = 1, U = 1, S = 1;
+  let hiveX = 0, hiveY = 0, hiveR = 40;
+  let barH = 72, topH = 64;
+  let combR = 16, combCX = 0, combCY = 0, danceFloorY = 0;
+  let gridCols = 0, gridRows = 0;
+  let seasonX = 0.18;
+  let grassSeed = 0xB1EE5EED;
+  let nextId = 1;
+  let tool = 0;
+  let view = 'meadow';
+  let soundOn = false;
+  let ready = false;
+  let anyDead = false;
+  let honeyDirty = true;
+  let honeyCache = 0;
+  let lastSi = -1;
+  let hudAcc = 0, audioAcc = 0, saveAcc = 0, scoutAcc = 0, broodAcc = 0, partAcc = 0;
+  let time = 0;
+  let last = 0;
+  let acc = 0;
+  let pCursor = 0;
+  let vignette = null;
+  let toastTimer = 0;
+  let hintGone = false;
+  let actx = null;
+  let master = null;
+
+  function clamp(v, a, b) { return v < a ? a : (v > b ? b : v); }
+  function clamp01(v) { return v > 0 ? (v > 1 ? 1 : v) : 0; }
+  function dist2(x1, y1, x2, y2) {
+    const dx = x1 - x2, dy = y1 - y2;
+    return dx * dx + dy * dy;
+  }
+  function mulberry32(seed) {
+    let a = seed >>> 0;
+    return function () {
+      a |= 0;
+      a = (a + 0x6D2B79F5) | 0;
+      let t = Math.imul(a ^ (a >>> 15), 1 | a);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+  function smoothstep(e0, e1, x) {
+    if (x <= e0) return 0;
+    if (x >= e1) return 1;
+    const t = (x - e0) / (e1 - e0);
+    return t * t * (3 - 2 * t);
+  }
+  function bump(x, center, width) {
+    let d = Math.abs((((x % 4) + 4) % 4) - center);
+    if (d > 2) d = 4 - d;
+    if (d >= width) return 0;
+    const u = 1 - d / width;
+    return u * u * (3 - 2 * u);
+  }
+  function affinity(spec, x) {
+    x = ((x % 4) + 4) % 4;
+    const i = Math.floor(x);
+    const f = x - i;
+    // Hold the season, then ease into the next one near the end.
+    const u = smoothstep(0.62, 1, f);
+    const a = spec.sea[i];
+    const b = spec.sea[(i + 1) % 4];
+    return a + (b - a) * u;
+  }
+  function seasonIndex() {
+    return Math.floor(((seasonX % 4) + 4) % 4);
+  }
+  function clusterStrength() {
+    const x = ((seasonX % 4) + 4) % 4;
+    const f = x - 3;
+    if (f < 0 || f >= 1) return 0;
+    return smoothstep(0.05, 0.22, f) * (1 - smoothstep(0.48, 0.72, f));
+  }
+
+  function honeyTotal() {
+    if (!honeyDirty) return honeyCache;
+    let s = 0;
+    for (let i = 0; i < honey.length; i++) s += honey[i];
+    honeyCache = s;
+    honeyDirty = false;
+    return s;
+  }
+  function deposit(amount) {
+    if (!(amount > 0)) return;
+    let left = amount;
+    for (let i = 0; i < honey.length && left > 0.000001; i++) {
+      const room = 1 - honey[i];
+      if (room <= 0) continue;
+      const add = room < left ? room : left;
+      honey[i] += add;
+      left -= add;
+    }
+    honeyDirty = true;
+  }
+  function spend(amount) {
+    if (!(amount > 0)) return 0;
+    let left = amount;
+    for (let i = honey.length - 1; i >= 0 && left > 0.000001; i--) {
+      if (honey[i] <= 0) continue;
+      const take = honey[i] < left ? honey[i] : left;
+      honey[i] -= take;
+      left -= take;
+    }
+    honeyDirty = true;
+    return amount - left;
+  }
+
+  function paintBloom(sp) {
+    const c = document.createElement('canvas');
+    c.width = 64;
+    c.height = 64;
+    const g = c.getContext('2d');
+    const cx = 32, cy = 32;
+    g.fillStyle = sp.leaf;
+    g.beginPath();
+    g.ellipse(22, 48, 11, 4.2, -0.7, 0, TAU);
+    g.fill();
+    g.beginPath();
+    g.ellipse(42, 48, 11, 4.2, 0.7, 0, TAU);
+    g.fill();
+    if (sp.kind === 'daisy') {
+      for (let i = 0; i < 12; i++) {
+        const a = i / 12 * TAU;
+        g.fillStyle = sp.petal;
+        g.beginPath();
+        g.ellipse(cx + Math.cos(a) * 12, cy + Math.sin(a) * 12, 7, 3.2, a, 0, TAU);
+        g.fill();
+      }
+      g.fillStyle = sp.center;
+      g.beginPath();
+      g.arc(cx, cy, 6, 0, TAU);
+      g.fill();
+    } else if (sp.kind === 'dandelion') {
+      g.fillStyle = sp.petal;
+      g.beginPath();
+      for (let i = 0; i < 24; i++) {
+        const a = i / 24 * TAU;
+        const rad = i % 2 ? 15 : 11;
+        const x = cx + Math.cos(a) * rad;
+        const y = cy + Math.sin(a) * rad;
+        if (i) g.lineTo(x, y); else g.moveTo(x, y);
+      }
+      g.closePath();
+      g.fill();
+      g.fillStyle = sp.center;
+      g.beginPath();
+      g.arc(cx, cy, 4, 0, TAU);
+      g.fill();
+    } else if (sp.kind === 'clover') {
+      for (let i = 0; i < 3; i++) {
+        const a = -Math.PI / 2 + i * TAU / 3;
+        g.fillStyle = sp.leaf;
+        g.beginPath();
+        g.ellipse(cx + Math.cos(a) * 9, cy + 6 + Math.sin(a) * 9, 8, 5, a, 0, TAU);
+        g.fill();
+      }
+      g.fillStyle = sp.petal;
+      for (let i = 0; i < 6; i++) {
+        const a = i / 6 * TAU;
+        g.beginPath();
+        g.arc(cx + Math.cos(a) * 4, cy - 2 + Math.sin(a) * 4, 3.6, 0, TAU);
+        g.fill();
+      }
+    } else if (sp.kind === 'poppy') {
+      g.fillStyle = sp.petal;
+      for (let i = 0; i < 4; i++) {
+        const a = i / 4 * TAU + 0.4;
+        g.beginPath();
+        g.ellipse(cx + Math.cos(a) * 8, cy + Math.sin(a) * 8, 11, 7, a, 0, TAU);
+        g.fill();
+      }
+      g.fillStyle = sp.center;
+      g.beginPath();
+      g.arc(cx, cy, 4.2, 0, TAU);
+      g.fill();
+      g.strokeStyle = '#f0d070';
+      g.lineWidth = 1.4;
+      g.beginPath();
+      g.arc(cx, cy, 2.2, 0, TAU);
+      g.stroke();
+    } else if (sp.kind === 'corn') {
+      g.fillStyle = sp.petal;
+      for (let i = 0; i < 10; i++) {
+        const a = i / 10 * TAU;
+        g.beginPath();
+        g.ellipse(cx + Math.cos(a) * 11, cy + Math.sin(a) * 11, 9, 2.2, a, 0, TAU);
+        g.fill();
+      }
+      g.fillStyle = sp.center;
+      g.beginPath();
+      g.arc(cx, cy, 5, 0, TAU);
+      g.fill();
+    } else if (sp.kind === 'sun') {
+      g.fillStyle = sp.petal;
+      for (let i = 0; i < 16; i++) {
+        const a = i / 16 * TAU;
+        g.beginPath();
+        g.ellipse(cx + Math.cos(a) * 14, cy + Math.sin(a) * 14, 8, 3.5, a, 0, TAU);
+        g.fill();
+      }
+      g.fillStyle = sp.center;
+      g.beginPath();
+      g.arc(cx, cy, 8, 0, TAU);
+      g.fill();
+      g.fillStyle = '#7a4a22';
+      for (let i = 0; i < 8; i++) {
+        const a = i / 8 * TAU;
+        g.beginPath();
+        g.arc(cx + Math.cos(a) * 4, cy + Math.sin(a) * 4, 1.4, 0, TAU);
+        g.fill();
+      }
+    } else if (sp.kind === 'aster') {
+      g.fillStyle = sp.petal;
+      for (let i = 0; i < 18; i++) {
+        const a = i / 18 * TAU;
+        g.beginPath();
+        g.ellipse(cx + Math.cos(a) * 12, cy + Math.sin(a) * 12, 9, 1.7, a, 0, TAU);
+        g.fill();
+      }
+      g.fillStyle = sp.center;
+      g.beginPath();
+      g.arc(cx, cy, 4.2, 0, TAU);
+      g.fill();
+    } else {
+      g.fillStyle = '#d7efe0';
+      g.beginPath();
+      g.ellipse(32, 44, 10, 3.5, 0, 0, TAU);
+      g.fill();
+      g.fillStyle = sp.petal;
+      for (let i = -1; i <= 1; i++) {
+        g.beginPath();
+        g.ellipse(32 + i * 5, 30, 3.3, 8, i * 0.18, 0, TAU);
+        g.fill();
+      }
+      g.fillStyle = sp.leaf;
+      g.fillRect(31, 34, 2, 10);
+    }
+    return c;
+  }
+  function paintBud(sp) {
+    const c = document.createElement('canvas');
+    c.width = 64;
+    c.height = 64;
+    const g = c.getContext('2d');
+    g.fillStyle = sp.leaf;
+    g.beginPath();
+    g.ellipse(32, 40, 5, 12, 0, 0, TAU);
+    g.fill();
+    g.fillStyle = sp.petal;
+    g.beginPath();
+    g.ellipse(32, 30, 5.5, 8, 0, 0, TAU);
+    g.fill();
+    g.fillStyle = sp.leaf;
+    g.beginPath();
+    g.ellipse(26, 34, 3, 7, -0.8, 0, TAU);
+    g.fill();
+    g.beginPath();
+    g.ellipse(38, 34, 3, 7, 0.8, 0, TAU);
+    g.fill();
+    return c;
+  }
+  function paintBee(pollen, wingUp) {
+    const c = document.createElement('canvas');
+    c.width = 48;
+    c.height = 48;
+    const g = c.getContext('2d');
+    g.translate(24, 24);
+    g.fillStyle = 'rgba(255,255,255,0.88)';
+    const lift = wingUp ? 8 : 4;
+    g.beginPath();
+    g.ellipse(-1, -lift, 9, 4.5, -0.45, 0, TAU);
+    g.fill();
+    g.beginPath();
+    g.ellipse(-1, lift, 9, 4.5, 0.45, 0, TAU);
+    g.fill();
+    g.fillStyle = '#f0b429';
+    g.beginPath();
+    g.ellipse(-6, 0, 11, 6.2, 0, 0, TAU);
+    g.fill();
+    g.strokeStyle = '#2a2418';
+    g.lineWidth = 1.3;
+    g.beginPath();
+    g.moveTo(-1, -5.4); g.lineTo(-1, 5.4);
+    g.moveTo(-6.5, -6); g.lineTo(-6.5, 6);
+    g.moveTo(-12, -4.2); g.lineTo(-12, 4.2);
+    g.stroke();
+    g.fillStyle = '#3a3428';
+    g.beginPath();
+    g.ellipse(5, 0, 5.5, 5, 0, 0, TAU);
+    g.fill();
+    g.fillStyle = '#2c261c';
+    g.beginPath();
+    g.arc(11, 0, 3.3, 0, TAU);
+    g.fill();
+    if (pollen) {
+      g.fillStyle = '#ffe08a';
+      g.beginPath();
+      g.arc(-2, 5.5, 2.4, 0, TAU);
+      g.fill();
+    }
+    return c;
+  }
+  function makeSprites() {
+    for (let i = 0; i < SPECIES.length; i++) {
+      bloomSpr[i] = paintBloom(SPECIES[i]);
+      budSpr[i] = paintBud(SPECIES[i]);
+      const sw = document.querySelector('#bar button[data-sp="' + i + '"] .sw');
+      if (sw) sw.style.background = SPECIES[i].swatch;
+    }
+    beeSpr[0] = paintBee(false, false);
+    beeSpr[1] = paintBee(false, true);
+    beeSpr[2] = paintBee(true, false);
+    beeSpr[3] = paintBee(true, true);
+  }
+
+  function paintGrass(target, frost) {
+    const g = target.getContext('2d');
+    const w = target.width, h = target.height;
+    g.fillStyle = frost ? '#b7c4a6' : '#7ea24c';
+    g.fillRect(0, 0, w, h);
+    const rnd = mulberry32((grassSeed + (frost ? 17 : 3)) >>> 0);
+    for (let i = 0; i < 28; i++) {
+      const light = rnd() < 0.5;
+      g.fillStyle = frost
+        ? (light ? 'rgba(255,255,255,0.18)' : 'rgba(80,100,70,0.16)')
+        : (light ? 'rgba(214,228,140,0.24)' : 'rgba(46,84,30,0.15)');
+      g.beginPath();
+      g.ellipse(rnd() * w, rnd() * h, w * (0.05 + rnd() * 0.12), h * (0.02 + rnd() * 0.045), rnd() * 3, 0, TAU);
+      g.fill();
+    }
+    g.strokeStyle = frost ? 'rgba(255,255,255,0.28)' : 'rgba(36,74,28,0.28)';
+    g.lineWidth = Math.max(1, w / 500);
+    g.lineCap = 'round';
+    for (let i = 0; i < 70; i++) {
+      const x = rnd() * w, y = rnd() * h;
+      g.beginPath();
+      g.moveTo(x, y);
+      g.lineTo(x + (rnd() - 0.5) * 5, y - 3 - rnd() * 7);
+      g.stroke();
+    }
+    const hx = w * 0.5, hy = h * 0.4;
+    const rad = Math.min(w, h) * 0.08;
+    g.fillStyle = frost ? '#d5d8c4' : '#c6a15a';
+    g.beginPath();
+    g.ellipse(hx, hy + rad * 0.12, rad * 1.45, rad * 1.05, 0, 0, TAU);
+    g.fill();
+  }
+  function rebuildGrass() {
+    const gW = Math.max(2, Math.round(W * dpr * 0.5));
+    const gH = Math.max(2, Math.round(H * dpr * 0.5));
+    if (grassLush.width !== gW || grassLush.height !== gH) {
+      grassLush.width = gW;
+      grassLush.height = gH;
+      grassFrost.width = gW;
+      grassFrost.height = gH;
+    }
+    paintGrass(grassLush, false);
+    paintGrass(grassFrost, true);
+  }
+
+  function layoutComb() {
+    const topLimit = topH + 16;
+    const bottomLimit = H - barH - 14;
+    const room = Math.max(72, bottomLimit - topLimit);
+    let size = Math.min(room / 17.5, (W * 0.78) / 15.2);
+    size = clamp(size, 8, 34);
+    combR = size;
+    const gridH = 12 * size;
+    const tail = Math.max(48, 30 + 16 * U);
+    const block = gridH + tail;
+    const top = topLimit + Math.max(0, (room - block) / 2);
+    combCX = W * 0.5;
+    combCY = top + gridH / 2;
+    danceFloorY = Math.min(bottomLimit - 16, combCY + gridH / 2 + Math.max(26, 16 * U));
+    for (let i = 0; i < honey.length; i++) {
+      const q = axial[i * 2];
+      const r = axial[i * 2 + 1];
+      combX[i] = combCX + size * 1.7320508 * (q + r / 2);
+      combY[i] = combCY + size * 1.5 * r;
+    }
+  }
+
+  function resize() {
+    const newW = Math.max(1, Math.round(window.innerWidth));
+    const newH = Math.max(1, Math.round(window.innerHeight));
+    const dw = window.devicePixelRatio || 1;
+    const nextDpr = dw > 2 ? 2 : (dw < 1 ? 1 : dw);
+    const sizeChanged = newW !== W || newH !== H || nextDpr !== dpr;
+    if (W > 0 && (newW !== W || newH !== H)) {
+      const sx = newW / W;
+      const sy = newH / H;
+      for (let i = 0; i < flowers.length; i++) {
+        flowers[i].x *= sx;
+        flowers[i].y *= sy;
+      }
+      for (let i = 0; i < bees.length; i++) {
+        const b = bees[i];
+        b.x *= sx; b.y *= sy;
+        b.vx *= sx; b.vy *= sy;
+        b.patchX *= sx; b.patchY *= sy;
+        b.tx *= sx; b.ty *= sy;
+      }
+      for (let i = 0; i < ripples.length; i++) {
+        ripples[i].x *= sx;
+        ripples[i].y *= sy;
+      }
+      for (let i = 0; i < particles.length; i++) {
+        particles[i].x *= sx;
+        particles[i].y *= sy;
+      }
+    }
+    W = newW;
+    H = newH;
+    dpr = nextDpr;
+    canvas.width = Math.round(W * dpr);
+    canvas.height = Math.round(H * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    U = clamp(Math.min(W, H) / 780, 0.7, 1.25);
+    S = clamp(Math.hypot(W, H) / 1450, 0.78, 1.35);
+    hiveX = W * 0.5;
+    hiveY = H * 0.4;
+    hiveR = clamp(Math.min(W, H) * 0.082, 30, 66);
+    barH = bar.offsetHeight || 64;
+    topH = topEl.offsetHeight || 56;
+    document.documentElement.style.setProperty('--bar', barH + 'px');
+    document.documentElement.style.setProperty('--top', topH + 'px');
+    layoutComb();
+    if (sizeChanged) rebuildGrass();
+    vignette = ctx.createRadialGradient(W * 0.5, H * 0.42, Math.min(W, H) * 0.18, W * 0.5, H * 0.45, Math.max(W, H) * 0.74);
+    vignette.addColorStop(0, 'rgba(0,0,0,0)');
+    vignette.addColorStop(1, 'rgba(24,36,12,0.26)');
+  }
+
+  function addFlower(sp, x, y, quiet) {
+    if (flowers.length >= MAX_FLOWERS) {
+      if (!quiet) toast('Die Wiese ist voll.');
+      return null;
+    }
+    if (x < 12 || y < 12 || x > W - 12 || y > H - 12) return null;
+    if (dist2(x, y, hiveX, hiveY) < (hiveR + 16) * (hiveR + 16)) return null;
+    const minD = 16 * U;
+    for (let i = 0; i < flowers.length; i++) {
+      const o = flowers[i];
+      if (o.dead) continue;
+      if (dist2(o.x, o.y, x, y) < minD * minD) return null;
+    }
+    const f = {
+      id: nextId++,
+      sp: sp,
+      x: x,
+      y: y,
+      nectar: 0,
+      pol: 0,
+      seeds: 0,
+      wilt: 0,
+      dead: false,
+      bloomed: 0,
+      phase: Math.random() * TAU,
+      seedT: 0,
+      op: 0
+    };
+    f.op = affinity(SPECIES[sp], seasonX);
+    f.nectar = f.op > 0.4 ? 0.45 + Math.random() * 0.55 : 0.05;
+    flowers.push(f);
+    return f;
+  }
+  function trySeed(parent) {
+    for (let k = 0; k < 6; k++) {
+      const a = Math.random() * TAU;
+      const dist = (28 + Math.random() * 64) * U;
+      const x = parent.x + Math.cos(a) * dist;
+      const y = parent.y + Math.sin(a) * dist;
+      if (addFlower(parent.sp, x, y, true)) return true;
+    }
+    return false;
+  }
+
+  function spawnBee() {
+    const b = {
+      x: hiveX,
+      y: hiveY + hiveR * 0.75,
+      vx: 0,
+      vy: 0,
+      heading: -Math.PI / 2,
+      state: REST,
+      inside: true,
+      board: false,
+      cargo: 0,
+      flower: null,
+      patchX: hiveX,
+      patchY: hiveY,
+      tx: hiveX,
+      ty: hiveY,
+      timer: Math.random() * 2,
+      phase: Math.random() * TAU,
+      slot: bees.length % 6,
+      danceQ: 0,
+      clusterAng: Math.random() * TAU,
+      clusterRad: 0.18 + Math.random() * 0.78,
+      wander: Math.random() * TAU,
+      hunt: 0,
+      sipLeft: 0
+    };
+    bees.push(b);
+    return b;
+  }
+  function park(b) {
+    b.state = REST;
+    b.inside = true;
+    b.board = false;
+    b.flower = null;
+    b.cargo = 0;
+    b.vx = 0;
+    b.vy = 0;
+    b.x = hiveX;
+    b.y = hiveY;
+  }
+  function placeOnBoard(b) {
+    const a = (Math.random() - 0.5) * 1.2;
+    b.x = hiveX + Math.sin(a) * hiveR * 0.34;
+    b.y = hiveY + hiveR * 0.8 + (Math.random() - 0.5) * 3;
+    b.tx = b.x;
+    b.ty = b.y;
+    b.vx = 0;
+    b.vy = 0;
+    b.timer = Math.random();
+    b.heading = Math.random() * TAU;
+  }
+  function launchTo(b, x, y) {
+    b.state = OUT;
+    b.inside = false;
+    b.board = false;
+    b.flower = null;
+    b.cargo = 0;
+    b.patchX = x;
+    b.patchY = y;
+    b.tx = x;
+    b.ty = y;
+    b.hunt = 5.5;
+    b.timer = 0;
+    if (Math.hypot(b.x - hiveX, b.y - hiveY) < hiveR * 0.95) {
+      b.x = hiveX + (Math.random() - 0.5) * 4;
+      b.y = hiveY + hiveR * 0.88;
+    }
+  }
+  function beginDance(b, px, py, quality, force) {
+    if (!force && (!(quality > 0.18) || clusterStrength() > 0.5)) {
+      park(b);
+      return false;
+    }
+    const used = new Uint8Array(6);
+    for (let i = 0; i < bees.length; i++) {
+      const o = bees[i];
+      if (o !== b && o.state === DANCE) used[o.slot] = 1;
+    }
+    let slot = -1;
+    for (let i = 0; i < 6; i++) if (!used[i]) { slot = i; break; }
+    if (slot < 0) {
+      if (!force) { park(b); return false; }
+      slot = 0;
+    }
+    b.state = DANCE;
+    b.inside = false;
+    b.board = false;
+    b.flower = null;
+    b.cargo = 0;
+    b.patchX = px;
+    b.patchY = py;
+    b.danceQ = clamp01(quality);
+    b.slot = slot;
+    const dist = Math.hypot(px - hiveX, py - hiveY);
+    b.timer = 2.6 + Math.min(5.2, dist / (120 * Math.max(0.75, S)));
+    b.heading = Math.atan2(py - hiveY, px - hiveX);
+    const a = -1.05 + slot * 0.38;
+    b.x = hiveX + Math.sin(a) * (hiveR * 0.2);
+    b.y = hiveY + hiveR * 0.8;
+    b.vx = 0;
+    b.vy = 0;
+    return true;
+  }
+
+  function fresh() {
+    const rng = mulberry32(0xB1EE5EED);
+    grassSeed = 0xB1EE5EED;
+    seasonX = 0.18;
+    flowers.length = 0;
+    bees.length = 0;
+    nextId = 1;
+    honey.fill(0);
+    for (let i = 0; i < 13; i++) honey[i] = 1;
+    honey[13] = 0.45;
+    honeyDirty = true;
+    rebuildGrass();
+    function cl(sp, nx, ny, count, rad) {
+      let made = 0, guard = 0;
+      while (made < count && guard++ < count * 12) {
+        const a = rng() * TAU;
+        const d = Math.sqrt(rng()) * rad;
+        if (addFlower(sp, (nx + Math.cos(a) * d) * W, (ny + Math.sin(a) * d) * H, true)) made++;
+      }
+    }
+    cl(0, 0.24, 0.26, 15, 0.1);
+    cl(1, 0.78, 0.3, 13, 0.09);
+    cl(7, 0.18, 0.6, 8, 0.055);
+    cl(2, 0.68, 0.66, 10, 0.075);
+    cl(4, 0.34, 0.7, 6, 0.05);
+    cl(3, 0.86, 0.48, 5, 0.04);
+    cl(5, 0.62, 0.56, 3, 0.028);
+    cl(6, 0.48, 0.74, 5, 0.045);
+    for (let i = 0; i < 56; i++) spawnBee();
+    const routes = [
+      [0.24, 0.26], [0.78, 0.3], [0.18, 0.6], [0.68, 0.66],
+      [0.24, 0.26], [0.78, 0.3], [0.34, 0.7], [0.78, 0.3],
+      [0.18, 0.6], [0.68, 0.66], [0.24, 0.26], [0.86, 0.48]
+    ];
+    for (let i = 0; i < routes.length; i++) {
+      const b = bees[i];
+      const x = routes[i][0] * W;
+      const y = routes[i][1] * H;
+      launchTo(b, x, y);
+      const frac = 0.3 + (i % 5) * 0.12;
+      b.x = hiveX + (x - hiveX) * frac;
+      b.y = hiveY + (y - hiveY) * frac;
+      b.heading = Math.atan2(y - b.y, x - b.x);
+      b.vx = Math.cos(b.heading) * 36 * S;
+      b.vy = Math.sin(b.heading) * 36 * S;
+    }
+    for (let i = 12; i < 16; i++) {
+      const b = bees[i];
+      const x = (i % 2 ? 0.24 : 0.78) * W;
+      const y = (i % 2 ? 0.26 : 0.3) * H;
+      b.state = BACK;
+      b.inside = false;
+      b.board = false;
+      b.cargo = 0.42;
+      b.patchX = x;
+      b.patchY = y;
+      b.x = hiveX + (x - hiveX) * 0.58;
+      b.y = hiveY + (y - hiveY) * 0.58;
+      b.heading = Math.atan2(hiveY - b.y, hiveX - b.x);
+      b.vx = Math.cos(b.heading) * 30 * S;
+      b.vy = Math.sin(b.heading) * 30 * S;
+    }
+    beginDance(bees[16], 0.78 * W, 0.3 * H, 0.8, true);
+    for (let i = 17; i < 25; i++) {
+      bees[i].board = true;
+      bees[i].inside = false;
+      placeOnBoard(bees[i]);
+    }
+  }
+
+  function save() {
+    if (!ready || W < 2) return;
+    try {
+      const data = {
+        v: 1,
+        season: Math.round(seasonX * 10000) / 10000,
+        seed: grassSeed,
+        honey: Array.from(honey, function (v) { return Math.round(v * 1000) / 1000; }),
+        nextId: nextId,
+        flowers: [],
+        bees: []
+      };
+      for (let i = 0; i < flowers.length; i++) {
+        const f = flowers[i];
+        if (f.dead) continue;
+        data.flowers.push([
+          f.id, f.sp,
+          Math.round(f.x / W * 10000) / 10000,
+          Math.round(f.y / H * 10000) / 10000,
+          Math.round(f.nectar * 1000) / 1000,
+          f.pol ? 1 : 0,
+          f.seeds | 0,
+          Math.round(f.wilt * 100) / 100,
+          Math.round(f.phase * 1000) / 1000,
+          f.bloomed ? 1 : 0
+        ]);
+      }
+      for (let i = 0; i < bees.length; i++) {
+        const b = bees[i];
+        data.bees.push([
+          Math.round(b.x / W * 10000) / 10000,
+          Math.round(b.y / H * 10000) / 10000,
+          Math.round(b.vx / W * 10000) / 10000,
+          Math.round(b.vy / H * 10000) / 10000,
+          b.state,
+          b.inside ? 1 : 0,
+          b.board ? 1 : 0,
+          Math.round(b.cargo * 1000) / 1000,
+          b.flower && !b.flower.dead ? b.flower.id : 0,
+          Math.round(b.patchX / W * 10000) / 10000,
+          Math.round(b.patchY / H * 10000) / 10000,
+          Math.round(b.heading * 1000) / 1000,
+          Math.round(b.timer * 100) / 100,
+          b.slot | 0,
+          Math.round((b.danceQ || 0) * 100) / 100,
+          Math.round(b.phase * 1000) / 1000,
+          Math.round(b.clusterRad * 1000) / 1000,
+          Math.round(b.clusterAng * 1000) / 1000
+        ]);
+      }
+      localStorage.setItem(KEY, JSON.stringify(data));
+    } catch (err) { /* storage off */ }
+  }
+  let saveTimer = 0;
+  function saveSoon() {
+    if (saveTimer) return;
+    saveTimer = setTimeout(function () { saveTimer = 0; save(); }, 350);
+  }
+  function restore() {
+    let raw = null;
+    try { raw = localStorage.getItem(KEY); } catch (err) { return false; }
+    if (!raw) return false;
+    try {
+      const data = JSON.parse(raw);
+      if (!data || data.v !== 1 || !Array.isArray(data.flowers) || !Array.isArray(data.bees)) return false;
+      seasonX = Number(data.season);
+      if (!(seasonX >= 0)) seasonX = 0.18;
+      seasonX = ((seasonX % 4) + 4) % 4;
+      grassSeed = (data.seed | 0) || 0xB1EE5EED;
+      rebuildGrass();
+      honey.fill(0);
+      if (Array.isArray(data.honey)) {
+        for (let i = 0; i < honey.length && i < data.honey.length; i++) honey[i] = clamp01(Number(data.honey[i]));
+      }
+      honeyDirty = true;
+      flowers.length = 0;
+      bees.length = 0;
+      nextId = 1;
+      const byId = new Map();
+      for (let i = 0; i < data.flowers.length && flowers.length < MAX_FLOWERS; i++) {
+        const r = data.flowers[i];
+        if (!Array.isArray(r) || r.length < 9) continue;
+        const sp = r[1] | 0;
+        if (sp < 0 || sp >= SPECIES.length) continue;
+        const f = {
+          id: r[0] | 0,
+          sp: sp,
+          x: Number(r[2]) * W,
+          y: Number(r[3]) * H,
+          nectar: clamp01(Number(r[4])),
+          pol: r[5] ? 1 : 0,
+          seeds: r[6] | 0,
+          wilt: Math.max(0, Number(r[7]) || 0),
+          dead: false,
+          bloomed: r[9] ? 1 : 0,
+          phase: Number(r[8]) || 0,
+          seedT: 0,
+          op: 0
+        };
+        if (!(f.x >= 0) || !(f.y >= 0)) continue;
+        f.op = affinity(SPECIES[sp], seasonX);
+        if (f.id >= nextId) nextId = f.id + 1;
+        flowers.push(f);
+        byId.set(f.id, f);
+      }
+      for (let i = 0; i < data.bees.length && bees.length < MAX_BEES; i++) {
+        const r = data.bees[i];
+        if (!Array.isArray(r) || r.length < 18) continue;
+        const b = spawnBee();
+        b.x = Number(r[0]) * W;
+        b.y = Number(r[1]) * H;
+        b.vx = Number(r[2]) * W;
+        b.vy = Number(r[3]) * H;
+        b.state = r[4] | 0;
+        if (b.state < REST || b.state > CLUSTER) b.state = REST;
+        b.inside = !!r[5];
+        b.board = !!r[6];
+        b.cargo = clamp01(Number(r[7]));
+        b.flower = (r[8] | 0) ? (byId.get(r[8] | 0) || null) : null;
+        b.patchX = Number(r[9]) * W;
+        b.patchY = Number(r[10]) * H;
+        b.heading = Number(r[11]) || 0;
+        b.timer = Number(r[12]) || 0;
+        b.slot = Math.abs(r[13] | 0) % 6;
+        b.danceQ = clamp01(Number(r[14]));
+        b.phase = Number(r[15]) || 0;
+        b.clusterRad = Number(r[16]) > 0 ? Number(r[16]) : 0.5;
+        b.clusterAng = Number(r[17]) || 0;
+        if (!Number.isFinite(b.x) || !Number.isFinite(b.y)) {
+          b.x = hiveX;
+          b.y = hiveY;
+        }
+        if (b.state === SIP && !b.flower) b.state = BACK;
+        if (b.state === DANCE && !(b.timer > 0)) b.timer = 2;
+      }
+      return bees.length > 0 && flowers.length > 0;
+    } catch (err) {
+      return false;
+    }
+  }
+
+  function buildGrid() {
+    gridCols = Math.max(1, Math.ceil(W / CELL));
+    gridRows = Math.max(1, Math.ceil(H / CELL));
+    const n = gridCols * gridRows;
+    while (grid.length < n) grid.push([]);
+    for (let i = 0; i < n; i++) grid[i].length = 0;
+    for (let i = 0; i < bees.length; i++) {
+      const b = bees[i];
+      if (b.state === REST && b.inside) continue;
+      let cx = (b.x / CELL) | 0;
+      let cy = (b.y / CELL) | 0;
+      if (cx < 0) cx = 0;
+      else if (cx >= gridCols) cx = gridCols - 1;
+      if (cy < 0) cy = 0;
+      else if (cy >= gridRows) cy = gridRows - 1;
+      grid[cy * gridCols + cx].push(i);
+    }
+  }
+  function forNeighbors(b, rad, fn) {
+    if (gridCols <= 0) return;
+    const r2 = rad * rad;
+    let x0 = ((b.x - rad) / CELL) | 0;
+    let y0 = ((b.y - rad) / CELL) | 0;
+    let x1 = ((b.x + rad) / CELL) | 0;
+    let y1 = ((b.y + rad) / CELL) | 0;
+    if (x0 < 0) x0 = 0;
+    if (y0 < 0) y0 = 0;
+    if (x1 >= gridCols) x1 = gridCols - 1;
+    if (y1 >= gridRows) y1 = gridRows - 1;
+    let seen = 0;
+    for (let y = y0; y <= y1; y++) {
+      const row = y * gridCols;
+      for (let x = x0; x <= x1; x++) {
+        const bucket = grid[row + x];
+        if (!bucket) continue;
+        for (let k = 0; k < bucket.length; k++) {
+          const o = bees[bucket[k]];
+          if (o === b) continue;
+          const dx = o.x - b.x;
+          const dy = o.y - b.y;
+          const d2 = dx * dx + dy * dy;
+          if (d2 > 0.01 && d2 < r2) {
+            fn(o, dx, dy, d2);
+            if (++seen >= 8) return;
+          }
+        }
+      }
+    }
+  }
+  function integrate(b, dt, mode) {
+    const maxSp = (mode === 'cluster' ? 28 : mode === 'board' ? 18 : mode === 'sip' ? 46 : mode === 'back' ? 112 : 100) * S * (b.cargo > 0.05 && mode !== 'cluster' && mode !== 'board' ? 0.88 : 1);
+    const sepR = (mode === 'cluster' ? 8 : mode === 'board' ? 10 : mode === 'sip' ? 12 : 17) * U;
+    const aliR = (mode === 'fly' || mode === 'back') ? 40 * U : 0;
+    let sx = 0, sy = 0, ax = 0, ay = 0, cox = 0, coy = 0, an = 0, cn = 0;
+    forNeighbors(b, Math.max(sepR, aliR), function (o, dx, dy, d2) {
+      const d = Math.sqrt(d2) || 0.001;
+      if (d < sepR) {
+        const w = (sepR - d) / sepR;
+        sx -= dx / d * w;
+        sy -= dy / d * w;
+      }
+      if (aliR > 0 && d < aliR && (o.state === OUT || o.state === BACK)) {
+        ax += o.vx; ay += o.vy; an++;
+        cox += o.x; coy += o.y; cn++;
+      }
+    });
+    let dx = b.tx - b.x;
+    let dy = b.ty - b.y;
+    let dist = Math.hypot(dx, dy) || 0.001;
+    let sp = maxSp;
+    const slowR = (mode === 'board' ? 16 : 50) * U;
+    if (dist < slowR) sp *= dist / slowR;
+    let dvx = (dx / dist) * sp;
+    let dvy = (dy / dist) * sp;
+    if (mode === 'fly' || mode === 'back') {
+      b.wander += (Math.random() - 0.5) * dt * 2.2;
+      const wob = mode === 'fly' ? 0.2 : 0.07;
+      dvx += Math.cos(b.wander) * maxSp * wob;
+      dvy += Math.sin(b.wander) * maxSp * wob;
+    } else if (mode === 'board') {
+      b.wander += (Math.random() - 0.5) * dt * 1.5;
+      dvx += Math.cos(b.wander) * maxSp * 0.4;
+    }
+    dvx += sx * maxSp * 1.45;
+    dvy += sy * maxSp * 1.45;
+    if (an > 0) {
+      dvx = dvx * 0.74 + (ax / an) * 0.26;
+      dvy = dvy * 0.74 + (ay / an) * 0.26;
+    }
+    if (cn > 2 && mode === 'fly') {
+      const cx = cox / cn - b.x;
+      const cy = coy / cn - b.y;
+      const cd = Math.hypot(cx, cy) || 1;
+      if (cd > 18 * U && cd < aliR) {
+        dvx += (cx / cd) * maxSp * 0.1;
+        dvy += (cy / cd) * maxSp * 0.1;
+      }
+    }
+    const m = 10;
+    if (b.x < m) dvx += maxSp;
+    else if (b.x > W - m) dvx -= maxSp;
+    if (b.y < m) dvy += maxSp;
+    else if (b.y > H - m) dvy -= maxSp;
+    const dm = Math.hypot(dvx, dvy);
+    const cap = maxSp * 1.12;
+    if (dm > cap) { dvx = dvx / dm * cap; dvy = dvy / dm * cap; }
+    const k = Math.min(1, dt * 4.4);
+    b.vx += (dvx - b.vx) * k;
+    b.vy += (dvy - b.vy) * k;
+    b.x += b.vx * dt;
+    b.y += b.vy * dt;
+    if (b.x < 2) { b.x = 2; b.vx *= 0.2; }
+    else if (b.x > W - 2) { b.x = W - 2; b.vx *= 0.2; }
+    if (b.y < 2) { b.y = 2; b.vy *= 0.2; }
+    else if (b.y > H - 2) { b.y = H - 2; b.vy *= 0.2; }
+    const v = Math.hypot(b.vx, b.vy);
+    if (v > 8 && mode !== 'cluster') b.heading = Math.atan2(b.vy, b.vx);
+    else if (v > 4) b.heading = Math.atan2(b.vy, b.vx);
+    if (!Number.isFinite(b.x) || !Number.isFinite(b.y)) park(b);
+  }
+  function nearestBloom(x, y, rad) {
+    let best = null;
+    let bestD = rad * rad;
+    for (let i = 0; i < flowers.length; i++) {
+      const f = flowers[i];
+      if (f.dead || f.op < 0.4 || f.nectar < 0.08) continue;
+      const d = dist2(f.x, f.y, x, y);
+      if (d < bestD) { bestD = d; best = f; }
+    }
+    return best;
+  }
+  function pickFlower() {
+    let total = 0;
+    for (let i = 0; i < flowers.length; i++) {
+      const f = flowers[i];
+      if (f.dead || f.op < 0.42 || f.nectar < 0.1) continue;
+      total += f.nectar * (0.35 + SPECIES[f.sp].rich) * f.op;
+    }
+    if (!(total > 0)) return null;
+    let r = Math.random() * total;
+    for (let i = 0; i < flowers.length; i++) {
+      const f = flowers[i];
+      if (f.dead || f.op < 0.42 || f.nectar < 0.1) continue;
+      r -= f.nectar * (0.35 + SPECIES[f.sp].rich) * f.op;
+      if (r <= 0) return f;
+    }
+    return null;
+  }
+  function pickResting() {
+    let choice = null;
+    let n = 0;
+    for (let i = 0; i < bees.length; i++) {
+      const b = bees[i];
+      if (b.state !== REST) continue;
+      const w = b.board ? 3 : 1;
+      n += w;
+      if (Math.random() * n < w) choice = b;
+    }
+    return choice;
+  }
+  function clampBoard(b) {
+    const cx = hiveX;
+    const cy = hiveY + hiveR * 0.8;
+    const dx = b.x - cx;
+    const dy = b.y - cy;
+    const rx = Math.max(8, hiveR * 0.5);
+    const ry = Math.max(5, hiveR * 0.16);
+    const e = (dx * dx) / (rx * rx) + (dy * dy) / (ry * ry);
+    if (e > 1) {
+      const s = 1 / Math.sqrt(e);
+      b.x = cx + dx * s;
+      b.y = cy + dy * s;
+    }
+  }
+
+  function updateFlowers(dt) {
+    for (let i = 0; i < flowers.length; i++) {
+      const f = flowers[i];
+      if (f.dead) continue;
+      const spec = SPECIES[f.sp];
+      const op = affinity(spec, seasonX);
+      f.op = op;
+      if (op > 0.55) f.bloomed = 1;
+      if (op > 0.42) {
+        f.nectar += dt * spec.regen * op;
+        if (f.nectar > 1) f.nectar = 1;
+        if (f.wilt > 0) f.wilt = Math.max(0, f.wilt - dt * 0.6);
+      } else if (f.nectar > 0) {
+        f.nectar -= dt * 0.035;
+        if (f.nectar < 0) f.nectar = 0;
+      }
+      if (!spec.per && f.bloomed && op < 0.12) {
+        f.wilt += dt;
+        if (f.wilt > 7) { f.dead = true; anyDead = true; continue; }
+      }
+      if (f.pol && f.seeds < (spec.per ? 3 : 2) && op > 0.48) {
+        f.seedT -= dt;
+        if (f.seedT <= 0) {
+          if (flowers.length >= MAX_FLOWERS || Math.random() > spec.spread) {
+            f.pol = 0;
+            f.seedT = 8;
+          } else if (trySeed(f)) {
+            f.seeds++;
+            f.pol = 0;
+            f.seedT = 9 + Math.random() * 8;
+          } else {
+            f.seedT = 2.5;
+          }
+        }
+      }
+    }
+  }
+  function applySeasonMode() {
+    const cs = clusterStrength();
+    const gate = (14 * U) * (14 * U);
+    for (let i = 0; i < bees.length; i++) {
+      const b = bees[i];
+      if (cs > 0.58) {
+        if (b.state === DANCE) park(b);
+        if (b.state === OUT || b.state === SIP) {
+          b.state = BACK;
+          b.flower = null;
+        }
+        const near = dist2(b.x, b.y, hiveX, hiveY + hiveR * 0.74) < gate;
+        if (b.state === REST || (b.state === BACK && near)) {
+          b.state = CLUSTER;
+          b.inside = false;
+          b.board = false;
+          b.flower = null;
+        }
+      } else if (cs < 0.12 && b.state === CLUSTER) {
+        park(b);
+      }
+    }
+  }
+  function updateBee(b, dt) {
+    if (b.flower && b.flower.dead) {
+      b.flower = null;
+      if (b.state === SIP || b.state === OUT) b.state = BACK;
+    }
+    if (b.state === REST && b.inside) return;
+    if (b.state === DANCE) {
+      b.timer -= dt;
+      b.heading = Math.atan2(b.patchY - hiveY, b.patchX - hiveX);
+      const a = -1.05 + b.slot * 0.38;
+      b.x = hiveX + Math.sin(a) * (hiveR * 0.18);
+      b.y = hiveY + hiveR * 0.8 + Math.cos(a) * (hiveR * 0.04);
+      b.vx = 0;
+      b.vy = 0;
+      if (b.timer <= 0) park(b);
+      return;
+    }
+    if (b.state === CLUSTER) {
+      b.clusterAng += dt * 0.4;
+      const cs = clusterStrength();
+      const rad = hiveR * b.clusterRad * (1.05 - cs * 0.28);
+      b.tx = hiveX + Math.cos(b.clusterAng) * rad;
+      b.ty = hiveY + Math.sin(b.clusterAng) * rad * 0.76;
+      integrate(b, dt, 'cluster');
+      return;
+    }
+    if (b.state === REST && b.board) {
+      b.timer -= dt;
+      if (b.timer <= 0) {
+        b.timer = 0.8 + Math.random() * 1.4;
+        const a = (Math.random() - 0.5) * 1.3;
+        b.tx = hiveX + Math.sin(a) * hiveR * 0.36;
+        b.ty = hiveY + hiveR * 0.8 + (Math.random() - 0.5) * hiveR * 0.06;
+      }
+      integrate(b, dt, 'board');
+      clampBoard(b);
+      return;
+    }
+    if (b.state === SIP) {
+      const f = b.flower;
+      if (!f || f.op < 0.3 || f.nectar < 0.02) {
+        b.flower = null;
+        b.state = BACK;
+      } else {
+        b.sipLeft -= dt;
+        b.phase += dt * 2.5;
+        const rad = 8 * U;
+        b.tx = f.x + Math.cos(b.phase) * rad;
+        b.ty = f.y + Math.sin(b.phase) * rad;
+        const spec = SPECIES[f.sp];
+        const take = Math.min(f.nectar, dt * 0.62);
+        f.nectar -= take;
+        b.cargo += take * spec.rich;
+        if (b.cargo > 1.25) b.cargo = 1.25;
+        if (!f.pol) {
+          f.pol = 1;
+          f.seedT = 4 + Math.random() * 7;
+        }
+        b.patchX = f.x;
+        b.patchY = f.y;
+        integrate(b, dt, 'sip');
+        if (b.sipLeft <= 0 || f.nectar <= 0.02) {
+          b.flower = null;
+          b.state = BACK;
+        }
+        return;
+      }
+    }
+    if (b.state === OUT) {
+      if (b.flower) {
+        const f = b.flower;
+        if (f.dead || f.op < 0.32 || f.nectar < 0.06) {
+          const alt = nearestBloom(b.x, b.y, 110 * U);
+          if (alt) {
+            b.flower = alt;
+            b.tx = alt.x;
+            b.ty = alt.y;
+          } else {
+            b.flower = null;
+            b.state = BACK;
+          }
+        } else {
+          b.tx = f.x;
+          b.ty = f.y;
+          if (dist2(b.x, b.y, f.x, f.y) < (13 * U) * (13 * U)) {
+            b.state = SIP;
+            b.sipLeft = 0.75 + Math.random() * 0.55;
+            b.phase = Math.random() * TAU;
+            b.patchX = f.x;
+            b.patchY = f.y;
+          }
+        }
+      } else if (dist2(b.x, b.y, b.patchX, b.patchY) < (28 * U) * (28 * U)) {
+        const f = nearestBloom(b.x, b.y, 120 * U);
+        if (f) {
+          b.flower = f;
+          b.tx = f.x;
+          b.ty = f.y;
+        } else {
+          b.hunt -= dt;
+          b.wander += dt * 1.4;
+          b.tx = b.patchX + Math.cos(b.wander) * 26 * U;
+          b.ty = b.patchY + Math.sin(b.wander) * 26 * U;
+          if (b.hunt <= 0) b.state = BACK;
+        }
+      } else {
+        b.tx = b.patchX;
+        b.ty = b.patchY;
+      }
+      if (b.state === OUT) integrate(b, dt, 'fly');
+      else if (b.state === SIP) integrate(b, dt, 'sip');
+      return;
+    }
+    if (b.state === BACK) {
+      const gx = hiveX;
+      const gy = hiveY + hiveR * 0.74;
+      b.tx = gx;
+      b.ty = gy;
+      integrate(b, dt, 'back');
+      if (dist2(b.x, b.y, gx, gy) < (12 * U) * (12 * U)) {
+        const carried = b.cargo;
+        deposit(carried * 0.62);
+        beginDance(b, b.patchX, b.patchY, carried / 0.55, false);
+      }
+    }
+  }
+  function hearDances(dt) {
+    if (clusterStrength() > 0.5) return;
+    let dancers = 0;
+    for (let i = 0; i < bees.length; i++) if (bees[i].state === DANCE) dancers++;
+    if (!dancers) return;
+    for (let i = 0; i < bees.length; i++) {
+      const d = bees[i];
+      if (d.state !== DANCE) continue;
+      const p = (dt * 1.75 / dancers) * (0.45 + d.danceQ);
+      if (Math.random() < p) {
+        const b = pickResting();
+        if (!b) return;
+        launchTo(b, d.patchX + (Math.random() - 0.5) * 36 * U, d.patchY + (Math.random() - 0.5) * 36 * U);
+      }
+    }
+  }
+  function maybeScout(dt) {
+    const cs = clusterStrength();
+    let flying = 0;
+    for (let i = 0; i < bees.length; i++) {
+      const s = bees[i].state;
+      if (s === OUT || s === SIP || s === BACK) flying++;
+    }
+    const flyCap = Math.min(72, Math.max(16, (bees.length * 0.4) | 0));
+    scoutAcc += dt;
+    if (scoutAcc < 1.2 || cs >= 0.48 || flying >= flyCap) return;
+    scoutAcc = 0;
+    const f = pickFlower();
+    const b = pickResting();
+    if (f && b) launchTo(b, f.x, f.y);
+  }
+  function maybeBrood(dt) {
+    const si = seasonIndex();
+    if (clusterStrength() >= 0.15 || (si !== 0 && si !== 1) || bees.length >= MAX_BEES) return;
+    const h = honeyTotal();
+    broodAcc += dt * (h > 12 ? 0.28 : h > 4 ? 0.1 : 0);
+    if (broodAcc >= 1 && h >= 1.3) {
+      broodAcc = 0;
+      spend(1.3);
+      const b = spawnBee();
+      b.board = true;
+      b.inside = false;
+      placeOnBoard(b);
+    }
+  }
+  function replenishBoard(cs) {
+    if (cs >= 0.4) return;
+    const want = Math.max(6, Math.round(7 + 2 * U));
+    let boards = 0;
+    for (let i = 0; i < bees.length; i++) if (bees[i].state === REST && bees[i].board) boards++;
+    if (boards >= want) return;
+    for (let i = 0; i < bees.length; i++) {
+      const b = bees[i];
+      if (b.state === REST && b.inside) {
+        b.board = true;
+        b.inside = false;
+        placeOnBoard(b);
+        return;
+      }
+    }
+  }
+  function kickParticle() {
+    const p = particles[pCursor++ % particles.length];
+    p.life = 3.5 + Math.random() * 2.5;
+    p.kind = seasonIndex();
+    p.s = (1.4 + Math.random() * 2.2) * U;
+    if (p.kind === 3) {
+      p.x = Math.random() * W;
+      p.y = -6;
+      p.vx = 10 + Math.random() * 16;
+      p.vy = 22 + Math.random() * 18;
+    } else if (p.kind === 2) {
+      p.x = -8;
+      p.y = Math.random() * H;
+      p.vx = 28 + Math.random() * 24;
+      p.vy = 12 + Math.random() * 16;
+    } else if (p.kind === 1) {
+      p.x = Math.random() * W;
+      p.y = Math.random() * H * 0.85;
+      p.vx = 8 + Math.random() * 10;
+      p.vy = -6 + Math.random() * 10;
+    } else {
+      p.x = Math.random() * W;
+      p.y = Math.random() * H * 0.3;
+      p.vx = 12 + Math.random() * 14;
+      p.vy = 16 + Math.random() * 14;
+    }
+  }
+  function compactFlowers() {
+    anyDead = false;
+    let w = 0;
+    for (let i = 0; i < flowers.length; i++) {
+      const f = flowers[i];
+      if (!f.dead) flowers[w++] = f;
+      else {
+        for (let k = 0; k < bees.length; k++) {
+          if (bees[k].flower === f) {
+            bees[k].flower = null;
+            if (bees[k].state === SIP) bees[k].state = BACK;
+          }
+        }
+      }
+    }
+    flowers.length = w;
+  }
+  function update(dt) {
+    if (W < 2) return;
+    time += dt;
+    seasonX += dt / SEASON_LEN;
+    if (seasonX >= 4) seasonX -= 4;
+    updateFlowers(dt);
+    applySeasonMode();
+    buildGrid();
+    for (let i = 0; i < bees.length; i++) updateBee(bees[i], dt);
+    hearDances(dt);
+    maybeScout(dt);
+    maybeBrood(dt);
+    const cs = clusterStrength();
+    if (cs > 0.35) spend(dt * (0.015 + bees.length * 0.00035));
+    replenishBoard(cs);
+    if (!reduceMotion) {
+      const spr = bump(seasonX, 0.4, 1);
+      const sum = bump(seasonX, 1.5, 0.9);
+      const aut = bump(seasonX, 2.4, 0.85);
+      const win = bump(seasonX, 3.45, 0.8);
+      partAcc += dt * (3 + 7 * Math.max(spr, sum, aut, win));
+      if (partAcc > 4) partAcc = 4;
+      while (partAcc >= 1) { partAcc -= 1; kickParticle(); }
+    }
+    for (let i = 0; i < particles.length; i++) {
+      const p = particles[i];
+      if (p.life <= 0) continue;
+      p.x += p.vx * dt;
+      p.y += p.vy * dt;
+      p.life -= dt * 0.35;
+      if (p.y > H + 12 || p.x > W + 16 || p.x < -16) p.life = 0;
+    }
+    for (let i = ripples.length - 1; i >= 0; i--) {
+      ripples[i].t += dt;
+      if (ripples[i].t > 0.7) ripples.splice(i, 1);
+    }
+    if (anyDead) compactFlowers();
+    hudAcc += dt;
+    if (hudAcc > 0.4 || seasonIndex() !== lastSi) {
+      hudAcc = 0;
+      updateHud(true);
+    }
+    audioAcc += dt;
+    if (audioAcc > 0.25) { audioAcc = 0; syncBuzz(); }
+    saveAcc += dt;
+    if (saveAcc > 5) { saveAcc = 0; save(); }
+  }
+
+  function toast(msg) {
+    toastEl.hidden = false;
+    toastEl.textContent = msg;
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { toastEl.hidden = true; }, 2800);
+  }
+  function updateHud(allowToast) {
+    let blooms = 0;
+    for (let i = 0; i < flowers.length; i++) {
+      const f = flowers[i];
+      if (!f.dead && f.op >= 0.45 && f.wilt < 1) blooms++;
+    }
+    statsEl.textContent = bees.length + ' Bienen · ' + Math.round(honeyTotal()) + ' Honig · ' + blooms + ' Blüten';
+    const si = seasonIndex();
+    seasonNameEl.textContent = SEASON_NAMES[si];
+    const dots = seasonDots.children;
+    for (let i = 0; i < dots.length; i++) dots[i].classList.toggle('on', i === si);
+    if (allowToast && lastSi >= 0 && si !== lastSi) toast(SEASON_TOAST[si]);
+    lastSi = si;
+  }
+  function dismissHint() {
+    if (hintGone) return;
+    hintGone = true;
+    hintEl.classList.add('gone');
+    setTimeout(function () { hintEl.hidden = true; }, 700);
+  }
+
+  function startBuzz() {
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return;
+    if (!actx) {
+      actx = new AC();
+      master = actx.createGain();
+      master.gain.value = 0;
+      master.connect(actx.destination);
+      const len = actx.sampleRate * 2;
+      const buf = actx.createBuffer(1, len, actx.sampleRate);
+      const data = buf.getChannelData(0);
+      let n = 0;
+      for (let i = 0; i < len; i++) {
+        n = (n + 0.02 * (Math.random() * 2 - 1)) / 1.02;
+        data[i] = n * 2.4;
+      }
+      const src = actx.createBufferSource();
+      src.buffer = buf;
+      src.loop = true;
+      const bp = actx.createBiquadFilter();
+      bp.type = 'bandpass';
+      bp.frequency.value = 175;
+      bp.Q.value = 0.6;
+      const trem = actx.createGain();
+      trem.gain.value = 0.75;
+      const lfo = actx.createOscillator();
+      lfo.frequency.value = 5.2;
+      const lfoAmp = actx.createGain();
+      lfoAmp.gain.value = 0.2;
+      lfo.connect(lfoAmp);
+      lfoAmp.connect(trem.gain);
+      src.connect(bp);
+      bp.connect(trem);
+      trem.connect(master);
+      const tone = actx.createOscillator();
+      tone.type = 'sine';
+      tone.frequency.value = 196;
+      const toneG = actx.createGain();
+      toneG.gain.value = 0.03;
+      tone.connect(toneG);
+      toneG.connect(master);
+      src.start();
+      lfo.start();
+      tone.start();
+    }
+    return actx.resume();
+  }
+  function syncBuzz() {
+    if (!soundOn || !master || !actx) return;
+    let fly = 0;
+    for (let i = 0; i < bees.length; i++) {
+      const s = bees[i].state;
+      if (s === OUT || s === SIP || s === BACK) fly++;
+    }
+    const target = (0.02 + Math.min(1, fly / 34) * 0.045) * (1 - clusterStrength() * 0.72);
+    master.gain.setTargetAtTime(target, actx.currentTime, 0.35);
+  }
+  function toggleSound() {
+    if (!soundOn) {
+      try { startBuzz(); } catch (err) { return; }
+      if (!actx) return;
+      soundOn = true;
+    } else {
+      soundOn = false;
+      if (master && actx) master.gain.setTargetAtTime(0, actx.currentTime, 0.08);
+    }
+    bSound.classList.toggle('on', soundOn);
+    bSound.setAttribute('aria-pressed', soundOn ? 'true' : 'false');
+    bSound.setAttribute('aria-label', soundOn ? 'Ton ausschalten' : 'Ton einschalten');
+  }
+  function toggleView() {
+    view = view === 'meadow' ? 'comb' : 'meadow';
+    const on = view === 'comb';
+    bWabe.classList.toggle('on', on);
+    bWabe.setAttribute('aria-pressed', on ? 'true' : 'false');
+    bWabe.setAttribute('aria-label', on ? 'Wiese zeigen' : 'Wabenansicht');
+  }
+  function selectTool(i) {
+    if (i < 0 || i >= SPECIES.length) return;
+    tool = i;
+    const buttons = bar.querySelectorAll('button[data-sp]');
+    for (let k = 0; k < buttons.length; k++) {
+      const on = +buttons[k].dataset.sp === i;
+      buttons[k].classList.toggle('on', on);
+      buttons[k].setAttribute('aria-pressed', on ? 'true' : 'false');
+    }
+  }
+
+  function drawRay(x, y, ang, len) {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(ang);
+    ctx.lineCap = 'round';
+    ctx.strokeStyle = 'rgba(255,214,90,0.38)';
+    ctx.lineWidth = 8;
+    ctx.beginPath();
+    ctx.moveTo(8, 0);
+    ctx.lineTo(len, 0);
+    ctx.stroke();
+    ctx.setLineDash([5, 6]);
+    ctx.strokeStyle = 'rgba(255,186,30,0.96)';
+    ctx.lineWidth = 2.4;
+    ctx.beginPath();
+    ctx.moveTo(8, 0);
+    ctx.lineTo(len, 0);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = 'rgba(255,190,40,0.98)';
+    ctx.beginPath();
+    ctx.moveTo(len + 10, 0);
+    ctx.lineTo(len - 2, -6.5);
+    ctx.lineTo(len - 2, 6.5);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+  }
+  function drawBeeGraphic(x, y, ang, cargo, phase, size) {
+    const flap = ((time * 14 + phase) % 1) > 0.5;
+    const spr = beeSpr[(cargo > 0.08 ? 2 : 0) + (flap ? 1 : 0)];
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(ang);
+    ctx.drawImage(spr, -size / 2, -size / 2, size, size);
+    ctx.restore();
+  }
+  function drawHive() {
+    ctx.save();
+    ctx.translate(hiveX, hiveY);
+    ctx.fillStyle = 'rgba(50,40,16,0.22)';
+    ctx.beginPath();
+    ctx.ellipse(0, hiveR * 0.45, hiveR * 1.25, hiveR * 0.4, 0, 0, TAU);
+    ctx.fill();
+    const g = ctx.createRadialGradient(-hiveR * 0.28, -hiveR * 0.32, hiveR * 0.15, 0, 0, hiveR);
+    g.addColorStop(0, '#f2c56e');
+    g.addColorStop(1, '#c17e2b');
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(0, 0, hiveR, 0, TAU);
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(110,68,20,0.5)';
+    ctx.lineWidth = Math.max(1, hiveR * 0.035);
+    for (let i = 1; i <= 5; i++) {
+      ctx.beginPath();
+      ctx.arc(0, 0, hiveR * i / 6, 0, TAU);
+      ctx.stroke();
+    }
+    ctx.fillStyle = '#2a1c12';
+    ctx.beginPath();
+    ctx.ellipse(0, hiveR * 0.62, hiveR * 0.16, hiveR * 0.1, 0, 0, TAU);
+    ctx.fill();
+    ctx.fillStyle = '#efd3a0';
+    ctx.beginPath();
+    ctx.ellipse(0, hiveR * 0.8, hiveR * 0.48, hiveR * 0.13, 0, 0, TAU);
+    ctx.fill();
+    ctx.restore();
+  }
+  function traceHex(x, y, r) {
+    ctx.beginPath();
+    for (let i = 0; i < 6; i++) {
+      const a = -Math.PI / 2 + i * (Math.PI / 3);
+      const px = x + Math.cos(a) * r;
+      const py = y + Math.sin(a) * r;
+      if (i) ctx.lineTo(px, py); else ctx.moveTo(px, py);
+    }
+    ctx.closePath();
+  }
+  function honeyColor(t) {
+    const r = (250 - t * 48) | 0;
+    const g = (214 - t * 96) | 0;
+    const b = (120 - t * 70) | 0;
+    return 'rgb(' + r + ',' + g + ',' + b + ')';
+  }
+  function roundRect(x, y, w, h, r) {
+    const rr = Math.min(r, w / 2, h / 2);
+    ctx.beginPath();
+    ctx.moveTo(x + rr, y);
+    ctx.arcTo(x + w, y, x + w, y + h, rr);
+    ctx.arcTo(x + w, y + h, x, y + h, rr);
+    ctx.arcTo(x, y + h, x, y, rr);
+    ctx.arcTo(x, y, x + w, y, rr);
+    ctx.closePath();
+  }
+  function drawMeadow() {
+    ctx.drawImage(grassLush, 0, 0, W, H);
+    const win = bump(seasonX, 3.45, 0.78);
+    if (win > 0.02) {
+      ctx.globalAlpha = win;
+      ctx.drawImage(grassFrost, 0, 0, W, H);
+      ctx.globalAlpha = 1;
+    }
+    const aut = bump(seasonX, 2.35, 0.8);
+    if (aut > 0.02) {
+      ctx.fillStyle = 'rgba(168,92,28,' + (0.26 * aut) + ')';
+      ctx.fillRect(0, 0, W, H);
+    }
+    const spr = bump(seasonX, 0.35, 0.95);
+    if (spr > 0.02) {
+      ctx.fillStyle = 'rgba(255,236,170,' + (0.13 * spr) + ')';
+      ctx.fillRect(0, 0, W, H);
+    }
+    if (vignette) {
+      ctx.fillStyle = vignette;
+      ctx.fillRect(0, 0, W, H);
+    }
+    flowerDraw.length = 0;
+    for (let i = 0; i < flowers.length; i++) {
+      const f = flowers[i];
+      if (f.dead) continue;
+      if (f.op < 0.1 && f.wilt <= 0) continue;
+      flowerDraw.push(f);
+    }
+    flowerDraw.sort(function (a, b) { return a.y - b.y; });
+    for (let i = 0; i < flowerDraw.length; i++) {
+      const f = flowerDraw[i];
+      const sp = SPECIES[f.sp];
+      const bud = f.op < 0.38;
+      let sc = bud ? 0.62 : 0.78 + f.op * 0.36;
+      if (f.wilt > 0) sc *= Math.max(0.25, 1 - f.wilt / 7);
+      const base = (sp.kind === 'sun' ? 32 : sp.kind === 'poppy' ? 28 : sp.kind === 'snow' ? 22 : 26) * U * sc;
+      ctx.save();
+      ctx.translate(f.x, f.y);
+      ctx.rotate(Math.sin(time * 0.75 + f.phase) * (reduceMotion ? 0 : 0.07));
+      if (f.wilt > 0) ctx.globalAlpha = Math.max(0.15, 1 - f.wilt / 8);
+      ctx.drawImage(bud ? budSpr[f.sp] : bloomSpr[f.sp], -base / 2, -base * 0.55, base, base);
+      ctx.restore();
+      if (!bud && f.nectar < 0.16 && f.op > 0.4) {
+        ctx.fillStyle = 'rgba(70,60,30,0.45)';
+        ctx.beginPath();
+        ctx.arc(f.x, f.y - base * 0.05, 2.3 * U, 0, TAU);
+        ctx.fill();
+      }
+    }
+    drawHive();
+    for (let i = 0; i < bees.length; i++) {
+      const b = bees[i];
+      if (b.state !== DANCE) continue;
+      const ang = Math.atan2(b.patchY - hiveY, b.patchX - hiveX);
+      b.heading = ang;
+      const dist = Math.hypot(b.patchX - hiveX, b.patchY - hiveY);
+      drawRay(b.x, b.y, ang, Math.min(150 * U, 30 * U + dist * 0.48));
+      ctx.strokeStyle = 'rgba(232,176,40,0.7)';
+      ctx.lineWidth = 1.6;
+      ctx.beginPath();
+      ctx.arc(b.patchX, b.patchY, 14 * U + Math.sin(time * 3 + b.phase) * 1.4, 0, TAU);
+      ctx.stroke();
+    }
+    beeDraw.length = 0;
+    for (let i = 0; i < bees.length; i++) {
+      const b = bees[i];
+      if (b.state === REST && b.inside) continue;
+      beeDraw.push(b);
+    }
+    beeDraw.sort(function (a, b) { return a.y - b.y; });
+    for (let i = 0; i < beeDraw.length; i++) {
+      const b = beeDraw[i];
+      let x = b.x, y = b.y;
+      if (b.state === DANCE) {
+        const wag = Math.sin(time * 26 + b.phase) * 3.4 * U;
+        x += Math.cos(b.heading) * wag;
+        y += Math.sin(b.heading) * wag;
+      }
+      ctx.fillStyle = 'rgba(40,50,20,0.2)';
+      ctx.beginPath();
+      ctx.ellipse(b.x, b.y + 2.2 * U, 3.4 * U, 1.7 * U, 0, 0, TAU);
+      ctx.fill();
+      const size = (b.state === CLUSTER ? 12.5 : 18) * U;
+      drawBeeGraphic(x, y, b.heading, b.cargo, b.phase, size);
+    }
+    for (let i = 0; i < particles.length; i++) {
+      const p = particles[i];
+      if (p.life <= 0) continue;
+      const a = Math.min(1, p.life);
+      if (p.kind === 3) {
+        ctx.fillStyle = 'rgba(255,255,255,' + (0.85 * a) + ')';
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.s, 0, TAU);
+        ctx.fill();
+      } else if (p.kind === 2) {
+        ctx.save();
+        ctx.translate(p.x, p.y);
+        ctx.rotate(0.6);
+        ctx.fillStyle = 'rgba(190,104,32,' + (0.8 * a) + ')';
+        ctx.fillRect(-p.s, -p.s * 0.4, p.s * 2.2, p.s * 0.9);
+        ctx.restore();
+      } else if (p.kind === 1) {
+        ctx.fillStyle = 'rgba(240,200,80,' + (0.75 * a) + ')';
+        ctx.fillRect(p.x, p.y, p.s, p.s);
+      } else {
+        ctx.fillStyle = 'rgba(255,248,252,' + (0.8 * a) + ')';
+        ctx.beginPath();
+        ctx.ellipse(p.x, p.y, p.s * 1.3, p.s * 0.7, 0.4, 0, TAU);
+        ctx.fill();
+      }
+    }
+    for (let i = 0; i < ripples.length; i++) {
+      const r = ripples[i];
+      const p = r.t / 0.7;
+      ctx.strokeStyle = 'rgba(255,255,255,' + (1 - p) * 0.7 + ')';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.arc(r.x, r.y, 5 + p * 16, 0, TAU);
+      ctx.stroke();
+    }
+  }
+  function drawComb() {
+    const wood = ctx.createRadialGradient(combCX, combCY, combR * 2, combCX, combCY, Math.max(W, H) * 0.62);
+    wood.addColorStop(0, '#7b5232');
+    wood.addColorStop(1, '#3a2616');
+    ctx.fillStyle = wood;
+    ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = 'rgba(92, 58, 32, 0.45)';
+    const frameTop = Math.max(8, topH * 0.15);
+    roundRect(8, frameTop, W - 16, Math.max(40, H - barH - frameTop - 8), 18);
+    ctx.fill();
+    for (let i = 0; i < honey.length; i++) {
+      const x = combX[i], y = combY[i], r = combR;
+      traceHex(x, y, r * 0.94);
+      ctx.fillStyle = '#f4e4c4';
+      ctx.fill();
+      const t = honey[i];
+      if (t > 0.03) {
+        traceHex(x, y, r * (0.26 + 0.64 * t));
+        ctx.fillStyle = honeyColor(t);
+        ctx.fill();
+        if (t > 0.4) {
+          ctx.fillStyle = 'rgba(255,255,255,0.24)';
+          ctx.beginPath();
+          ctx.ellipse(x - r * 0.16, y - r * 0.22, r * 0.16, r * 0.08, -0.6, 0, TAU);
+          ctx.fill();
+        }
+      }
+      traceHex(x, y, r * 0.94);
+      ctx.strokeStyle = 'rgba(92,62,24,0.4)';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+    }
+    ctx.fillStyle = '#8d5a32';
+    ctx.beginPath();
+    ctx.ellipse(W * 0.5, danceFloorY, Math.min(W * 0.46, 240), Math.max(12, 14 * U), 0, 0, TAU);
+    ctx.fill();
+    const cs = clusterStrength();
+    if (cs > 0.4) {
+      let n = 0;
+      for (let i = 0; i < bees.length && n < 80; i++) {
+        const b = bees[i];
+        if (b.state !== CLUSTER && b.state !== REST) continue;
+        const ang = b.clusterAng;
+        const rad = combR * (0.55 + (n % 6) * 0.85);
+        drawBeeGraphic(
+          combCX + Math.cos(ang) * rad,
+          combCY + Math.sin(ang) * rad * 0.78,
+          ang,
+          0,
+          b.phase,
+          Math.max(7, combR * 0.62)
+        );
+        n++;
+      }
+    } else {
+      let n = 0;
+      for (let i = 0; i < bees.length && n < 16; i++) {
+        const b = bees[i];
+        if (b.state !== REST) continue;
+        const cell = (i * 3 + n) % honey.length;
+        const wob = Math.sin(time * 1.3 + b.phase) * combR * 0.12;
+        drawBeeGraphic(combX[cell] + wob, combY[cell], b.phase + wob, 0, b.phase, Math.max(8, combR * 0.7));
+        n++;
+        if (n > 2 && i < bees.length - 4) i += 2;
+      }
+    }
+    let shown = 0;
+    for (let i = 0; i < bees.length; i++) {
+      const b = bees[i];
+      if (b.state !== DANCE) continue;
+      const x = W * 0.5 + (shown - 1.5) * Math.max(34, 40 * U);
+      const ang = Math.atan2(b.patchY - hiveY, b.patchX - hiveX);
+      const wag = Math.sin(time * 26 + b.phase) * 3;
+      drawRay(x, danceFloorY, ang, Math.min(118 * U, 48 * U + b.danceQ * 56));
+      drawBeeGraphic(x + Math.cos(ang) * wag, danceFloorY + Math.sin(ang) * wag, ang, 0, b.phase, Math.max(12, 16 * U));
+      shown++;
+    }
+  }
+  function draw() {
+    if (W < 2) return;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.globalAlpha = 1;
+    ctx.setLineDash([]);
+    if (view === 'comb') drawComb();
+    else drawMeadow();
+  }
+
+  function loop(now) {
+    requestAnimationFrame(loop);
+    if (document.hidden) { last = now; return; }
+    if (!last) last = now;
+    let dt = (now - last) / 1000;
+    last = now;
+    if (dt < 0) dt = 0;
+    if (dt > 0.1) dt = 0.1;
+    acc += dt;
+    let steps = 0;
+    const STEP = 1 / 60;
+    while (acc >= STEP && steps < 3) {
+      update(STEP);
+      acc -= STEP;
+      steps++;
+    }
+    if (steps === 3) acc = 0;
+    draw();
+  }
+
+  canvas.addEventListener('pointerdown', function (e) {
+    if (e.button !== 0) return;
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    if (view !== 'meadow') return;
+    const f = addFlower(tool, x, y, false);
+    if (!f) return;
+    ripples.push({ x: x, y: y, t: 0 });
+    if (ripples.length > 8) ripples.shift();
+    dismissHint();
+    saveSoon();
+  });
+  bSound.addEventListener('click', toggleSound);
+  bWabe.addEventListener('click', toggleView);
+  const toolButtons = bar.querySelectorAll('button[data-sp]');
+  for (let i = 0; i < toolButtons.length; i++) {
+    toolButtons[i].addEventListener('click', function () { selectTool(+this.dataset.sp); });
+  }
+  window.addEventListener('keydown', function (e) {
+    if (e.repeat || e.metaKey || e.ctrlKey || e.altKey) return;
+    if (e.key >= '1' && e.key <= '8') selectTool(+e.key - 1);
+    else if (e.key === 'w' || e.key === 'W') toggleView();
+    else if (e.key === 'm' || e.key === 'M') toggleSound();
+  });
+  window.addEventListener('resize', resize);
+  if (window.visualViewport) window.visualViewport.addEventListener('resize', resize);
+  document.addEventListener('visibilitychange', function () {
+    if (document.hidden) save();
+    else last = performance.now();
+  });
+  window.addEventListener('pagehide', save);
+
+  makeSprites();
+  resize();
+  const restored = restore();
+  if (!restored) fresh();
+  ready = true;
+  updateHud(false);
+  if (restored) {
+    hintGone = true;
+    hintEl.hidden = true;
+  } else {
+    setTimeout(dismissHint, 18000);
+  }
+  requestAnimationFrame(loop);
+
+  if (params.has('probe')) {
+    window.__bienen = {
+      bees: bees,
+      flowers: flowers,
+      honey: honey,
+      update: update,
+      draw: draw,
+      resize: resize,
+      get season() { return seasonX; },
+      set season(v) { seasonX = ((v % 4) + 4) % 4; },
+      clusterStrength: clusterStrength,
+      honeyTotal: honeyTotal,
+      spawnBee: spawnBee,
+      launchTo: launchTo,
+      KEY: KEY,
+      REST: REST,
+      OUT: OUT,
+      SIP: SIP,
+      BACK: BACK,
+      DANCE: DANCE,
+      CLUSTER: CLUSTER
+    };
+  }
+})();
+</script>
+</body>
+</html>
