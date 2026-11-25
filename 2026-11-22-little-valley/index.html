@@ -4865,7 +4865,14 @@ function auLevels() {
   if (melt) { const q = proj(mx / melt, my / melt); if (q && innerWidth > 0) AU.meltPan = Math.max(-0.6, Math.min(0.6, (q[0] / innerWidth) * 1.2 - 0.6)); }
   AU.snowCover = n ? cov / n : 0; AU.rainMuffle = clamp01((AU.snowCover - 0.05) / 0.45); AU.rainCut = 9000 * Math.pow(1100 / 9000, AU.rainMuffle);
   // where the river runs: the flow-weighted middle of the moving water, projected to the screen, pans the murmur (gently, at most 0.6)
-  let pan = 0; if (f > 0) { const q = proj(fx / f, fy / f); if (q && innerWidth > 0) pan = Math.max(-0.6, Math.min(0.6, (q[0] / innerWidth) * 1.2 - 0.6)); } AU.riverPan = pan;
+  let pan = 0; if (f > 0) { const q = proj(fx / f, fy / f); if (q && innerWidth > 0) pan = Math.max(-0.6, Math.min(0.6, (q[0] / innerWidth) * 1.2 - 0.6)); }
+  // near the brush: moving water round the pointer (a hovering mouse or a finger on the valley) murmurs louder and pulls the sound toward it
+  let near = 0; const P = st.ptr, g = P && P.x != null ? (P.g || unproj(P.x, P.y)) : null;
+  if (g) { const R = Math.max(3, Math.round(N * 0.05)), gx = Math.round(g[0]), gy = Math.round(g[1]); let q = 0;
+    for (let y = Math.max(1, gy - R); y <= Math.min(N - 2, gy + R); y++) for (let x = Math.max(1, gx - R); x <= Math.min(N - 2, gx + R); x++) { const i = y * N + x, w = d[i]; if (w <= 0.03) continue;
+      const s = Math.abs(u[i]) + Math.abs(v[i]), r = Math.hypot(x - gx, y - gy); if (s > 0.2 && r <= R) q += Math.min(w, 2) * Math.min(s, 4) * (1 - r / (R + 1)); }
+    near = clamp01(q / (R * R * 0.8)); if (near > 0 && innerWidth > 0) { const pp = Math.max(-0.8, Math.min(0.8, (P.x / innerWidth) * 1.6 - 0.8)); pan = pan * (1 - 0.8 * near) + pp * 0.8 * near; } }
+  AU.near = near; AU.riverPan = pan;
   const sea = S.P.seasons, yf = sea ? LV.yearFrac(S) : 0.3, h = LT.h, night = LT.night, day = 1 - night;
   const winter = sea ? (yf > 0.75 ? 1 : yf > 0.68 ? (yf - 0.68) / 0.07 : yf < 0.04 ? 1 - yf / 0.04 : 0) : 0;
   const summer = sea ? (yf >= 0.25 && yf < 0.5 ? 1 : yf > 0.2 && yf < 0.25 ? (yf - 0.2) / 0.05 : yf >= 0.5 && yf < 0.55 ? 1 - (yf - 0.5) / 0.05 : 0) : 1;
@@ -4874,7 +4881,7 @@ function auLevels() {
   const V = st.village || LV.countVillage(S);
   let turn = 0, mills = 0; if (!st.paused) for (const c of S.cottages) if (c.wheel && !c.ruin && c.turn > 0) { mills++; turn = Math.max(turn, c.turn); }
   AU.turn = turn * SPEEDS[st.speed][0];
-  L.river = clamp01(Math.pow(AU.flow / 0.12, 0.6)) * 0.9 + (AU.flow > 0.002 ? 0.1 : 0);
+  L.river = clamp01(Math.pow(AU.flow / 0.12, 0.6)) * 0.9 + (AU.flow > 0.002 ? 0.1 : 0); L.river = Math.min(1.35, L.river + AU.near * 0.45 * (0.4 + L.river)); // up to ~1.35x right by a rushing stream
   L.rain = clamp01(rain * (0.6 + 0.4 * storm) + storm * 0.25) * (1 - 0.35 * AU.rainMuffle);
   L.wind = clamp01(0.22 + 0.4 * winter + 0.65 * storm + 0.15 * rain) * (0.75 + 0.25 * Math.sin(st.time * 0.31) * Math.sin(st.time * 0.17 + 1));
   L.birds = clamp01(day * (1 - 0.92 * winter) * (1 - 0.8 * rain) * (0.12 + 0.88 * AU.veg) * (1 + 0.35 * bump(h, 7, 2.5)));
@@ -4894,7 +4901,7 @@ function auTick(dt) {
   for (const k in AU_MAX) { AU.G[k] = L[k] * AU_MAX[k]; AG.bus[k].gain.setTargetAtTime(AU.G[k], t, k === 'thunder' ? 0.1 : 0.7); }
   if (AG.riverP) AG.riverP.pan.setTargetAtTime(AU.riverPan, t, 0.8);
   AG.rainF.frequency.setTargetAtTime(AU.rainCut, t, 1.5);
-  AG.gurgle.frequency.setTargetAtTime(700 + 500 * R() + 400 * L.river, t, 0.5);
+  AG.gurgle.frequency.setTargetAtTime(700 + 500 * R() + 400 * Math.min(1, L.river) + 350 * AU.near, t, 0.5); // brighter, closer gurgle by the brush
   AG.windF.frequency.setTargetAtTime(260 + 380 * R() + 200 * L.wind, t, 1.2); AG.gust.gain.setTargetAtTime(0.6 + 0.6 * R(), t, 1);
   const at = () => t + 0.05 + R() * AU_DT;
   if (AG.meltP) AG.meltP.pan.setTargetAtTime(AU.meltPan, t, 0.8);
