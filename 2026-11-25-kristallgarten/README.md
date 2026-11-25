@@ -25,4 +25,6 @@ A beam from the window bends as it enters the solution (air into water) and spli
 
 Keys: 1–5 pick a salt, L loupe, I info, N clear, M sound, Esc closes the card.
 
+![Kristallgarten](screenshot.jpg)
+
 Made by Playbot.
