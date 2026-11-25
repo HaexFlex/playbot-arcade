@@ -1,0 +1,1386 @@
+<!doctype html>
+<html lang="de-CH">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Windspiel</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect fill='%2387b6d4' width='32' height='32'/%3E%3Cpath d='M7 7h18v3H7zM16 10v3M9 14v11M16 14v14M23 14v9' stroke='%23c49a3a' stroke-width='2' fill='none'/%3E%3C/svg%3E">
+<meta name="description" content="Windspiel: Rohre, Klöppel und Segel an einem Balken. Wind, Tonleiter und Material selber wählen.">
+<meta name="theme-color" content="#c49a6c">
+<style>
+*,*::before,*::after{box-sizing:border-box}
+html,body{margin:0;height:100%;background:#c49a6c;color:#3b2415;font-family:"Iowan Old Style",Palatino,"Palatino Linotype",Georgia,serif;-webkit-user-select:none;user-select:none;overflow:hidden;overscroll-behavior:none}
+#app{height:100dvh;min-height:100%;max-width:100%;display:flex;flex-direction:column;overflow:hidden}
+header{padding:max(6px,env(safe-area-inset-top)) 12px 4px;background:linear-gradient(#e7c8a2,#d7b088);flex:0 0 auto}
+h1{margin:0;font-size:clamp(18px,2.6vw,28px);font-weight:700;letter-spacing:.01em;line-height:1.1}
+#help,#hint{margin:2px 0 0;font-family:system-ui,-apple-system,"Segoe UI",sans-serif;font-size:13px;line-height:1.35;overflow-wrap:anywhere}
+#hint{min-height:1.35em;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#stage{flex:1 1 auto;min-height:120px;min-width:0;position:relative}
+canvas{display:block;width:100%;height:100%;touch-action:none;cursor:grab}
+canvas.hold{cursor:grabbing}
+#bar{flex:0 0 auto;display:flex;flex-wrap:wrap;gap:6px;align-items:center;justify-content:center;max-width:100%;padding:6px 8px max(8px,env(safe-area-inset-bottom));background:linear-gradient(#e7c8a2,#d7b088);border-top:1px solid rgba(80,40,16,.25)}
+button,input{font:600 14px/1.1 system-ui,-apple-system,"Segoe UI",sans-serif;touch-action:manipulation}
+#bar button{color:#3b2415;background:#f6e6cc;border:1px solid #8a5a32;border-radius:999px;padding:8px 12px;min-height:40px;min-width:44px;cursor:pointer}
+#bar button.on,#bar button[aria-pressed="true"]{background:#6b3a22;color:#f8ecd8;border-color:#4a2614}
+#bar #bScale{min-width:118px}
+#bar #bMat{min-width:104px}
+#bar #bDay{min-width:84px}
+#bar #bSound{min-width:104px}
+#bar button:focus-visible,input:focus-visible{outline:2px solid #8a3d12;outline-offset:2px}
+.wind{display:flex;align-items:center;gap:8px;min-height:40px;padding:0 12px 0 12px;background:#f6e6cc;border:1px solid #8a5a32;border-radius:999px;font:600 14px/1 system-ui,-apple-system,"Segoe UI",sans-serif;color:#3b2415}
+.wind span{min-width:2.2em}
+input[type=range]{-webkit-appearance:none;appearance:none;width:118px;max-width:32vw;min-width:72px;height:40px;margin:0;background:transparent;cursor:pointer}
+input[type=range]::-webkit-slider-runnable-track{height:8px;background:#8a5a32;border-radius:99px}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:36px;height:36px;margin-top:-14px;border-radius:50%;background:#fff6e4;border:2px solid #6b3a22}
+input[type=range]::-moz-range-track{height:8px;background:#8a5a32;border-radius:99px;border:0}
+input[type=range]::-moz-range-thumb{width:36px;height:36px;border-radius:50%;background:#fff6e4;border:2px solid #6b3a22}
+@media (max-width:420px){
+  #bar button{padding:8px 10px;font-size:13px}
+  .wind{font-size:13px;padding:0 10px}
+}
+@media (max-height:460px){
+  #help{display:none}
+  header{padding-top:4px;padding-bottom:2px}
+  h1{font-size:16px}
+  #bar{gap:4px;padding:4px 6px max(4px,env(safe-area-inset-bottom))}
+  #stage{min-height:80px}
+}
+@media (prefers-reduced-motion:reduce){*{scroll-behavior:auto}}
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <h1>Windspiel</h1>
+    <p id="help">Länge wählt die Tonhöhe. Wische, um Klöppel und Segel zu schubsen.</p>
+    <p id="hint" role="status" aria-live="polite"></p>
+  </header>
+  <div id="stage"><canvas id="c" aria-label="Balkon mit Windspiel: Rohre, Klöppel und Segel am Balken"></canvas></div>
+  <div id="bar" role="toolbar" aria-label="Windspiel bauen">
+    <button type="button" id="bAdd">Rohr dazu</button>
+    <button type="button" id="bDel">Rohr weg</button>
+    <button type="button" id="bShort" title="Rohr kürzer, Ton höher">Kürzer</button>
+    <button type="button" id="bLong" title="Rohr länger, Ton tiefer">Länger</button>
+    <button type="button" id="bScale" aria-label="Tonleiter: Pentatonik">Pentatonik</button>
+    <button type="button" id="bMat" aria-label="Material: Messing">Messing</button>
+    <div class="wind">
+      <span id="windLab">Wind</span>
+      <input id="wind" type="range" min="0" max="100" value="34" aria-label="Wind" aria-valuemin="0" aria-valuemax="100" aria-valuenow="34">
+    </div>
+    <button type="button" id="bSturm" aria-pressed="false">Sturm</button>
+    <button type="button" id="bStill">Windstille</button>
+    <button type="button" id="bDay" aria-label="Zeit: Tag">Tag</button>
+    <button type="button" id="bSave">Speichern</button>
+    <button type="button" id="bSound" aria-pressed="false" aria-label="Ton ist aus">Ton aus</button>
+  </div>
+</div>
+<script>
+'use strict';
+(function () {
+  const STORE = 'windspiel-v1';
+  const TAU = Math.PI * 2;
+  const BASE = 69; // A4, longest tube
+  const G = 1680;
+  const PERSP = 0.24;
+  // Free-free bar bending modes, (beta_n / beta_1)^2 with beta L = 4.730, 7.853, 10.996, 14.137.
+  const BAR = [1, 2.756, 5.404, 8.933];
+  const SCALES = [
+    { name: 'Pentatonik', iv: [0, 2, 4, 7, 9] },
+    { name: 'Dur', iv: [0, 2, 4, 5, 7, 9, 11] },
+    { name: 'Moll', iv: [0, 2, 3, 5, 7, 8, 10] },
+    { name: 'Japanisch', iv: [0, 1, 5, 7, 8] },
+    { name: 'Gamelan', iv: [0, 2.31, 4.74, 7.05, 9.45] }
+  ];
+  const MATERIALS = [
+    {
+      name: 'Messing',
+      partials: [[1, 0.50, 3.5], [2.756, 0.30, 2.5], [5.404, 0.16, 1.3], [8.933, 0.075, 0.62]],
+      noise: 0.16, hp: 1700, nDur: 0.028, fm: 0.7, fmR: 2.756, lp: 6800
+    },
+    {
+      name: 'Bambus',
+      partials: [[1, 0.74, 1.15], [2.756, 0.14, 0.4], [5.404, 0.05, 0.16], [8.933, 0.015, 0.08]],
+      noise: 0.3, hp: 700, nDur: 0.05, fm: 0.12, fmR: 2.0, lp: 1600
+    },
+    {
+      name: 'Glas',
+      partials: [[1, 0.42, 4.8], [2.756, 0.28, 3.4], [5.404, 0.18, 2.05], [8.933, 0.1, 1.05]],
+      noise: 0.09, hp: 3400, nDur: 0.018, fm: 0.28, fmR: 5.404, lp: 9000
+    }
+  ];
+  const NOTE_DE = ['C', 'Cis', 'D', 'Dis', 'E', 'F', 'Fis', 'G', 'Gis', 'A', 'Ais', 'H'];
+  const STARS = Array.from({ length: 42 }, (_, i) => ({
+    x: ((i * 97) % 997) / 997,
+    y: ((i * 57) % 500) / 500 * 0.48,
+    r: 0.6 + (i % 4) * 0.45,
+    k: (i % 9) / 9
+  }));
+  const CLOUDS = [
+    { x: 0.08, y: 0.14, s: 1 },
+    { x: 0.4, y: 0.09, s: 0.72 },
+    { x: 0.68, y: 0.18, s: 1.15 },
+    { x: 1.05, y: 0.11, s: 0.62 }
+  ];
+
+  const $ = id => document.getElementById(id);
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+  const mix = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
+  const rgb = (c, a) => 'rgba(' + (c[0] | 0) + ',' + (c[1] | 0) + ',' + (c[2] | 0) + ',' + (a == null ? 1 : a) + ')';
+  const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  const canvas = $('c');
+  const stage = $('stage');
+  const ctx = canvas.getContext('2d', { alpha: false });
+  const hint = $('hint');
+  const bScale = $('bScale');
+  const bMat = $('bMat');
+  const bDay = $('bDay');
+  const bSturm = $('bSturm');
+  const bSound = $('bSound');
+  const windEl = $('wind');
+
+  let W = 1, H = 1, cx = 1, beamY = 1, railY = 1, S = 1, R = 40, dpr = 1;
+  let scaleIx = 0, matIx = 0;
+  let windAmt = 0.34, storm = false, nightTarget = 0, skyT = 0;
+  let gust = 0, gustTarget = 0, gustDur = 1.4, gustT = 0;
+  let zGust = 0, zTarget = 0, zDur = 1.6, zT = 0;
+  let swipe = 0, time = 0;
+  let soundOn = false, userMuted = false, announced = false;
+  let ac = null, master = null, dry = null, send = null, noiseBuf = null, voices = 0;
+  let sel = 0, strikes = 0, rippleSpawns = 0;
+  let last = 0;
+  const tubes = [];
+  const ripples = [];
+  const petals = Array.from({ length: 10 }, (_, i) => ({
+    x: (i + 0.3) / 10, y: 0.2 + (i % 5) * 0.08, v: 0.03 + (i % 4) * 0.012, s: 0.6 + (i % 3) * 0.3, ph: i
+  }));
+  const disk = { x: 0, y: 0, z: 0, ox: 0, oy: 0, oz: 0 };
+  const clapper = { x: 0, y: 0, z: 0, ox: 0, oy: 0, oz: 0 };
+  const sail = { x: 0, y: 0, z: 0, ox: 0, oy: 0, oz: 0 };
+  let drag = null;
+
+  const api = { strikes: 0, soundOn: false, ripples: 0, tubes: 0, spawns: 0, points: [] };
+  window.__windspiel = api;
+  window.__windspielReady = false;
+
+  function say(text) { hint.textContent = text; }
+  function scaleNow() { return SCALES[scaleIx]; }
+  function matNow() { return MATERIALS[matIx]; }
+  function maxNote() { return scaleNow().iv.length * 2 - 1; }
+  function midiOf(index) {
+    const iv = scaleNow().iv;
+    const n = iv.length;
+    const i = clamp(index | 0, 0, n * 2 - 1);
+    return BASE + Math.floor(i / n) * 12 + iv[i % n];
+  }
+  function hzOf(index) { return 440 * Math.pow(2, (midiOf(index) - 69) / 12); }
+  function lenOf(index) { return (3300 / Math.sqrt(hzOf(index))) * S; }
+  function noteLabel(index) {
+    const semi = midiOf(index);
+    const midi = Math.round(semi);
+    const cents = Math.round((semi - midi) * 100);
+    const name = NOTE_DE[((midi % 12) + 12) % 12] + ' ' + (Math.floor(midi / 12) - 1);
+    if (Math.abs(cents) >= 6) return name + ' ' + (cents > 0 ? '+' : '') + cents + ' Cent';
+    return name;
+  }
+  function describeTube(i) {
+    return 'Rohr ' + (i + 1) + ', ' + noteLabel(tubes[i].note) + ', ' + matNow().name;
+  }
+
+  function body() {
+    return { x: 0, y: 0, z: 0, ox: 0, oy: 0, oz: 0, note: 0, len: 80, phi: 0, dist: 80, cool: 0, glow: 0, touch: false };
+  }
+
+  function pivotOf(t) {
+    return {
+      x: disk.x + Math.sin(t.phi) * R,
+      y: disk.y,
+      z: disk.z + Math.cos(t.phi) * R
+    };
+  }
+  function toScreen(p) { return { x: p.x, y: p.y + p.z * PERSP }; }
+
+  function hangRest() {
+    const ax = cx, ay = beamY, drop = 18 * S;
+    disk.x = ax; disk.y = ay + drop; disk.z = 0;
+    disk.ox = disk.x; disk.oy = disk.y; disk.oz = 0;
+    const str = 16 * S;
+    for (let i = 0; i < tubes.length; i++) {
+      const t = tubes[i];
+      t.phi = (i / tubes.length) * TAU + Math.PI / 2;
+      t.len = lenOf(t.note);
+      t.dist = str + t.len * 0.5;
+      const p = pivotOf(t);
+      t.x = p.x; t.y = p.y + t.dist; t.z = p.z;
+      t.ox = t.x; t.oy = t.y; t.oz = t.z;
+    }
+    const cLen = 64 * S;
+    clapper.x = disk.x; clapper.y = disk.y + cLen; clapper.z = disk.z;
+    clapper.ox = clapper.x; clapper.oy = clapper.y; clapper.oz = clapper.z;
+    const sLen = 72 * S;
+    sail.x = clapper.x; sail.y = clapper.y + sLen; sail.z = clapper.z;
+    sail.ox = sail.x; sail.oy = sail.y; sail.oz = sail.z;
+  }
+
+  function makeDefaultTubes() {
+    tubes.length = 0;
+    [0, 2, 4, 5, 7].forEach(n => {
+      const t = body();
+      t.note = n;
+      tubes.push(t);
+    });
+    sel = 2;
+  }
+
+  function fit() {
+    dpr = Math.min(2, window.devicePixelRatio || 1);
+    W = Math.max(1, stage.clientWidth);
+    H = Math.max(1, stage.clientHeight);
+    canvas.width = Math.max(1, Math.round(W * dpr));
+    canvas.height = Math.max(1, Math.round(H * dpr));
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    cx = W * 0.5;
+    beamY = Math.max(26, H * 0.115);
+    railY = H * (H < 460 ? 0.9 : 0.86);
+    S = clamp(Math.min(W / 430, H / 520), 0.62, 1.6);
+    R = 33 * S;
+    hangRest();
+  }
+
+  function save(quiet) {
+    try {
+      localStorage.setItem(STORE, JSON.stringify({
+        v: 1,
+        scale: scaleNow().name,
+        material: matNow().name,
+        notes: tubes.map(t => t.note),
+        sel: sel,
+        wind: Math.round(windAmt * 100),
+        night: nightTarget > 0.5
+      }));
+      if (!quiet) say('Gespeichert auf diesem Gerät.');
+      return true;
+    } catch (e) {
+      if (!quiet) say('Speichern ging nicht.');
+      return false;
+    }
+  }
+  function load() {
+    let d = null;
+    try { d = JSON.parse(localStorage.getItem(STORE) || 'null'); } catch (e) { d = null; }
+    if (!d || d.v !== 1 || !Array.isArray(d.notes) || !d.notes.length) return false;
+    const si = SCALES.findIndex(s => s.name === d.scale);
+    const mi = MATERIALS.findIndex(m => m.name === d.material);
+    if (si >= 0) scaleIx = si;
+    if (mi >= 0) matIx = mi;
+    tubes.length = 0;
+    d.notes.slice(0, 8).forEach(n => {
+      const t = body();
+      t.note = clamp(n | 0, 0, maxNote());
+      tubes.push(t);
+    });
+    if (!tubes.length) return false;
+    sel = clamp(d.sel | 0, 0, tubes.length - 1);
+    windAmt = clamp((d.wind | 0) / 100, 0, 1);
+    windEl.value = String(Math.round(windAmt * 100));
+    windEl.setAttribute('aria-valuenow', windEl.value);
+    nightTarget = d.night ? 1 : 0;
+    skyT = nightTarget;
+    return true;
+  }
+
+  function syncLabels() {
+    bScale.textContent = scaleNow().name;
+    bScale.setAttribute('aria-label', 'Tonleiter: ' + scaleNow().name);
+    bMat.textContent = matNow().name;
+    bMat.setAttribute('aria-label', 'Material: ' + matNow().name);
+    const isNight = nightTarget > 0.5;
+    bDay.textContent = isNight ? 'Nacht' : 'Tag';
+    bDay.setAttribute('aria-label', isNight ? 'Zeit: Nacht' : 'Zeit: Tag');
+    bSturm.setAttribute('aria-pressed', storm ? 'true' : 'false');
+    bSturm.classList.toggle('on', storm);
+    bSound.textContent = soundOn ? 'Ton an' : 'Ton aus';
+    bSound.classList.toggle('on', soundOn);
+    bSound.setAttribute('aria-pressed', soundOn ? 'true' : 'false');
+    bSound.setAttribute('aria-label', soundOn ? 'Ton ist an' : 'Ton ist aus');
+    api.soundOn = soundOn;
+    api.tubes = tubes.length;
+    api.strikes = strikes;
+    api.spawns = rippleSpawns;
+    api.ripples = ripples.length;
+  }
+
+  function ensureAudio() {
+    if (ac) return true;
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return false;
+    try { ac = new AC(); } catch (e) { ac = null; return false; }
+    master = ac.createGain();
+    master.gain.value = 0.0001;
+    const comp = ac.createDynamicsCompressor();
+    comp.threshold.value = -18;
+    comp.knee.value = 12;
+    comp.ratio.value = 3.4;
+    comp.attack.value = 0.004;
+    comp.release.value = 0.22;
+    dry = ac.createGain();
+    dry.gain.value = 1;
+    send = ac.createGain();
+    send.gain.value = 0.16;
+    const delay = ac.createDelay(0.2);
+    delay.delayTime.value = 0.031;
+    const fb = ac.createGain();
+    fb.gain.value = 0.18;
+    const damp = ac.createBiquadFilter();
+    damp.type = 'lowpass';
+    damp.frequency.value = 3200;
+    send.connect(delay);
+    delay.connect(damp);
+    damp.connect(fb);
+    fb.connect(delay);
+    damp.connect(dry);
+    dry.connect(comp);
+    comp.connect(master);
+    master.connect(ac.destination);
+    const len = Math.floor(ac.sampleRate * 0.05);
+    noiseBuf = ac.createBuffer(1, len, ac.sampleRate);
+    const ch = noiseBuf.getChannelData(0);
+    for (let i = 0; i < len; i++) ch[i] = Math.random() * 2 - 1;
+    return true;
+  }
+
+  function setSound(on) {
+    if (on && !ensureAudio()) { say('Ton konnte nicht starten.'); return; }
+    soundOn = !!on;
+    if (ac && master) {
+      if (ac.state === 'suspended') ac.resume();
+      master.gain.setTargetAtTime(soundOn ? 0.42 : 0.0001, ac.currentTime, 0.02);
+    }
+    syncLabels();
+    if (soundOn && !announced) { announced = true; say('Ton an.'); }
+    else if (!soundOn && announced) say('Ton aus.');
+  }
+
+  // Struck tube: inharmonic bar partials, a short clang, a noise tick. Visuals run even if Ton is off.
+  function ring(freq, velocity) {
+    if (!ac || !soundOn || !dry) return;
+    if (voices >= 14) return;
+    voices++;
+    const mat = matNow();
+    const when = ac.currentTime + 0.005;
+    const dur = mat.partials[0][2] + 0.15;
+    const amp = clamp(velocity, 0.22, 1);
+    const g = ac.createGain();
+    g.gain.setValueAtTime(0.0001, when);
+    g.gain.exponentialRampToValueAtTime(0.9 * amp, when + 0.008);
+    g.gain.exponentialRampToValueAtTime(0.0008, when + dur);
+    const lp = ac.createBiquadFilter();
+    lp.type = 'lowpass';
+    lp.frequency.setValueAtTime(Math.min(mat.lp, 14000), when);
+    g.connect(lp);
+    lp.connect(dry);
+    lp.connect(send);
+    for (let i = 0; i < mat.partials.length; i++) {
+      const ratio = mat.partials[i][0];
+      const gain = mat.partials[i][1];
+      const dec = Math.max(0.05, mat.partials[i][2]);
+      const f = freq * ratio;
+      if (f > 15000) continue;
+      const o = ac.createOscillator();
+      o.type = 'sine';
+      o.frequency.setValueAtTime(f * 1.012, when);
+      o.frequency.exponentialRampToValueAtTime(Math.max(40, f), when + 0.06);
+      const pg = ac.createGain();
+      const pk = gain * (0.35 + 0.65 * Math.exp(-i * 0.15));
+      pg.gain.setValueAtTime(pk, when);
+      pg.gain.exponentialRampToValueAtTime(0.0008, when + dec);
+      o.connect(pg);
+      pg.connect(g);
+      o.start(when);
+      o.stop(when + dec + 0.05);
+    }
+    if (mat.fm > 0.05) {
+      const car = ac.createOscillator();
+      const mod = ac.createOscillator();
+      const mi = ac.createGain();
+      car.frequency.setValueAtTime(freq * 1.008, when);
+      car.frequency.exponentialRampToValueAtTime(freq, when + 0.09);
+      mod.frequency.value = freq * mat.fmR;
+      mi.gain.setValueAtTime(freq * mat.fm, when);
+      mi.gain.exponentialRampToValueAtTime(freq * 0.03, when + 0.14);
+      mod.connect(mi);
+      mi.connect(car.frequency);
+      const cg = ac.createGain();
+      cg.gain.setValueAtTime(0.34 * amp, when);
+      cg.gain.exponentialRampToValueAtTime(0.0008, when + 0.22);
+      car.connect(cg);
+      cg.connect(g);
+      car.start(when);
+      mod.start(when);
+      car.stop(when + 0.28);
+      mod.stop(when + 0.2);
+    }
+    const ns = ac.createBufferSource();
+    ns.buffer = noiseBuf;
+    const hp = ac.createBiquadFilter();
+    hp.type = 'highpass';
+    hp.frequency.value = mat.hp;
+    const ng = ac.createGain();
+    ng.gain.setValueAtTime(mat.noise * amp, when);
+    ng.gain.exponentialRampToValueAtTime(0.0008, when + mat.nDur);
+    ns.connect(hp);
+    hp.connect(ng);
+    ng.connect(g);
+    ns.start(when);
+    ns.stop(when + mat.nDur + 0.02);
+    setTimeout(() => { voices = Math.max(0, voices - 1); }, Math.ceil(dur * 1000) + 40);
+  }
+
+  function chime(t, speed) {
+    strikes++;
+    rippleSpawns++;
+    t.glow = 1;
+    t.cool = 0.16;
+    const ends = tubeEnds(t);
+    const hit = toScreen(ends.top);
+    hit.y += 18 * S;
+    ripples.push({ x: hit.x, y: hit.y, life: 0.72, max: 0.72 });
+    if (ripples.length > 24) ripples.shift();
+    const freq = hzOf(t.note) * (1 + (tubes.indexOf(t) - 2) * 0.0007);
+    ring(freq, clamp(speed / 520, 0.28, 1));
+    api.strikes = strikes;
+    api.spawns = rippleSpawns;
+  }
+
+  function tubeEnds(t) {
+    const p = pivotOf(t);
+    let dx = t.x - p.x, dy = t.y - p.y, dz = t.z - p.z;
+    const d = Math.hypot(dx, dy, dz) || 1;
+    dx /= d; dy /= d; dz /= d;
+    const str = 16 * S;
+    return {
+      p: p,
+      top: { x: p.x + dx * str, y: p.y + dy * str, z: p.z + dz * str },
+      bot: { x: p.x + dx * (str + t.len), y: p.y + dy * (str + t.len), z: p.z + dz * (str + t.len) }
+    };
+  }
+
+  function integrate(p, ax, ay, az, dt, drag) {
+    const dmp = Math.exp(-drag * dt);
+    let vx = (p.x - p.ox) * dmp;
+    let vy = (p.y - p.oy) * dmp;
+    let vz = (p.z - p.oz) * dmp;
+    const sp = Math.hypot(vx, vy, vz);
+    const cap = 700 * dt;
+    if (sp > cap) { const k = cap / sp; vx *= k; vy *= k; vz *= k; }
+    p.ox = p.x; p.oy = p.y; p.oz = p.z;
+    p.x += vx + ax * dt * dt;
+    p.y += vy + ay * dt * dt;
+    p.z += vz + az * dt * dt;
+  }
+  function pin(p, ax, ay, az, len) {
+    const dx = p.x - ax, dy = p.y - ay, dz = p.z - az;
+    const d = Math.hypot(dx, dy, dz) || 1e-6;
+    const k = (d - len) / d;
+    p.x -= dx * k; p.y -= dy * k; p.z -= dz * k;
+  }
+  function link(a, b, len, invA, invB) {
+    const dx = b.x - a.x, dy = b.y - a.y, dz = b.z - a.z;
+    const d = Math.hypot(dx, dy, dz) || 1e-6;
+    const diff = (d - len) / d;
+    const inv = invA + invB || 1;
+    const ra = invA / inv, rb = invB / inv;
+    a.x += dx * diff * ra; a.y += dy * diff * ra; a.z += dz * diff * ra;
+    b.x -= dx * diff * rb; b.y -= dy * diff * rb; b.z -= dz * diff * rb;
+  }
+  function addVel(p, vx, vy, vz, dt) {
+    p.ox -= vx * dt; p.oy -= vy * dt; p.oz -= vz * dt;
+  }
+  function velOf(p, dt) {
+    return { x: (p.x - p.ox) / dt, y: (p.y - p.oy) / dt, z: (p.z - p.oz) / dt };
+  }
+
+  function windNow() {
+    return windAmt * 0.95 + gust * 0.55 + swipe + Math.sin(time * 1.7) * windAmt * (storm ? 0.12 : 0.04);
+  }
+
+  function stepPhysics(dt) {
+    const w = windNow();
+    const calm = (windAmt < 0.02 && !storm) ? 2.4 : 1;
+    const axS = w * 2800;
+    integrate(disk, axS * 0.035, G, 0, dt, 1.8 * calm);
+    for (let i = 0; i < tubes.length; i++) {
+      const t = tubes[i];
+      const mass = 0.6 + t.len / (160 * S);
+      integrate(t, axS * 0.055 / mass, G, 0, dt, 0.85 * calm);
+    }
+    integrate(clapper, axS * 0.04, G, 0, dt, 0.55 * calm);
+    integrate(sail, axS * 1.15, G, zGust * 2400, dt, 0.28 * calm);
+    const ax = cx, ay = beamY, drop = 18 * S, cLen = 64 * S, sLen = 72 * S;
+    const invC = 1 / 1.35, invS = 1 / 0.85;
+    for (let k = 0; k < 7; k++) {
+      pin(disk, ax, ay, 0, drop);
+      for (let i = 0; i < tubes.length; i++) {
+        const t = tubes[i];
+        const p = pivotOf(t);
+        pin(t, p.x, p.y, p.z, t.dist);
+      }
+      pin(clapper, disk.x, disk.y, disk.z, cLen);
+      link(clapper, sail, sLen, invC, invS);
+    }
+    collide(dt);
+    for (let k = 0; k < 3; k++) {
+      pin(disk, ax, ay, 0, drop);
+      pin(clapper, disk.x, disk.y, disk.z, cLen);
+      link(clapper, sail, sLen, invC, invS);
+    }
+  }
+
+  function collide(dt) {
+    const tubeR = 7.2 * S, clapR = 8.2 * S;
+    const reach = tubeR + clapR;
+    const vc = velOf(clapper, dt);
+    for (let i = 0; i < tubes.length; i++) {
+      const t = tubes[i];
+      t.cool = Math.max(0, t.cool - dt);
+      const seg = tubeEnds(t);
+      const q = closest(seg.top, seg.bot, clapper);
+      let nx = clapper.x - q.x, ny = clapper.y - q.y, nz = clapper.z - q.z;
+      let dist = Math.hypot(nx, ny, nz);
+      if (dist < 1e-4) { nx = 1; ny = 0; nz = 0; dist = 1; }
+      else { nx /= dist; ny /= dist; nz /= dist; }
+      if (dist < reach) {
+        const push = reach - dist;
+        const invT = 1 / (0.6 + t.len / (160 * S));
+        const invC = 1 / 1.35;
+        const inv = invT + invC;
+        clapper.x += nx * push * (invC / inv);
+        clapper.y += ny * push * (invC / inv);
+        clapper.z += nz * push * (invC / inv);
+        t.x -= nx * push * (invT / inv);
+        t.y -= ny * push * (invT / inv);
+        t.z -= nz * push * (invT / inv);
+        const vt = velOf(t, dt);
+        const rel = (vc.x - vt.x) * nx + (vc.y - vt.y) * ny + (vc.z - vt.z) * nz;
+        const hit = !t.touch && t.cool <= 0 && -rel > 28;
+        if (rel < 0 || hit) {
+          const e = hit ? 0.55 : 0.2;
+          const approach = Math.min(rel, hit ? -140 : 0);
+          const j = -(1 + e) * approach / inv;
+          addVel(clapper, j * nx * invC, j * ny * invC, j * nz * invC, dt);
+          addVel(t, -j * nx * invT, -j * ny * invT, -j * nz * invT, dt);
+          if (hit) chime(t, Math.max(-rel, 140));
+        }
+        t.touch = true;
+      } else t.touch = false;
+    }
+  }
+
+  function closest(a, b, p) {
+    const abx = b.x - a.x, aby = b.y - a.y, abz = b.z - a.z;
+    const ab2 = abx * abx + aby * aby + abz * abz || 1e-6;
+    let u = ((p.x - a.x) * abx + (p.y - a.y) * aby + (p.z - a.z) * abz) / ab2;
+    u = clamp(u, 0, 1);
+    return { x: a.x + abx * u, y: a.y + aby * u, z: a.z + abz * u, u: u };
+  }
+
+  function step(dt) {
+    time += dt;
+    gustT += dt;
+    if (gustT > gustDur) {
+      gustT = 0;
+      gustDur = storm ? 1.05 + Math.random() * 1.1 : 1.8 + Math.random() * 2.4;
+      const amp = (0.15 + windAmt * 0.55) * (storm ? 1.15 : 0.5);
+      gustTarget = (Math.random() * 2 - 1) * amp;
+    }
+    const glide = storm ? 3.2 : 1.15;
+    gust += (gustTarget - gust) * Math.min(1, dt * glide);
+    zT += dt;
+    if (zT > zDur) {
+      zT = 0;
+      zDur = storm ? 0.7 + Math.random() * 0.8 : 1.4 + Math.random() * 1.8;
+      zTarget = (Math.random() * 2 - 1) * (0.18 + windAmt * 0.7) * (storm ? 1 : 0.55);
+    }
+    zGust += (zTarget - zGust) * Math.min(1, dt * (storm ? 2.4 : 1.1));
+    swipe *= Math.exp(-dt * (reduceMotion ? 3.2 : 1.7));
+    skyT += (nightTarget - skyT) * Math.min(1, dt * 1.5);
+    const sub = 4;
+    const h = dt / sub;
+    for (let i = 0; i < sub; i++) stepPhysics(h);
+    for (let i = 0; i < tubes.length; i++) tubes[i].glow *= Math.exp(-dt * 3.2);
+    for (let i = ripples.length - 1; i >= 0; i--) {
+      ripples[i].life -= dt;
+      if (ripples[i].life <= 0) ripples.splice(i, 1);
+    }
+    if (!Number.isFinite(disk.x) || !Number.isFinite(sail.y)) hangRest();
+  }
+
+  function roundTube(x, y, w, h, r) {
+    const rr = Math.min(r, Math.abs(w) / 2, Math.abs(h) / 2);
+    ctx.beginPath();
+    ctx.moveTo(x + rr, y);
+    ctx.arcTo(x + w, y, x + w, y + h, rr);
+    ctx.arcTo(x + w, y + h, x, y + h, rr);
+    ctx.arcTo(x, y + h, x, y, rr);
+    ctx.arcTo(x, y, x + w, y, rr);
+    ctx.closePath();
+  }
+
+  function draw() {
+    const n = skyT;
+    const skyTop = mix([126, 196, 232], [8, 14, 32], n);
+    const skyHor = mix([255, 216, 176], [32, 42, 74], n);
+    const g = ctx.createLinearGradient(0, 0, 0, H);
+    g.addColorStop(0, rgb(skyTop));
+    g.addColorStop(0.55, rgb(mix(skyTop, skyHor, 0.55)));
+    g.addColorStop(1, rgb(skyHor));
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, W, H);
+
+    const sunX = W * 0.8, sunY = H * 0.2;
+    ctx.save();
+    ctx.globalAlpha = 1 - n;
+    const sun = ctx.createRadialGradient(sunX, sunY, 8 * S, sunX, sunY, 70 * S);
+    sun.addColorStop(0, 'rgba(255,244,210,.95)');
+    sun.addColorStop(0.35, 'rgba(255,196,90,.55)');
+    sun.addColorStop(1, 'rgba(255,180,80,0)');
+    ctx.fillStyle = sun;
+    ctx.beginPath();
+    ctx.arc(sunX, sunY, 70 * S, 0, TAU);
+    ctx.fill();
+    ctx.fillStyle = '#ffe7a8';
+    ctx.beginPath();
+    ctx.arc(sunX, sunY, 16 * S, 0, TAU);
+    ctx.fill();
+    ctx.restore();
+
+    ctx.save();
+    ctx.globalAlpha = n;
+    for (let i = 0; i < STARS.length; i++) {
+      const s = STARS[i];
+      const tw = 0.45 + 0.55 * (0.5 + 0.5 * Math.sin(time * 2 + s.k * 6));
+      ctx.globalAlpha = n * tw;
+      ctx.fillStyle = '#f4f0dd';
+      ctx.fillRect(s.x * W, s.y * H * 0.7, s.r, s.r);
+    }
+    ctx.globalAlpha = n;
+    ctx.fillStyle = '#f3efd4';
+    ctx.beginPath();
+    ctx.arc(sunX - 10, sunY, 13 * S, 0, TAU);
+    ctx.fill();
+    ctx.fillStyle = 'rgba(180,190,160,.35)';
+    ctx.beginPath();
+    ctx.arc(sunX - 14, sunY - 3 * S, 3 * S, 0, TAU);
+    ctx.fill();
+    ctx.restore();
+    ctx.globalAlpha = 1;
+
+    const drift = time * (18 + windNow() * 46);
+    for (let i = 0; i < CLOUDS.length; i++) {
+      const c = CLOUDS[i];
+      const x = ((c.x * W + drift * c.s) % (W + 220)) - 110;
+      const y = c.y * H;
+      ctx.fillStyle = rgb(mix([255, 252, 248], [210, 214, 230], n), 0.72 - n * 0.28);
+      puff(x, y, 34 * c.s * S, 16 * c.s * S);
+      puff(x + 28 * c.s * S, y + 6 * S, 24 * c.s * S, 13 * c.s * S);
+      puff(x - 24 * c.s * S, y + 8 * S, 22 * c.s * S, 12 * c.s * S);
+    }
+
+    ridge(H * 0.5, H * 0.07, mix([196, 214, 222], [46, 58, 82], n), 1.2);
+    ridge(H * 0.58, H * 0.055, mix([120, 146, 160], [30, 40, 58], n), 2.4);
+    const lake = mix([110, 176, 186], [16, 36, 58], n);
+    ctx.fillStyle = rgb(lake);
+    ctx.fillRect(0, H * 0.6, W, H * 0.22);
+    ctx.strokeStyle = rgb(mix([230, 245, 245], [180, 200, 220], n), 0.35);
+    ctx.lineWidth = 1.5;
+    for (let i = 0; i < 4; i++) {
+      ctx.beginPath();
+      const y0 = H * 0.63 + i * H * 0.035;
+      for (let x = 0; x <= W; x += 10) {
+        const y = y0 + Math.sin(x * 0.02 + time * 0.8 + i) * (1.4 + windAmt * 2.2);
+        if (x === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+    }
+    if (n > 0.05) {
+      ctx.globalAlpha = n * 0.45;
+      ctx.fillStyle = '#f3efd4';
+      ctx.beginPath();
+      ctx.ellipse(sunX - 10, H * 0.66, 7 * S, 2.2 * S, 0, 0, TAU);
+      ctx.fill();
+      ctx.globalAlpha = 1;
+    }
+    ridge(H * 0.8, H * 0.045, mix([112, 150, 86], [26, 48, 34], n), 0.4);
+    drawChalet(W * 0.8, railY - 96 * S);
+
+    // Porch ceiling and beam. The disk hangs under the beam on a short rope.
+    ctx.fillStyle = rgb(mix([92, 58, 40], [28, 18, 16], n * 0.35));
+    ctx.fillRect(0, 0, W, beamY - 4);
+    ctx.fillStyle = 'rgba(255,220,180,.18)';
+    for (let x = 0; x < W; x += 28) ctx.fillRect(x, 0, 2, beamY - 4);
+    const beamW = Math.min(W * 0.46, R * 3.3 + 40);
+    ctx.fillStyle = '#5a3826';
+    roundTube(cx - beamW / 2, beamY - 7 * S, beamW, 12 * S, 4);
+    ctx.fill();
+    ctx.fillStyle = 'rgba(255,214,170,.28)';
+    ctx.fillRect(cx - beamW / 2, beamY - 7 * S, beamW, 3 * S);
+
+    const dxy = toScreen(disk);
+    ctx.strokeStyle = '#3a2418';
+    ctx.lineWidth = 1.6;
+    ctx.beginPath();
+    ctx.moveTo(cx, beamY + 4 * S);
+    ctx.lineTo(dxy.x, dxy.y);
+    ctx.stroke();
+
+    ctx.fillStyle = rgb(mix([146, 96, 58], [70, 46, 32], n * 0.25));
+    ctx.beginPath();
+    ctx.ellipse(dxy.x, dxy.y, R * 1.02, Math.max(4, R * PERSP), 0, 0, TAU);
+    ctx.ellipse(dxy.x, dxy.y, 8 * S, Math.max(2, 8 * S * PERSP), 0, 0, TAU, true);
+    ctx.fill('evenodd');
+    ctx.strokeStyle = 'rgba(60,32,16,.45)';
+    ctx.stroke();
+
+    const items = [];
+    for (let i = 0; i < tubes.length; i++) items.push({ z: tubes[i].z, kind: 'tube', i: i });
+    items.push({ z: clapper.z, kind: 'clap' });
+    items.push({ z: sail.z + 0.4, kind: 'sail' });
+    items.sort((a, b) => a.z - b.z);
+    for (let k = 0; k < items.length; k++) {
+      const it = items[k];
+      if (it.kind === 'tube') drawTube(tubes[it.i], it.i === sel);
+      else if (it.kind === 'clap') drawClapper();
+      else drawSail();
+    }
+    if (sel >= 0 && sel < tubes.length) {
+      ctx.font = '600 ' + Math.max(12, 13 * S) + 'px system-ui,sans-serif';
+      ctx.textAlign = 'left';
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = 'rgba(40,24,16,.45)';
+      const label = noteLabel(tubes[sel].note);
+      const tw = ctx.measureText(label).width;
+      const lx = clamp(cx - R - tw - 18, 12, W - tw - 12);
+      const ly = clamp(beamY + 62 * S, 24, railY - 8);
+      ctx.strokeText(label, lx, ly);
+      ctx.fillStyle = '#fff8e6';
+      ctx.fillText(label, lx, ly);
+    }
+
+    drawRipples();
+    drawPorchFront();
+    drawWindStreaks();
+    if (n < 0.65) drawButterfly();
+    if (n > 0.4) drawFireflies();
+  }
+
+  function puff(x, y, rx, ry) {
+    ctx.beginPath();
+    ctx.ellipse(x, y, rx, ry, 0, 0, TAU);
+    ctx.fill();
+  }
+  function ridge(y0, amp, col, seed) {
+    ctx.beginPath();
+    ctx.moveTo(0, H);
+    for (let x = 0; x <= W; x += 8) {
+      const y = y0 - amp * (0.5 * Math.sin(x * 0.012 + seed) + 0.32 * Math.sin(x * 0.027 + seed * 2) + 0.2 * Math.sin(x * 0.051 + 2));
+      ctx.lineTo(x, y);
+    }
+    ctx.lineTo(W, H);
+    ctx.closePath();
+    ctx.fillStyle = rgb(col);
+    ctx.fill();
+  }
+  function drawChalet(x, y) {
+    const u = 22 * S;
+    ctx.fillStyle = rgb(mix([122, 74, 52], [40, 26, 22], skyT));
+    ctx.fillRect(x, y, u * 1.4, u);
+    ctx.fillStyle = rgb(mix([90, 48, 40], [28, 16, 16], skyT));
+    ctx.beginPath();
+    ctx.moveTo(x - u * 0.25, y);
+    ctx.lineTo(x + u * 0.7, y - u * 0.7);
+    ctx.lineTo(x + u * 1.65, y);
+    ctx.fill();
+    const glow = 0.25 + skyT * 0.75;
+    ctx.fillStyle = 'rgba(255,196,90,' + glow + ')';
+    ctx.fillRect(x + u * 0.28, y + u * 0.28, u * 0.34, u * 0.36);
+    ctx.fillRect(x + u * 0.78, y + u * 0.28, u * 0.34, u * 0.36);
+    if (skyT > 0.2) {
+      ctx.fillStyle = 'rgba(255,180,70,' + (skyT * 0.25) + ')';
+      ctx.beginPath();
+      ctx.arc(x + u * 0.7, y + u * 0.45, u * 0.9, 0, TAU);
+      ctx.fill();
+    }
+  }
+
+  function drawTube(t, selected) {
+    const ends = tubeEnds(t);
+    const a = toScreen(ends.p);
+    const top = toScreen(ends.top);
+    const bot = toScreen(ends.bot);
+    ctx.strokeStyle = rgb(mix([70, 48, 30], [30, 22, 16], skyT), 0.85);
+    ctx.lineWidth = 1.25;
+    ctx.beginPath();
+    ctx.moveTo(a.x, a.y);
+    ctx.lineTo(top.x, top.y);
+    ctx.stroke();
+    const ang = Math.atan2(bot.y - top.y, bot.x - top.x);
+    const len = Math.hypot(bot.x - top.x, bot.y - top.y);
+    const thick = (matIx === 2 ? 12 : 15) * S;
+    ctx.save();
+    ctx.translate(top.x, top.y);
+    ctx.rotate(ang);
+    if (t.glow > 0.05) {
+      ctx.shadowColor = matIx === 2 ? 'rgba(210,245,255,.95)' : 'rgba(255,214,140,.9)';
+      ctx.shadowBlur = 18 * t.glow;
+    }
+    roundTube(0, -thick / 2, len, thick, thick / 2);
+    const grd = ctx.createLinearGradient(0, -thick / 2, 0, thick / 2);
+    if (matIx === 0) {
+      grd.addColorStop(0, '#8a6428');
+      grd.addColorStop(0.35, '#f3dd9a');
+      grd.addColorStop(0.55, '#d7b15a');
+      grd.addColorStop(1, '#7a5620');
+    } else if (matIx === 1) {
+      grd.addColorStop(0, '#6e7a38');
+      grd.addColorStop(0.4, '#e4d39a');
+      grd.addColorStop(0.7, '#c6a85e');
+      grd.addColorStop(1, '#5c6a32');
+    } else {
+      grd.addColorStop(0, 'rgba(210,240,245,.35)');
+      grd.addColorStop(0.4, 'rgba(255,255,255,.72)');
+      grd.addColorStop(0.6, 'rgba(190,230,236,.4)');
+      grd.addColorStop(1, 'rgba(120,170,180,.45)');
+    }
+    ctx.fillStyle = grd;
+    ctx.fill();
+    if (matIx === 1) {
+      ctx.strokeStyle = 'rgba(80,90,40,.55)';
+      ctx.lineWidth = 1.4;
+      ctx.beginPath();
+      ctx.moveTo(len * 0.33, -thick / 2);
+      ctx.lineTo(len * 0.33, thick / 2);
+      ctx.moveTo(len * 0.66, -thick / 2);
+      ctx.lineTo(len * 0.66, thick / 2);
+      ctx.stroke();
+    }
+    if (matIx === 2) {
+      ctx.strokeStyle = 'rgba(255,255,255,.85)';
+      ctx.lineWidth = 1.4;
+      ctx.beginPath();
+      ctx.moveTo(4, -thick * 0.18);
+      ctx.lineTo(len - 6, -thick * 0.18);
+      ctx.stroke();
+    }
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = matIx === 2 ? 'rgba(255,255,255,.55)' : 'rgba(40,24,10,.55)';
+    ctx.beginPath();
+    ctx.ellipse(len, 0, Math.max(2, thick * 0.18), thick / 2, 0, 0, TAU);
+    ctx.fill();
+    if (selected) {
+      ctx.strokeStyle = '#f4e2a8';
+      ctx.lineWidth = 2;
+      roundTube(-2, -thick / 2 - 2, len + 4, thick + 4, thick / 2 + 2);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  function drawClapper() {
+    const p = toScreen(disk);
+    const c = toScreen(clapper);
+    ctx.strokeStyle = '#3a2418';
+    ctx.lineWidth = 1.3;
+    ctx.beginPath();
+    ctx.moveTo(p.x, p.y);
+    ctx.lineTo(c.x, c.y);
+    ctx.stroke();
+    const rad = 8.2 * S;
+    const grd = ctx.createRadialGradient(c.x - rad * 0.35, c.y - rad * 0.4, rad * 0.2, c.x, c.y, rad);
+    if (matIx === 0) {
+      grd.addColorStop(0, '#fff1c2');
+      grd.addColorStop(0.45, '#e0b44e');
+      grd.addColorStop(1, '#7a5418');
+    } else if (matIx === 1) {
+      grd.addColorStop(0, '#f0ddb0');
+      grd.addColorStop(0.5, '#b68448');
+      grd.addColorStop(1, '#5c3a22');
+    } else {
+      grd.addColorStop(0, 'rgba(255,255,255,.95)');
+      grd.addColorStop(0.5, 'rgba(186,230,236,.75)');
+      grd.addColorStop(1, 'rgba(90,150,160,.7)');
+    }
+    ctx.fillStyle = grd;
+    ctx.beginPath();
+    ctx.arc(c.x, c.y, rad, 0, TAU);
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(50,30,10,.35)';
+    ctx.stroke();
+  }
+
+  function drawSail() {
+    const c = toScreen(clapper);
+    const s = toScreen(sail);
+    ctx.strokeStyle = '#3a2418';
+    ctx.lineWidth = 1.3;
+    ctx.beginPath();
+    ctx.moveTo(c.x, c.y);
+    ctx.lineTo(s.x, s.y);
+    ctx.stroke();
+    const tilt = clamp((sail.x - clapper.x) * 0.012, -0.6, 0.6);
+    ctx.save();
+    ctx.translate(s.x, s.y);
+    ctx.rotate(tilt);
+    if (matIx === 0) {
+      ctx.fillStyle = '#d7a84a';
+      ctx.beginPath();
+      ctx.arc(0, 0, 16 * S, 0, TAU);
+      ctx.arc(0, 0, 6 * S, 0, TAU, true);
+      ctx.fill('evenodd');
+      ctx.strokeStyle = '#6e4a16';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.arc(0, 0, 16 * S, 0, TAU);
+      ctx.stroke();
+    } else if (matIx === 1) {
+      ctx.fillStyle = '#c4a15a';
+      ctx.beginPath();
+      ctx.ellipse(0, 0, 12 * S, 20 * S, 0, 0, TAU);
+      ctx.fill();
+      ctx.strokeStyle = '#5c6a32';
+      ctx.lineWidth = 1.4;
+      ctx.beginPath();
+      ctx.moveTo(0, -16 * S);
+      ctx.lineTo(0, 16 * S);
+      ctx.stroke();
+    } else {
+      ctx.fillStyle = 'rgba(214,244,248,.55)';
+      ctx.strokeStyle = 'rgba(255,255,255,.9)';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(0, -18 * S);
+      ctx.lineTo(14 * S, 0);
+      ctx.lineTo(0, 18 * S);
+      ctx.lineTo(-14 * S, 0);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  function drawRipples() {
+    for (let i = 0; i < ripples.length; i++) {
+      const r = ripples[i];
+      const k = r.life / r.max;
+      const rad = (1 - k) * 48 * S + 8;
+      ctx.beginPath();
+      ctx.arc(r.x, r.y, rad, 0, TAU);
+      ctx.strokeStyle = 'rgba(255,236,196,' + (0.75 * k) + ')';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(r.x, r.y, rad * 0.62, 0, TAU);
+      ctx.strokeStyle = 'rgba(255,255,255,' + (0.4 * k) + ')';
+      ctx.stroke();
+    }
+  }
+
+  function drawPorchFront() {
+    const n = skyT;
+    const wood = mix([116, 74, 48], [48, 30, 24], n * 0.35);
+    const postW = Math.max(12, 16 * S);
+    ctx.fillStyle = rgb(wood);
+    ctx.fillRect(0, beamY, postW, H - beamY);
+    ctx.fillRect(W - postW, beamY, postW, H - beamY);
+    ctx.fillStyle = 'rgba(255,220,180,.16)';
+    ctx.fillRect(0, beamY, 3, H - beamY);
+    ctx.fillRect(W - postW, beamY, 3, H - beamY);
+
+    const railH = Math.max(16, 18 * S);
+    ctx.fillStyle = rgb(mix([138, 90, 58], [60, 38, 30], n * 0.3));
+    ctx.fillRect(0, railY, W, railH);
+    ctx.fillStyle = rgb(mix([96, 62, 40], [40, 26, 20], n * 0.3));
+    const balTop = railY - 46 * S;
+    for (let x = postW + 8; x < W - postW - 4; x += 16 * S) {
+      ctx.fillRect(x, balTop, Math.max(3, 4 * S), railY - balTop);
+    }
+    ctx.fillStyle = rgb(mix([150, 98, 64], [70, 44, 32], n * 0.3));
+    ctx.fillRect(0, balTop, W, Math.max(8, 10 * S));
+
+    ctx.fillStyle = rgb(mix([150, 104, 70], [64, 42, 32], n * 0.25));
+    for (let y = railY + railH + 4; y < H; y += 12 * S) ctx.fillRect(0, y, W, Math.max(7, 8 * S));
+
+    const pots = W < 480 ? 2 : 3;
+    for (let i = 0; i < pots; i++) {
+      const x = postW + (W - postW * 2) * ((i + 0.5) / pots);
+      drawPot(x, balTop + 4, i);
+    }
+    drawIvy(postW * 0.2, balTop);
+    drawLantern(W - postW + 2, beamY + 18 * S);
+  }
+
+  function drawPot(x, y, i) {
+    const sway = Math.sin(time * 1.5 + i) * windNow() * 7 * S;
+    const potW = 48 * S, potH = 16 * S;
+    ctx.fillStyle = i === 1 ? '#b5523a' : '#a34a32';
+    roundTube(x - potW / 2, y - potH + 6 * S, potW, potH, 4);
+    ctx.fill();
+    ctx.fillStyle = '#6e8a48';
+    ctx.fillRect(x - potW / 2 + 4, y - potH + 4 * S, potW - 8, 4 * S);
+    const leaf = mix([64, 130, 62], [24, 58, 36], skyT);
+    for (let k = 0; k < 5; k++) {
+      const ang = -0.6 + k * 0.3 + sway * 0.02;
+      ctx.save();
+      ctx.translate(x + (k - 2) * 7 * S + sway, y - potH);
+      ctx.rotate(ang);
+      ctx.fillStyle = rgb(leaf);
+      ctx.beginPath();
+      ctx.ellipse(0, -8 * S, 8 * S, 5 * S, 0, 0, TAU);
+      ctx.fill();
+      ctx.restore();
+    }
+    const bloom = mix(i === 2 ? [232, 150, 170] : [206, 54, 68], [90, 24, 36], skyT * 0.45);
+    for (let k = 0; k < 6; k++) {
+      const bx = x + (k - 2.5) * 7 * S + sway * 0.6;
+      const by = y - potH - 12 * S - (k % 2) * 6 * S;
+      ctx.fillStyle = rgb(bloom);
+      ctx.beginPath();
+      ctx.arc(bx, by, 4.2 * S, 0, TAU);
+      ctx.fill();
+      ctx.fillStyle = rgb(mix([255, 210, 90], [120, 80, 30], skyT * 0.4));
+      ctx.beginPath();
+      ctx.arc(bx, by, 1.5 * S, 0, TAU);
+      ctx.fill();
+    }
+  }
+
+  function drawIvy(x, y) {
+    ctx.strokeStyle = rgb(mix([48, 100, 52], [18, 48, 30], skyT));
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(x + 8 * S, y);
+    for (let i = 0; i < 7; i++) {
+      const yy = y - i * 16 * S;
+      const xx = x + 10 * S + Math.sin(time * 0.8 + i) * windNow() * 4;
+      ctx.lineTo(xx, yy);
+    }
+    ctx.stroke();
+    ctx.fillStyle = rgb(mix([70, 140, 64], [26, 60, 36], skyT));
+    for (let i = 0; i < 7; i++) {
+      const yy = y - i * 16 * S;
+      const xx = x + 10 * S + Math.sin(time * 0.8 + i) * windNow() * 4;
+      ctx.beginPath();
+      ctx.ellipse(xx, yy, 7 * S, 4 * S, 0.5, 0, TAU);
+      ctx.fill();
+    }
+  }
+
+  function drawLantern(x, y) {
+    ctx.fillStyle = '#3a2418';
+    ctx.fillRect(x, y, 12 * S, 16 * S);
+    const a = 0.12 + skyT * 0.55;
+    const glow = ctx.createRadialGradient(x + 6 * S, y + 8 * S, 2, x + 6 * S, y + 8 * S, 28 * S);
+    glow.addColorStop(0, 'rgba(255,206,120,' + a + ')');
+    glow.addColorStop(1, 'rgba(255,180,60,0)');
+    ctx.fillStyle = glow;
+    ctx.beginPath();
+    ctx.arc(x + 6 * S, y + 8 * S, 28 * S, 0, TAU);
+    ctx.fill();
+    ctx.fillStyle = 'rgba(255,214,140,' + (0.35 + skyT * 0.6) + ')';
+    ctx.fillRect(x + 2 * S, y + 3 * S, 8 * S, 10 * S);
+  }
+
+  function drawWindStreaks() {
+    const w = windNow();
+    if (Math.abs(w) < 0.18) return;
+    ctx.strokeStyle = skyT > 0.5 ? 'rgba(220,230,255,.16)' : 'rgba(255,255,255,.33)';
+    ctx.lineWidth = 1.4;
+    const dir = w >= 0 ? 1 : -1;
+    for (let i = 0; i < 7; i++) {
+      const y = H * (0.18 + i * 0.08);
+      const x = ((time * 80 * dir * (0.4 + windAmt) + i * 137) % (W + 80)) - 40;
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      ctx.lineTo(x + dir * (18 + windAmt * 28), y + 2);
+      ctx.stroke();
+    }
+    for (let i = 0; i < petals.length; i++) {
+      const p = petals[i];
+      p.x += dtHint * (0.02 + windAmt * 0.08) * (w >= 0 ? 1 : -1) * p.v * 8;
+      if (p.x > 1.1) p.x = -0.1;
+      if (p.x < -0.1) p.x = 1.1;
+      ctx.fillStyle = skyT > 0.5 ? 'rgba(255,220,140,.5)' : 'rgba(255,170,170,.75)';
+      ctx.beginPath();
+      ctx.ellipse(p.x * W, p.y * H + Math.sin(time + p.ph) * 8, 3.2 * p.s, 2 * p.s, time + p.ph, 0, TAU);
+      ctx.fill();
+    }
+  }
+
+  let dtHint = 0.016;
+  function drawButterfly() {
+    const x = W * (0.22 + 0.08 * Math.sin(time * 0.35));
+    const y = H * 0.4 + Math.sin(time * 0.8) * 16 * S + windNow() * 10;
+    const flap = 0.45 + 0.55 * (0.5 + 0.5 * Math.sin(time * (reduceMotion ? 2 : 14)));
+    ctx.fillStyle = 'rgba(246,170,70,.9)';
+    ctx.beginPath();
+    ctx.ellipse(x - 7 * S, y, 8 * S, 5 * S * flap, -0.5, 0, TAU);
+    ctx.ellipse(x + 7 * S, y, 8 * S, 5 * S * flap, 0.5, 0, TAU);
+    ctx.fill();
+    ctx.strokeStyle = '#3a2415';
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    ctx.moveTo(x, y - 4 * S);
+    ctx.lineTo(x, y + 5 * S);
+    ctx.stroke();
+  }
+  function drawFireflies() {
+    ctx.globalAlpha = clamp((skyT - 0.4) / 0.6, 0, 1);
+    for (let i = 0; i < 5; i++) {
+      const x = W * (0.15 + 0.7 * (0.5 + 0.5 * Math.sin(time * 0.25 + i)));
+      const y = railY - 30 * S - i * 14 + Math.sin(time * 0.9 + i * 2) * 8;
+      const a = 0.35 + 0.65 * (0.5 + 0.5 * Math.sin(time * 3 + i));
+      ctx.fillStyle = 'rgba(220,255,140,' + a + ')';
+      ctx.beginPath();
+      ctx.arc(x, y, 2.2 * S, 0, TAU);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  function hitTube(x, y) {
+    let best = -1, bestD = Math.max(36, 30 * S);
+    for (let i = 0; i < tubes.length; i++) {
+      const e = tubeEnds(tubes[i]);
+      const a = toScreen(e.top), b = toScreen(e.bot);
+      const d = distToSeg(x, y, a.x, a.y, b.x, b.y);
+      if (d < bestD) { bestD = d; best = i; }
+    }
+    return best;
+  }
+  function distToSeg(px, py, ax, ay, bx, by) {
+    const abx = bx - ax, aby = by - ay;
+    const ab2 = abx * abx + aby * aby || 1;
+    let u = ((px - ax) * abx + (py - ay) * aby) / ab2;
+    u = clamp(u, 0, 1);
+    const dx = px - (ax + abx * u), dy = py - (ay + aby * u);
+    return Math.hypot(dx, dy);
+  }
+
+  function setNote(t, note) {
+    const max = maxNote();
+    t.note = clamp(note, 0, max);
+    const p = pivotOf(t);
+    let dx = t.x - p.x, dy = t.y - p.y, dz = t.z - p.z;
+    const d = Math.hypot(dx, dy, dz) || 1;
+    t.len = lenOf(t.note);
+    t.dist = 16 * S + t.len * 0.5;
+    t.x = p.x + (dx / d) * t.dist;
+    t.y = p.y + (dy / d) * t.dist;
+    t.z = p.z + (dz / d) * t.dist;
+    const od = Math.hypot(t.ox - p.x, t.oy - p.y, t.oz - p.z) || 1;
+    const vx = t.x - t.ox, vy = t.y - t.oy, vz = t.z - t.oz;
+    t.ox = t.x - vx * (t.dist / od);
+    t.oy = t.y - vy * (t.dist / od);
+    t.oz = t.z - vz * (t.dist / od);
+  }
+
+  function retuneAll() {
+    for (let i = 0; i < tubes.length; i++) setNote(tubes[i], clamp(tubes[i].note, 0, maxNote()));
+  }
+
+  function addTube() {
+    if (tubes.length >= 8) { say('Mehr Rohre haben am Balken keinen Platz.'); return; }
+    const t = body();
+    const used = {};
+    tubes.forEach(u => { used[u.note] = true; });
+    let note = 0;
+    for (let i = 0; i <= maxNote(); i++) if (!used[i]) { note = i; break; }
+    t.note = note;
+    tubes.push(t);
+    sel = tubes.length - 1;
+    hangRest();
+    syncLabels();
+    say(describeTube(sel) + ' hängt jetzt mit.');
+    save(true);
+  }
+  function delTube() {
+    if (tubes.length <= 1) { say('Das letzte Rohr bleibt hängen.'); return; }
+    const i = clamp(sel, 0, tubes.length - 1);
+    tubes.splice(i, 1);
+    sel = clamp(i, 0, tubes.length - 1);
+    hangRest();
+    syncLabels();
+    say('Rohr weg. ' + describeTube(sel) + '.');
+    save(true);
+  }
+  function nudge(dir) {
+    const t = tubes[clamp(sel, 0, tubes.length - 1)];
+    sel = clamp(sel, 0, tubes.length - 1);
+    const next = t.note + dir;
+    if (next < 0) { say('Längstes Rohr, tiefster Ton.'); return; }
+    if (next > maxNote()) { say('Kürzestes Rohr, höchster Ton.'); return; }
+    setNote(t, next);
+    say((dir > 0 ? 'Kürzer. ' : 'Länger. ') + describeTube(sel) + '.');
+    save(true);
+  }
+
+  function pointerPos(e) {
+    const r = canvas.getBoundingClientRect();
+    return { x: e.clientX - r.left, y: e.clientY - r.top };
+  }
+  function onDown(e) {
+    if (!userMuted && !soundOn) setSound(true);
+    const p = pointerPos(e);
+    const hit = hitTube(p.x, p.y);
+    drag = { x: p.x, y: p.y, lx: p.x, ly: p.y, hit: hit, moved: false };
+    canvas.classList.add('hold');
+    try { canvas.setPointerCapture(e.pointerId); } catch (err) { /* ignore */ }
+  }
+  function onMove(e) {
+    if (!drag) return;
+    const p = pointerPos(e);
+    const dx = p.x - drag.lx, dy = p.y - drag.ly;
+    if (Math.hypot(p.x - drag.x, p.y - drag.y) > 7) drag.moved = true;
+    if (drag.moved) {
+      swipe = clamp(swipe + dx * 0.012, -1.4, 1.4);
+      addVel(sail, dx * 9, dy * 3, 0, 1 / 60);
+      addVel(clapper, dx * 4, dy * 1.2, 0, 1 / 60);
+      for (let i = 0; i < tubes.length; i++) addVel(tubes[i], dx * 1.4, dy * 0.3, 0, 1 / 60);
+    }
+    drag.lx = p.x; drag.ly = p.y;
+  }
+  function onUp() {
+    if (!drag) return;
+    if (!drag.moved && drag.hit >= 0) {
+      sel = drag.hit;
+      chime(tubes[sel], 460);
+      say(describeTube(sel) + '.');
+    }
+    drag = null;
+    canvas.classList.remove('hold');
+  }
+
+  function armFromPointer() {
+    if (!userMuted && !soundOn) setSound(true);
+  }
+
+  bSound.addEventListener('pointerdown', e => e.stopPropagation());
+  bSound.addEventListener('click', () => {
+    if (soundOn) { userMuted = true; setSound(false); }
+    else { userMuted = false; setSound(true); }
+  });
+  document.addEventListener('pointerdown', armFromPointer, { passive: true });
+
+  $('bAdd').addEventListener('click', addTube);
+  $('bDel').addEventListener('click', delTube);
+  $('bShort').addEventListener('click', () => nudge(1));
+  $('bLong').addEventListener('click', () => nudge(-1));
+  bScale.addEventListener('click', () => {
+    scaleIx = (scaleIx + 1) % SCALES.length;
+    retuneAll();
+    syncLabels();
+    say('Tonleiter: ' + scaleNow().name + '.');
+    save(true);
+  });
+  bMat.addEventListener('click', () => {
+    matIx = (matIx + 1) % MATERIALS.length;
+    syncLabels();
+    say('Material: ' + matNow().name + '.');
+    save(true);
+  });
+  windEl.addEventListener('input', () => {
+    windAmt = clamp(Number(windEl.value) / 100, 0, 1);
+    windEl.setAttribute('aria-valuenow', windEl.value);
+    if (windAmt < 0.08) storm = false;
+    syncLabels();
+  });
+  windEl.addEventListener('change', () => save(true));
+  bSturm.addEventListener('click', () => {
+    storm = !storm;
+    if (storm && windAmt < 0.7) {
+      windAmt = 0.88;
+      windEl.value = '88';
+      windEl.setAttribute('aria-valuenow', '88');
+    }
+    if (!storm) say('Sturm vorbei.');
+    else say('Sturm. Böen fassen das Segel.');
+    syncLabels();
+  });
+  $('bStill').addEventListener('click', () => {
+    storm = false;
+    windAmt = 0;
+    gust = 0;
+    gustTarget = 0;
+    swipe = 0;
+    windEl.value = '0';
+    windEl.setAttribute('aria-valuenow', '0');
+    syncLabels();
+    say('Windstille.');
+    save(true);
+  });
+  bDay.addEventListener('click', () => {
+    nightTarget = nightTarget > 0.5 ? 0 : 1;
+    syncLabels();
+    say(nightTarget > 0.5 ? 'Nacht auf dem Balkon.' : 'Tag auf dem Balkon.');
+    save(true);
+  });
+  $('bSave').addEventListener('click', () => save(false));
+
+  document.addEventListener('keydown', e => {
+    const k = e.key;
+    if (k === 'm' || k === 'M') {
+      if (soundOn) { userMuted = true; setSound(false); }
+      else { userMuted = false; setSound(true); }
+      return;
+    }
+    if (!userMuted && !soundOn) setSound(true);
+    if (k === 'ArrowLeft') { swipe = clamp(swipe - 0.45, -1.4, 1.4); addVel(sail, -220, 0, 0, 1 / 60); e.preventDefault(); }
+    else if (k === 'ArrowRight') { swipe = clamp(swipe + 0.45, -1.4, 1.4); addVel(sail, 220, 0, 0, 1 / 60); e.preventDefault(); }
+    else if (k === 'ArrowUp') { nudge(1); e.preventDefault(); }
+    else if (k === 'ArrowDown') { nudge(-1); e.preventDefault(); }
+    else if (k === '+' || k === '=') addTube();
+    else if (k === '-' || k === '_') delTube();
+    else if (k === 'n' || k === 'N') bDay.click();
+  });
+
+  canvas.addEventListener('pointerdown', onDown, { passive: false });
+  canvas.addEventListener('pointermove', onMove, { passive: true });
+  canvas.addEventListener('pointerup', onUp);
+  canvas.addEventListener('pointercancel', onUp);
+  window.addEventListener('resize', fit);
+
+  if (!load()) makeDefaultTubes();
+  fit();
+  syncLabels();
+  say(loadHint());
+  function loadHint() {
+    let had = false;
+    try { had = !!localStorage.getItem(STORE); } catch (e) { had = false; }
+    if (had) return 'Dein Windspiel ist wieder da. ' + describeTube(sel) + '.';
+    return 'Tippe ein Rohr an. ' + scaleNow().name + ', ' + matNow().name + '.';
+  }
+  // load() already ran; the hint checks storage. First visit has no key until a change.
+  // Save the first visit quietly so the next open restores the chime.
+  if (!localStorage.getItem(STORE)) save(true);
+
+  function frame(ts) {
+    const dt = Math.min(0.033, last ? (ts - last) / 1000 : 0.016);
+    last = ts;
+    dtHint = dt;
+    step(dt);
+    draw();
+    api.ripples = ripples.length;
+    api.strikes = strikes;
+    api.points = tubes.map(t => {
+      const e = tubeEnds(t);
+      const a = toScreen(e.top), b = toScreen(e.bot);
+      return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+    });
+    requestAnimationFrame(frame);
+  }
+  window.__windspielReady = true;
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
