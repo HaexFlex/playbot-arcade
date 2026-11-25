@@ -1,0 +1,2088 @@
+<!DOCTYPE html>
+<html lang="de-CH">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#5a341f">
+<title>Zopfbäckerei</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect fill='%23c4844a' width='32' height='32' rx='6'/%3E%3Cpath d='M5 22c4-6 6-6 8-2s4 4 6 0 4-4 8 2' fill='none' stroke='%23fff6e4' stroke-width='3' stroke-linecap='round'/%3E%3Cpath d='M5 16c4-6 6-6 8-2s4 4 6 0 4-4 8 2' fill='none' stroke='%23f3d7a4' stroke-width='3' stroke-linecap='round'/%3E%3C/svg%3E">
+<style>
+  :root { color-scheme: light; }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    overflow: hidden;
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    max-width: 100%;
+    font-family: "Trebuchet MS", "Segoe UI", system-ui, sans-serif;
+    background: #4a2c1c;
+    color: #fff6e8;
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+  h1.sr {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+  }
+  #app {
+    height: 100%;
+    width: 100%;
+    max-width: 100%;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    min-height: 0;
+  }
+  #top {
+    flex: 0 0 auto;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 4px 12px;
+    padding: 7px 12px 6px;
+    background: linear-gradient(180deg, #6b4228, #4e301c);
+    color: #fff6e8;
+    max-width: 100%;
+  }
+  #title {
+    font-family: Georgia, "Palatino Linotype", Palatino, serif;
+    font-weight: 700;
+    font-size: 20px;
+    letter-spacing: 0.01em;
+    color: #fff1d6;
+  }
+  #zahl {
+    font-weight: 800;
+    font-size: 13px;
+    color: #f0d2a4;
+  }
+  #hinweis {
+    margin: 0;
+    flex: 1 1 200px;
+    min-width: 0;
+    font-size: 15px;
+    line-height: 1.3;
+    font-weight: 700;
+    overflow-wrap: anywhere;
+  }
+  #stage {
+    flex: 1 1 auto;
+    min-height: 96px;
+    min-width: 0;
+    position: relative;
+    touch-action: none;
+  }
+  canvas {
+    width: 100%;
+    height: 100%;
+    display: block;
+    touch-action: none;
+  }
+  #bar {
+    flex: 0 0 auto;
+    display: flex;
+    flex-wrap: wrap;
+    align-content: flex-start;
+    justify-content: center;
+    gap: 6px;
+    padding: 8px 8px calc(8px + env(safe-area-inset-bottom));
+    background: linear-gradient(180deg, #6a4030 0%, #4a2c1c 42%, #3c2216 100%);
+    border-top: 4px solid #f0d2a0;
+    max-height: 46vh;
+    max-width: 100%;
+    overflow-x: hidden;
+    overflow-y: auto;
+    touch-action: pan-y;
+  }
+  button {
+    appearance: none;
+    min-width: 40px;
+    min-height: 40px;
+    margin: 0;
+    padding: 6px 10px;
+    border-radius: 14px;
+    border: 2px solid #8a5434;
+    background: linear-gradient(#fffaf2, #f3ddb8);
+    box-shadow: 0 2px 0 #6a3218;
+    color: #4a2414;
+    font: 800 13px/1.15 "Trebuchet MS", "Segoe UI", system-ui, sans-serif;
+    cursor: pointer;
+    flex: 0 0 auto;
+    max-width: 100%;
+    touch-action: manipulation;
+  }
+  button[aria-pressed="true"] {
+    background: linear-gradient(#ffe9a6, #f0b84a);
+    border-color: #a85a20;
+    box-shadow: inset 0 2px 0 #e0a050;
+  }
+  button:focus-visible { outline: 3px solid #ffd24a; outline-offset: 2px; }
+  button:disabled { opacity: 0.42; cursor: default; }
+  #toast {
+    position: fixed;
+    left: 12px;
+    right: 12px;
+    top: 46px;
+    margin: 0 auto;
+    width: max-content;
+    max-width: calc(100% - 24px);
+    background: #fff6e8;
+    color: #4a2414;
+    border: 2px solid #c47a32;
+    border-radius: 999px;
+    padding: 8px 14px;
+    font-weight: 800;
+    font-size: 15px;
+    line-height: 1.3;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.25s;
+    z-index: 6;
+    text-align: center;
+    overflow-wrap: anywhere;
+  }
+  #toast.show { opacity: 1; }
+  @media (max-height: 430px) {
+    #top { padding: 3px 8px; gap: 2px 8px; }
+    #title { font-size: 16px; }
+    #hinweis { font-size: 13px; }
+    #bar { gap: 4px; padding: 4px 4px calc(4px + env(safe-area-inset-bottom)); max-height: 44vh; }
+    button { min-width: 36px; min-height: 36px; padding: 4px 8px; font-size: 12px; }
+  }
+</style>
+</head>
+<body>
+<h1 class="sr">Zopfbäckerei</h1>
+<div id="app">
+  <header id="top">
+    <div id="title">Zopfbäckerei</div>
+    <div id="zahl">Gitter: 0</div>
+    <p id="hinweis" aria-live="polite">Knete den Teig mit dem Finger oder der Maus.</p>
+  </header>
+  <div id="stage">
+    <canvas id="c" aria-label="Backstube mit Teig, Holzofen und Gitter"></canvas>
+  </div>
+  <div id="bar" role="toolbar" aria-label="Werkzeug">
+    <button type="button" id="b-kneten" aria-pressed="true">Kneten</button>
+    <button type="button" id="b-2">2 Stränge</button>
+    <button type="button" id="b-3">3 Stränge</button>
+    <button type="button" id="b-4">4 Stränge</button>
+    <button type="button" id="b-figur">Grittibenz</button>
+    <button type="button" id="b-flechten">Flechten</button>
+    <button type="button" id="b-rosinen">Rosinen</button>
+    <button type="button" id="b-ei">Ei</button>
+    <button type="button" id="b-ofen">Ofen</button>
+    <button type="button" id="b-raus">Raus</button>
+    <button type="button" id="b-gitter">Gitter</button>
+    <button type="button" id="b-neu">Neu</button>
+    <button type="button" id="b-ton" aria-pressed="false" aria-label="Ton">Ton</button>
+  </div>
+</div>
+<div id="toast" role="status" aria-live="polite"></div>
+<script>
+(function () {
+  "use strict";
+
+  var KEY = "zopfbaeckerei-v1";
+  var canvas = document.getElementById("c");
+  var ctx = canvas.getContext("2d", { alpha: false });
+  var stage = document.getElementById("stage");
+  var hintEl = document.getElementById("hinweis");
+  var zahlEl = document.getElementById("zahl");
+  var toastEl = document.getElementById("toast");
+  var buttons = {
+    kneten: document.getElementById("b-kneten"),
+    s2: document.getElementById("b-2"),
+    s3: document.getElementById("b-3"),
+    s4: document.getElementById("b-4"),
+    figur: document.getElementById("b-figur"),
+    flechten: document.getElementById("b-flechten"),
+    rosinen: document.getElementById("b-rosinen"),
+    ei: document.getElementById("b-ei"),
+    ofen: document.getElementById("b-ofen"),
+    raus: document.getElementById("b-raus"),
+    gitter: document.getElementById("b-gitter"),
+    neu: document.getElementById("b-neu"),
+    ton: document.getElementById("b-ton")
+  };
+
+  var audio = { ctx: null, on: false, noise: null };
+  var viewW = 1;
+  var viewH = 1;
+  var dpr = 1;
+  var toastTimer = 0;
+  var lastHint = "";
+
+  var state = freshState();
+
+  function freshState() {
+    return {
+      phase: "kneten",
+      tool: "kneten",
+      kind: "",
+      n: 0,
+      knead: 0,
+      rise: 0,
+      roll: [0, 0, 0, 0],
+      steps: [],
+      pose: defaultPose(),
+      raisins: [],
+      shine: 0,
+      cells: {},
+      bake: 0,
+      seed: (Math.random() * 1e9) | 0,
+      split: 1,
+      rack: [],
+      drag: null,
+      squash: { x: 0, y: 0 },
+      tilt: 0,
+      flour: [],
+      steam: [],
+      smoke: [],
+      sparks: [],
+      bubbles: [],
+      t: 0,
+      anim: null,
+      crackle: 0.4,
+      chimedGold: false,
+      chimedDark: false,
+      popped: 0,
+      pointer: null
+    };
+  }
+
+  function defaultPose() {
+    return {
+      armL: Math.atan2(0.55, -1),
+      armR: Math.atan2(0.55, 1),
+      legL: Math.atan2(1, -0.45),
+      legR: Math.atan2(1, 0.45),
+      headX: 0
+    };
+  }
+
+  function defaultRaisins() {
+    return [
+      { a: "head", x: -9, y: -2 },
+      { a: "head", x: 9, y: -2 },
+      { a: "head", x: -6, y: 9 },
+      { a: "head", x: 0, y: 11 },
+      { a: "head", x: 6, y: 9 },
+      { a: "body", x: 0, y: -6 },
+      { a: "body", x: 0, y: 10 },
+      { a: "body", x: 0, y: 26 }
+    ];
+  }
+
+  function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
+  function lerp(a, b, t) { return a + (b - a) * t; }
+  function smooth(u) { return u * u * (3 - 2 * u); }
+  function rnd() { return Math.random(); }
+
+  function toast(msg) {
+    toastEl.textContent = msg;
+    toastEl.classList.add("show");
+    toastTimer = 2.4;
+  }
+
+  function targetSteps(n) {
+    if (n === 2) return 6;
+    if (n === 4) return 9;
+    return 8;
+  }
+  function minSteps(n) {
+    if (n === 2) return 4;
+    if (n === 4) return 6;
+    return 5;
+  }
+  function rollsReady() {
+    if (state.n < 2) return false;
+    for (var i = 0; i < state.n; i++) if (state.roll[i] < 0.72) return false;
+    return true;
+  }
+  function shapeOk() {
+    if (state.phase === "kneten" || state.phase === "rollen") return true;
+    if (state.phase === "figur") return true;
+    if (state.phase === "flechten" && state.steps.length === 0) return true;
+    return false;
+  }
+
+  /* ---------- audio: silent until Ton is tapped ---------- */
+  function ensureAudio() {
+    if (!audio.on) return null;
+    try {
+      var AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) return null;
+      if (!audio.ctx) audio.ctx = new AC();
+      if (audio.ctx.state === "suspended") {
+        var p = audio.ctx.resume();
+        if (p && p.catch) p.catch(function () {});
+      }
+      return audio.ctx;
+    } catch (err) {
+      return null;
+    }
+  }
+
+  function tone(freq, dur, type, gain, delay) {
+    var ac = ensureAudio();
+    if (!ac) return;
+    try {
+      var t0 = ac.currentTime + (delay || 0);
+      var o = ac.createOscillator();
+      var g = ac.createGain();
+      o.type = type || "sine";
+      o.frequency.setValueAtTime(freq, t0);
+      g.gain.setValueAtTime(0.0001, t0);
+      g.gain.exponentialRampToValueAtTime(Math.max(0.0002, gain), t0 + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+      o.connect(g);
+      g.connect(ac.destination);
+      o.start(t0);
+      o.stop(t0 + dur + 0.03);
+    } catch (err) {}
+  }
+
+  function noiseBurst(dur, gain, freq) {
+    var ac = ensureAudio();
+    if (!ac) return;
+    try {
+      var n = Math.max(1, Math.floor(ac.sampleRate * dur));
+      var buf = ac.createBuffer(1, n, ac.sampleRate);
+      var data = buf.getChannelData(0);
+      for (var i = 0; i < n; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / n);
+      var src = ac.createBufferSource();
+      src.buffer = buf;
+      var filter = ac.createBiquadFilter();
+      filter.type = "lowpass";
+      filter.frequency.value = freq || 900;
+      var g = ac.createGain();
+      g.gain.value = gain;
+      src.connect(filter);
+      filter.connect(g);
+      g.connect(ac.destination);
+      src.start();
+    } catch (err) {}
+  }
+
+  var lastSquish = 0;
+  function squish() {
+    var now = performance.now();
+    if (now - lastSquish < 90) return;
+    lastSquish = now;
+    noiseBurst(0.06, 0.04, 420);
+    tone(90 + rnd() * 30, 0.07, "sine", 0.03);
+  }
+  function pluck(i) {
+    var notes = [392, 440, 494, 523, 587, 659];
+    tone(notes[i % notes.length], 0.16, "triangle", 0.045);
+    tone(notes[(i + 2) % notes.length] * 0.5, 0.2, "sine", 0.03);
+  }
+
+  function toggleTon() {
+    audio.on = !audio.on;
+    buttons.ton.setAttribute("aria-pressed", audio.on ? "true" : "false");
+    if (audio.on) {
+      ensureAudio();
+      tone(392, 0.12, "sine", 0.05);
+      tone(523, 0.18, "sine", 0.04, 0.09);
+      toast("Ton an.");
+    } else {
+      toast("Ton aus.");
+    }
+  }
+
+  /* ---------- layout ---------- */
+  function layout() {
+    var w = viewW;
+    var h = viewH;
+    var pad = 8;
+    if (h < 340) {
+      var ovenW = clamp(w * 0.26, 112, 168);
+      return {
+        short: true,
+        w: w,
+        h: h,
+        window: null,
+        oven: { x: w - ovenW - pad, y: pad, w: ovenW, h: h - pad * 2 },
+        table: { x: pad, y: pad, w: w - ovenW - pad * 3, h: h - 40 },
+        rack: { x: pad, y: h - 30, w: w - ovenW - pad * 3, h: 22 }
+      };
+    }
+    var topH = clamp(h * 0.28, 96, 200);
+    var rackH = clamp(h * 0.11, 46, 78);
+    var ovenW = clamp(w * 0.32, 132, 300);
+    return {
+      short: false,
+      w: w,
+      h: h,
+      window: { x: pad, y: pad, w: Math.max(40, w - ovenW - pad * 3), h: topH - 10 },
+      oven: { x: w - ovenW - pad, y: pad, w: ovenW, h: topH },
+      table: { x: pad, y: topH + 6, w: w - pad * 2, h: Math.max(40, h - topH - rackH - 16) },
+      rack: { x: pad, y: h - rackH - 2, w: w - pad * 2, h: rackH - 2 }
+    };
+  }
+
+  function mouthOf(oven) {
+    return {
+      x: oven.x + oven.w * 0.14,
+      y: oven.y + oven.h * 0.34,
+      w: oven.w * 0.72,
+      h: oven.h * 0.56
+    };
+  }
+
+  function loafSpec(L) {
+    var n = state.n || 3;
+    var tableLen = Math.max(80, L.table.w * 0.78);
+    var tableGap = clamp(L.table.h * 0.46 / n, 14, 32);
+    var mouth = mouthOf(L.oven);
+    var ovenLen = Math.max(48, mouth.w * 0.86);
+    var ovenGap = clamp(mouth.h * 0.62 / n, 7, tableGap);
+    var t = bakeT();
+    var length = lerp(tableLen, ovenLen, t);
+    var gap = lerp(tableGap, ovenGap, t);
+    var tableC = { x: L.table.x + L.table.w * 0.5, y: L.table.y + L.table.h * 0.52 };
+    var ovenC = { x: mouth.x + mouth.w * 0.5, y: mouth.y + mouth.h * 0.58 };
+    var c = { x: lerp(tableC.x, ovenC.x, t), y: lerp(tableC.y, ovenC.y, t) };
+    if (state.drag && state.drag.kind === "loaf") {
+      c = { x: state.drag.cx, y: state.drag.cy };
+      length = tableLen;
+      gap = tableGap;
+      t = 0;
+    }
+    return {
+      cx: c.x,
+      cy: c.y,
+      length: length,
+      gap: gap,
+      n: n,
+      r: gap * 0.56,
+      mouth: mouth,
+      inside: state.phase === "ofen" && t > 0.62 && !(state.drag && state.drag.kind === "loaf")
+    };
+  }
+
+  function bakeT() {
+    if (state.drag && state.drag.kind === "loaf") return 0;
+    if (state.phase === "ofen") {
+      if (state.anim && state.anim.type === "in" && state.anim.u < 1) return anchorU();
+      return 1;
+    }
+    if (state.phase === "aus" && state.anim && state.anim.type === "out" && state.anim.u < 1) {
+      return 1 - anchorU();
+    }
+    return 0;
+  }
+
+  function anchorU() {
+    if (!state.anim) return state.phase === "ofen" ? 1 : 0;
+    return smooth(clamp(state.anim.u, 0, 1));
+  }
+
+  /* ---------- braid math ---------- */
+  function buildOrders(n, steps) {
+    var order = [];
+    for (var i = 0; i < n; i++) order.push(i);
+    var frames = [order.slice()];
+    var overs = [];
+    for (var s = 0; s < steps.length; s++) {
+      var slot = steps[s].slot;
+      var dir = steps[s].dir;
+      var b = slot + dir;
+      if (b < 0 || b >= n || slot < 0 || slot >= n) continue;
+      var over = order[slot];
+      var next = order.slice();
+      next[slot] = order[b];
+      next[b] = over;
+      order = next;
+      frames.push(order.slice());
+      overs.push(over);
+    }
+    return { frames: frames, overs: overs, order: order };
+  }
+
+  function region(steps) {
+    var count = steps.length;
+    var p0 = 0.1;
+    var p1 = count ? Math.min(0.8, 0.1 + count * 0.072) : 0.1;
+    return { p0: p0, p1: p1, count: count };
+  }
+
+  function slotAt(id, p, built, n, taperEnd) {
+    var frames = built.frames;
+    var stepsN = frames.length - 1;
+    var reg = region(built.overs);
+    if (stepsN <= 0) {
+      return frames[0].indexOf(id);
+    }
+    if (p <= 0.02) return (n - 1) / 2;
+    if (p < reg.p0) {
+      var u0 = smooth((p - 0.02) / (reg.p0 - 0.02));
+      return lerp((n - 1) / 2, frames[0].indexOf(id), u0);
+    }
+    if (p >= reg.p1) {
+      var sEnd = frames[stepsN].indexOf(id);
+      if (taperEnd && p > 0.86) {
+        var uE = smooth(clamp((p - 0.86) / 0.12, 0, 1));
+        return lerp(sEnd, (n - 1) / 2, uE);
+      }
+      return sEnd;
+    }
+    var f = (p - reg.p0) / (reg.p1 - reg.p0) * stepsN;
+    var seg = Math.min(stepsN - 1, Math.floor(f));
+    var u = smooth(f - seg);
+    return lerp(frames[seg].indexOf(id), frames[seg + 1].indexOf(id), u);
+  }
+
+  function overAt(p, built) {
+    var stepsN = built.overs.length;
+    if (!stepsN) return -1;
+    var reg = region(built.overs);
+    if (p < reg.p0 || p >= reg.p1) return -1;
+    var f = (p - reg.p0) / (reg.p1 - reg.p0) * stepsN;
+    var seg = Math.min(stepsN - 1, Math.floor(f));
+    var u = f - seg;
+    if (u < 0.15 || u > 0.85) return -1;
+    return built.overs[seg];
+  }
+
+  function braidPolys(spec, steps, dragLocalY, dragId, taperEnd) {
+    var built = buildOrders(spec.n, steps);
+    var samples = 30;
+    var polys = [];
+    for (var id = 0; id < spec.n; id++) {
+      var pts = [];
+      for (var k = 0; k <= samples; k++) {
+        var p = k / samples;
+        var slot = slotAt(id, p, built, spec.n, taperEnd);
+        var y = (slot - (spec.n - 1) / 2) * spec.gap;
+        var reg = region(steps);
+        if (dragId === id && p > reg.p1 - 0.02) {
+          var u = smooth(clamp((p - (reg.p1 - 0.02)) / (0.98 - (reg.p1 - 0.02)), 0, 1));
+          y = lerp(y, dragLocalY, u);
+        }
+        var x = -spec.length / 2 + p * spec.length;
+        var wob = Math.sin(p * 9 + id * 1.7 + (state.seed % 7)) * (spec.r * 0.04);
+        pts.push({ x: x, y: y + wob, p: p });
+      }
+      polys.push({ id: id, pts: pts });
+    }
+    return { polys: polys, built: built };
+  }
+
+  function rollPolys(L) {
+    var n = state.n;
+    var gap = clamp(L.table.h * 0.78 / n, 18, 56);
+    var r = gap * 0.34;
+    var polys = [];
+    var cx = L.table.x + L.table.w * 0.5;
+    var cy = L.table.y + L.table.h * 0.52;
+    for (var i = 0; i < n; i++) {
+      var roll = state.roll[i];
+      var len = L.table.w * (0.38 + 0.42 * roll);
+      var y = cy + (i - (n - 1) / 2) * gap;
+      var lumps = 1 - roll;
+      var pts = [];
+      for (var k = 0; k <= 18; k++) {
+        var u = k / 18;
+        var x = cx - len / 2 + len * u;
+        var yy = y + Math.sin(u * Math.PI * 3 + i + state.seed * 0.001) * lumps * 7;
+        pts.push({ x: x, y: yy, p: u });
+      }
+      polys.push({ id: i, pts: pts, y: y, r: r * (1 + lumps * 0.15), len: len });
+    }
+    return { polys: polys, gap: gap, r: r, cx: cx, cy: cy };
+  }
+
+  /* ---------- simulation ---------- */
+  function update(dt) {
+    state.t += dt;
+    state.squash.x *= Math.pow(0.02, dt);
+    state.squash.y *= Math.pow(0.02, dt);
+    state.tilt *= Math.pow(0.05, dt);
+    if (state.phase === "kneten" && state.knead > 0.34) {
+      var before = state.rise;
+      state.rise = Math.min(1, state.rise + dt * 0.26);
+      if (state.rise > state.bubbles.length * 0.16 && state.bubbles.length < 7) {
+        state.bubbles.push({
+          a: rnd() * Math.PI * 2,
+          rad: 0.25 + rnd() * 0.55,
+          s: 0.45 + rnd() * 0.7
+        });
+        if (state.bubbles.length > state.popped) {
+          state.popped = state.bubbles.length;
+          tone(520 + rnd() * 180, 0.08, "sine", 0.02);
+        }
+      }
+      if (before < 0.2 && state.rise >= 0.2) tone(330, 0.12, "sine", 0.03);
+    }
+    if (state.split < 1) state.split = Math.min(1, state.split + dt / 0.45);
+    if (state.anim) {
+      state.anim.u += dt / 0.55;
+      if (state.anim.u >= 1) state.anim.u = 1;
+    }
+    if (state.phase === "ofen" && (!state.anim || state.anim.type !== "in" || state.anim.u >= 1)) {
+      state.bake = Math.min(1.45, state.bake + dt * 0.062);
+      state.crackle -= dt;
+      if (state.crackle <= 0) {
+        state.crackle = 0.28 + rnd() * 0.45;
+        noiseBurst(0.07, 0.035, 700);
+        tone(70 + rnd() * 40, 0.05, "triangle", 0.02);
+      }
+      if (!state.chimedGold && state.bake > 0.5) {
+        state.chimedGold = true;
+        tone(523, 0.18, "sine", 0.05);
+        tone(659, 0.26, "sine", 0.04, 0.1);
+      }
+      if (!state.chimedDark && state.bake > 1.02) {
+        state.chimedDark = true;
+        tone(180, 0.32, "triangle", 0.04);
+      }
+    }
+    stepParts(state.flour, dt, 0);
+    stepParts(state.steam, dt, -18);
+    stepParts(state.smoke, dt, -26);
+    stepParts(state.sparks, dt, -10);
+    if (toastTimer > 0) {
+      toastTimer -= dt;
+      if (toastTimer <= 0) toastEl.classList.remove("show");
+    }
+    if (state.phase === "ofen" && rnd() < dt * 10) spawnSpark();
+    if (state.phase === "ofen" && state.bake > 0.95 && rnd() < dt * 6) spawnSmoke();
+    if ((state.phase === "aus" || state.rack.length) && rnd() < dt * 2) spawnSteam();
+  }
+
+  function stepParts(list, dt, lift) {
+    for (var i = list.length - 1; i >= 0; i--) {
+      var p = list[i];
+      p.life -= dt;
+      p.x += p.vx * dt;
+      p.y += p.vy * dt;
+      p.vy += lift * dt;
+      if (p.life <= 0) list.splice(i, 1);
+    }
+  }
+
+  function spawnFlour(x, y) {
+    if (state.flour.length > 50) state.flour.shift();
+    state.flour.push({
+      x: x, y: y,
+      vx: (rnd() - 0.5) * 50,
+      vy: -16 - rnd() * 36,
+      life: 0.45 + rnd() * 0.35,
+      r: 1 + rnd() * 1.8
+    });
+  }
+  function spawnSpark() {
+    var L = layout();
+    var m = mouthOf(L.oven);
+    if (state.sparks.length > 30) state.sparks.shift();
+    state.sparks.push({
+      x: m.x + m.w * (0.25 + rnd() * 0.5),
+      y: m.y + m.h * 0.72,
+      vx: (rnd() - 0.5) * 16,
+      vy: -20 - rnd() * 30,
+      life: 0.35 + rnd() * 0.4,
+      r: 1.2 + rnd() * 1.6
+    });
+  }
+  function spawnSmoke() {
+    var L = layout();
+    var o = L.oven;
+    if (state.smoke.length > 24) state.smoke.shift();
+    state.smoke.push({
+      x: o.x + o.w * 0.72,
+      y: o.y + 6,
+      vx: 8 + rnd() * 10,
+      vy: -12,
+      life: 1.1 + rnd() * 0.6,
+      r: 4 + rnd() * 6
+    });
+  }
+  function spawnSteam() {
+    if (state.steam.length > 20) return;
+    var L = layout();
+    var slots = rackSlots(L);
+    if (!slots.length) return;
+    var s = slots[(Math.random() * slots.length) | 0];
+    state.steam.push({
+      x: s.x + s.w * 0.5,
+      y: s.y,
+      vx: (rnd() - 0.5) * 8,
+      vy: -10,
+      life: 0.8 + rnd() * 0.5,
+      r: 2 + rnd() * 2
+    });
+  }
+
+  /* ---------- interaction ---------- */
+  function canvasPos(e) {
+    var r = canvas.getBoundingClientRect();
+    return { x: e.clientX - r.left, y: e.clientY - r.top };
+  }
+
+  function onDown(e) {
+    if (e.button != null && e.button !== 0) return;
+    canvas.setPointerCapture(e.pointerId);
+    var p = canvasPos(e);
+    state.pointer = p;
+    var L = layout();
+    if (state.phase === "kneten" && state.tool === "kneten") {
+      if (hitBlob(p, L)) state.drag = { kind: "knead", id: -1, pid: e.pointerId, x: p.x, y: p.y };
+      return;
+    }
+    if (state.phase === "rollen") {
+      var rp = rollPolys(L);
+      var hit = hitPoly(p, rp.polys, 20);
+      if (hit) state.drag = { kind: "roll", id: hit.id, pid: e.pointerId, x: p.x, y: p.y };
+      return;
+    }
+    if (state.phase === "flechten") {
+      var spec = loafSpec(L);
+      var pack = braidPolys(spec, state.steps, 0, -1, state.steps.length >= targetSteps(state.n));
+      var world = toWorld(pack.polys, spec);
+      var hs = hitTail(p, world, spec.r + 16);
+      if (hs) state.drag = { kind: "braid", id: hs.id, pid: e.pointerId, x: p.x, y: p.y };
+      return;
+    }
+    if (state.phase === "figur" && state.tool === "rosinen") {
+      placeRaisin(p, L);
+      return;
+    }
+    if (state.phase === "figur") {
+      var part = hitLimb(p, L);
+      if (part) state.drag = { kind: "limb", id: part, pid: e.pointerId, x: p.x, y: p.y };
+      return;
+    }
+    if (state.phase === "ei") {
+      state.drag = { kind: "brush", id: -1, pid: e.pointerId, x: p.x, y: p.y };
+      paint(p, L);
+      return;
+    }
+    if (state.phase === "aus" && (!state.anim || state.anim.u >= 1)) {
+      var spec2 = loafSpec(L);
+      if (Math.hypot(p.x - spec2.cx, p.y - spec2.cy) < Math.max(spec2.length, spec2.gap * spec2.n) * 0.45) {
+        state.drag = { kind: "loaf", id: -1, pid: e.pointerId, x: p.x, y: p.y, cx: spec2.cx, cy: spec2.cy, ox: p.x - spec2.cx, oy: p.y - spec2.cy };
+      }
+    }
+  }
+
+  function onMove(e) {
+    var p = canvasPos(e);
+    state.pointer = p;
+    if (!state.drag || state.drag.pid !== e.pointerId) return;
+    var dx = p.x - state.drag.x;
+    var dy = p.y - state.drag.y;
+    state.drag.x = p.x;
+    state.drag.y = p.y;
+    var L = layout();
+    if (state.drag.kind === "knead") {
+      if (hitBlob(p, L) || Math.hypot(dx, dy) > 0) {
+        var dist = Math.hypot(dx, dy);
+        state.knead = Math.min(1, state.knead + dist * 0.0024);
+        state.squash.x = clamp(dx * 0.45, -18, 18);
+        state.squash.y = clamp(dy * 0.45, -14, 14);
+        state.tilt = clamp(dx * 0.004, -0.25, 0.25);
+        if (dist > 1.5) spawnFlour(p.x, p.y);
+        if (dist > 2) squish();
+      }
+      return;
+    }
+    if (state.drag.kind === "roll") {
+      var along = Math.abs(dx) + Math.abs(dy) * 0.35;
+      state.roll[state.drag.id] = Math.min(1, state.roll[state.drag.id] + along * 0.0032);
+      if (along > 3 && ((state.t * 10) | 0) % 2 === 0) noiseBurst(0.04, 0.025, 600);
+      return;
+    }
+    if (state.drag.kind === "braid") {
+      tryBraid(p, L);
+      return;
+    }
+    if (state.drag.kind === "limb") {
+      moveLimb(state.drag.id, p, L);
+      return;
+    }
+    if (state.drag.kind === "brush") {
+      paint(p, L);
+      if (Math.hypot(dx, dy) > 4) noiseBurst(0.05, 0.02, 1400);
+      return;
+    }
+    if (state.drag.kind === "loaf") {
+      state.drag.cx = p.x - state.drag.ox;
+      state.drag.cy = p.y - state.drag.oy;
+    }
+  }
+
+  function onUp(e) {
+    if (!state.drag || state.drag.pid !== e.pointerId) {
+      state.drag = null;
+      return;
+    }
+    if (state.drag.kind === "loaf") {
+      var p = canvasPos(e);
+      var L = layout();
+      if (pointIn(p, L.rack)) placeOnRack();
+    }
+    if (state.drag.kind === "roll" && rollsReady()) {
+      tone(494, 0.1, "sine", 0.03);
+    }
+    state.drag = null;
+  }
+
+  function hitBlob(p, L) {
+    var c = blobGeom(L);
+    var nx = (p.x - c.x) / (c.rx + 16);
+    var ny = (p.y - c.y) / (c.ry + 16);
+    return nx * nx + ny * ny <= 1.15;
+  }
+
+  function blobGeom(L) {
+    var rx = 56 + state.knead * 10 + state.rise * 18;
+    var ry = 38 + state.knead * 6 + state.rise * 40;
+    return {
+      x: L.table.x + L.table.w * 0.5 + state.squash.x,
+      y: L.table.y + L.table.h * 0.52 + state.squash.y + Math.sin(state.t * 2.1) * state.rise * 2,
+      rx: rx,
+      ry: ry
+    };
+  }
+
+  function hitPoly(p, polys, slop) {
+    var best = null;
+    for (var i = 0; i < polys.length; i++) {
+      var pts = polys[i].pts;
+      for (var k = 1; k < pts.length; k++) {
+        var d = distToSeg(p, pts[k - 1], pts[k]);
+        var r = (polys[i].r || 16) + slop;
+        if (d < r && (!best || d < best.d)) best = { id: polys[i].id, d: d };
+      }
+    }
+    return best;
+  }
+
+  function hitTail(p, polys, slop) {
+    var best = null;
+    for (var i = 0; i < polys.length; i++) {
+      var pts = polys[i].pts;
+      var start = Math.floor(pts.length * 0.62);
+      for (var k = start; k < pts.length; k++) {
+        var d = Math.hypot(pts[k].x - p.x, pts[k].y - p.y);
+        if (d < slop && (!best || d < best.d)) best = { id: polys[i].id, d: d };
+      }
+    }
+    return best;
+  }
+
+  function distToSeg(p, a, b) {
+    var vx = b.x - a.x;
+    var vy = b.y - a.y;
+    var len = vx * vx + vy * vy || 1;
+    var t = clamp(((p.x - a.x) * vx + (p.y - a.y) * vy) / len, 0, 1);
+    return Math.hypot(p.x - (a.x + vx * t), p.y - (a.y + vy * t));
+  }
+
+  function toWorld(polys, spec) {
+    return polys.map(function (s) {
+      return {
+        id: s.id,
+        pts: s.pts.map(function (q) { return { x: spec.cx + q.x, y: spec.cy + q.y, p: q.p }; })
+      };
+    });
+  }
+
+  function tryBraid(p, L) {
+    if (state.steps.length >= targetSteps(state.n) + 5) {
+      if (!state.drag.locked) {
+        state.drag.locked = true;
+        toast("Der Zopf ist fertig geflochten.");
+      }
+      return;
+    }
+    var spec = loafSpec(L);
+    var built = buildOrders(spec.n, state.steps);
+    var slot = built.order.indexOf(state.drag.id);
+    if (slot < 0) return;
+    var y = spec.cy + (slot - (spec.n - 1) / 2) * spec.gap;
+    var dir = 0;
+    if (p.y < y - spec.gap * 0.56 && slot > 0) dir = -1;
+    else if (p.y > y + spec.gap * 0.56 && slot < spec.n - 1) dir = 1;
+    if (!dir) return;
+    state.steps.push({ slot: slot, dir: dir });
+    pluck(state.steps.length);
+  }
+
+  function figurLayout(L, spec) {
+    var host = spec || {
+      cx: L.table.x + L.table.w * 0.48,
+      cy: L.table.y + L.table.h * 0.56
+    };
+    var scale = Math.min(L.table.w / 230, L.table.h / 210, 1.45);
+    var t = bakeT();
+    if (t > 0) {
+      var mouth = mouthOf(L.oven);
+      var fit = Math.min(mouth.w / 150, mouth.h / 180);
+      scale = lerp(scale, fit, t);
+    }
+    return {
+      cx: host.cx,
+      cy: host.cy,
+      scale: scale,
+      bodyRx: 34 * scale,
+      bodyRy: 46 * scale,
+      headR: 26 * scale,
+      arm: 56 * scale,
+      leg: 50 * scale,
+      thick: 13 * scale
+    };
+  }
+
+  function jointsOf(fig, pose) {
+    var s = fig.scale;
+    return {
+      head: { x: fig.cx + pose.headX * s, y: fig.cy - 74 * s },
+      body: { x: fig.cx, y: fig.cy },
+      armL: { x: fig.cx - fig.bodyRx * 0.82, y: fig.cy - 24 * s },
+      armR: { x: fig.cx + fig.bodyRx * 0.82, y: fig.cy - 24 * s },
+      legL: { x: fig.cx - fig.bodyRx * 0.42, y: fig.cy + fig.bodyRy * 0.72 },
+      legR: { x: fig.cx + fig.bodyRx * 0.42, y: fig.cy + fig.bodyRy * 0.72 }
+    };
+  }
+
+  function limbEnd(part, j, pose, fig) {
+    var ang = pose[part];
+    var len = part.indexOf("arm") === 0 ? fig.arm : fig.leg;
+    return { x: j.x + Math.cos(ang) * len, y: j.y + Math.sin(ang) * len };
+  }
+
+  function hitLimb(p, L) {
+    var spec = loafSpec(L);
+    var fig = figurLayout(L, spec);
+    var pose = state.pose;
+    var j = jointsOf(fig, pose);
+    var best = null;
+    var parts = ["armL", "armR", "legL", "legR"];
+    for (var i = 0; i < parts.length; i++) {
+      var end = limbEnd(parts[i], j[parts[i]], pose, fig);
+      var d = distToSeg(p, j[parts[i]], end);
+      if (d < fig.thick + 12 && (!best || d < best.d)) best = { id: parts[i], d: d };
+    }
+    var hd = Math.hypot(p.x - j.head.x, p.y - j.head.y);
+    if (hd < fig.headR + 8 && (!best || hd < best.d)) best = { id: "head", d: hd };
+    return best ? best.id : null;
+  }
+
+  function moveLimb(part, p, L) {
+    var spec = loafSpec(L);
+    var fig = figurLayout(L, spec);
+    var j = jointsOf(fig, state.pose);
+    if (part === "head") {
+      state.pose.headX = clamp((p.x - fig.cx) / fig.scale, -18, 18);
+      return;
+    }
+    var ang = Math.atan2(p.y - j[part].y, p.x - j[part].x);
+    if (part === "legL" || part === "legR") {
+      if (p.y < j[part].y + 8) {
+        ang = part === "legL" ? Math.PI - 0.35 : 0.35;
+      }
+    }
+    state.pose[part] = ang;
+  }
+
+  function placeRaisin(p, L) {
+    var spec = loafSpec(L);
+    var fig = figurLayout(L, spec);
+    var j = jointsOf(fig, state.pose);
+    for (var i = state.raisins.length - 1; i >= 0; i--) {
+      var r = raisinWorld(state.raisins[i], j, fig);
+      if (Math.hypot(p.x - r.x, p.y - r.y) < 12) {
+        state.raisins.splice(i, 1);
+        tone(220, 0.06, "sine", 0.03);
+        return;
+      }
+    }
+    var headD = Math.hypot(p.x - j.head.x, p.y - j.head.y);
+    var bodyN = (p.x - j.body.x) / fig.bodyRx;
+    var bodyM = (p.y - j.body.y) / fig.bodyRy;
+    if (headD <= fig.headR + 4) {
+      if (state.raisins.length >= 14) return;
+      state.raisins.push({
+        a: "head",
+        x: (p.x - j.head.x) / fig.scale,
+        y: (p.y - j.head.y) / fig.scale
+      });
+      tone(180, 0.05, "triangle", 0.04);
+      return;
+    }
+    if (bodyN * bodyN + bodyM * bodyM <= 1.15) {
+      if (state.raisins.length >= 14) return;
+      state.raisins.push({
+        a: "body",
+        x: (p.x - j.body.x) / fig.scale,
+        y: (p.y - j.body.y) / fig.scale
+      });
+      tone(180, 0.05, "triangle", 0.04);
+    }
+  }
+
+  function raisinWorld(r, j, fig) {
+    var o = r.a === "head" ? j.head : j.body;
+    return { x: o.x + r.x * fig.scale, y: o.y + r.y * fig.scale };
+  }
+
+  function paint(p, L) {
+    var b = workBounds(L);
+    if (!b) return;
+    var gx = Math.floor((p.x - b.x) / b.w * 10);
+    var gy = Math.floor((p.y - b.y) / b.h * 6);
+    var changed = false;
+    for (var y = gy - 1; y <= gy + 1; y++) {
+      for (var x = gx - 1; x <= gx + 1; x++) {
+        if (x < 0 || y < 0 || x >= 10 || y >= 6) continue;
+        var key = x + "," + y;
+        if (!state.cells[key]) {
+          state.cells[key] = 1;
+          changed = true;
+        }
+      }
+    }
+    if (changed) {
+      var n = 0;
+      for (var k in state.cells) if (state.cells[k]) n++;
+      state.shine = Math.min(1, n / 36);
+    }
+  }
+
+  function workBounds(L) {
+    if (state.kind === "figur") {
+      var fig = figurLayout(L, loafSpec(L));
+      return {
+        x: fig.cx - 80 * fig.scale,
+        y: fig.cy - 120 * fig.scale,
+        w: 160 * fig.scale,
+        h: 200 * fig.scale
+      };
+    }
+    if (state.kind === "zopf") {
+      var spec = loafSpec(L);
+      var hh = spec.gap * spec.n;
+      return {
+        x: spec.cx - spec.length * 0.5 - 8,
+        y: spec.cy - hh * 0.5 - 8,
+        w: spec.length + 16,
+        h: hh + 16
+      };
+    }
+    return null;
+  }
+
+  function pointIn(p, r) {
+    return p.x >= r.x && p.y >= r.y && p.x <= r.x + r.w && p.y <= r.y + r.h;
+  }
+
+  /* ---------- actions ---------- */
+  function doughReady() {
+    if (state.knead < 0.42) {
+      toast("Noch ein wenig kneten.");
+      return false;
+    }
+    if (state.rise < 0.18) {
+      toast("Lass ihn noch kurz gehen.");
+      return false;
+    }
+    return true;
+  }
+
+  function chooseZopf(n) {
+    if (!shapeOk()) {
+      toast("Tippe Neu für einen anderen Teig.");
+      return;
+    }
+    if (state.phase === "kneten" && !doughReady()) return;
+    state.kind = "zopf";
+    state.n = n;
+    state.phase = "rollen";
+    state.tool = "rollen";
+    state.roll = [0, 0, 0, 0];
+    state.steps = [];
+    state.shine = 0;
+    state.cells = {};
+    state.split = 0;
+    state.bake = 0;
+    pluck(n);
+    sync();
+  }
+
+  function chooseFigur() {
+    if (!shapeOk()) {
+      toast("Tippe Neu für einen anderen Teig.");
+      return;
+    }
+    if (state.phase === "kneten" && !doughReady()) return;
+    state.kind = "figur";
+    state.n = 0;
+    state.phase = "figur";
+    state.tool = "figur";
+    state.pose = defaultPose();
+    state.raisins = defaultRaisins();
+    state.shine = 0;
+    state.cells = {};
+    state.split = 0;
+    state.bake = 0;
+    pluck(4);
+    sync();
+  }
+
+  function startBraid() {
+    if (state.kind !== "zopf") return;
+    if (state.phase !== "rollen" && state.phase !== "flechten") return;
+    if (!rollsReady()) {
+      toast("Rolle die Stränge noch glatt.");
+      return;
+    }
+    state.phase = "flechten";
+    state.tool = "flechten";
+    tone(440, 0.1, "sine", 0.035);
+    sync();
+  }
+
+  function startEi() {
+    if (state.kind === "zopf") {
+      if (state.phase !== "flechten" && state.phase !== "ei") return;
+      if (state.steps.length < minSteps(state.n)) {
+        toast("Flicht noch ein wenig.");
+        return;
+      }
+    } else if (state.kind === "figur") {
+      if (state.phase !== "figur" && state.phase !== "ei") return;
+    } else return;
+    state.phase = "ei";
+    state.tool = "ei";
+    sync();
+  }
+
+  function startOven() {
+    if (state.phase !== "ei") {
+      toast("Erst fertig formen und mit Ei bestreichen.");
+      return;
+    }
+    if (state.shine < 0.18) toast("Ohne Ei bleibt er matt.");
+    state.phase = "ofen";
+    state.tool = "ofen";
+    state.bake = 0;
+    state.chimedGold = false;
+    state.chimedDark = false;
+    state.anim = { type: "in", u: 0 };
+    noiseBurst(0.12, 0.04, 300);
+    tone(196, 0.2, "triangle", 0.04);
+    sync();
+  }
+
+  function takeOut() {
+    if (state.phase !== "ofen") return;
+    if (state.anim && state.anim.type === "in" && state.anim.u < 1) return;
+    state.phase = "aus";
+    state.tool = "aus";
+    state.anim = { type: "out", u: 0 };
+    tone(330, 0.12, "sine", 0.04);
+    sync();
+  }
+
+  function placeOnRack() {
+    if (state.phase !== "aus") {
+      if (state.phase === "ofen") toast("Zuerst aus dem Ofen nehmen.");
+      else toast("Zuerst backen.");
+      return;
+    }
+    if (state.anim && state.anim.u < 1) return;
+    var item = snapshot();
+    state.rack.push(item);
+    if (state.rack.length > 6) state.rack.shift();
+    save();
+    resetWork();
+    toast("Auf dem Gitter. Guten Appetit.");
+    tone(262, 0.08, "triangle", 0.05);
+    tone(392, 0.14, "sine", 0.04, 0.06);
+    sync();
+  }
+
+  function snapshot() {
+    return {
+      kind: state.kind,
+      n: state.n,
+      steps: state.steps.map(function (s) { return { slot: s.slot, dir: s.dir }; }),
+      bake: state.bake,
+      shine: state.shine,
+      seed: state.seed,
+      pose: {
+        armL: state.pose.armL,
+        armR: state.pose.armR,
+        legL: state.pose.legL,
+        legR: state.pose.legR,
+        headX: state.pose.headX
+      },
+      raisins: state.raisins.map(function (r) { return { a: r.a, x: r.x, y: r.y }; })
+    };
+  }
+
+  function resetWork() {
+    var rack = state.rack;
+    state = freshState();
+    state.rack = rack;
+  }
+
+  function neu() {
+    var rack = state.rack;
+    state = freshState();
+    state.rack = rack;
+    toast("Neuer Teig.");
+    tone(349, 0.1, "sine", 0.03);
+    sync();
+  }
+
+  function goKneten() {
+    if (state.phase !== "kneten") {
+      toast("Der Laib ist schon geformt.");
+      return;
+    }
+    state.tool = "kneten";
+    sync();
+  }
+
+  function toggleRosinen() {
+    if (state.kind !== "figur") return;
+    if (state.phase !== "figur" && state.phase !== "ei") return;
+    if (state.phase === "ei") return;
+    state.tool = state.tool === "rosinen" ? "figur" : "rosinen";
+    sync();
+  }
+
+  function save() {
+    try {
+      localStorage.setItem(KEY, JSON.stringify({ rack: state.rack }));
+    } catch (err) {}
+  }
+
+  function load() {
+    try {
+      var raw = localStorage.getItem(KEY);
+      if (!raw) return;
+      var data = JSON.parse(raw);
+      if (!data || !Array.isArray(data.rack)) return;
+      state.rack = data.rack.filter(validItem).slice(-6);
+    } catch (err) {}
+  }
+
+  function validItem(it) {
+    if (!it || (it.kind !== "zopf" && it.kind !== "figur")) return false;
+    if (typeof it.bake !== "number") return false;
+    if (it.kind === "zopf" && !(it.n >= 2 && it.n <= 4 && Array.isArray(it.steps))) return false;
+    return true;
+  }
+
+  /* ---------- hints and buttons ---------- */
+  function hintText() {
+    if (state.phase === "kneten") {
+      if (state.rise > 0.55) return "Luftig und weich. Wähle 2, 3 oder 4 Stränge, oder einen Grittibenz.";
+      if (state.rise > 0.12) return "Der Teig geht auf.";
+      if (state.knead > 0.2) return "Knete weiter, bis er ganz weich ist.";
+      return "Knete den Teig mit dem Finger oder der Maus.";
+    }
+    if (state.phase === "rollen") {
+      if (rollsReady()) return "Glatt. Tippe Flechten und zieh einen Strang über den anderen.";
+      return "Rolle jeden Strang der Länge nach, bis er glatt ist.";
+    }
+    if (state.phase === "flechten") {
+      if (state.steps.length >= targetSteps(state.n)) return "Schön geflochten. Streiche ihn mit Ei.";
+      return "Zieh einen Strang über den Nachbarn.";
+    }
+    if (state.phase === "figur") {
+      if (state.tool === "rosinen") return "Tippe für eine Rosine. Nochmal tippen nimmt sie weg.";
+      return "Zieh Arme und Beine zurecht. Rosinen für Augen und Knöpfe.";
+    }
+    if (state.phase === "ei") {
+      if (state.shine > 0.42) return "Er glänzt. Ab in den Holzofen.";
+      return "Streiche mit Ei über den Teig, bis er glänzt.";
+    }
+    if (state.phase === "ofen") {
+      if (state.bake > 1.05) return "Er wird ganz dunkel. Nimm ihn heraus.";
+      if (state.bake > 0.85) return "Schon ziemlich dunkel.";
+      if (state.bake > 0.48) return "Goldbraun. Hol ihn heraus, oder lass ihn noch.";
+      return "Der Holzofen ist heiss. Warte auf Goldbraun.";
+    }
+    if (state.phase === "aus") {
+      if (state.bake < 0.35) return "Noch blass, aber er darf aufs Gitter.";
+      if (state.bake > 1.05) return "Ganz dunkel. Leg ihn aufs Gitter zum Abkühlen.";
+      return "Zieh ihn aufs Gitter, oder tippe Gitter.";
+    }
+    return "Sonntagszopf.";
+  }
+
+  function sync() {
+    var h = hintText();
+    if (h !== lastHint) {
+      lastHint = h;
+      hintEl.textContent = h;
+    }
+    zahlEl.textContent = "Gitter: " + state.rack.length;
+    var press = {
+      kneten: state.tool === "kneten",
+      s2: state.kind === "zopf" && state.n === 2,
+      s3: state.kind === "zopf" && state.n === 3,
+      s4: state.kind === "zopf" && state.n === 4,
+      figur: state.kind === "figur",
+      flechten: state.tool === "flechten",
+      rosinen: state.tool === "rosinen",
+      ei: state.tool === "ei",
+      ofen: state.phase === "ofen",
+      raus: false,
+      gitter: false,
+      neu: false,
+      ton: audio.on
+    };
+    var dis = {
+      kneten: false,
+      s2: false,
+      s3: false,
+      s4: false,
+      figur: false,
+      flechten: !(state.kind === "zopf" && (state.phase === "rollen" || state.phase === "flechten")),
+      rosinen: !(state.kind === "figur" && state.phase === "figur"),
+      ei: !canPressEi(),
+      ofen: state.phase !== "ei",
+      raus: state.phase !== "ofen",
+      gitter: state.phase !== "aus",
+      neu: false,
+      ton: false
+    };
+    for (var k in buttons) {
+      buttons[k].setAttribute("aria-pressed", press[k] ? "true" : "false");
+      buttons[k].disabled = !!dis[k];
+    }
+    document.body.dataset.phase = state.phase;
+    document.body.dataset.knead = state.knead.toFixed(2);
+    document.body.dataset.rise = state.rise.toFixed(2);
+    document.body.dataset.bake = state.bake.toFixed(2);
+    document.body.dataset.shine = state.shine.toFixed(2);
+    document.body.dataset.steps = String(state.steps.length);
+    document.body.dataset.rack = String(state.rack.length);
+    document.body.dataset.kind = state.kind || "";
+    document.body.dataset.tool = state.tool;
+    var rolls = 0;
+    for (var i = 0; i < state.n; i++) rolls += state.roll[i];
+    document.body.dataset.roll = state.n ? (rolls / state.n).toFixed(2) : "0";
+    var L = layout();
+    var blob = blobGeom(L);
+    document.body.dataset.dx = String(Math.round(blob.x));
+    document.body.dataset.dy = String(Math.round(blob.y));
+    if (state.kind === "zopf" && state.n >= 2 && (state.phase === "rollen" || state.phase === "flechten" || state.phase === "ei")) {
+      var spec = loafSpec(L);
+      document.body.dataset.dx = String(Math.round(spec.cx));
+      document.body.dataset.dy = String(Math.round(spec.cy));
+      document.body.dataset.tx = String(Math.round(spec.cx + spec.length * 0.36));
+      if (state.phase === "rollen") {
+        var rp = rollPolys(L);
+        document.body.dataset.ys = rp.polys.map(function (s) { return Math.round(s.y); }).join(",");
+      } else {
+        var built = buildOrders(state.n, state.steps);
+        var ys = [];
+        for (var si = 0; si < state.n; si++) {
+          var slot = built.order.indexOf(si);
+          ys.push(Math.round(spec.cy + (slot - (state.n - 1) / 2) * spec.gap));
+        }
+        document.body.dataset.ys = ys.join(",");
+      }
+    }
+  }
+
+  function canPressEi() {
+    if (state.kind === "zopf") return state.phase === "flechten" || state.phase === "ei";
+    if (state.kind === "figur") return state.phase === "figur" || state.phase === "ei";
+    return false;
+  }
+
+  /* ---------- drawing ---------- */
+  function roundRect(x, y, w, h, r) {
+    var rr = Math.max(0, Math.min(r, w / 2, h / 2));
+    ctx.beginPath();
+    ctx.moveTo(x + rr, y);
+    ctx.arcTo(x + w, y, x + w, y + h, rr);
+    ctx.arcTo(x + w, y + h, x, y + h, rr);
+    ctx.arcTo(x, y + h, x, y, rr);
+    ctx.arcTo(x, y, x + w, y, rr);
+    ctx.closePath();
+  }
+
+  function palette(bake, shine) {
+    var glossFade = bake > 1.05 ? Math.max(0, 1 - (bake - 1.05) * 2.2) : 1;
+    if (bake <= 0.001) {
+      var mid = mixHex([243, 210, 154], [236, 176, 64], shine * 0.65);
+      return { hi: "#fff8ea", mid: rgb(mid), lo: "#d7a56c", gloss: shine * 0.85 };
+    }
+    var stops = [
+      [0, [248, 226, 190]],
+      [0.32, [244, 198, 118]],
+      [0.52, [226, 152, 64]],
+      [0.72, [176, 98, 44]],
+      [0.92, [112, 58, 30]],
+      [1.12, [64, 34, 22]],
+      [1.4, [26, 15, 12]]
+    ];
+    var c = stops[stops.length - 1][1];
+    for (var i = 1; i < stops.length; i++) {
+      if (bake <= stops[i][0]) {
+        var t = (bake - stops[i - 1][0]) / (stops[i][0] - stops[i - 1][0]);
+        c = mixHex(stops[i - 1][1], stops[i][1], t);
+        break;
+      }
+    }
+    return {
+      hi: rgb(c.map(function (v) { return Math.min(255, v + 42); })),
+      mid: rgb(c),
+      lo: rgb(c.map(function (v) { return v * 0.7; })),
+      gloss: shine * glossFade
+    };
+  }
+
+  function mixHex(a, b, t) {
+    return [
+      a[0] + (b[0] - a[0]) * t,
+      a[1] + (b[1] - a[1]) * t,
+      a[2] + (b[2] - a[2]) * t
+    ];
+  }
+  function rgb(c) {
+    return "rgb(" + (c[0] | 0) + "," + (c[1] | 0) + "," + (c[2] | 0) + ")";
+  }
+
+  function strokePts(pts) {
+    if (pts.length < 2) return;
+    ctx.beginPath();
+    ctx.moveTo(pts[0].x, pts[0].y);
+    if (pts.length === 2) {
+      ctx.lineTo(pts[1].x, pts[1].y);
+      ctx.stroke();
+      return;
+    }
+    for (var i = 1; i < pts.length - 1; i++) {
+      var mx = (pts[i].x + pts[i + 1].x) / 2;
+      var my = (pts[i].y + pts[i + 1].y) / 2;
+      ctx.quadraticCurveTo(pts[i].x, pts[i].y, mx, my);
+    }
+    ctx.lineTo(pts[pts.length - 1].x, pts[pts.length - 1].y);
+    ctx.stroke();
+  }
+
+  function drawStrand(pts, r, pal) {
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    ctx.strokeStyle = pal.lo;
+    ctx.lineWidth = r * 2;
+    strokePts(pts);
+    ctx.strokeStyle = pal.mid;
+    ctx.lineWidth = r * 1.42;
+    strokePts(pts);
+    ctx.strokeStyle = pal.hi;
+    ctx.globalAlpha = 0.85;
+    ctx.lineWidth = Math.max(1, r * 0.42);
+    ctx.save();
+    ctx.translate(-r * 0.08, -r * 0.28);
+    strokePts(pts);
+    ctx.restore();
+    ctx.globalAlpha = 1;
+    if (pal.gloss > 0.04) {
+      ctx.strokeStyle = "rgba(255,252,230," + (0.2 + pal.gloss * 0.7) + ")";
+      ctx.lineWidth = Math.max(1.5, r * (0.22 + pal.gloss * 0.28));
+      ctx.save();
+      ctx.translate(0, -r * 0.22);
+      strokePts(pts);
+      ctx.restore();
+    }
+  }
+
+  function drawZopfAt(spec, steps, pal, dragId, dragLocalY, taperEnd) {
+    var pack = braidPolys(spec, steps, dragLocalY, dragId, taperEnd);
+    function worldPt(q) { return { x: spec.cx + q.x, y: spec.cy + q.y }; }
+    ctx.fillStyle = "rgba(90,46,18,0.14)";
+    ctx.beginPath();
+    ctx.ellipse(spec.cx + 2, spec.cy + spec.r * 0.85, spec.length * 0.4, Math.max(6, spec.r * 0.7), 0, 0, Math.PI * 2);
+    ctx.fill();
+    var strips = 36;
+    var xStart = spec.cx - spec.length / 2;
+    for (var s = 0; s < strips; s++) {
+      var pA = s / strips;
+      var pB = (s + 1) / strips;
+      var pM = (pA + pB) * 0.5;
+      var over = overAt(pM, pack.built);
+      if (dragId >= 0 && pM > region(steps).p1) over = dragId;
+      ctx.save();
+      ctx.beginPath();
+      var x0 = Math.floor(xStart + pA * spec.length);
+      var x1 = Math.ceil(xStart + pB * spec.length) + 1;
+      ctx.rect(x0, -40, Math.max(1, x1 - x0), viewH + 80);
+      ctx.clip();
+      for (var i = 0; i < pack.polys.length; i++) {
+        if (pack.polys[i].id !== over) drawStrand(pack.polys[i].pts.map(worldPt), spec.r, pal);
+      }
+      if (over >= 0) {
+        for (var k = 0; k < pack.polys.length; k++) {
+          if (pack.polys[k].id === over) drawStrand(pack.polys[k].pts.map(worldPt), spec.r, pal);
+        }
+      }
+      ctx.restore();
+    }
+  }
+
+  function drawRollStrands(L, pal) {
+    var rp = rollPolys(L);
+    var a = clamp(state.split, 0, 1);
+    ctx.globalAlpha = a;
+    for (var i = 0; i < rp.polys.length; i++) {
+      var flour = 1 - state.roll[i];
+      drawStrand(rp.polys[i].pts, rp.polys[i].r, pal);
+      if (flour > 0.08) {
+        ctx.fillStyle = "rgba(255,252,245," + (flour * 0.75) + ")";
+        var pts = rp.polys[i].pts;
+        for (var k = 2; k < pts.length; k += 3) {
+          ctx.beginPath();
+          ctx.arc(pts[k].x, pts[k].y - rp.r * 0.2, 1.6 + flour, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  function drawBlob(L, pal, alpha) {
+    var c = blobGeom(L);
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.translate(c.x, c.y);
+    ctx.rotate(state.tilt);
+    ctx.fillStyle = "rgba(90,48,20,0.16)";
+    ctx.beginPath();
+    ctx.ellipse(3, c.ry * 0.42, c.rx * 0.92, c.ry * 0.28, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.setLineDash([5, 6]);
+    ctx.strokeStyle = "rgba(255,250,240,0.55)";
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.ellipse(0, 4, 62, 44, 0, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    var g = ctx.createRadialGradient(-c.rx * 0.35, -c.ry * 0.4, 8, 0, 0, Math.max(c.rx, c.ry));
+    g.addColorStop(0, pal.hi);
+    g.addColorStop(0.6, pal.mid);
+    g.addColorStop(1, pal.lo);
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.ellipse(0, 0, c.rx, c.ry, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = "rgba(160,100,50,0.25)";
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    for (var i = 0; i < state.bubbles.length; i++) {
+      var b = state.bubbles[i];
+      var bx = Math.cos(b.a) * c.rx * b.rad * 0.75;
+      var by = Math.sin(b.a) * c.ry * b.rad * 0.55 - c.ry * 0.05;
+      ctx.fillStyle = "rgba(255,250,236,0.72)";
+      ctx.beginPath();
+      ctx.ellipse(bx, by, 4 * b.s + state.rise * 2, 3.2 * b.s + state.rise * 1.5, b.a, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.fillStyle = "rgba(255,255,255,0.35)";
+    ctx.beginPath();
+    ctx.ellipse(-c.rx * 0.28, -c.ry * 0.32, c.rx * 0.22, c.ry * 0.14, -0.6, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+    ctx.globalAlpha = 1;
+  }
+
+  function drawFigurAt(cx, cy, scale, pose, raisins, pal, L) {
+    var fake = {
+      cx: cx, cy: cy, scale: scale,
+      bodyRx: 34 * scale, bodyRy: 46 * scale, headR: 26 * scale,
+      arm: 56 * scale, leg: 50 * scale, thick: 13 * scale
+    };
+    var j = jointsOf(fake, pose);
+    function limb(part) {
+      var end = limbEnd(part, j[part], pose, fake);
+      ctx.lineCap = "round";
+      ctx.strokeStyle = pal.lo;
+      ctx.lineWidth = fake.thick * 2.05;
+      ctx.beginPath();
+      ctx.moveTo(j[part].x, j[part].y);
+      ctx.lineTo(end.x, end.y);
+      ctx.stroke();
+      ctx.strokeStyle = pal.mid;
+      ctx.lineWidth = fake.thick * 1.45;
+      ctx.stroke();
+      ctx.strokeStyle = pal.hi;
+      ctx.lineWidth = fake.thick * 0.4;
+      ctx.save();
+      ctx.translate(-1, -2);
+      ctx.stroke();
+      ctx.restore();
+    }
+    ctx.fillStyle = "rgba(80,40,16,0.15)";
+    ctx.beginPath();
+    ctx.ellipse(cx + 4, cy + fake.bodyRy * 0.85, fake.bodyRx * 1.3, 10 * scale, 0, 0, Math.PI * 2);
+    ctx.fill();
+    limb("legL");
+    limb("legR");
+    ctx.fillStyle = pal.mid;
+    ctx.beginPath();
+    ctx.ellipse(j.body.x, j.body.y, fake.bodyRx, fake.bodyRy, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = pal.lo;
+    ctx.lineWidth = 3;
+    ctx.stroke();
+    ctx.fillStyle = pal.hi;
+    ctx.globalAlpha = 0.55;
+    ctx.beginPath();
+    ctx.ellipse(j.body.x - fake.bodyRx * 0.25, j.body.y - fake.bodyRy * 0.3, fake.bodyRx * 0.28, fake.bodyRy * 0.18, -0.5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+    limb("armL");
+    limb("armR");
+    var g = ctx.createRadialGradient(j.head.x - 6, j.head.y - 8, 4, j.head.x, j.head.y, fake.headR);
+    g.addColorStop(0, pal.hi);
+    g.addColorStop(1, pal.mid);
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(j.head.x, j.head.y, fake.headR, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = pal.lo;
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    if (pal.gloss > 0.05) {
+      ctx.strokeStyle = "rgba(255,250,220," + (0.25 + pal.gloss * 0.4) + ")";
+      ctx.lineWidth = 3;
+      ctx.stroke();
+    }
+    for (var i = 0; i < raisins.length; i++) {
+      var rw = raisinWorld(raisins[i], j, fake);
+      ctx.fillStyle = "#3a2418";
+      ctx.beginPath();
+      ctx.ellipse(rw.x, rw.y, 3.3 * scale, 2.6 * scale, 0.4, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "rgba(255,220,180,0.45)";
+      ctx.beginPath();
+      ctx.arc(rw.x - 1, rw.y - 1, 0.8 * scale + 0.4, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  function drawCurrent(L) {
+    var pal = palette(state.phase === "kneten" ? 0 : state.bake, state.shine);
+    if (state.phase === "kneten" || (state.kind && state.split < 1)) {
+      var alpha = state.phase === "kneten" ? 1 : 1 - state.split;
+      if (alpha > 0.02) drawBlob(L, palette(0, 0), alpha);
+    }
+    if (state.kind === "zopf" && state.phase === "rollen") {
+      drawRollStrands(L, palette(0, 0));
+      return;
+    }
+    if (state.kind === "zopf" && state.phase !== "kneten") {
+      var spec = loafSpec(L);
+      var dragId = state.drag && state.drag.kind === "braid" ? state.drag.id : -1;
+      var localY = 0;
+      if (dragId >= 0 && state.pointer) localY = state.pointer.y - spec.cy;
+      var taper = state.steps.length >= targetSteps(state.n) || state.phase === "ei" || state.phase === "ofen" || state.phase === "aus";
+      ctx.save();
+      if (spec.inside) clipMouth(spec.mouth);
+      drawZopfAt(spec, state.steps, pal, dragId, localY, taper);
+      ctx.restore();
+      return;
+    }
+    if (state.kind === "figur" && state.phase !== "kneten") {
+      var specF = loafSpec(L);
+      var fig = figurLayout(L, specF);
+      ctx.save();
+      ctx.globalAlpha = clamp(state.split, 0, 1);
+      if (specF.inside) clipMouth(specF.mouth);
+      drawFigurAt(specF.cx, specF.cy, fig.scale, state.pose, state.raisins, pal);
+      ctx.restore();
+    }
+  }
+
+  function clipMouth(m) {
+    archPath(m);
+    ctx.clip();
+  }
+
+  function drawMini(item, slot) {
+    ctx.save();
+    var pal = palette(item.bake, item.shine || 0);
+    if (item.kind === "zopf") {
+      var n = item.n;
+      var gap = clamp(slot.h * 0.7 / n, 4, 16);
+      var spec = {
+        cx: slot.x + slot.w * 0.5,
+        cy: slot.y + slot.h * 0.58,
+        length: slot.w * 0.92,
+        gap: gap,
+        n: n,
+        r: gap * 0.36
+      };
+      drawZopfAt(spec, item.steps || [], pal, -1, 0, true);
+    } else {
+      var scale = Math.min(slot.w / 150, slot.h / 120, 0.55);
+      drawFigurAt(slot.x + slot.w * 0.5, slot.y + slot.h * 0.62, scale, item.pose || defaultPose(), item.raisins || [], pal);
+    }
+    ctx.restore();
+  }
+
+  function rackSlots(L) {
+    var list = [];
+    var n = state.rack.length;
+    if (!n) return list;
+    var slotW = Math.min(L.rack.w / 6, Math.max(54, L.rack.h * 1.7));
+    var total = slotW * n;
+    var x0 = L.rack.x + (L.rack.w - total) / 2;
+    for (var i = 0; i < n; i++) {
+      list.push({
+        x: x0 + i * slotW,
+        y: L.rack.y - L.rack.h * 0.15,
+        w: slotW - 4,
+        h: L.rack.h * 1.05
+      });
+    }
+    return list;
+  }
+
+  function drawRoom(L) {
+    var g = ctx.createLinearGradient(0, 0, 0, L.h);
+    g.addColorStop(0, "#f7e7d0");
+    g.addColorStop(0.45, "#f0d5b4");
+    g.addColorStop(1, "#e4c29a");
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, L.w, L.h);
+
+    if (L.window) drawWindow(L.window);
+    drawOven(L.oven, false);
+    drawTable(L.table);
+    drawRack(L.rack);
+    var slots = rackSlots(L);
+    for (var i = 0; i < slots.length; i++) drawMini(state.rack[i], slots[i]);
+    drawCurrent(L);
+    drawOven(L.oven, true);
+    drawParticles();
+    if (state.phase === "ei" && state.pointer) drawBrush(state.pointer.x, state.pointer.y);
+  }
+
+  function drawWindow(w) {
+    roundRect(w.x, w.y, w.w, w.h, 10);
+    ctx.fillStyle = "#8d5a34";
+    ctx.fill();
+    var sky = ctx.createLinearGradient(0, w.y, 0, w.y + w.h);
+    sky.addColorStop(0, "#f7d7a8");
+    sky.addColorStop(0.55, "#f2c98a");
+    sky.addColorStop(1, "#9ec8e6");
+    roundRect(w.x + 8, w.y + 8, w.w - 16, w.h - 18, 6);
+    ctx.fillStyle = sky;
+    ctx.fill();
+    var sunX = w.x + w.w * 0.78;
+    var sunY = w.y + w.h * 0.32;
+    ctx.fillStyle = "#fff4c8";
+    ctx.beginPath();
+    ctx.arc(sunX, sunY, Math.min(16, w.h * 0.16), 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "#7ea86a";
+    ctx.beginPath();
+    ctx.moveTo(w.x + 10, w.y + w.h - 20);
+    ctx.quadraticCurveTo(w.x + w.w * 0.35, w.y + w.h * 0.45, w.x + w.w * 0.55, w.y + w.h - 20);
+    ctx.fill();
+    ctx.fillStyle = "#5e8d62";
+    ctx.beginPath();
+    ctx.moveTo(w.x + w.w * 0.4, w.y + w.h - 20);
+    ctx.quadraticCurveTo(w.x + w.w * 0.7, w.y + w.h * 0.5, w.x + w.w - 12, w.y + w.h - 20);
+    ctx.fill();
+    ctx.fillStyle = "rgba(255,248,236,0.82)";
+    ctx.fillRect(w.x + 8, w.y + 8, 12, w.h - 22);
+    if (w.w > 160 && w.h > 70) {
+      ctx.fillStyle = "#6b3a22";
+      ctx.font = "700 " + Math.max(12, Math.min(16, w.h * 0.16)) + "px Georgia, serif";
+      ctx.fillText("Sonntag", w.x + 26, w.y + 28);
+    }
+    if (w.h > 64 && w.w > 120) {
+      var ey = w.y + w.h * 0.46;
+      ctx.fillStyle = "#f7f3ea";
+      ctx.beginPath();
+      ctx.ellipse(w.x + 36, ey, 5, 7, -0.5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.ellipse(w.x + 48, ey + 1, 5, 7, 0.4, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    if (w.w > 220 && w.h > 64) {
+      var my = w.y + w.h * 0.58;
+      ctx.fillStyle = "#f7f1e4";
+      roundRect(w.x + w.w - 78, my, 34, 18, 5);
+      ctx.fill();
+      ctx.fillStyle = "#8a623c";
+      ctx.font = "700 11px Georgia, serif";
+      ctx.fillText("Mehl", w.x + w.w - 72, my + 13);
+    }
+  }
+
+  function drawOven(o, front) {
+    if (!front) {
+      roundRect(o.x, o.y, o.w, o.h, 14);
+      var body = ctx.createLinearGradient(o.x, o.y, o.x, o.y + o.h);
+      body.addColorStop(0, "#f3e2cc");
+      body.addColorStop(1, "#e0c4a4");
+      ctx.fillStyle = body;
+      ctx.fill();
+      ctx.strokeStyle = "#b4835c";
+      ctx.lineWidth = 3;
+      ctx.stroke();
+      var m = mouthOf(o);
+      ctx.fillStyle = "#1c100c";
+      archPath(m);
+      ctx.fill();
+      var glow = ctx.createRadialGradient(m.x + m.w / 2, m.y + m.h * 0.7, 4, m.x + m.w / 2, m.y + m.h * 0.6, m.w * 0.6);
+      var hot = state.phase === "ofen" ? 0.9 : 0.55;
+      glow.addColorStop(0, "rgba(255,170,60," + hot + ")");
+      glow.addColorStop(0.5, "rgba(180,60,20,0.45)");
+      glow.addColorStop(1, "rgba(40,10,6,0)");
+      ctx.fillStyle = glow;
+      archPath(m);
+      ctx.fill();
+      ctx.fillStyle = "#5a2e16";
+      roundRect(m.x + m.w * 0.2, m.y + m.h * 0.72, m.w * 0.6, 7, 3);
+      ctx.fill();
+      ctx.fillStyle = "#c4552a";
+      ctx.globalAlpha = 0.8 + Math.sin(state.t * 8) * 0.2;
+      ctx.beginPath();
+      ctx.ellipse(m.x + m.w * 0.5, m.y + m.h * 0.7, m.w * 0.18, 6, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.globalAlpha = 1;
+      if (o.w > 90) {
+        ctx.fillStyle = "#6b3e28";
+        ctx.font = "700 " + Math.max(11, Math.min(15, o.w * 0.08)) + "px Georgia, serif";
+        ctx.textAlign = "center";
+        ctx.fillText("Holzofen", o.x + o.w / 2, o.y + 18);
+        ctx.textAlign = "left";
+      }
+      ctx.fillStyle = "#7a4a30";
+      ctx.fillRect(o.x + o.w * 0.62, o.y - 10, o.w * 0.16, 14);
+    } else {
+      var m2 = mouthOf(o);
+      ctx.strokeStyle = "#8d5a3a";
+      ctx.lineWidth = 8;
+      archPath(m2);
+      ctx.stroke();
+      ctx.strokeStyle = "#f6e6d0";
+      ctx.lineWidth = 2;
+      archPath(m2);
+      ctx.stroke();
+    }
+  }
+
+  function archPath(m) {
+    var left = m.x + 1;
+    var right = m.x + m.w - 1;
+    var bottom = m.y + m.h;
+    var shoulder = m.y + m.h * 0.42;
+    var crown = m.y + Math.max(2, m.h * 0.04);
+    ctx.beginPath();
+    ctx.moveTo(left, bottom);
+    ctx.lineTo(left, shoulder);
+    ctx.quadraticCurveTo((left + right) / 2, crown, right, shoulder);
+    ctx.lineTo(right, bottom);
+    ctx.closePath();
+  }
+
+  function drawTable(t) {
+    ctx.fillStyle = "rgba(90,50,20,0.18)";
+    roundRect(t.x + 4, t.y + 6, t.w, t.h, 16);
+    ctx.fill();
+    var g = ctx.createLinearGradient(t.x, t.y, t.x, t.y + t.h);
+    g.addColorStop(0, "#e0b27a");
+    g.addColorStop(0.35, "#c8884a");
+    g.addColorStop(1, "#a86b38");
+    roundRect(t.x, t.y, t.w, t.h, 16);
+    ctx.fillStyle = g;
+    ctx.fill();
+    ctx.save();
+    roundRect(t.x, t.y, t.w, t.h, 16);
+    ctx.clip();
+    ctx.strokeStyle = "rgba(120,70,30,0.09)";
+    ctx.lineWidth = 1.5;
+    for (var y = t.y + 12; y < t.y + t.h; y += 14) {
+      ctx.beginPath();
+      ctx.moveTo(t.x, y);
+      ctx.bezierCurveTo(t.x + t.w * 0.3, y + 2, t.x + t.w * 0.6, y - 2, t.x + t.w, y + 1);
+      ctx.stroke();
+    }
+    ctx.fillStyle = "rgba(255,250,240,0.18)";
+    for (var i = 0; i < 40; i++) {
+      var fx = t.x + ((i * 97 + state.seed) % 1000) / 1000 * t.w;
+      var fy = t.y + ((i * 53) % 100) / 100 * t.h;
+      ctx.beginPath();
+      ctx.arc(fx, fy, 1 + (i % 3) * 0.4, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+    ctx.strokeStyle = "rgba(90,48,18,0.35)";
+    ctx.lineWidth = 2;
+    roundRect(t.x, t.y, t.w, t.h, 16);
+    ctx.stroke();
+  }
+
+  function drawRack(r) {
+    ctx.strokeStyle = "#8e98a3";
+    ctx.lineWidth = 2;
+    ctx.strokeRect(r.x, r.y, r.w, r.h);
+    var cols = 8;
+    var rows = r.h < 30 ? 2 : 3;
+    ctx.lineWidth = 1.4;
+    for (var i = 1; i < cols; i++) {
+      var x = r.x + (r.w * i) / cols;
+      ctx.beginPath();
+      ctx.moveTo(x, r.y);
+      ctx.lineTo(x, r.y + r.h);
+      ctx.stroke();
+    }
+    for (var j = 1; j < rows; j++) {
+      var y = r.y + (r.h * j) / rows;
+      ctx.beginPath();
+      ctx.moveTo(r.x, y);
+      ctx.lineTo(r.x + r.w, y);
+      ctx.stroke();
+    }
+    ctx.fillStyle = "#6d5848";
+    ctx.font = "700 11px Georgia, serif";
+    if (r.w > 80 && state.rack.length === 0 && r.h > 28) {
+      ctx.fillStyle = "rgba(255,246,230,0.7)";
+      ctx.fillText("Gitter", r.x + 8, r.y + 14);
+    }
+  }
+
+  function drawParticles() {
+    for (var i = 0; i < state.flour.length; i++) {
+      var f = state.flour[i];
+      ctx.globalAlpha = Math.max(0, f.life);
+      ctx.fillStyle = "#fffaf2";
+      ctx.beginPath();
+      ctx.arc(f.x, f.y, f.r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+    for (var s = 0; s < state.sparks.length; s++) {
+      var sp = state.sparks[s];
+      ctx.globalAlpha = Math.max(0, sp.life * 2);
+      ctx.fillStyle = sp.life > 0.3 ? "#ffb450" : "#ff7a3c";
+      ctx.beginPath();
+      ctx.arc(sp.x, sp.y, sp.r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+    for (var m = 0; m < state.smoke.length; m++) {
+      var sm = state.smoke[m];
+      ctx.globalAlpha = Math.max(0, sm.life * 0.35);
+      ctx.fillStyle = "#5a514c";
+      ctx.beginPath();
+      ctx.arc(sm.x, sm.y, sm.r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    for (var t = 0; t < state.steam.length; t++) {
+      var st = state.steam[t];
+      ctx.globalAlpha = Math.max(0, st.life * 0.4);
+      ctx.fillStyle = "#fff";
+      ctx.beginPath();
+      ctx.arc(st.x, st.y, st.r + (1 - st.life) * 4, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  function drawBrush(x, y) {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(-0.6);
+    ctx.fillStyle = "#c48a4a";
+    ctx.fillRect(-3, -6, 6, 22);
+    ctx.fillStyle = "#f2d48a";
+    ctx.beginPath();
+    ctx.moveTo(-7, 14);
+    ctx.lineTo(7, 14);
+    ctx.lineTo(4, 28);
+    ctx.lineTo(-4, 28);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  function draw() {
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, viewW, viewH);
+    var L = layout();
+    drawRoom(L);
+    var mouth = mouthOf(L.oven);
+    document.body.dataset.mx = String(Math.round(mouth.x + mouth.w / 2));
+    document.body.dataset.my = String(Math.round(mouth.y + mouth.h / 2));
+  }
+
+  function resize() {
+    dpr = Math.min(2, window.devicePixelRatio || 1);
+    viewW = Math.max(1, stage.clientWidth);
+    viewH = Math.max(1, stage.clientHeight);
+    var bw = Math.max(1, Math.round(viewW * dpr));
+    var bh = Math.max(1, Math.round(viewH * dpr));
+    if (canvas.width !== bw || canvas.height !== bh) {
+      canvas.width = bw;
+      canvas.height = bh;
+    }
+  }
+
+  function frame(now) {
+    if (!frame.last) frame.last = now;
+    var dt = clamp((now - frame.last) / 1000, 0, 0.05);
+    frame.last = now;
+    resize();
+    update(dt);
+    draw();
+    sync();
+    requestAnimationFrame(frame);
+  }
+
+  buttons.kneten.addEventListener("click", goKneten);
+  buttons.s2.addEventListener("click", function () { chooseZopf(2); });
+  buttons.s3.addEventListener("click", function () { chooseZopf(3); });
+  buttons.s4.addEventListener("click", function () { chooseZopf(4); });
+  buttons.figur.addEventListener("click", chooseFigur);
+  buttons.flechten.addEventListener("click", startBraid);
+  buttons.rosinen.addEventListener("click", toggleRosinen);
+  buttons.ei.addEventListener("click", startEi);
+  buttons.ofen.addEventListener("click", startOven);
+  buttons.raus.addEventListener("click", takeOut);
+  buttons.gitter.addEventListener("click", placeOnRack);
+  buttons.neu.addEventListener("click", neu);
+  buttons.ton.addEventListener("click", toggleTon);
+
+  canvas.addEventListener("pointerdown", onDown);
+  canvas.addEventListener("pointermove", onMove);
+  canvas.addEventListener("pointerup", onUp);
+  canvas.addEventListener("pointercancel", onUp);
+  canvas.addEventListener("contextmenu", function (e) { e.preventDefault(); });
+
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "m" || e.key === "M") toggleTon();
+    if (e.key === "n" || e.key === "N") neu();
+    if (e.key === "Escape") state.drag = null;
+  });
+
+  load();
+  sync();
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
