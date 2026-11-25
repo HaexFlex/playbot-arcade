@@ -1,0 +1,1570 @@
+<!doctype html>
+<html lang="de-CH">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Seifenblasen</title>
+<link rel="icon" href="../favicon.svg" type="image/svg+xml">
+<meta name="description" content="Seifenblasen im Sonnengarten. Halten für eine grosse Blase, schnell ziehen für viele kleine.">
+<meta name="theme-color" content="#8ec8f0">
+<style>
+html,body{margin:0;height:100%;background:#8ec8f0;color:#3a2a1c;font-family:system-ui,-apple-system,"Segoe UI",sans-serif}
+html{overflow:hidden;max-width:100%}
+body{overflow:hidden;max-width:100%;-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent}
+#app{display:flex;flex-direction:column;height:100%;height:100dvh;max-width:100%;overflow:hidden}
+#stage{position:relative;flex:1 1 auto;min-width:0;min-height:120px}
+#c{display:block;width:100%;height:100%;touch-action:none;cursor:crosshair}
+#top{position:absolute;z-index:2;left:0;right:0;top:0;padding:max(8px,env(safe-area-inset-top)) 12px 28px;background:linear-gradient(to bottom,rgba(40,80,120,.28),rgba(40,80,120,0));pointer-events:none}
+h1{margin:0;font-family:Georgia,Palatino,"Iowan Old Style",serif;font-weight:600;font-size:26px;letter-spacing:.01em;color:#fffdf6;text-shadow:0 2px 10px rgba(40,70,110,.45)}
+#status{margin:2px 0 0;font-size:14px;line-height:1.35;color:#fffaf0;text-shadow:0 1px 6px rgba(40,70,110,.5);font-variant-numeric:tabular-nums}
+#hint{position:absolute;z-index:2;left:50%;bottom:12px;transform:translateX(-50%);width:min(440px,92%);margin:0;text-align:center;pointer-events:none;color:#fffdf8;text-shadow:0 2px 8px rgba(40,60,30,.55);font-size:15px;line-height:1.35;transition:opacity .6s}
+#hint.gone{opacity:0}
+#foot{flex:0 1 auto;min-width:0;max-width:100%;max-height:46%;overflow-x:hidden;overflow-y:auto;overscroll-behavior:contain;touch-action:pan-y;display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:center;padding:8px 10px calc(8px + env(safe-area-inset-bottom));background:rgba(255,248,236,.94);border-top:1px solid rgba(120,80,40,.18);box-sizing:border-box}
+.slider{flex:1 1 230px;min-width:0;max-width:100%;display:flex;align-items:center;gap:8px;min-height:40px}
+.slider label{flex:0 1 auto;min-width:0;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.slider input{flex:1 1 0;min-width:0;width:0;height:36px;margin:0;background:transparent;-webkit-appearance:none;appearance:none}
+.slider output{flex:0 0 4.6em;text-align:right;font-size:13px;color:#6a4a30}
+input[type=range]::-webkit-slider-runnable-track{height:4px;background:rgba(120,80,40,.28);border-radius:99px}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:22px;height:22px;margin-top:-9px;border-radius:50%;background:#fff;border:2px solid #e0a04a;box-shadow:0 1px 3px rgba(80,50,20,.25)}
+input[type=range]::-moz-range-track{height:4px;background:rgba(120,80,40,.28);border:none;border-radius:99px}
+input[type=range]::-moz-range-thumb{width:22px;height:22px;border:2px solid #e0a04a;border-radius:50%;background:#fff}
+#tools{flex:0 1 auto;display:flex;flex-wrap:wrap;gap:8px;justify-content:center;align-items:center;align-content:center;min-width:0;max-width:100%}
+button{font:inherit;color:#3a2a1c;background:#fff;border:1px solid rgba(90,60,30,.28);border-radius:12px;min-height:40px;height:40px;min-width:44px;padding:8px 14px;cursor:pointer;touch-action:manipulation;align-self:center}
+button:focus-visible,input:focus-visible{outline:2px solid #e09a30;outline-offset:2px}
+button[aria-pressed="true"]{background:#f0c14a;border-color:#c88820}
+@media (max-height:520px){
+  #app{flex-direction:row}
+  #foot{flex-direction:column;flex-wrap:nowrap;align-items:stretch;justify-content:flex-start;max-height:none;height:100%;width:min(250px,46vw);overflow-x:hidden;overflow-y:auto;border-top:none;border-left:1px solid rgba(120,80,40,.18)}
+  h1{font-size:20px}
+  #hint{font-size:13px;bottom:8px}
+  .slider{display:grid;grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"lab out" "range range";column-gap:8px;row-gap:0;min-height:64px;flex:0 0 auto}
+  .slider label{grid-area:lab}
+  .slider output{grid-area:out;flex-basis:auto;text-align:right}
+  .slider input{grid-area:range;width:100%;min-width:0;height:36px}
+}
+@media (max-width:380px){
+  h1{font-size:22px}
+  .slider output{flex-basis:4.2em}
+}
+@media (prefers-reduced-motion:reduce){
+  #hint{transition:none}
+}
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="stage">
+    <canvas id="c" aria-label="Seifenblasen im Garten. Halten oder ziehen, um zu blasen."></canvas>
+    <header id="top">
+      <h1>Seifenblasen</h1>
+      <p id="status" role="status" aria-live="polite">Rekord 0,0 s</p>
+    </header>
+    <p id="hint">Halten für eine grosse Blase, schnell ziehen für viele kleine.</p>
+  </div>
+  <section id="foot" aria-label="Steuerung">
+    <div class="slider">
+      <label for="wind">Wind</label>
+      <input id="wind" type="range" min="0" max="100" step="1" value="38" aria-label="Wind">
+      <output id="windOut" for="wind">leicht</output>
+    </div>
+    <div class="slider">
+      <label for="mix">Seifenmischung</label>
+      <input id="mix" type="range" min="0" max="100" step="1" value="62" aria-label="Seifenmischung">
+      <output id="mixOut" for="mix">lang</output>
+    </div>
+    <div id="tools" role="toolbar" aria-label="Werkzeuge">
+      <button id="bFoam" type="button">Schaumbad</button>
+      <button id="bTon" type="button" aria-pressed="false">Ton</button>
+    </div>
+  </section>
+</div>
+<script>
+'use strict';
+(function () {
+  const TAU = Math.PI * 2;
+  const MAX_BUBBLES = 46;
+  const MAX_DROPS = 80;
+  const KEY = 'seifenblasen-rekord';
+  const FILM = [
+    [130, 214, 255],
+    [255, 228, 130],
+    [255, 150, 196],
+    [176, 130, 255],
+    [90, 156, 255],
+    [80, 220, 196],
+    [150, 226, 96],
+    [255, 196, 80],
+    [255, 110, 90],
+    [214, 64, 146],
+    [100, 54, 168],
+    [226, 222, 210],
+    [58, 54, 68],
+    [16, 14, 20]
+  ];
+
+  const c = document.getElementById('c');
+  const ctx = c.getContext('2d', { alpha: false });
+  const statusEl = document.getElementById('status');
+  const hintEl = document.getElementById('hint');
+  const windEl = document.getElementById('wind');
+  const mixEl = document.getElementById('mix');
+  const windOut = document.getElementById('windOut');
+  const mixOut = document.getElementById('mixOut');
+  const bFoam = document.getElementById('bFoam');
+  const bTon = document.getElementById('bTon');
+  const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  let W = 1, H = 1, dpr = 1;
+  let time = 0;
+  let record = 0;
+  let saveIn = 0;
+  let recordDirty = false;
+  let statusText = '';
+  let tonOn = false;
+  let unlocked = false;
+  let hintOn = true;
+
+  const bubbles = [];
+  const drops = [];
+  const rings = [];
+  const order = [];
+  let nextId = 1;
+  let flowers = [];
+  let grass = [];
+
+  const wand = { x: 0, y: 0, vx: 0, vy: 0, on: false, seen: false, speed: 0, spawn: 0 };
+  let grow = null;
+  let pointerId = null;
+  let lastPX = 0, lastPY = 0, lastPT = 0, haveLast = false;
+
+  const dog = {
+    x: 160, vx: 0, state: 'idle', face: 1, phase: 0, hop: 0,
+    timer: 1.3, target: null, wag: 0, ready: false
+  };
+
+  const butterfly = { x: 0.6, y: 0.28, p: 0 };
+
+  let actx = null, master = null, noiseBuf = null, blowGain = null, blowFilter = null;
+
+  function loadRecord() {
+    try {
+      const n = parseFloat(localStorage.getItem(KEY) || '');
+      if (n > 0 && n < 86400) return n;
+    } catch (err) { /* private mode */ }
+    return 0;
+  }
+  record = loadRecord();
+
+  function persistRecord() {
+    try { localStorage.setItem(KEY, String(Math.round(record * 10) / 10)); }
+    catch (err) { /* ignore */ }
+  }
+
+  function fmt(s) {
+    return (s < 0 ? 0 : s).toFixed(1).replace('.', ',');
+  }
+
+  function windUnit() { return Number(windEl.value) / 100; }
+  function mixUnit() { return Number(mixEl.value) / 100; }
+
+  function windWord(v) {
+    if (v < 12) return 'ruhig';
+    if (v < 40) return 'leicht';
+    if (v < 70) return 'frisch';
+    return 'stark';
+  }
+  function mixWord(v) {
+    if (v < 25) return 'kurz';
+    if (v < 50) return 'mittel';
+    if (v < 78) return 'lang';
+    return 'haltbar';
+  }
+  function syncOutputs() {
+    windOut.textContent = windWord(Number(windEl.value));
+    mixOut.textContent = mixWord(Number(mixEl.value));
+  }
+
+  function groundY() { return H * 0.86; }
+
+  function mulberry(seed) {
+    let s = seed >>> 0;
+    return function () {
+      s = (s + 0x6D2B79F5) >>> 0;
+      let t = s;
+      t = Math.imul(t ^ (t >>> 15), t | 1);
+      t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+
+  function layoutGarden() {
+    const rnd = mulberry(11);
+    const n = Math.max(5, Math.min(14, Math.floor(W / 78)));
+    flowers = [];
+    for (let i = 0; i < n; i++) {
+      const u = (i + 0.25 + rnd() * 0.5) / n;
+      const kind = rnd() < 0.42 ? 'daisy' : (rnd() < 0.55 ? 'poppy' : 'blue');
+      flowers.push({
+        x: u * W,
+        y: groundY() - 4 - rnd() * 14,
+        kind: kind,
+        sc: 0.75 + rnd() * 0.55
+      });
+    }
+    const g = Math.max(12, Math.min(70, Math.floor(W / 16)));
+    grass = [];
+    for (let i = 0; i < g; i++) {
+      grass.push({
+        x: ((i + rnd() * 0.8) / g) * W,
+        h: 8 + rnd() * 18,
+        lean: rnd() * 2 - 1,
+        shade: rnd()
+      });
+    }
+    if (!wand.seen) {
+      wand.x = W * 0.62;
+      wand.y = groundY() - 78;
+    }
+    const treeClear = Math.max(28, Math.min(W * 0.12, 90)) + 78;
+    if (!dog.ready) {
+      dog.x = Math.min(W - 48, Math.max(treeClear, W * 0.34));
+      dog.ready = true;
+    }
+    dog.x = Math.max(36, Math.min(W - 36, dog.x));
+  }
+
+  function resize() {
+    const stage = document.getElementById('stage');
+    dpr = Math.min(2, window.devicePixelRatio || 1);
+    W = Math.max(1, stage.clientWidth);
+    H = Math.max(1, stage.clientHeight);
+    c.width = Math.round(W * dpr);
+    c.height = Math.round(H * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    layoutGarden();
+  }
+
+  function filmRGB(thick) {
+    const u = 1 - Math.max(0, Math.min(1, thick));
+    const x = u * (FILM.length - 1);
+    const i = Math.floor(x);
+    const f = x - i;
+    const a = FILM[i];
+    const b = FILM[Math.min(FILM.length - 1, i + 1)];
+    return [
+      a[0] + (b[0] - a[0]) * f,
+      a[1] + (b[1] - a[1]) * f,
+      a[2] + (b[2] - a[2]) * f
+    ];
+  }
+
+  function localThick(b, shift) {
+    const spread = b.thick < 0.14 ? b.thick * 0.85 : 0.28 + 0.22 * (1 - b.thick);
+    return Math.max(0, Math.min(1, b.thick + shift * spread));
+  }
+
+  function rgba(rgb, a) {
+    return 'rgba(' + (rgb[0] | 0) + ',' + (rgb[1] | 0) + ',' + (rgb[2] | 0) + ',' + a + ')';
+  }
+
+  function spawn(x, y, r, vx, vy) {
+    const b = {
+      id: nextId++,
+      x: x, y: y, vx: vx, vy: vy,
+      r: r,
+      age: 0,
+      thick: 1,
+      alive: true,
+      wand: false,
+      m2: 0, v2: 0, p2: Math.random() * TAU,
+      m3: 0, v3: 0, p3: Math.random() * TAU,
+      m4: 0, v4: 0, p4: Math.random() * TAU,
+      swirl: Math.random() * TAU,
+      seed: Math.random() * 10,
+      links: []
+    };
+    bubbles.push(b);
+    return b;
+  }
+
+  function removeLink(a, b) {
+    const L = a.links;
+    for (let i = 0; i < L.length; i++) {
+      if (L[i] === b) {
+        L[i] = L[L.length - 1];
+        L.pop();
+        return;
+      }
+    }
+  }
+
+  function link(a, b) {
+    if (a === b || !a.alive || !b.alive) return;
+    for (let i = 0; i < a.links.length; i++) if (a.links[i] === b) return;
+    if (a.links.length >= 6 || b.links.length >= 6) return;
+    a.links.push(b);
+    b.links.push(a);
+  }
+
+  function restDist(a, b) {
+    return Math.sqrt(a.r * a.r + b.r * b.r + a.r * b.r);
+  }
+
+  function bump(b, ang, mag) {
+    b.v2 += Math.cos(2 * ang + b.p2) * mag;
+    b.v3 += Math.cos(3 * ang + b.p3) * mag * 0.5;
+    b.v4 += Math.cos(4 * ang + b.p4) * mag * 0.3;
+  }
+
+  function burst(x, y, r) {
+    const n = Math.min(12, 6 + (r | 0) / 6);
+    for (let i = 0; i < n; i++) {
+      if (drops.length >= MAX_DROPS) drops.shift();
+      const a = (i / n) * TAU + Math.random() * 0.4;
+      const sp = 40 + Math.random() * 90 + r * 0.8;
+      drops.push({
+        x: x, y: y,
+        vx: Math.cos(a) * sp,
+        vy: Math.sin(a) * sp - 40,
+        r: 1.3 + Math.random() * 2.1,
+        life: 0.55 + Math.random() * 0.45,
+        max: 0.55 + Math.random() * 0.45
+      });
+    }
+    rings.push({ x: x, y: y, r: r, t: 0 });
+    if (rings.length > 16) rings.shift();
+  }
+
+  function noteAge(age) {
+    if (age > record) {
+      record = age;
+      recordDirty = true;
+    }
+  }
+
+  function popBubble(b, noisy) {
+    if (!b || !b.alive) return;
+    b.alive = false;
+    if (grow === b) grow = null;
+    const links = b.links;
+    for (let i = 0; i < links.length; i++) removeLink(links[i], b);
+    b.links.length = 0;
+    noteAge(b.age);
+    if (noisy) {
+      burst(b.x, b.y, b.r);
+      popSound(b.r);
+    }
+    if (dog.target === b) dog.target = null;
+  }
+
+  function compact() {
+    for (let i = bubbles.length - 1; i >= 0; i--) {
+      if (!bubbles[i].alive) bubbles.splice(i, 1);
+    }
+  }
+
+  function makeRoom(n) {
+    while (bubbles.length + n > MAX_BUBBLES) {
+      let idx = -1;
+      for (let i = 0; i < bubbles.length; i++) {
+        const b = bubbles[i];
+        if (!b.wand && b.links.length === 0) { idx = i; break; }
+      }
+      if (idx < 0) {
+        for (let i = 0; i < bubbles.length; i++) if (!bubbles[i].wand) { idx = i; break; }
+      }
+      if (idx < 0) return false;
+      popBubble(bubbles[idx], false);
+      compact();
+    }
+    return true;
+  }
+
+  function thinRate(b) {
+    const mix = mixUnit();
+    const base = 0.085 - mix * 0.068;
+    const size = 20 / (b.r + 16);
+    return base * (0.7 + size);
+  }
+
+  function breeze(t) {
+    const w = windUnit();
+    const gust = Math.sin(t * 0.37) * 0.55 + Math.sin(t * 0.13 + 1.7) * 0.45;
+    const lift = Math.sin(t * 0.23 + 0.4) * 0.35;
+    return {
+      x: w * (26 + 48 * gust),
+      y: w * (-8 * lift),
+      mag: w * (1 + 0.6 * Math.abs(gust))
+    };
+  }
+
+  function releaseGrow(extra) {
+    if (!grow || !grow.alive) { grow = null; return; }
+    const b = grow;
+    b.wand = false;
+    const br = breeze(time);
+    b.vx = wand.vx * 0.18 + br.x * 0.35 + (extra || 0);
+    b.vy = -22 - b.r * 0.12 + wand.vy * 0.12;
+    bump(b, Math.random() * TAU, 2.5);
+    grow = null;
+  }
+
+  function foamBath() {
+    if (!makeRoom(9)) return;
+    const cx = W * 0.5;
+    const cy = Math.max(70, H * 0.36);
+    const center = spawn(cx, cy, 26, 0, -12);
+    center.thick = 0.92;
+    const ring = [];
+    const n = 6;
+    for (let i = 0; i < n; i++) {
+      const ang = (i / n) * TAU + 0.2;
+      const r = 16 + (i % 3) * 3;
+      const d = restDist(center, { r: r });
+      const b = spawn(cx + Math.cos(ang) * d, cy + Math.sin(ang) * d * 0.92, r, Math.cos(ang) * 6, -18);
+      b.thick = 0.78 + (i % 4) * 0.05;
+      b.swirl = ang * 2;
+      link(center, b);
+      ring.push(b);
+    }
+    for (let i = 0; i < ring.length; i++) link(ring[i], ring[(i + 1) % ring.length]);
+    const extraA = spawn(cx + 8, cy - restDist(center, { r: 13 }) - 6, 13, 4, -20);
+    const extraB = spawn(cx - 36, cy + 10, 12, -6, -14);
+    extraA.thick = 0.7;
+    extraB.thick = 0.84;
+    link(extraA, center);
+    link(extraA, ring[0]);
+    link(extraA, ring[1] || ring[0]);
+    link(extraB, ring[3] || ring[0]);
+    link(extraB, ring[4] || ring[0]);
+    for (let k = 0; k < 18; k++) solveLinks(1);
+  }
+
+  function seedSky() {
+    const spots = [[0.28, 0.30, 30], [0.48, 0.18, 16], [0.66, 0.38, 22], [0.4, 0.5, 13]];
+    for (let i = 0; i < spots.length; i++) {
+      const s = spots[i];
+      const b = spawn(W * s[0], H * s[1], s[2], 10 - i * 4, -8 - i * 3);
+      b.age = 1.2 + i * 0.7;
+      b.thick = Math.max(0.35, 1 - b.age * thinRate(b));
+      b.swirl = i * 1.7;
+    }
+    if (bubbles.length >= 2) {
+      link(bubbles[2], bubbles[3]);
+      solveLinks(1);
+    }
+  }
+
+  function shapeAt(b, ang) {
+    let s = 1
+      + b.m2 * Math.cos(2 * ang + b.p2)
+      + b.m3 * Math.cos(3 * ang + b.p3)
+      + b.m4 * Math.cos(4 * ang + b.p4);
+    if (s < 0.74) s = 0.74;
+    if (s > 1.26) s = 1.26;
+    return s;
+  }
+
+  function springMode(amp, vel, omega, damp, drive, dt) {
+    vel += (-omega * omega * amp - damp * vel + drive) * dt;
+    amp += vel * dt;
+    if (amp > 0.09) { amp = 0.09; vel *= -0.2; }
+    if (amp < -0.09) { amp = -0.09; vel *= -0.2; }
+    return [amp, vel];
+  }
+
+  function solveLinks(passes) {
+    for (let pass = 0; pass < passes; pass++) {
+      for (let i = 0; i < bubbles.length; i++) {
+        const a = bubbles[i];
+        if (!a.alive || a.wand) continue;
+        const L = a.links;
+        for (let k = 0; k < L.length; k++) {
+          const b = L[k];
+          if (!b.alive || b.wand || b.id < a.id) continue;
+          let dx = b.x - a.x;
+          let dy = b.y - a.y;
+          let d = Math.hypot(dx, dy);
+          if (d < 0.001) { d = 0.001; dx = 0.001; }
+          const rest = restDist(a, b);
+          const nx = dx / d;
+          const ny = dy / d;
+          const wa = 1 / (a.r * a.r);
+          const wb = 1 / (b.r * b.r);
+          const inv = wa + wb;
+          let diff = d - rest;
+          if (diff > 24) diff = 24;
+          else if (diff < -24) diff = -24;
+          const corr = diff / d * 0.72;
+          a.x += dx * corr * wa / inv;
+          a.y += dy * corr * wa / inv;
+          b.x -= dx * corr * wb / inv;
+          b.y -= dy * corr * wb / inv;
+          const relN = (b.vx - a.vx) * nx + (b.vy - a.vy) * ny;
+          const relTx = (b.vx - a.vx) - relN * nx;
+          const relTy = (b.vy - a.vy) - relN * ny;
+          const dampN = relN * 0.45;
+          a.vx += dampN * nx * wa / inv;
+          a.vy += dampN * ny * wa / inv;
+          b.vx -= dampN * nx * wb / inv;
+          b.vy -= dampN * ny * wb / inv;
+          const fr = 0.18;
+          a.vx += relTx * fr * wa / inv;
+          a.vy += relTy * fr * wa / inv;
+          b.vx -= relTx * fr * wb / inv;
+          b.vy -= relTy * fr * wb / inv;
+        }
+      }
+    }
+  }
+
+  function collidePair(a, b) {
+    if (!a.alive || !b.alive || a.wand || b.wand) return;
+    let dx = b.x - a.x;
+    let dy = b.y - a.y;
+    const reach = a.r + b.r;
+    const rr = dx * dx + dy * dy;
+    if (rr > reach * reach || rr < 0.0001) return;
+    const d = Math.sqrt(rr);
+    const nx = dx / d;
+    const ny = dy / d;
+    let linked = false;
+    for (let i = 0; i < a.links.length; i++) if (a.links[i] === b) { linked = true; break; }
+    const rel = (b.vx - a.vx) * nx + (b.vy - a.vy) * ny;
+    if (!linked) {
+      const gentle = rel > -150;
+      if (gentle && a.links.length < 6 && b.links.length < 6) {
+        link(a, b);
+        const ang = Math.atan2(ny, nx);
+        bump(a, ang, 1.4);
+        bump(b, ang + Math.PI, 1.4);
+        return;
+      }
+      const overlap = reach - d;
+      const wa = 1 / (a.r * a.r);
+      const wb = 1 / (b.r * b.r);
+      const inv = wa + wb;
+      a.x -= nx * overlap * wa / inv;
+      a.y -= ny * overlap * wa / inv;
+      b.x += nx * overlap * wb / inv;
+      b.y += ny * overlap * wb / inv;
+      if (rel < 0) {
+        const impulse = -(1.28) * rel;
+        a.vx -= impulse * nx * wa / inv;
+        a.vy -= impulse * ny * wa / inv;
+        b.vx += impulse * nx * wb / inv;
+        b.vy += impulse * ny * wb / inv;
+        const ang = Math.atan2(ny, nx);
+        const mag = Math.min(6, -rel * 0.03);
+        bump(a, ang, mag);
+        bump(b, ang + Math.PI, mag);
+      }
+    }
+  }
+
+  function collideAll() {
+    const n = bubbles.length;
+    for (let i = 0; i < n; i++) {
+      const a = bubbles[i];
+      if (!a.alive || a.wand) continue;
+      for (let j = i + 1; j < n; j++) collidePair(a, bubbles[j]);
+    }
+  }
+
+  function bounds(b) {
+    const g = groundY() - b.r * 0.9;
+    if (b.y > g) {
+      b.y = g;
+      if (b.vy > 0) {
+        bump(b, -Math.PI / 2, Math.min(5, b.vy * 0.04));
+        b.vy *= -0.22;
+      }
+      b.vx *= 0.9;
+    }
+    if (b.x < b.r + 1) {
+      b.x = b.r + 1;
+      if (b.vx < 0) b.vx *= -0.35;
+    } else if (b.x > W - b.r - 1) {
+      b.x = W - b.r - 1;
+      if (b.vx > 0) b.vx *= -0.35;
+    }
+  }
+
+  function pickTarget() {
+    const gy = groundY();
+    let best = null;
+    let bestScore = 1e9;
+    for (let i = 0; i < bubbles.length; i++) {
+      const b = bubbles[i];
+      if (!b.alive || b.wand) continue;
+      const hopReach = Math.min(200, H * 0.34);
+      if (b.y + b.r < gy - hopReach || b.y > gy + 8) continue;
+      if (b.x < -20 || b.x > W + 20) continue;
+      const score = Math.abs(b.x - dog.x) + (gy - b.y) * 0.35;
+      if (score < bestScore) { bestScore = score; best = b; }
+    }
+    return best;
+  }
+
+  function dogMouth() {
+    const gy = groundY();
+    return {
+      x: dog.x + dog.face * 46,
+      y: gy - dog.hop - 52
+    };
+  }
+
+  function tryChomp() {
+    const m = dogMouth();
+    const reach = dog.state === 'jump' ? 20 : 16;
+    let hit = dog.target;
+    if (hit && hit.alive) {
+      if (Math.hypot(hit.x - m.x, hit.y - m.y) < hit.r + reach) {
+        popBubble(hit, true);
+        return;
+      }
+    }
+    if (dog.state !== 'run' && dog.state !== 'jump') return;
+    for (let i = 0; i < bubbles.length; i++) {
+      const b = bubbles[i];
+      if (!b.alive || b.wand) continue;
+      if (Math.hypot(b.x - m.x, b.y - m.y) < b.r + reach * 0.85) {
+        popBubble(b, true);
+        return;
+      }
+    }
+  }
+
+  function updateDog(dt) {
+    const gy = groundY();
+    dog.wag += dt * (dog.state === 'idle' ? 6 : 11);
+    dog.timer -= dt;
+    if (!dog.target || !dog.target.alive) dog.target = null;
+
+    if (dog.state === 'idle') {
+      dog.hop = 0;
+      dog.phase += dt * 1.5;
+      dog.vx = 0;
+      if (dog.timer <= 0) {
+        dog.target = pickTarget();
+        if (dog.target) {
+          dog.state = 'run';
+          dog.timer = 4;
+        } else {
+          dog.face = dog.x > W * 0.5 ? -1 : 1;
+          dog.timer = 1.6 + Math.random();
+        }
+      }
+    } else if (dog.state === 'run') {
+      dog.hop = Math.abs(Math.sin(dog.phase)) * 3;
+      if (!dog.target) {
+        dog.state = 'idle';
+        dog.timer = 1.2;
+        return;
+      }
+      const dx = dog.target.x - dog.x;
+      dog.face = dx < 0 ? -1 : 1;
+      const sp = 150;
+      dog.x += dog.face * sp * dt;
+      dog.phase += dt * 11;
+      tryChomp();
+      const hopReach = Math.min(200, H * 0.34);
+      if (Math.abs(dx) < 28 && dog.target && dog.target.y > gy - hopReach - 10) {
+        dog.state = 'jump';
+        dog.timer = 0.62;
+        dog.phase = 0;
+      } else if (dog.timer <= 0 || dog.x < 24 || dog.x > W - 24) {
+        dog.state = 'idle';
+        dog.timer = 1.4;
+        dog.target = null;
+      }
+    } else if (dog.state === 'jump') {
+      dog.timer -= 0;
+      const dur = 0.62;
+      const u = 1 - Math.max(0, dog.timer) / dur;
+      dog.hop = Math.sin(Math.min(1, u) * Math.PI) * Math.min(130, H * 0.2);
+      if (dog.target && dog.target.alive) {
+        dog.x += (dog.target.x - dog.x) * Math.min(1, dt * 3.2);
+        dog.face = dog.target.x < dog.x ? -1 : 1;
+      }
+      dog.x = Math.max(28, Math.min(W - 28, dog.x));
+      tryChomp();
+      if (u >= 1) {
+        dog.hop = 0;
+        dog.state = 'idle';
+        dog.timer = 1.8 + Math.random() * 1.6;
+        dog.target = null;
+      }
+    }
+  }
+
+  function stepBubble(b, dt, br) {
+    const drag = 2.15 * (28 / (b.r + 12));
+    const rise = 7 + b.r * 0.1;
+    const k = Math.min(1, drag * dt);
+    b.vx += (br.x - b.vx) * k;
+    b.vy += ((-rise + br.y) - b.vy) * Math.min(1, drag * 0.62 * dt);
+    b.x += b.vx * dt;
+    b.y += b.vy * dt;
+    const scale = Math.sqrt(32 / b.r);
+    const drive = (reduce ? 0.25 : 1) * br.mag * 7 * Math.sin(time * 2.1 + b.seed);
+    const s2 = springMode(b.m2, b.v2, 7.5 * scale, 2.4 * scale, drive, dt);
+    const s3 = springMode(b.m3, b.v3, 11.5 * scale, 3.1 * scale, drive * 0.45 * Math.sin(time * 3 + b.seed), dt);
+    const s4 = springMode(b.m4, b.v4, 15 * scale, 3.5 * scale, drive * 0.22, dt);
+    b.m2 = s2[0]; b.v2 = s2[1];
+    b.m3 = s3[0]; b.v3 = s3[1];
+    b.m4 = s4[0]; b.v4 = s4[1];
+    b.p2 += dt * (0.6 + br.mag);
+    b.p3 += dt * 0.9;
+    b.p4 += dt * 1.3;
+    b.swirl += dt * (0.7 + 0.5 * Math.sin(b.seed)) * (reduce ? 0.35 : 1);
+    b.age += dt;
+    b.thick -= thinRate(b) * dt;
+    if (b.thick <= 0) popBubble(b, true);
+    else noteAge(b.age);
+  }
+
+  function update(dt) {
+    const br = breeze(time);
+    if (wand.on) {
+      if (wand.speed < 170) {
+        if (!grow || !grow.alive) {
+          if (makeRoom(1)) {
+            grow = spawn(wand.x, wand.y, 8, 0, 0);
+            grow.wand = true;
+            grow.thick = 1;
+          }
+        }
+        if (grow && grow.alive) {
+          const maxR = Math.min(84, Math.min(W, H) * 0.2);
+          grow.r += (maxR - grow.r) * Math.min(1, dt * 0.48);
+          grow.x = wand.x;
+          grow.y = wand.y;
+          grow.vx = wand.vx;
+          grow.vy = wand.vy;
+          grow.v2 += Math.sin(time * 10) * dt * 3.2;
+          if (grow.r > maxR - 1.2) releaseGrow(0);
+        }
+        setBlow(0.35 + wand.speed / 400);
+      } else {
+        releaseGrow(wand.vx * 0.05);
+        const rate = 7 + wand.speed / 55;
+        wand.spawn += rate * dt;
+        const dir = Math.hypot(wand.vx, wand.vy) || 1;
+        while (wand.spawn >= 1) {
+          wand.spawn -= 1;
+          if (!makeRoom(1)) break;
+          const rad = Math.max(5.5, Math.min(12.5, 15 - wand.speed / 95));
+          const jitter = (Math.random() - 0.5) * 0.5;
+          const ang = Math.atan2(wand.vy, wand.vx) + jitter;
+          const sp = wand.speed * 0.22;
+          const b = spawn(
+            wand.x + Math.cos(ang) * 8,
+            wand.y + Math.sin(ang) * 8,
+            rad,
+            Math.cos(ang) * sp + (Math.random() - 0.5) * 18,
+            Math.sin(ang) * sp - 26 + (Math.random() - 0.5) * 16
+          );
+          b.swirl = Math.random() * TAU;
+          bump(b, ang, 1.2);
+        }
+        setBlow(Math.min(1, 0.45 + wand.speed / 700));
+      }
+    } else {
+      setBlow(0);
+      wand.spawn = 0;
+    }
+
+    for (let i = 0; i < bubbles.length; i++) {
+      const b = bubbles[i];
+      if (!b.alive || b.wand) {
+        if (b.alive && b.wand) {
+          b.age += dt;
+          b.thick -= thinRate(b) * 0.35 * dt;
+          const sc = Math.sqrt(32 / Math.max(8, b.r));
+          const s2 = springMode(b.m2, b.v2, 8 * sc, 1.6 * sc, Math.sin(time * 9) * 8, dt);
+          b.m2 = s2[0]; b.v2 = s2[1];
+          b.swirl += dt * 1.4;
+          b.p2 += dt * 1.5;
+          if (b.thick <= 0) popBubble(b, true);
+        }
+        continue;
+      }
+      stepBubble(b, dt, br);
+    }
+
+    collideAll();
+    solveLinks(5);
+    for (let i = 0; i < bubbles.length; i++) {
+      const b = bubbles[i];
+      if (b.alive && !b.wand) bounds(b);
+    }
+    solveLinks(2);
+
+    for (let i = 0; i < bubbles.length; i++) {
+      const b = bubbles[i];
+      if (!b.alive || b.wand) continue;
+      if (b.y < -b.r * 2) popBubble(b, false);
+    }
+
+    updateDog(dt);
+    tryChomp();
+
+    for (let i = drops.length - 1; i >= 0; i--) {
+      const d = drops[i];
+      d.life -= dt;
+      d.vy += 520 * dt;
+      d.x += d.vx * dt;
+      d.y += d.vy * dt;
+      const g = groundY() - 2;
+      if (d.y > g) {
+        d.y = g;
+        d.vy *= -0.25;
+        d.vx *= 0.6;
+      }
+      if (d.life <= 0) drops.splice(i, 1);
+    }
+    for (let i = rings.length - 1; i >= 0; i--) {
+      rings[i].t += dt;
+      if (rings[i].t > 0.35) rings.splice(i, 1);
+    }
+
+    if (!wand.on && !wand.seen) {
+      wand.y = groundY() - 78 + Math.sin(time * 1.6) * 3;
+      wand.x = W * 0.62;
+    }
+
+    butterfly.p += dt * (reduce ? 1.2 : 3.4);
+    if (recordDirty) {
+      saveIn += dt;
+      if (saveIn > 0.5) {
+        persistRecord();
+        recordDirty = false;
+        saveIn = 0;
+      }
+    }
+    compact();
+    paintStatus();
+  }
+
+  function paintStatus() {
+    let oldest = 0;
+    for (let i = 0; i < bubbles.length; i++) {
+      const b = bubbles[i];
+      if (b.alive && !b.wand && b.age > oldest) oldest = b.age;
+    }
+    let text = 'Rekord ' + fmt(record) + ' s';
+    if (oldest > 0.15) text += ' · Älteste ' + fmt(oldest) + ' s';
+    if (text !== statusText) {
+      statusText = text;
+      statusEl.textContent = text;
+    }
+  }
+
+  function bubblePath(b, samples) {
+    ctx.beginPath();
+    for (let i = 0; i <= samples; i++) {
+      const a = (i / samples) * TAU;
+      const rr = b.r * shapeAt(b, a);
+      const x = b.x + Math.cos(a) * rr;
+      const y = b.y + Math.sin(a) * rr;
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    }
+    ctx.closePath();
+  }
+
+  function hidden(b, x, y) {
+    const L = b.links;
+    for (let i = 0; i < L.length; i++) {
+      const o = L[i];
+      if (!o.alive) continue;
+      const dx = x - o.x;
+      const dy = y - o.y;
+      const rad = o.r * shapeAt(o, Math.atan2(dy, dx)) - 1.2;
+      if (dx * dx + dy * dy < rad * rad) return true;
+    }
+    return false;
+  }
+
+  function drawBubble(b) {
+    const gy = groundY();
+    if (b.y > gy - 180) {
+      const k = Math.max(0, Math.min(1, (b.y - (gy - 180)) / 180));
+      ctx.fillStyle = 'rgba(30,60,20,' + (0.1 * k) + ')';
+      ctx.beginPath();
+      ctx.ellipse(b.x, gy - 1, b.r * 0.5, 3.5, 0, 0, TAU);
+      ctx.fill();
+    }
+
+    ctx.save();
+    bubblePath(b, 18);
+    ctx.clip();
+    ctx.fillStyle = 'rgba(255,255,255,' + (0.05 + 0.05 * b.thick) + ')';
+    ctx.fillRect(b.x - b.r - 2, b.y - b.r - 2, b.r * 2 + 4, b.r * 2 + 4);
+
+    if (b.thick < 0.22) {
+      const k = (0.22 - b.thick) / 0.22;
+      ctx.fillStyle = 'rgba(10,12,18,' + (0.55 * k) + ')';
+      ctx.fillRect(b.x - b.r - 2, b.y - b.r - 2, b.r * 2 + 4, b.r * 2 + 4);
+    }
+
+    const bands = b.r < 14 ? 2 : 3;
+    for (let k = 0; k < bands; k++) {
+      const rad = b.r * (0.28 + k * 0.2);
+      const phase = b.swirl * (0.65 + k * 0.15) + k * 1.3;
+      ctx.beginPath();
+      const steps = 14;
+      for (let i = 0; i <= steps; i++) {
+        const a = (i / steps) * TAU;
+        const wob = 0.78 + 0.22 * Math.sin(2 * a + phase);
+        const rr = rad * wob * shapeAt(b, a);
+        const x = b.x + Math.cos(a + phase * 0.08) * rr;
+        const y = b.y + Math.sin(a + phase * 0.08) * rr * 0.94;
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      }
+      ctx.closePath();
+      const col = filmRGB(localThick(b, (k - 1) * 0.22 + 0.08 * Math.sin(b.swirl + k)));
+      const alpha = (0.32 + 0.28 * Math.min(1, b.thick * 1.3)) * (b.thick < 0.12 ? b.thick / 0.12 : 1);
+      ctx.strokeStyle = rgba(col, alpha);
+      ctx.lineWidth = Math.max(2, b.r * 0.13);
+      ctx.stroke();
+    }
+
+    ctx.beginPath();
+    ctx.ellipse(b.x - b.r * 0.32, b.y - b.r * 0.36, b.r * 0.2, b.r * 0.11, -0.7, 0, TAU);
+    ctx.fillStyle = 'rgba(255,255,255,' + (0.28 + 0.35 * Math.min(1, b.thick)) + ')';
+    ctx.fill();
+    ctx.beginPath();
+    ctx.ellipse(b.x + b.r * 0.28, b.y + b.r * 0.3, b.r * 0.08, b.r * 0.05, 0.4, 0, TAU);
+    ctx.fillStyle = 'rgba(255,255,255,0.22)';
+    ctx.fill();
+    ctx.restore();
+
+    const seg = b.r < 16 ? 7 : 9;
+    for (let i = 0; i < seg; i++) {
+      const a0 = (i / seg) * TAU - Math.PI / 2;
+      const a1 = ((i + 1) / seg) * TAU - Math.PI / 2;
+      const am = (a0 + a1) / 2;
+      const outer = b.r * shapeAt(b, am);
+      const x = b.x + Math.cos(am) * outer;
+      const y = b.y + Math.sin(am) * outer;
+      if (hidden(b, x, y)) continue;
+      const col = filmRGB(localThick(b, 0.2 * Math.sin(am * 2 + b.swirl) + 0.08 * Math.cos(am - b.swirl)));
+      const dark = b.thick < 0.1;
+      ctx.beginPath();
+      const inset = dark ? 0.9 : 0.78;
+      for (let s = 0; s <= 2; s++) {
+        const a = a0 + (a1 - a0) * (s / 2);
+        const rr = b.r * shapeAt(b, a);
+        const px = b.x + Math.cos(a) * rr;
+        const py = b.y + Math.sin(a) * rr;
+        if (s === 0) ctx.moveTo(px, py);
+        else ctx.lineTo(px, py);
+      }
+      for (let s = 2; s >= 0; s--) {
+        const a = a0 + (a1 - a0) * (s / 2);
+        const rr = b.r * shapeAt(b, a) * inset;
+        ctx.lineTo(b.x + Math.cos(a) * rr, b.y + Math.sin(a) * rr);
+      }
+      ctx.closePath();
+      ctx.fillStyle = rgba(col, dark ? 0.35 + b.thick * 3 : 0.82);
+      ctx.fill();
+    }
+  }
+
+  function drawSeptum(a, b) {
+    const dx = b.x - a.x;
+    const dy = b.y - a.y;
+    const d = Math.hypot(dx, dy);
+    if (d < 1 || d > a.r + b.r - 0.5) return;
+    const A = (a.r * a.r - b.r * b.r + d * d) / (2 * d);
+    const h2 = a.r * a.r - A * A;
+    if (h2 <= 1) return;
+    const h = Math.sqrt(h2);
+    const mx = a.x + (dx / d) * A;
+    const my = a.y + (dy / d) * A;
+    const px = -dy / d;
+    const py = dx / d;
+    const x1 = mx + px * h;
+    const y1 = my + py * h;
+    const x2 = mx - px * h;
+    const y2 = my - py * h;
+    const inv = Math.abs(1 / a.r - 1 / b.r);
+    let sagitta = 0;
+    if (inv > 0.0008) {
+      const Rf = 1 / inv;
+      if (h < Rf * 0.98) sagitta = Rf - Math.sqrt(Math.max(0, Rf * Rf - h * h));
+      else sagitta = h * 0.45;
+      sagitta = Math.min(sagitta, h * 0.85);
+    }
+    const towardLarge = a.r >= b.r ? -1 : 1;
+    const cx = mx + towardLarge * (dx / d) * sagitta;
+    const cy = my + towardLarge * (dy / d) * sagitta;
+    const thick = (a.thick + b.thick) * 0.5;
+    const col = filmRGB(localThick({ thick: thick, swirl: a.swirl }, 0.05));
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(x1, y1);
+    ctx.quadraticCurveTo(cx, cy, x2, y2);
+    ctx.strokeStyle = rgba(col, 0.45);
+    ctx.lineWidth = 3;
+    ctx.stroke();
+    ctx.strokeStyle = 'rgba(255,255,255,' + (0.35 + 0.4 * thick) + ')';
+    ctx.lineWidth = 1.35;
+    ctx.stroke();
+  }
+
+  function drawGarden(br) {
+    const gy = groundY();
+    const sky = ctx.createLinearGradient(0, 0, 0, H);
+    sky.addColorStop(0, '#6eb6ef');
+    sky.addColorStop(0.42, '#b9e4fb');
+    sky.addColorStop(0.7, '#fff3d4');
+    sky.addColorStop(0.86, '#d7ef9a');
+    sky.addColorStop(1, '#7fbf55');
+    ctx.fillStyle = sky;
+    ctx.fillRect(0, 0, W, H);
+
+    const sx = W * 0.8;
+    const sy = Math.max(36, H * 0.14);
+    const glow = ctx.createRadialGradient(sx, sy, 8, sx, sy, Math.min(W, H) * 0.28);
+    glow.addColorStop(0, 'rgba(255,252,230,0.95)');
+    glow.addColorStop(0.25, 'rgba(255,214,110,0.45)');
+    glow.addColorStop(1, 'rgba(255,200,80,0)');
+    ctx.fillStyle = glow;
+    ctx.beginPath();
+    ctx.arc(sx, sy, Math.min(W, H) * 0.28, 0, TAU);
+    ctx.fill();
+    ctx.fillStyle = '#fff7cf';
+    ctx.beginPath();
+    ctx.arc(sx, sy, Math.max(14, Math.min(26, W * 0.02)), 0, TAU);
+    ctx.fill();
+
+    for (let i = 0; i < 3; i++) {
+      const speed = 8 + br.mag * 18 + i * 4;
+      const base = (i === 0 ? 0.12 : i === 1 ? 0.55 : 0.82) * W;
+      const x = ((base + time * speed) % (W + 220)) - 80;
+      const y = H * (0.1 + i * 0.06);
+      const s = 0.75 + i * 0.18;
+      ctx.fillStyle = 'rgba(255,255,255,0.82)';
+      ctx.beginPath();
+      ctx.ellipse(x, y, 34 * s, 16 * s, 0, 0, TAU);
+      ctx.ellipse(x + 26 * s, y + 4, 24 * s, 14 * s, 0, 0, TAU);
+      ctx.ellipse(x - 24 * s, y + 6, 20 * s, 12 * s, 0, 0, TAU);
+      ctx.fill();
+    }
+
+    ctx.fillStyle = '#8fc86a';
+    ctx.beginPath();
+    ctx.moveTo(0, gy - 8);
+    ctx.quadraticCurveTo(W * 0.25, gy - H * 0.08, W * 0.5, gy - 4);
+    ctx.quadraticCurveTo(W * 0.78, gy + H * 0.03, W, gy - 16);
+    ctx.lineTo(W, H);
+    ctx.lineTo(0, H);
+    ctx.fill();
+
+    ctx.fillStyle = '#6eae48';
+    ctx.beginPath();
+    ctx.moveTo(0, gy + 6);
+    ctx.quadraticCurveTo(W * 0.4, gy - 10, W, gy + 10);
+    ctx.lineTo(W, H);
+    ctx.lineTo(0, H);
+    ctx.fill();
+
+    drawTree();
+    drawBush();
+
+    for (let i = 0; i < flowers.length; i++) {
+      const f = flowers[i];
+      if (f.kind === 'daisy') drawDaisy(f.x, f.y, f.sc);
+      else if (f.kind === 'poppy') drawPoppy(f.x, f.y, f.sc);
+      else drawBlue(f.x, f.y, f.sc);
+    }
+
+    const sway = (6 + br.mag * 16) * (reduce ? 0.3 : 1);
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    for (let i = 0; i < grass.length; i++) {
+      const g = grass[i];
+      const lean = g.lean * 4 + Math.sin(time * 1.7 + i) * sway * 0.35;
+      ctx.moveTo(g.x, gy + 2);
+      ctx.quadraticCurveTo(g.x + lean * 0.4, gy - g.h * 0.45, g.x + lean, gy - g.h);
+    }
+    ctx.strokeStyle = 'rgba(48,110,36,0.85)';
+    ctx.lineWidth = 1.6;
+    ctx.stroke();
+
+    drawButterfly();
+  }
+
+  function drawTree() {
+    const x = Math.max(28, Math.min(W * 0.12, 90));
+    const base = groundY();
+    const top = Math.min(base - 80, H * 0.42);
+    ctx.fillStyle = '#6b442c';
+    ctx.fillRect(x - 6, top + 28, 13, Math.max(20, base - top - 24));
+    const blobs = [[0, 8, 40], [26, 16, 30], [-24, 14, 28], [6, -16, 28]];
+    ctx.fillStyle = '#3d8c3a';
+    for (let i = 0; i < blobs.length; i++) {
+      ctx.beginPath();
+      ctx.arc(x + blobs[i][0], top + blobs[i][1], blobs[i][2], 0, TAU);
+      ctx.fill();
+    }
+    ctx.fillStyle = '#69b85c';
+    ctx.beginPath();
+    ctx.arc(x + 12, top - 8, 18, 0, TAU);
+    ctx.fill();
+  }
+
+  function drawBush() {
+    const x = W * 0.9;
+    const y = groundY() - 8;
+    ctx.fillStyle = '#3f8a3c';
+    ctx.beginPath();
+    ctx.arc(x, y - 16, 26, 0, TAU);
+    ctx.arc(x - 22, y - 8, 18, 0, TAU);
+    ctx.arc(x + 18, y - 6, 16, 0, TAU);
+    ctx.fill();
+    ctx.fillStyle = '#ef5d6a';
+    ctx.beginPath();
+    ctx.arc(x - 8, y - 22, 3.2, 0, TAU);
+    ctx.arc(x + 10, y - 16, 2.6, 0, TAU);
+    ctx.arc(x - 2, y - 10, 2.4, 0, TAU);
+    ctx.fill();
+  }
+
+  function drawDaisy(x, y, sc) {
+    ctx.fillStyle = '#fffef8';
+    for (let i = 0; i < 7; i++) {
+      const a = (i / 7) * TAU;
+      ctx.beginPath();
+      ctx.ellipse(x + Math.cos(a) * 6 * sc, y + Math.sin(a) * 3.2 * sc, 3 * sc, 1.5 * sc, a, 0, TAU);
+      ctx.fill();
+    }
+    ctx.fillStyle = '#f0c043';
+    ctx.beginPath();
+    ctx.arc(x, y, 2.3 * sc, 0, TAU);
+    ctx.fill();
+  }
+
+  function drawPoppy(x, y, sc) {
+    ctx.fillStyle = '#e4493e';
+    ctx.beginPath();
+    ctx.ellipse(x, y, 6 * sc, 4.2 * sc, -0.3, 0, TAU);
+    ctx.fill();
+    ctx.fillStyle = '#2c1814';
+    ctx.beginPath();
+    ctx.arc(x, y, 1.6 * sc, 0, TAU);
+    ctx.fill();
+  }
+
+  function drawBlue(x, y, sc) {
+    ctx.fillStyle = '#4a6fe0';
+    for (let i = 0; i < 6; i++) {
+      const a = (i / 6) * TAU;
+      ctx.beginPath();
+      ctx.ellipse(x + Math.cos(a) * 4 * sc, y + Math.sin(a) * 4 * sc, 2.4 * sc, 1.3 * sc, a, 0, TAU);
+      ctx.fill();
+    }
+    ctx.fillStyle = '#d9e4ff';
+    ctx.beginPath();
+    ctx.arc(x, y, 1.5 * sc, 0, TAU);
+    ctx.fill();
+  }
+
+  function drawButterfly() {
+    const x = W * (0.4 + 0.18 * Math.sin(butterfly.p * 0.31));
+    const y = Math.max(78, H * (0.3 + 0.05 * Math.sin(butterfly.p * 0.47 + 1)));
+    const lift = 0.62 + 0.38 * Math.sin(butterfly.p * 8);
+    ctx.fillStyle = 'rgba(255, 176, 64, 0.95)';
+    ctx.beginPath();
+    ctx.ellipse(x - 9, y, 11, 7 * lift, -0.45, 0, TAU);
+    ctx.ellipse(x + 9, y, 11, 7 * lift, 0.45, 0, TAU);
+    ctx.fill();
+    ctx.fillStyle = 'rgba(255, 120, 90, 0.9)';
+    ctx.beginPath();
+    ctx.ellipse(x - 8, y + 1, 5, 3.2 * lift, -0.4, 0, TAU);
+    ctx.ellipse(x + 8, y + 1, 5, 3.2 * lift, 0.4, 0, TAU);
+    ctx.fill();
+    ctx.strokeStyle = '#5a3216';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(x, y - 5);
+    ctx.lineTo(x, y + 5);
+    ctx.stroke();
+  }
+
+  function drawDog() {
+    const gy = groundY();
+    const hop = dog.hop;
+    ctx.fillStyle = 'rgba(40,70,20,' + (0.18 * (1 - hop / 120)) + ')';
+    ctx.beginPath();
+    ctx.ellipse(dog.x, gy + 2, 26 * (1 - hop / 200), 4.5, 0, 0, TAU);
+    ctx.fill();
+
+    ctx.save();
+    ctx.translate(dog.x, gy - hop);
+    ctx.scale(dog.face * 1.18, 1.18);
+
+    const swing = dog.state === 'run' ? Math.sin(dog.phase) * 7 : (dog.state === 'jump' ? 5 : Math.sin(time * 2) * 1.1);
+    const tuck = dog.state === 'jump' ? -8 : 0;
+    function leg(x, s, color) {
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      ctx.ellipse(x + s * 0.35, -9 + tuck * 0.35, 4.3, 11, s * 0.03, 0, TAU);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.ellipse(x + s, -1 + tuck, 5, 2.3, 0, 0, TAU);
+      ctx.fill();
+    }
+    leg(-9, -swing * 0.85, '#6d4324');
+    leg(11, swing, '#7a4b2a');
+
+    ctx.strokeStyle = '#8a552e';
+    ctx.lineWidth = 3.5;
+    ctx.beginPath();
+    const wag = Math.sin(dog.wag) * (dog.state === 'idle' ? 8 : 12);
+    ctx.moveTo(-20, -30);
+    ctx.quadraticCurveTo(-34, -34 - wag * 0.2, -28, -46 - wag);
+    ctx.stroke();
+
+    ctx.fillStyle = '#8d552e';
+    ctx.beginPath();
+    ctx.ellipse(0, -30, 24, 15, 0, 0, TAU);
+    ctx.fill();
+    ctx.fillStyle = '#c9844a';
+    ctx.beginPath();
+    ctx.ellipse(2, -26, 10, 7, 0.1, 0, TAU);
+    ctx.fill();
+
+    ctx.fillStyle = '#8d552e';
+    ctx.beginPath();
+    ctx.ellipse(22, -44, 13, 12, 0.15, 0, TAU);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.ellipse(14, -52, 5.5, 9, -0.6, 0, TAU);
+    ctx.fill();
+
+    ctx.fillStyle = '#f3d2a8';
+    ctx.beginPath();
+    ctx.ellipse(32, -41, 8, 5.5, 0.15, 0, TAU);
+    ctx.fill();
+    ctx.fillStyle = '#24160f';
+    ctx.beginPath();
+    ctx.arc(38, -42, 2.1, 0, TAU);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(26, -48, 1.6, 0, TAU);
+    ctx.fill();
+    ctx.fillStyle = '#fff';
+    ctx.beginPath();
+    ctx.arc(26.6, -48.5, 0.55, 0, TAU);
+    ctx.fill();
+
+    if (dog.state === 'jump' || dog.state === 'run') {
+      ctx.fillStyle = '#e27878';
+      ctx.beginPath();
+      ctx.ellipse(38, -37, 2.4, 4.2, 0.3, 0, TAU);
+      ctx.fill();
+    }
+
+    ctx.fillStyle = '#f0c14a';
+    ctx.beginPath();
+    ctx.arc(12, -36, 2.2, 0, TAU);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  function drawWand() {
+    const ring = Math.max(13, Math.min(20, Math.min(W, H) * 0.026));
+    const ang = wand.on ? Math.atan2(wand.vy, wand.vx) : Math.PI / 2;
+    const hx = Math.sin(ang * 0.25 + Math.PI / 2) * 58;
+    const hy = Math.cos(ang * 0.15) * 54 + 10;
+    ctx.lineCap = 'round';
+    ctx.strokeStyle = '#d39a4a';
+    ctx.lineWidth = 5;
+    ctx.beginPath();
+    ctx.moveTo(wand.x, wand.y);
+    ctx.lineTo(wand.x + hx * 0.72, wand.y + hy * 0.72);
+    ctx.stroke();
+    ctx.strokeStyle = '#8a4e22';
+    ctx.lineWidth = 7;
+    ctx.beginPath();
+    ctx.moveTo(wand.x + hx * 0.62, wand.y + hy * 0.62);
+    ctx.lineTo(wand.x + hx, wand.y + hy);
+    ctx.stroke();
+    ctx.strokeStyle = '#e7edf4';
+    ctx.lineWidth = 3.4;
+    ctx.beginPath();
+    ctx.arc(wand.x, wand.y, ring, 0, TAU);
+    ctx.stroke();
+    ctx.strokeStyle = 'rgba(255,255,255,0.85)';
+    ctx.lineWidth = 1.3;
+    ctx.beginPath();
+    ctx.arc(wand.x, wand.y, ring - 2, 0.7, 2.5);
+    ctx.stroke();
+  }
+
+  function drawDrops() {
+    for (let i = 0; i < drops.length; i++) {
+      const d = drops[i];
+      const a = Math.max(0, d.life / (d.max || 0.7));
+      ctx.fillStyle = 'rgba(186, 224, 255,' + (0.15 + 0.65 * Math.max(0, d.life)) + ')';
+      ctx.beginPath();
+      ctx.arc(d.x, d.y, d.r, 0, TAU);
+      ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,' + (0.4 * Math.max(0, d.life)) + ')';
+      ctx.beginPath();
+      ctx.arc(d.x - d.r * 0.3, d.y - d.r * 0.3, d.r * 0.35, 0, TAU);
+      ctx.fill();
+    }
+    for (let i = 0; i < rings.length; i++) {
+      const r = rings[i];
+      const u = r.t / 0.35;
+      ctx.strokeStyle = 'rgba(255,255,255,' + (1 - u) * 0.7 + ')';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.arc(r.x, r.y, r.r * (0.4 + u * 1.1), 0, TAU);
+      ctx.stroke();
+    }
+  }
+
+  function frame(dt) {
+    const br = breeze(time);
+    drawGarden(br);
+    order.length = 0;
+    for (let i = 0; i < bubbles.length; i++) if (bubbles[i].alive) order.push(bubbles[i]);
+    order.sort(bySize);
+    for (let i = 0; i < order.length; i++) drawBubble(order[i]);
+    for (let i = 0; i < order.length; i++) {
+      const a = order[i];
+      const L = a.links;
+      for (let k = 0; k < L.length; k++) {
+        const b = L[k];
+        if (!b.alive || b.id < a.id) continue;
+        drawSeptum(a, b);
+      }
+    }
+    drawDog();
+    drawDrops();
+    drawWand();
+  }
+
+  function bySize(a, b) {
+    return b.r - a.r || a.y - b.y;
+  }
+
+  let last = 0;
+  let acc = 0;
+  function loop(now) {
+    const wall0 = performance.now();
+    const t = now * 0.001;
+    let dt = last ? t - last : 0.016;
+    last = t;
+    if (dt > 0.05) dt = 0.05;
+    if (dt < 0) dt = 0;
+    time += dt;
+    acc += dt;
+    let steps = 0;
+    while (acc >= 1 / 60 && steps < 3) {
+      update(1 / 60);
+      acc -= 1 / 60;
+      steps++;
+    }
+    if (steps === 0) {
+      update(dt);
+      acc = 0;
+    }
+    frame(dt);
+    c.__dt = dt;
+    c.__frame = performance.now() - wall0;
+    c.__n = bubbles.length;
+    c.__dog = dog.state;
+    requestAnimationFrame(loop);
+  }
+
+  function hideHint() {
+    if (!hintOn) return;
+    hintOn = false;
+    hintEl.classList.add('gone');
+  }
+
+  function pointerPos(ev) {
+    const rect = c.getBoundingClientRect();
+    return { x: ev.clientX - rect.left, y: ev.clientY - rect.top };
+  }
+
+  c.addEventListener('pointerdown', function (ev) {
+    if (pointerId !== null) return;
+    pointerId = ev.pointerId;
+    c.setPointerCapture(ev.pointerId);
+    unlock();
+    hideHint();
+    const p = pointerPos(ev);
+    wand.on = true;
+    wand.seen = true;
+    wand.x = p.x;
+    wand.y = p.y;
+    wand.vx = 0;
+    wand.vy = 0;
+    wand.speed = 0;
+    haveLast = false;
+    lastPX = p.x;
+    lastPY = p.y;
+    lastPT = performance.now();
+  });
+
+  c.addEventListener('pointermove', function (ev) {
+    if (ev.pointerId !== pointerId) return;
+    const p = pointerPos(ev);
+    const now = performance.now();
+    const dt = haveLast ? Math.max(0.008, Math.min(0.05, (now - lastPT) / 1000)) : 0.016;
+    if (haveLast) {
+      const vx = (p.x - lastPX) / dt;
+      const vy = (p.y - lastPY) / dt;
+      wand.vx = wand.vx * 0.4 + vx * 0.6;
+      wand.vy = wand.vy * 0.4 + vy * 0.6;
+      const inst = Math.hypot(vx, vy);
+      wand.speed = wand.speed * 0.55 + inst * 0.45;
+    }
+    haveLast = true;
+    lastPX = p.x;
+    lastPY = p.y;
+    lastPT = now;
+    wand.x = p.x;
+    wand.y = p.y;
+  });
+
+  function endPointer(ev) {
+    if (ev.pointerId !== pointerId) return;
+    pointerId = null;
+    wand.on = false;
+    haveLast = false;
+    releaseGrow(0);
+    setBlow(0);
+  }
+  c.addEventListener('pointerup', endPointer);
+  c.addEventListener('pointercancel', endPointer);
+
+  bFoam.addEventListener('click', function () {
+    unlock();
+    hideHint();
+    foamBath();
+  });
+  bTon.addEventListener('click', function () {
+    tonOn = !tonOn;
+    bTon.setAttribute('aria-pressed', tonOn ? 'true' : 'false');
+    unlock();
+    if (!tonOn) setBlow(0);
+  });
+  windEl.addEventListener('input', syncOutputs);
+  mixEl.addEventListener('input', syncOutputs);
+
+  window.addEventListener('keydown', function (ev) {
+    if (ev.target && (ev.target.tagName === 'INPUT' || ev.target.tagName === 'TEXTAREA')) return;
+    if (ev.key === 'm' || ev.key === 'M') {
+      bTon.click();
+    } else if (ev.key === 's' || ev.key === 'S' || ev.key === 'b' || ev.key === 'B') {
+      unlock();
+      hideHint();
+      foamBath();
+    }
+  });
+
+  function ensureAudio() {
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return;
+    actx = new AC();
+    master = actx.createGain();
+    master.gain.value = 0.75;
+    master.connect(actx.destination);
+    const len = actx.sampleRate;
+    noiseBuf = actx.createBuffer(1, len, actx.sampleRate);
+    const data = noiseBuf.getChannelData(0);
+    let brown = 0;
+    for (let i = 0; i < len; i++) {
+      const white = Math.random() * 2 - 1;
+      brown = brown * 0.97 + white * 0.03;
+      data[i] = brown * 3.5;
+    }
+    blowFilter = actx.createBiquadFilter();
+    blowFilter.type = 'bandpass';
+    blowFilter.frequency.value = 880;
+    blowFilter.Q.value = 0.65;
+    blowGain = actx.createGain();
+    blowGain.gain.value = 0;
+    const src = actx.createBufferSource();
+    src.buffer = noiseBuf;
+    src.loop = true;
+    src.connect(blowFilter);
+    blowFilter.connect(blowGain);
+    blowGain.connect(master);
+    src.start();
+  }
+
+  function unlock() {
+    unlocked = true;
+    if (!actx) {
+      try { ensureAudio(); } catch (err) { actx = null; }
+    }
+    if (actx && actx.state === 'suspended') {
+      actx.resume().catch(function () {});
+    }
+  }
+
+  function setBlow(amount) {
+    if (!blowGain || !actx) return;
+    const t = actx.currentTime;
+    const g = tonOn && unlocked ? Math.max(0, Math.min(1, amount)) * 0.16 : 0;
+    blowGain.gain.setTargetAtTime(g, t, 0.06);
+    if (blowFilter && g > 0) {
+      blowFilter.frequency.setTargetAtTime(640 + amount * 1600, t, 0.08);
+    }
+  }
+
+  function popSound(r) {
+    if (!actx || !tonOn || !unlocked || !noiseBuf) return;
+    const t = actx.currentTime;
+    const o = actx.createOscillator();
+    const g = actx.createGain();
+    const freq = Math.max(150, Math.min(760, 700 - r * 6.5));
+    o.type = 'sine';
+    o.frequency.setValueAtTime(freq, t);
+    o.frequency.exponentialRampToValueAtTime(Math.max(70, freq * 0.5), t + 0.09);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(0.2, t + 0.01);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.13);
+    o.connect(g);
+    g.connect(master);
+    o.start(t);
+    o.stop(t + 0.15);
+    const src = actx.createBufferSource();
+    src.buffer = noiseBuf;
+    const hp = actx.createBiquadFilter();
+    hp.type = 'highpass';
+    hp.frequency.value = 1600;
+    const ng = actx.createGain();
+    ng.gain.setValueAtTime(0.11, t);
+    ng.gain.exponentialRampToValueAtTime(0.0001, t + 0.05);
+    src.connect(hp);
+    hp.connect(ng);
+    ng.connect(master);
+    src.start(t);
+    src.stop(t + 0.06);
+  }
+
+  document.addEventListener('visibilitychange', function () {
+    if (document.visibilityState === 'hidden' && recordDirty) persistRecord();
+  });
+  window.addEventListener('resize', resize);
+  syncOutputs();
+  resize();
+  seedSky();
+  paintStatus();
+  requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>
