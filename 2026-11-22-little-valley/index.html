@@ -1697,6 +1697,7 @@ function renderTilt(t) {
   { const t0 = performance.now(); drawDragonflies(t); st.dfMs = (st.dfMs || 0) * 0.9 + (performance.now() - t0) * 0.1; }
   { const t0 = performance.now(); drawButterflies(t); st.btfMs = (st.btfMs || 0) * 0.9 + (performance.now() - t0) * 0.1; }
   { const t0 = performance.now(); drawHerons(t); st.heronMs = (st.heronMs || 0) * 0.9 + (performance.now() - t0) * 0.1; }
+  { const t0 = performance.now(); drawKingfishers(t); st.kfMs = (st.kfMs || 0) * 0.9 + (performance.now() - t0) * 0.1; }
   { const t0 = performance.now(); drawWebs(t); st.webMs = (st.webMs || 0) * 0.9 + (performance.now() - t0) * 0.1; }
   { const t0 = performance.now(); drawHoarFrost(t); st.frostMs = (st.frostMs || 0) * 0.9 + (performance.now() - t0) * 0.1; }
   { const t0 = performance.now(); drawFox(t); st.foxMs = (st.foxMs || 0) * 0.9 + (performance.now() - t0) * 0.1; }
@@ -3293,6 +3294,126 @@ function drawHerons(t) {
   cx.restore();
   const nSt = st.heronStates.filter(q => q === 'stand').length; st.heronOnEdge = nSt ? st.heronOnEdge / nSt : 0;
 }
+// kingfishers: by day (7:00-19:00), all year where a stream runs open (kingfishers stay for the winter, but come by
+// half as often then), a tiny bright bird (blue back, orange breast) darts low and fast along a flowing stream or river
+// (open water 0.03+ deep moving faster than 1.5, not frozen, on screen), following the current for a second or so,
+// then hops onto the bank next to the water and perches there, bobbing its head. From the perch it now and then dives
+// (straight down into the water with a little splash; about 2 in 5 come up with a fish), darts on along the stream, or
+// leaves. Up to two at a time (one on a phone), with a rest of several seconds between visits. With sound on a short,
+// high 'tseee' as it darts off (at most one per 1.5 s). None at night, in a storm or heavy rain (>= 0.4), without an
+// open stream, or in the map view. App-only. Hooks: st.kfDrawn, st.kfAt (screen px of the first), st.kfStates (dart,
+// perch, dive), st.kfPts ([x, y, id]), st.kfDarts, st.kfPerches, st.kfDives, st.kfFish, st.kfSplashes, st.kfSpots,
+// st.kfOnStream (share of darting ones over stream cells), st.kfOnBank (share of perched ones on a dry bank cell next to
+// the water), st.kfH (bird length px), st.kfAmt (1 when they may come), st.kfMs, __lv.KF.
+const KF_MAX = isPhone ? 1 : 2, KF = { S: null, src: [], rt: -1e9, birds: [], last: -1, rest: 2, darts: 0, perches: 0, dives: 0, fish: 0, splashes: 0, tseeT: 0, sp: [] };
+function kfStream(S, i) { const N = S.N, x = i % N, y = (i / N) | 0; if (x < 3 || y < 3 || x >= N - 3 || y >= N - 4) return false;
+  return S.d[i] > 0.03 && Math.hypot(S.u[i], S.v[i]) > 1.5 && !(S.ice && S.ice[i] > 0.3); }
+function kfBank(S, i) { const d = S.d, N = S.N; return d[i] < 0.01 && !(S.snow[i] > 0.5) && (kfStream(S, i - 1) || kfStream(S, i + 1) || kfStream(S, i - N) || kfStream(S, i + N)); }
+function kfAmt() { const S = st.S, h = LT.h; return h >= 7 && h < 19 && LT.storm <= 0.02 && LT.rain < 0.4 ? 1 : 0; }
+function kfWinter() { const S = st.S; if (!S.P.seasons) return false; const y = LV.yearFrac(S); return y >= 0.75; }
+function kfSpots(S, T) { const N = S.N, out = [], s2 = Math.max(1, N >> 6);
+  for (let y = 4; y < N - 4; y += s2) for (let x = 4; x < N - 4; x += s2) { const i = y * N + x; if (kfStream(S, i) && duckSeen(T, S, x, y)) out.push([x, y]); }
+  return out; }
+function kfPath(S, x0, y0, sgn) { // follow the current (sgn 1) or against it (-1) from one stream cell: a list of cell centres
+  const N = S.N, pts = [[x0 + 0.5, y0 + 0.5]], seen = new Set([y0 * N + x0]); let x = x0, y = y0, i = y * N + x, sp = Math.hypot(S.u[i], S.v[i]) || 1, dx = sgn * S.u[i] / sp, dy = sgn * S.v[i] / sp;
+  for (let k = 0; k < 34; k++) { let best = -1, bs = 0.35, bx = 0, by = 0;
+    for (let oy = -1; oy <= 1; oy++) for (let ox = -1; ox <= 1; ox++) { if (!ox && !oy) continue; const j = (y + oy) * N + x + ox; if (seen.has(j) || !kfStream(S, j)) continue; const l = Math.hypot(ox, oy), dt = (ox * dx + oy * dy) / l; if (dt > bs) { bs = dt; best = j; bx = ox; by = oy; } }
+    if (best < 0) break; seen.add(best); x += bx; y += by; const l = Math.hypot(bx, by), s2 = Math.hypot(S.u[best], S.v[best]) || 1;
+    dx = dx * 0.5 + 0.5 * (bx / l * 0.5 + sgn * S.u[best] / s2 * 0.5); dy = dy * 0.5 + 0.5 * (by / l * 0.5 + sgn * S.v[best] / s2 * 0.5); const q = Math.hypot(dx, dy) || 1; dx /= q; dy /= q;
+    pts.push([x + 0.5, y + 0.5]); }
+  return pts; }
+function kfPerchNear(S, x, y) { // a dry bank cell next to the stream within 2 cells of (x, y)
+  const N = S.N, cx0 = x | 0, cy0 = y | 0; let best = null, bd = 1e9;
+  for (let oy = -2; oy <= 2; oy++) for (let ox = -2; ox <= 2; ox++) { const xx = cx0 + ox, yy = cy0 + oy; if (xx < 3 || yy < 3 || xx >= N - 3 || yy >= N - 4) continue; const j = yy * N + xx; if (!kfBank(S, j)) continue; const d = ox * ox + oy * oy + Math.random() * 0.5; if (d < bd) { bd = d; best = [xx + 0.5, yy + 0.5]; } }
+  return best; }
+function kfWaterNear(S, x, y) { const N = S.N; for (let r = 1; r <= 2; r++) for (let oy = -r; oy <= r; oy++) for (let ox = -r; ox <= r; ox++) { const j = ((y | 0) + oy) * N + (x | 0) + ox; if (j > 0 && j < N * N && kfStream(S, j)) return [((x | 0) + ox) + 0.5, ((y | 0) + oy) + 0.5]; } return null; }
+function kfTsee(b) { const now = performance.now() / 1000; if (AU.on && now - KF.tseeT > 1.5) { KF.tseeT = now; sndTsee(fxPan(b.sx)); } }
+function kfStartDart(S, b, from) { // a path along the stream from the cell nearest to the bird
+  const c = from || kfWaterNear(S, b.x, b.y); if (!c) return false; const p = kfPath(S, c[0] | 0, c[1] | 0, Math.random() < 0.6 ? 1 : -1);
+  if (p.length < 6) return false; p[0] = [b.x, b.y]; b.path = p; b.pi = 0; b.st = 'dart'; b.t = 0; KF.darts++; kfTsee(b); return true; }
+function drawKingfishers(t) {
+  const T = tilt, S = st.S, N = S.N; st.kfDrawn = 0; st.kfAt = null; st.kfStates = []; st.kfPts = []; st.kfOnStream = 0; st.kfOnBank = 0;
+  st.kfDarts = KF.darts; st.kfPerches = KF.perches; st.kfDives = KF.dives; st.kfFish = KF.fish; st.kfSplashes = KF.splashes;
+  const now = performance.now() / 1000, dt = Math.max(0, Math.min(0.1, KF.last < 0 ? 0 : now - KF.last)); KF.last = now;
+  if (!T || T.s == null) return;
+  if (KF.S !== S) { KF.S = S; KF.birds = []; KF.sp = []; KF.rt = -1e9; KF.rest = 2; }
+  const amt = st.kfAmt = kfAmt();
+  if (now - KF.rt > 2) { KF.rt = now; KF.src = kfSpots(S, T); }
+  const src = KF.src; st.kfSpots = src.length;
+  const want = !amt || src.length < 6 ? 0 : KF_MAX, pu = Math.max(0.5, T.cp * T.s), cpx = 1 / pu;
+  KF.rest -= dt;
+  if (KF.birds.length < want && KF.rest <= 0) { // a new one darts in along the stream
+    KF.rest = (KF.birds.length ? 6 + Math.random() * 10 : 3 + Math.random() * 6) * (kfWinter() ? 2 : 1);
+    for (let k = 0; k < 12; k++) { const c = src[(Math.random() * src.length) | 0]; if (KF.birds.some(o => Math.hypot(o.x - c[0], o.y - c[1]) < 12)) continue;
+      const b = { id: KF.id = (KF.id || 0) + 1, x: c[0] + 0.5, y: c[1] + 0.5, st: 'dart', t: 0, until: 0, face: 1, alt: 0, a: 0, fade: 1, leave: false, path: null, pi: 0, left: 2 + ((Math.random() * 3) | 0), fishT: 0, wx: 0, wy: 0, sx: null };
+      if (kfStartDart(S, b, c)) { KF.birds.push(b); break; } } }
+  if (KF.birds.filter(o => !o.leave).length > want) for (const b of KF.birds) if (!b.leave && KF.birds.filter(o => !o.leave).length > want) { b.leave = true; if (b.st !== 'dart') kfStartDart(S, b); }
+  const cp = T.cp, ow = T.ow, oh = T.oh, s = T.s, blue = litC(30, 150, 205), cyan = litC(70, 200, 235), orng = litC(232, 120, 40), dark = litC(30, 50, 70), wht = litC(240, 240, 235), bill = litC(25, 25, 30);
+  cx.save(); cx.lineCap = 'round'; cx.lineJoin = 'round';
+  let nDart = 0, nPer = 0;
+  for (let j = KF.birds.length - 1; j >= 0; j--) { const b = KF.birds[j]; b.t += dt; b.a = Math.min(1, b.a + dt * 5);
+    if (b.leave && b.st !== 'dart') { b.fade -= dt * 2.5; if (b.fade <= 0) { KF.birds.splice(j, 1); continue; } }
+    if (b.st === 'dart') { const sp = (isPhone ? 130 : 170) * cpx; let mv = sp * dt;
+      while (mv > 0 && b.pi < b.path.length - 1) { const q = b.path[b.pi + 1], dx = q[0] - b.x, dy = q[1] - b.y, d = Math.hypot(dx, dy); if (Math.abs(dx) > 0.05) b.face = dx > 0 ? 1 : -1; if (d <= mv) { b.x = q[0]; b.y = q[1]; b.pi++; mv -= d; } else { b.x += dx / d * mv; b.y += dy / d * mv; mv = 0; } }
+      b.alt = 0.7 + 0.25 * Math.sin(b.t * 9);
+      if (b.pi >= b.path.length - 1) { // end of the run: onto the bank, or on, or away
+        if (b.leave || b.left <= 0) { b.leave = true; b.st = 'away'; b.t = 0; }
+        else { const q = kfPerchNear(S, b.x, b.y); if (q) { b.st = 'hop'; b.t = 0; b.hx = b.x; b.hy = b.y; b.px = q[0]; b.py = q[1]; } else if (!kfStartDart(S, b)) { b.leave = true; b.st = 'away'; b.t = 0; } } } }
+    else if (b.st === 'away') { b.fade -= dt * 3; b.alt += dt * 6; b.x += b.face * dt * 40 * cpx; if (b.fade <= 0) { KF.birds.splice(j, 1); continue; } }
+    else if (b.st === 'hop') { const k = Math.min(1, b.t / 0.25); b.x = b.hx + (b.px - b.hx) * k; b.y = b.hy + (b.py - b.hy) * k; b.alt = 0.7 * (1 - k) + Math.sin(k * Math.PI) * 0.6; if (Math.abs(b.px - b.hx) > 0.05) b.face = b.px > b.hx ? 1 : -1;
+      if (k >= 1) { b.st = 'perch'; b.t = 0; b.alt = 0; b.until = 2 + Math.random() * 3; KF.perches++; b.left--; } }
+    else if (b.st === 'perch') { const ci = (b.y | 0) * N + (b.x | 0);
+      if (!kfBank(S, ci) || b.leave) { b.leave = true; if (!kfStartDart(S, b)) { b.st = 'away'; b.t = 0; } }
+      else if (b.t > b.until) { const r = Math.random(), w = kfWaterNear(S, b.x, b.y);
+        if (r < 0.5 && w) { b.st = 'dive'; b.t = 0; b.wx = w[0]; b.wy = w[1]; b.ox = b.x; b.oy = b.y; KF.dives++; if (Math.abs(w[0] - b.x) > 0.05) b.face = w[0] > b.x ? 1 : -1; }
+        else if (b.left > 0 && kfStartDart(S, b)) { } else { b.leave = true; if (!kfStartDart(S, b)) { b.st = 'away'; b.t = 0; } } } }
+    else if (b.st === 'dive') { const T1 = 0.28, T2 = 0.62; // down into the water, a splash, back up to the perch
+      if (b.t < T1) { const k = b.t / T1; b.x = b.ox + (b.wx - b.ox) * k; b.y = b.oy + (b.wy - b.oy) * k; b.alt = 1.2 * Math.sin(k * Math.PI * 0.5 + Math.PI * 0.5) * (1 - k) + 0.6 * Math.sin(k * Math.PI) - 0.3 * k; }
+      else if (!b.splashed) { b.splashed = true; KF.splashes++; KF.sp.push({ x: b.wx, y: b.wy, t: 0 }); if (Math.random() < 0.4) { b.fishT = 2; KF.fish++; } b.x = b.wx; b.y = b.wy; }
+      if (b.t >= T1 && b.t < T2) { const k = (b.t - T1) / (T2 - T1); b.x = b.wx + (b.ox - b.wx) * k; b.y = b.wy + (b.oy - b.wy) * k; b.alt = Math.sin(k * Math.PI) * 0.9 - 0.3 * (1 - k); }
+      if (b.t >= T2) { b.x = b.ox; b.y = b.oy; b.alt = 0; b.st = 'perch'; b.t = 0; b.until = 1.5 + Math.random() * 2.5; b.splashed = false; } }
+    if (b.fishT > 0) b.fishT -= dt;
+    const gx = b.x, gy = b.y, x0 = Math.min(N - 2, gx | 0), y0 = Math.min(N - 2, gy | 0), fx = gx - x0, fy = gy - y0, k0 = y0 * N + x0;
+    const hs = surf[k0] * (1 - fx) * (1 - fy) + surf[k0 + 1] * fx * (1 - fy) + surf[k0 + N] * (1 - fx) * fy + surf[k0 + N + 1] * fx * fy;
+    const sc = persp(gy, N), ox = (gx - N / 2) * cp * sc + ow / 2, oyG = baseY(T, gy, N) - hs * cp * T.hEx * sc;
+    const px = Math.round(ox), py = Math.round(oyG); if (px < 0 || px >= ow || py < 0 || py >= oh) continue;
+    { const pc = T.pick[py * ow + px]; if (pc >= 0 && ((pc / N) | 0) > gy + 3) continue; }
+    b.sx = T.sx + ox * s;
+    const u = cp * sc * s, H = Math.max(isPhone ? 9 : 11, u * 1.3), X = b.sx, Yg = T.sy + oyG * s, f = b.face, Y = Yg - b.alt * u - (b.st === 'perch' ? H * 0.35 : 0);
+    const al = Math.max(0, Math.min(1, b.a * Math.min(1, b.fade))); if (al <= 0.01) continue;
+    const under = b.st === 'dive' && b.alt < 0; cx.globalAlpha = al * (under ? 0.35 : 1);
+    if (b.st === 'perch') { // upright on the bank: orange breast, blue back and tail, a long dark bill, head bobbing now and then
+      const bob = Math.max(0, Math.sin(b.t * 3.1)) ** 6 * H * 0.08;
+      cx.globalAlpha = 0.22 * al; cx.fillStyle = 'rgba(20,30,40,1)'; cx.beginPath(); cx.ellipse(X, Yg + 0.5, H * 0.22, H * 0.06, 0, 0, 7); cx.fill(); cx.globalAlpha = al;
+      cx.strokeStyle = dark; cx.lineWidth = Math.max(1, H * 0.08); cx.beginPath(); cx.moveTo(X - f * H * 0.04, Y + H * 0.2); cx.lineTo(X - f * H * 0.22, Y + H * 0.42); cx.stroke(); // tail
+      cx.fillStyle = blue; cx.beginPath(); cx.ellipse(X - f * H * 0.04, Y, H * 0.16, H * 0.26, f * 0.35, 0, 7); cx.fill(); // back
+      cx.fillStyle = orng; cx.beginPath(); cx.ellipse(X + f * H * 0.05, Y + H * 0.04, H * 0.11, H * 0.2, f * 0.2, 0, 7); cx.fill(); // breast
+      const hx = X + f * H * 0.05, hy = Y - H * 0.27 + bob; cx.fillStyle = blue; cx.beginPath(); cx.arc(hx, hy, H * 0.14, 0, 7); cx.fill();
+      cx.fillStyle = orng; cx.beginPath(); cx.arc(hx + f * H * 0.06, hy + H * 0.03, H * 0.05, 0, 7); cx.fill(); cx.fillStyle = wht; cx.beginPath(); cx.arc(hx + f * H * 0.02, hy + H * 0.11, H * 0.04, 0, 7); cx.fill();
+      cx.strokeStyle = bill; cx.lineWidth = Math.max(1, H * 0.06); cx.beginPath(); cx.moveTo(hx + f * H * 0.1, hy); cx.lineTo(hx + f * H * 0.38, hy + H * 0.04); cx.stroke();
+      cx.fillStyle = cyan; cx.fillRect(X - f * H * 0.08 - 0.5, Y - H * 0.05, Math.max(1, H * 0.06), H * 0.18); // the bright back stripe
+      if (b.fishT > 0) { cx.fillStyle = 'rgba(220,230,240,0.95)'; cx.beginPath(); cx.ellipse(hx + f * H * 0.3, hy + H * 0.06, H * 0.1, H * 0.035, f * 0.3, 0, 7); cx.fill(); }
+    } else { // in flight: a small torpedo, whirring wings, the bright cyan back flashing
+      if (!under && b.alt > 0.2) { cx.globalAlpha = 0.18 * al; cx.fillStyle = 'rgba(20,30,40,1)'; cx.beginPath(); cx.ellipse(X, Yg + 0.5, H * 0.25, H * 0.05, 0, 0, 7); cx.fill(); cx.globalAlpha = al * (under ? 0.35 : 1); }
+      const dv = b.st === 'dive' && b.t < 0.28 ? 1 : 0, ang = dv ? f * 1.1 : 0, wb = Math.sin(now * 55 + b.id);
+      cx.save(); cx.translate(X, Y); cx.rotate(ang);
+      cx.fillStyle = dark; cx.beginPath(); cx.moveTo(-f * H * 0.05, -H * 0.02); cx.lineTo(f * H * 0.1, -H * 0.02 - H * 0.3 * wb); cx.lineTo(f * H * 0.18, -H * 0.02); cx.fill(); // wing blur
+      cx.fillStyle = blue; cx.beginPath(); cx.ellipse(0, 0, H * 0.3, H * 0.1, 0, 0, 7); cx.fill();
+      cx.fillStyle = orng; cx.beginPath(); cx.ellipse(f * H * 0.04, H * 0.05, H * 0.2, H * 0.06, 0, 0, 7); cx.fill();
+      cx.fillStyle = cyan; cx.fillRect(-f * H * 0.2 - (f < 0 ? H * 0.3 : 0), -H * 0.07, H * 0.3, Math.max(1, H * 0.05));
+      cx.strokeStyle = bill; cx.lineWidth = Math.max(1, H * 0.06); cx.beginPath(); cx.moveTo(f * H * 0.3, 0); cx.lineTo(f * H * 0.52, H * 0.02); cx.stroke();
+      cx.restore(); }
+    if (!st.kfDrawn) st.kfAt = [X, Y]; st.kfDrawn++; st.kfStates.push(b.st === 'hop' || b.st === 'away' ? 'dart' : b.st); st.kfPts.push([X, Y, b.id]); st.kfH = H;
+    if (b.st === 'dart') { nDart++; if (kfStream(S, (b.y | 0) * N + (b.x | 0))) st.kfOnStream++; }
+    if (b.st === 'perch') { nPer++; if (kfBank(S, (b.y | 0) * N + (b.x | 0))) st.kfOnBank++; }
+  }
+  for (let j = KF.sp.length - 1; j >= 0; j--) { const q = KF.sp[j]; q.t += dt; if (q.t > 0.7) { KF.sp.splice(j, 1); continue; } // the splash: a ring and a few drops
+    const k0 = (q.y | 0) * N + (q.x | 0), sc = persp(q.y, N), ox = (q.x - N / 2) * cp * sc + ow / 2, oyG = baseY(T, q.y, N) - surf[k0] * cp * T.hEx * sc, X = T.sx + ox * s, Y = T.sy + oyG * s, u = cp * sc * s, r = Math.max(4, u) * (0.4 + q.t * 1.6), a = 1 - q.t / 0.7;
+    cx.globalAlpha = 0.8 * a; cx.strokeStyle = 'rgba(235,245,255,1)'; cx.lineWidth = 1; cx.beginPath(); cx.ellipse(X, Y, r, r * 0.35, 0, 0, 7); cx.stroke();
+    cx.fillStyle = 'rgba(235,245,255,1)'; for (let m = 0; m < 5; m++) { const ang = -Math.PI * (0.15 + 0.7 * m / 4), v = Math.max(5, u * 1.4); cx.fillRect(X + Math.cos(ang) * v * q.t * 1.6, Y + Math.sin(ang) * v * q.t * 1.6 + 30 * q.t * q.t, 1.5, 1.5); } }
+  cx.restore();
+  st.kfOnStream = nDart ? st.kfOnStream / nDart : 0; st.kfOnBank = nPer ? st.kfOnBank / nPer : 0;
+}
 function drawButterflies(t) {
   const T = tilt, S = st.S, N = S.N; st.butterfliesDrawn = 0; st.btfAt = null; st.btfPerched = 0; st.btfKinds = 0; st.btfPts = [];
   const amt = st.btfAmt = btfAmt(), dt = Math.max(0, Math.min(0.1, t - BTF.last)); BTF.last = t;
@@ -4160,7 +4281,7 @@ function frame(now) {
   const tc0 = performance.now(); computeColours(st.time); st.colMs = (st.colMs || 0) * 0.9 + (performance.now() - tc0) * 0.1;
   cx.setTransform(dpr, 0, 0, dpr, 0, 0);
   if (st.view === 'tilt') { tiltGeom(); drawSky(st.time, dtReal); renderTilt(st.time); }
-  else { drawSky(st.time, dtReal); renderTop(st.time); drawCottagesTop(); drawWindowGlowTop(st.time); st.heronsDrawn = 0; st.heronAt = null; st.heronStates = []; HER.birds = []; st.websDrawn = 0; st.webAt = []; st.webCells = []; st.webGlints = 0; WEB.webs.forEach(w => { w.a = 0; }); st.frostTrees = 0; st.frostGlints = 0; st.frostGlintAt = []; FR.src = []; FR.gl.forEach(g => { g.age = g.life; }); st.foxTracks = 0; st.foxPrints = 0; st.foxPrintCells = []; st.foxDrawn = 0; st.foxAt = null; if (FOX.fox) { FOX.fox = null; FOX.rest = 5; } FOX.last = st.time; st.glowwormsDrawn = 0; st.glowwormAt = []; st.glowwormCells = []; st.glowwormLvl = []; GW.worms.forEach(w => { w.a = 0; }); st.petalsDrawn = 0; st.mistDrawn = 0; st.mistDrift = 0; st.puddlesDrawn = 0; st.icyPuddles = 0; st.puddleIcePx = 0; st.splashKids = 0; st.splashHopping = 0; st.splashDrops = 0; st.splashSpots = 0; st.splashPuds = []; KID.on = false; st.batsDrawn = 0; st.batAt = null; st.midgesDrawn = 0; st.midgeSpecks = 0; st.midgeGlints = 0; st.midgeCols = []; MID.last = st.time; st.dragonfliesDrawn = 0; st.dfAt = null; st.butterfliesDrawn = 0; st.btfAt = null; BTF.flies.forEach(f => { f.a = 0; }); st.dfHover = 0; DF.last = st.time; st.duckFams = 0; st.ducksDrawn = 0; st.ducklingsDrawn = 0; st.duckLine = null; DUCK.last = null; st.swallowsDrawn = 0; st.swallowRings = 0; st.swallowAt = null; SW.last = st.time; st.bfDrawn = 0; st.bfSit = 0; st.bfFlying = 0; st.bfAtFeeder = 0; st.bfFeeders = 0; st.bfAt = []; st.bfFeederAt = []; BF.birds = []; BF.feeders = []; BF.home = null; BF.crowns = []; } // no petals in the map view (seen from far above they would be specks of dust)
+  else { drawSky(st.time, dtReal); renderTop(st.time); drawCottagesTop(); drawWindowGlowTop(st.time); st.heronsDrawn = 0; st.heronAt = null; st.heronStates = []; HER.birds = []; st.kfDrawn = 0; st.kfAt = null; st.kfStates = []; st.kfPts = []; KF.birds = []; KF.sp = []; st.websDrawn = 0; st.webAt = []; st.webCells = []; st.webGlints = 0; WEB.webs.forEach(w => { w.a = 0; }); st.frostTrees = 0; st.frostGlints = 0; st.frostGlintAt = []; FR.src = []; FR.gl.forEach(g => { g.age = g.life; }); st.foxTracks = 0; st.foxPrints = 0; st.foxPrintCells = []; st.foxDrawn = 0; st.foxAt = null; if (FOX.fox) { FOX.fox = null; FOX.rest = 5; } FOX.last = st.time; st.glowwormsDrawn = 0; st.glowwormAt = []; st.glowwormCells = []; st.glowwormLvl = []; GW.worms.forEach(w => { w.a = 0; }); st.petalsDrawn = 0; st.mistDrawn = 0; st.mistDrift = 0; st.puddlesDrawn = 0; st.icyPuddles = 0; st.puddleIcePx = 0; st.splashKids = 0; st.splashHopping = 0; st.splashDrops = 0; st.splashSpots = 0; st.splashPuds = []; KID.on = false; st.batsDrawn = 0; st.batAt = null; st.midgesDrawn = 0; st.midgeSpecks = 0; st.midgeGlints = 0; st.midgeCols = []; MID.last = st.time; st.dragonfliesDrawn = 0; st.dfAt = null; st.butterfliesDrawn = 0; st.btfAt = null; BTF.flies.forEach(f => { f.a = 0; }); st.dfHover = 0; DF.last = st.time; st.duckFams = 0; st.ducksDrawn = 0; st.ducklingsDrawn = 0; st.duckLine = null; DUCK.last = null; st.swallowsDrawn = 0; st.swallowRings = 0; st.swallowAt = null; SW.last = st.time; st.bfDrawn = 0; st.bfSit = 0; st.bfFlying = 0; st.bfAtFeeder = 0; st.bfFeeders = 0; st.bfAt = []; st.bfFeederAt = []; BF.birds = []; BF.feeders = []; BF.home = null; BF.crowns = []; } // no petals in the map view (seen from far above they would be specks of dust)
   floeStep(S, dtReal); drawFloes();
   drawCottageBadges(st.time);
   drawNaturalRain(st.time); drawOverlays(st.time); drawShower(st.time);
@@ -4203,7 +4324,7 @@ function adapt(dt) {
 // and thunder after lightning, wind (stronger in winter and storms), birds by day in the forest, crickets on
 // summer evenings, an owl at night, the creak and clack of turning mill wheels, cowbells near the village.
 // window.LV_AUDIO holds the levels (0..1) and gains so tests can check them without listening.
-const AU = { want: false, on: false, started: false, state: 'none', nodes: 0, live: 0, L: {}, G: {}, ev: { chirp: 0, cricket: 0, owl: 0, clack: 0, creak: 0, bell: 0, thunder: 0, plop: 0, slurp: 0, splash: 0, knock: 0, well: 0, rustle: 0, rumble: 0, drip: 0, squeak: 0, thump: 0, crunch: 0, skate: 0, icicle: 0, puddle: 0, peep: 0, twit: 0, bat: 0, pipe: 0, whirr: 0, honk: 0, crane: 0, frank: 0, murmur: 0, spade: 0 }, flow: 0, riverPan: 0, veg: 0, ticks: 0, vol: 1, snowCover: 0, rainMuffle: 0, rainCut: 9000, masterT: 0, melt: 0, meltPan: 0 };
+const AU = { want: false, on: false, started: false, state: 'none', nodes: 0, live: 0, L: {}, G: {}, ev: { chirp: 0, cricket: 0, owl: 0, clack: 0, creak: 0, bell: 0, thunder: 0, plop: 0, slurp: 0, splash: 0, knock: 0, well: 0, rustle: 0, rumble: 0, drip: 0, squeak: 0, thump: 0, crunch: 0, skate: 0, icicle: 0, puddle: 0, peep: 0, twit: 0, bat: 0, pipe: 0, whirr: 0, honk: 0, crane: 0, frank: 0, tsee: 0, murmur: 0, spade: 0 }, flow: 0, riverPan: 0, veg: 0, ticks: 0, vol: 1, snowCover: 0, rainMuffle: 0, rainCut: 9000, masterT: 0, melt: 0, meltPan: 0 };
 window.LV_AUDIO = AU;
 const AU_KEY = 'lv-sound', AU_MASTER = 0.45, AU_DT = 0.25;
 const AU_MAX = { river: 0.55, rain: 0.42, wind: 0.2, birds: 0.42, crickets: 0.13, owl: 0.38, mill: 0.42, cows: 0.26, thunder: 0.85, melt: 0.3 }; // full-level gain per layer
@@ -4461,6 +4582,13 @@ function sndCrane(pan, k) { // common cranes far overhead: a rolling, bugling 'g
     g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.014 * k, t + 0.03); g.gain.linearRampToValueAtTime(0.01 * k, t + d * 0.7); g.gain.linearRampToValueAtTime(0, t + d);
     setTimeout(() => { fl.disconnect(); am.disconnect(); lf.disconnect(); }, (t - ac.currentTime + d) * 1000 + 400); }
   AU.ev.crane++;
+}
+function sndTsee(pan) { // a kingfisher darting off: a short, thin, high 'tseee' (a sine at ~7 kHz, sliding down a little), fx bus
+  if (!fxOn()) return; const ac = AG.ac, t0 = ac.currentTime + 0.02, n = Math.random() < 0.35 ? 2 : 1;
+  for (let j = 0; j < n; j++) { const t = t0 + j * 0.16, d = 0.12 + Math.random() * 0.04, g = auVoice('fx', t, d + 0.08, pan), f0 = 6600 + Math.random() * 700;
+    const o = osc('sine', f0, t, d + 0.03, g); o.frequency.linearRampToValueAtTime(f0 * 0.9, t + d);
+    g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.016, t + 0.012); g.gain.linearRampToValueAtTime(0.01, t + d * 0.7); g.gain.linearRampToValueAtTime(0, t + d); }
+  AU.ev.tsee++;
 }
 function sndFrank(pan) { // a grey heron taking off: one hoarse, harsh 'fraank' (a falling sawtooth through a lowpass), fx bus
   if (!fxOn()) return; const ac = AG.ac, t = ac.currentTime + 0.03, d = 0.32, g = auVoice('fx', t, d + 0.1, pan), fl = ac.createBiquadFilter(); fl.type = 'lowpass'; fl.frequency.value = 1500; fl.Q.value = 3; fl.connect(g);
@@ -4857,7 +4985,7 @@ addEventListener('pagehide', () => autoSave('pagehide'));
 window.LV_AUTO = { AS, save: autoSave, get: asGet, put: asPut, clear: asClear, restore: autoRestore };
 
 
-window.__lv = { st, FR, FOX, foxEvening, BF, GS, CR, HER, MU, murmEvening, AU, SW, updSound, LV, LT, leaf: LS, clockText, wheelAng, get col() { return [colR, colG, colB]; }, get tilt() { return tilt; }, get area() { return area; }, setTool, newWorld, unproj, proj, get S() { return st.S; }, floes, breakup: sndBreakup, yearTurn, flourT, SACK_T, carts, CART_LOAD, cartTarget, bakeT, FLOUR, smokeRGB, HAY, HAY_T, PUD, KID, DUCK };
+window.__lv = { st, FR, FOX, foxEvening, BF, GS, CR, HER, KF, MU, murmEvening, AU, SW, updSound, LV, LT, leaf: LS, clockText, wheelAng, get col() { return [colR, colG, colB]; }, get tilt() { return tilt; }, get area() { return area; }, setTool, newWorld, unproj, proj, get S() { return st.S; }, floes, breakup: sndBreakup, yearTurn, flourT, SACK_T, carts, CART_LOAD, cartTarget, bakeT, FLOUR, smokeRGB, HAY, HAY_T, PUD, KID, DUCK };
 updUI(); updSound();
 const rawHash = (location.hash || '').slice(1);
 let fromHash = ''; try { fromHash = decodeURIComponent(rawHash); } catch (e) { fromHash = ''; }

@@ -150,6 +150,13 @@ broad wings to another edge (with the sound on you hear a hoarse *fraank* as it 
 storms or heavy rain, or in the map view.
 (`screenshot-heron.png`: a grey heron in the shallows.)
 
+**Kingfishers**: by day, all year where a stream runs open, a tiny bright blue and orange bird flashes low and
+fast along the water, following the stream for a second or so, then lands on the bank right next to it and sits
+there bobbing its head. Now and then it dives straight into the stream with a little splash (sometimes it comes
+up with a fish), or darts on along the water. With the sound on you hear a high, thin *tseee* as it darts off.
+Not at night, in storms or heavy rain, on frozen streams, or in the map view.
+(`screenshot-kingfisher.png`: a kingfisher perched on a stream bank.)
+
 **Snowmen**: when the snow reaches the village, little snowmen with red scarves and dark hats
 appear in the cottage gardens, and they melt with the snow in spring.
 
