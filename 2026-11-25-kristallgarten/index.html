@@ -1,0 +1,1689 @@
+<!doctype html>
+<html lang="de-CH">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Kristallgarten</title>
+<link rel="icon" href="../favicon.svg" type="image/svg+xml">
+<meta name="description" content="Kristalle in einem Glas wachsen lassen. Kochsalz, Alaun, Kupfersulfat, Zucker und Schneeflocken.">
+<meta name="theme-color" content="#d5ebf6">
+<style>
+html,body{margin:0;height:100%;background:#d5ebf6;color:#1b2c3a;font-family:system-ui,-apple-system,"Segoe UI",sans-serif}
+html{overflow:hidden}
+body{overflow:hidden;-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent}
+#app{display:flex;flex-direction:column;height:100%;height:100dvh;max-width:100%;overflow:hidden;min-width:0}
+#stage{position:relative;flex:1 1 auto;min-width:0;min-height:120px}
+#c{display:block;width:100%;height:100%;touch-action:none}
+#top{position:absolute;z-index:2;left:0;right:0;top:0;padding:max(8px,env(safe-area-inset-top)) 12px 0;pointer-events:none;max-width:100%}
+h1{margin:0;font-family:Georgia,Palatino,"Iowan Old Style",serif;font-weight:650;font-size:clamp(18px,4.4vw,28px);letter-spacing:.01em;color:#143044;text-shadow:0 1px 0 rgba(255,255,255,.65);max-width:100%}
+#status{margin:2px 0 0;font-size:13.5px;line-height:1.35;color:#24384a;text-shadow:0 1px 0 rgba(255,255,255,.55);max-width:min(640px,100%)}
+#hint{position:absolute;z-index:2;left:12px;right:12px;bottom:10px;margin:0;text-align:center;pointer-events:none;color:#1c3344;text-shadow:0 1px 0 rgba(255,255,255,.75);font-size:15px;line-height:1.35}
+#hint[hidden]{display:none}
+#bar{flex:0 0 auto;min-width:0;max-width:100%;display:flex;flex-wrap:wrap;gap:6px;align-items:center;justify-content:center;padding:8px 8px calc(8px + env(safe-area-inset-bottom));background:#f7f1e4;border-top:1px solid #e3d5bc;box-sizing:border-box;overflow-x:hidden}
+.salts,.actions{display:flex;flex-wrap:wrap;gap:6px;min-width:0;max-width:100%;justify-content:center}
+.slider{flex:1 1 200px;min-width:0;max-width:100%;display:flex;align-items:center;gap:8px;min-height:36px}
+.slider label{flex:0 1 auto;min-width:0;font-size:14px;white-space:nowrap}
+.slider input{flex:1 1 0;min-width:0;width:0;height:36px;margin:0;background:transparent;accent-color:#1e4d72}
+.slider output{flex:0 0 3.4em;text-align:right;font-size:14px;font-variant-numeric:tabular-nums;color:#1b2c3a}
+button{font:inherit;font-size:14px;color:#1b2c3a;background:#fffdf8;border:1px solid #d9cbb3;border-radius:12px;min-height:36px;min-width:36px;padding:6px 10px;cursor:pointer;touch-action:manipulation;box-sizing:border-box;max-width:100%}
+.salts button{display:inline-flex;align-items:center;justify-content:center;gap:6px}
+button:focus-visible,input:focus-visible{outline:2px solid #1e4d72;outline-offset:1px}
+.salts button[aria-checked="true"]{background:#1e4d72;color:#fff;border-color:#1e4d72}
+button[aria-pressed="true"]{background:#1e4d72;color:#fff;border-color:#1e4d72}
+.sw{width:12px;height:12px;border-radius:3px;box-shadow:inset 0 0 0 1px rgba(20,40,60,.25);flex:0 0 auto}
+.s-kochsalz{background:#d5e2ec}
+.s-alaun{background:#b7c9d6}
+.s-kupfersulfat{background:#1c6eb8}
+.s-zucker{background:#d4a24e}
+.s-schneeflocke{background:#f7fbff}
+#veil{position:fixed;inset:0;z-index:6;background:rgba(18,28,38,.38);display:flex;align-items:center;justify-content:center;padding:12px;box-sizing:border-box}
+#veil[hidden]{display:none}
+#card{width:min(440px,100%);max-height:calc(100dvh - 24px);overflow:auto;background:#fffaf2;color:#1c2430;border-radius:16px;padding:16px 16px 12px;box-shadow:0 16px 40px rgba(0,0,0,.22);box-sizing:border-box}
+#card h2{margin:0 0 8px;font-family:Georgia,Palatino,"Iowan Old Style",serif;font-size:22px;color:#143044}
+#card p{margin:0 0 14px;font-size:15.5px;line-height:1.45}
+#card button{min-width:44px}
+@media (max-height:520px){
+  #app{flex-direction:row}
+  #bar{flex-direction:column;flex-wrap:nowrap;align-items:stretch;justify-content:flex-start;width:min(292px,48vw);max-height:100%;overflow-x:hidden;overflow-y:auto;border-top:none;border-left:1px solid #e3d5bc;gap:4px;padding:6px}
+  .salts{display:grid;grid-template-columns:1fr 1fr;gap:4px}
+  .actions{display:grid;grid-template-columns:1fr 1fr;gap:4px}
+  .salts button,.actions button{width:100%;font-size:13.5px;padding:4px 6px}
+  .slider{gap:4px}
+  h1{font-size:18px}
+  #hint{font-size:13px;bottom:6px}
+}
+@media (prefers-reduced-motion:reduce){
+  #hint{transition:none}
+}
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="stage">
+    <canvas id="c" aria-label="Glas mit Lösung. Tippe ins Glas, um einen Keim fallen zu lassen."></canvas>
+    <header id="top">
+      <h1>Kristallgarten</h1>
+      <p id="status" role="status" aria-live="polite"></p>
+    </header>
+    <p id="hint">Tippe ins Glas, um einen Keim fallen zu lassen.</p>
+  </div>
+  <section id="bar" aria-label="Steuerung">
+    <div class="salts" role="radiogroup" aria-label="Salz">
+      <button type="button" role="radio" data-salt="kochsalz" aria-checked="true"><i class="sw s-kochsalz" aria-hidden="true"></i>Kochsalz</button>
+      <button type="button" role="radio" data-salt="alaun" aria-checked="false"><i class="sw s-alaun" aria-hidden="true"></i>Alaun</button>
+      <button type="button" role="radio" data-salt="kupfersulfat" aria-checked="false"><i class="sw s-kupfersulfat" aria-hidden="true"></i>Kupfersulfat</button>
+      <button type="button" role="radio" data-salt="zucker" aria-checked="false"><i class="sw s-zucker" aria-hidden="true"></i>Zucker</button>
+      <button type="button" role="radio" data-salt="schneeflocke" aria-checked="false"><i class="sw s-schneeflocke" aria-hidden="true"></i>Schneeflocke</button>
+    </div>
+    <div class="slider">
+      <label for="temp">Temperatur</label>
+      <input id="temp" type="range" min="0" max="100" step="1" value="35" aria-label="Temperatur">
+      <output id="tempOut" for="temp">26°</output>
+    </div>
+    <div class="slider">
+      <label for="conc">Konzentration</label>
+      <input id="conc" type="range" min="0" max="100" step="1" value="76" aria-label="Konzentration">
+      <output id="concOut" for="conc">76%</output>
+    </div>
+    <div class="actions" role="toolbar" aria-label="Werkzeuge">
+      <button id="bLupe" type="button" aria-pressed="false" title="Vergrössern">Lupe</button>
+      <button id="bInfo" type="button" title="Kurz erklärt">Info</button>
+      <button id="bNeu" type="button" title="Glas leeren">Neu</button>
+      <button id="bTon" type="button" aria-pressed="false" title="Gläserne Töne">Ton</button>
+    </div>
+  </section>
+</div>
+<div id="veil" hidden>
+  <article id="card" role="dialog" aria-modal="true" aria-labelledby="cardTitle">
+    <h2 id="cardTitle"></h2>
+    <p id="cardBody"></p>
+    <button id="bClose" type="button">Schliessen</button>
+  </article>
+</div>
+<script>
+'use strict';
+(function () {
+  const KEY = 'kristallgarten-v1';
+  const R = 36;
+  const N = R * 2 + 1;
+  const CELL = 3.35;
+  const DQ = [1, 1, 0, -1, -1, 0];
+  const DR = [0, -1, -1, 0, 1, 1];
+  const SQ3 = Math.sqrt(3);
+  const MAX_CRYSTALS = 8;
+  const SALTS = ['kochsalz', 'alaun', 'kupfersulfat', 'zucker', 'schneeflocke'];
+  const NAME = {
+    kochsalz: 'Kochsalz',
+    alaun: 'Alaun',
+    kupfersulfat: 'Kupfersulfat',
+    zucker: 'Zucker',
+    schneeflocke: 'Schneeflocke'
+  };
+  const INFO = {
+    kochsalz: 'Kochsalz heisst auch Natriumchlorid. Seine Bausteine setzen sich so an, dass flache Flächen entstehen: ein Würfel. In der Lösung irren sie umher, bis sie am Kristall andocken. Ist die Lösung sehr voll, wachsen die Ecken schneller als die Mitte, und der Würfel wird zum Trichter.',
+    alaun: 'Alaun formt Oktaeder: zwei Pyramiden, Boden an Boden, mit acht gleichen Dreiecken. Die Kristalle werden oft klar und ziemlich gross, darum nimmt man sie gern im Schulversuch. In wärmerem Wasser stumpfen die Ecken ein wenig ab.',
+    kupfersulfat: 'Kupfersulfat ist blau, weil die Kupferteilchen rotes Licht schlucken und blaues durchlassen. Die Kristalle sind schiefe Prismen. Kalt und bei hoher Konzentration werden sie länger und spitzer.',
+    zucker: 'Zucker-Kristalle sind ein wenig schief und klumpig, wie Kandiszucker am Faden. Die Moleküle sind gross, darum werden die Flächen nicht so glatt wie beim Salz. Langsam und eher kühl wächst der schönste Kandis.',
+    schneeflocke: 'Eine Schneeflocke hat sechs Arme. Hier wächst sie durch diffusionsbegrenztes Wachstum: die Teilchen irren durch die Lösung und bleiben kleben, wo sie zuerst ankommen. An den Spitzen geht das leichter als in den Buchten, darum werden die Arme zackig. Wärmer und weniger Stoff gibt eher ein rundes Plättchen.'
+  };
+  const PAL = {
+    kochsalz: [236, 244, 250],
+    alaun: [214, 230, 242],
+    kupfersulfat: [16, 96, 198],
+    zucker: [232, 168, 64],
+    schneeflocke: [248, 252, 255]
+  };
+  const LIQ = {
+    kochsalz: ['#e7f3f8', '#9ec4d8'],
+    alaun: ['#e6f1f6', '#a9c6d4'],
+    kupfersulfat: ['#3d92d4', '#0c4e96'],
+    zucker: ['#f6d7a2', '#d09040'],
+    schneeflocke: ['#e7f6fc', '#8ec4de']
+  };
+
+  const CUBE_V = [
+    [-1, -1, -1], [1, -1, -1], [1, 1, -1], [-1, 1, -1],
+    [-1, -1, 1], [1, -1, 1], [1, 1, 1], [-1, 1, 1]
+  ];
+  const CUBE_F = [
+    [0, 1, 2, 3], [4, 7, 6, 5], [0, 4, 5, 1], [3, 2, 6, 7], [0, 3, 7, 4], [1, 5, 6, 2]
+  ];
+  const OCT_V = [
+    [0, 1.15, 0], [0, -1.15, 0],
+    [1, 0, 0], [0, 0, 1], [-1, 0, 0], [0, 0, -1]
+  ];
+  const OCT_F = [
+    [0, 2, 3], [0, 3, 4], [0, 4, 5], [0, 5, 2],
+    [1, 3, 2], [1, 4, 3], [1, 5, 4], [1, 2, 5]
+  ];
+
+  const canvas = document.getElementById('c');
+  const ctx = canvas.getContext('2d', { alpha: false });
+  const snap = document.createElement('canvas');
+  const snapCtx = snap.getContext('2d', { alpha: false });
+  const statusEl = document.getElementById('status');
+  const hintEl = document.getElementById('hint');
+  const tempIn = document.getElementById('temp');
+  const concIn = document.getElementById('conc');
+  const tempOut = document.getElementById('tempOut');
+  const concOut = document.getElementById('concOut');
+  const bLupe = document.getElementById('bLupe');
+  const bInfo = document.getElementById('bInfo');
+  const bNeu = document.getElementById('bNeu');
+  const bTon = document.getElementById('bTon');
+  const bClose = document.getElementById('bClose');
+  const veil = document.getElementById('veil');
+  const cardTitle = document.getElementById('cardTitle');
+  const cardBody = document.getElementById('cardBody');
+  const saltButtons = Array.from(document.querySelectorAll('.salts button'));
+
+  const state = {
+    salt: 'kochsalz',
+    temp: 35,
+    conc: 76,
+    lupe: false,
+    crystals: [],
+    motes: [],
+    bubbles: [],
+    time: 0,
+    dpr: 1,
+    lx: 80,
+    ly: 80,
+    geom: null
+  };
+  let nextId = 1;
+  let gesture = false;
+  let soundOn = false;
+  let actx = null;
+  let lastTink = 0;
+  let arm = 0;
+  let flash = '';
+  let flashUntil = 0;
+  let saveAt = 0;
+  let closed = false;
+  let lastFrame = 0;
+  let pointer = false;
+  const reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  function clamp(v, a, b) { return v < a ? a : v > b ? b : v; }
+  function hash(a, b) {
+    let h = Math.imul(a | 0, 374761393) ^ Math.imul((b | 0) + 1, 668265263);
+    h = Math.imul(h ^ (h >>> 13), 1274126177);
+    return ((h ^ (h >>> 16)) >>> 0) / 4294967295;
+  }
+  function dot(a, b) { return a[0] * b[0] + a[1] * b[1] + a[2] * b[2]; }
+  function sub(a, b) { return [a[0] - b[0], a[1] - b[1], a[2] - b[2]]; }
+  function cross(a, b) {
+    return [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+  }
+  function norm(a) {
+    const L = Math.hypot(a[0], a[1], a[2]) || 1;
+    return [a[0] / L, a[1] / L, a[2] / L];
+  }
+  function lerp3(a, b, t) {
+    return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
+  }
+  function hexDist(q, r) { return (Math.abs(q) + Math.abs(r) + Math.abs(q + r)) / 2; }
+
+  function envNow() {
+    const tempN = state.temp / 100;
+    const concN = state.conc / 100;
+    const solubility = 0.16 + tempN * 0.82;
+    const supersat = concN - solubility;
+    const branch = clamp(supersat * 2.35 * (1.08 - tempN * 0.85), 0, 1);
+    const speed = (0.42 + tempN * 1.15) * supersat;
+    return { tempN: tempN, concN: concN, supersat: supersat, branch: branch, speed: speed };
+  }
+  function shapeOf(salt, e) {
+    const hopperBase = clamp((e.supersat - 0.28) * 2.4, 0, 1);
+    const hopper = salt === 'kochsalz' ? hopperBase : hopperBase * (salt === 'zucker' ? 0.15 : 0.28);
+    let trunc = clamp((e.tempN - 0.22) * (salt === 'alaun' ? 1.25 : 1.05), 0, 0.42);
+    if (salt === 'zucker') trunc = 0.06 + trunc * 0.35;
+    if (salt === 'schneeflocke') trunc = 0;
+    const elong = salt === 'kupfersulfat' ? 1.05 + e.branch * 0.62 : 1.15;
+    return { hopper: hopper, trunc: trunc, elong: elong, branch: e.branch };
+  }
+  function celsius() { return Math.round(8 + state.temp / 100 * 52); }
+
+  function describe() {
+    const e = envNow();
+    const s = shapeOf(state.salt, e);
+    if (e.supersat < -0.02) return NAME[state.salt] + ' · zu warm, die Kristalle lösen sich';
+    if (state.salt === 'kochsalz') {
+      if (s.hopper > 0.42) return 'Kochsalz · Trichterwürfel, die Ecken wachsen voraus';
+      if (s.trunc > 0.2) return 'Kochsalz · warme Lösung, die Ecken stumpfen ab';
+      return 'Kochsalz · klare Würfel';
+    }
+    if (state.salt === 'alaun') {
+      if (s.trunc > 0.2) return 'Alaun · Oktaeder mit abgestumpften Ecken';
+      return 'Alaun · klare Oktaeder';
+    }
+    if (state.salt === 'kupfersulfat') {
+      if (s.elong > 1.7) return 'Kupfersulfat · lange blaue Prismen';
+      return 'Kupfersulfat · schiefe blaue Prismen';
+    }
+    if (state.salt === 'zucker') return 'Zucker · schiefe Kandis-Klumpen';
+    if (e.branch > 0.55) return 'Schneeflocke · zackige Dendriten';
+    if (e.branch > 0.28) return 'Schneeflocke · verzweigte Arme';
+    return 'Schneeflocke · sechseckiges Plättchen';
+  }
+  function syncStatus() {
+    const n = state.crystals.length;
+    const extra = n ? (' · ' + n + (n === 1 ? ' Keim' : ' Keime')) : '';
+    const text = (flash && performance.now() < flashUntil) ? flash : (describe() + extra);
+    if (statusEl.textContent !== text) statusEl.textContent = text;
+  }
+  function say(msg) { flash = msg; flashUntil = performance.now() + 2200; syncStatus(); }
+  function syncOutputs() {
+    const c = celsius();
+    tempOut.textContent = c + '°';
+    concOut.textContent = Math.round(state.conc) + '%';
+    tempIn.setAttribute('aria-valuetext', c + ' Grad');
+    concIn.setAttribute('aria-valuetext', Math.round(state.conc) + ' Prozent');
+  }
+  function syncSalt() {
+    saltButtons.forEach(function (b) {
+      const on = b.getAttribute('data-salt') === state.salt;
+      b.setAttribute('aria-checked', on ? 'true' : 'false');
+    });
+  }
+  function syncToggles() {
+    bLupe.setAttribute('aria-pressed', state.lupe ? 'true' : 'false');
+    bLupe.setAttribute('aria-label', state.lupe ? 'Lupe ist an. Tippen zum Ausschalten.' : 'Lupe ist aus. Tippen zum Einschalten.');
+    bTon.setAttribute('aria-pressed', soundOn ? 'true' : 'false');
+    bTon.setAttribute('aria-label', soundOn ? 'Ton ist an. Tippen zum Ausschalten.' : 'Ton ist aus. Tippen zum Einschalten.');
+  }
+
+  function noteGesture() { gesture = true; }
+  function ensureAudio() {
+    if (!gesture || !soundOn || actx) return;
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return;
+    try { actx = new AC(); } catch (err) { actx = null; }
+  }
+  function tink(freq, gain) {
+    if (!gesture || !soundOn) return;
+    ensureAudio();
+    if (!actx) return;
+    const now = actx.currentTime;
+    if (now - lastTink < 0.07) return;
+    lastTink = now;
+    if (actx.state === 'suspended') {
+      const p = actx.resume();
+      if (p && p.catch) p.catch(function () {});
+    }
+    const o = actx.createOscillator();
+    const o2 = actx.createOscillator();
+    const g = actx.createGain();
+    const mix = actx.createGain();
+    o.type = 'sine';
+    o2.type = 'sine';
+    o.frequency.setValueAtTime(freq, now);
+    o2.frequency.setValueAtTime(freq * 2.37, now);
+    mix.gain.value = 0.28;
+    g.gain.setValueAtTime(0.0001, now);
+    g.gain.exponentialRampToValueAtTime(gain || 0.05, now + 0.008);
+    g.gain.exponentialRampToValueAtTime(0.0001, now + 0.15);
+    o.connect(g);
+    o2.connect(mix);
+    mix.connect(g);
+    g.connect(actx.destination);
+    o.start(now);
+    o2.start(now);
+    o.stop(now + 0.17);
+    o2.stop(now + 0.17);
+  }
+
+  function halfFrac(u) {
+    const neck = 0.30;
+    const body = 0.5;
+    if (u < 0.018) return 0.42;
+    if (u < 0.12) return neck;
+    if (u < 0.23) {
+      const t = (u - 0.12) / 0.11;
+      const s = t * t * (3 - 2 * t);
+      return neck + (body - neck) * s;
+    }
+    if (u > 0.97) return body * (1 - 0.035 * ((u - 0.97) / 0.03));
+    const v = (u - 0.23) / 0.71;
+    return body * (0.97 + Math.sin(clamp(v, 0, 1) * Math.PI) * 0.03);
+  }
+  function layout() {
+    const w = canvas.clientWidth || 300;
+    const h = canvas.clientHeight || 300;
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    state.dpr = dpr;
+    if (canvas.width !== Math.round(w * dpr) || canvas.height !== Math.round(h * dpr)) {
+      canvas.width = Math.max(1, Math.round(w * dpr));
+      canvas.height = Math.max(1, Math.round(h * dpr));
+    }
+    const tableY = h * 0.86;
+    const top = Math.max(6, h * 0.035);
+    const bottom = tableY + 4;
+    const jh = Math.max(40, bottom - top);
+    const jw = Math.max(80, Math.min(w * 0.74, jh * 0.78, w - 20));
+    const cx = w * 0.5;
+    const samples = [];
+    const steps = 52;
+    for (let i = 0; i <= steps; i++) {
+      const u = i / steps;
+      samples.push({ u: u, y: top + u * jh, hw: halfFrac(u) * jw });
+    }
+    state.geom = { w: w, h: h, cx: cx, top: top, bottom: bottom, jh: jh, jw: jw, tableY: tableY, samples: samples };
+    if (!pointer) {
+      state.lx = cx;
+      state.ly = top + jh * 0.55;
+    }
+    state.crystals.forEach(applyNorm);
+  }
+  function g() { return state.geom; }
+  function hwAt(y) {
+    const s = g().samples;
+    if (y <= s[0].y) return s[0].hw;
+    const last = s[s.length - 1];
+    if (y >= last.y) return last.hw;
+    let lo = 0;
+    let hi = s.length - 1;
+    while (hi - lo > 1) {
+      const m = (lo + hi) >> 1;
+      if (s[m].y < y) lo = m; else hi = m;
+    }
+    const t = (y - s[lo].y) / (s[hi].y - s[lo].y || 1);
+    return s[lo].hw + (s[hi].hw - s[lo].hw) * t;
+  }
+  function liquidY() { return g().top + g().jh * 0.27; }
+  function floorY() { return g().top + g().jh * 0.93; }
+  function stringEnds() {
+    return { y0: g().top + g().jh * 0.055, y1: g().top + g().jh * 0.7 };
+  }
+  function stringX(y) {
+    const e = stringEnds();
+    const t = clamp((y - e.y0) / (e.y1 - e.y0 || 1), 0, 1);
+    return g().cx + Math.sin(t * Math.PI) * 6 + Math.sin(state.time * 0.7 + t * 4) * 1.1;
+  }
+  function inJar(x, y) {
+    const geom = g();
+    if (!geom || y < geom.top - 4 || y > geom.bottom + 8) return false;
+    return Math.abs(x - geom.cx) <= hwAt(y) + 2;
+  }
+  function applyNorm(c) {
+    const geom = g();
+    c.x = geom.cx + (c.nx - 0.5) * geom.jw;
+    c.y = geom.top + c.ny * geom.jh;
+  }
+  function writeNorm(c) {
+    const geom = g();
+    c.nx = 0.5 + (c.x - geom.cx) / geom.jw;
+    c.ny = (c.y - geom.top) / geom.jh;
+  }
+
+  function packCells(c) {
+    const out = [];
+    for (let i = 0; i < c.cells.length; i++) {
+      const id = c.cells[i];
+      const q = (id % N) - R;
+      const r = Math.floor(id / N) - R;
+      out.push((q + R) + (r + R) * 256);
+    }
+    return out;
+  }
+  function save() {
+    if (closed) return;
+    const data = {
+      v: 1,
+      salt: state.salt,
+      temp: state.temp,
+      conc: state.conc,
+      sound: soundOn ? 1 : 0,
+      crystals: state.crystals.map(function (c) {
+        const item = {
+          salt: c.salt, nx: +c.nx.toFixed(4), ny: +c.ny.toFixed(4),
+          r: +c.r.toFixed(2), rot: +c.rot.toFixed(4), seed: c.seed,
+          settled: c.settled ? 1 : 0, onString: c.onString ? 1 : 0
+        };
+        if (c.cells) item.cells = packCells(c);
+        return item;
+      })
+    };
+    try { localStorage.setItem(KEY, JSON.stringify(data)); } catch (err) { /* full or blocked */ }
+  }
+  function saveSoon() { saveAt = performance.now() + 350; }
+  function load() {
+    let raw = null;
+    try { raw = localStorage.getItem(KEY); } catch (err) { return; }
+    if (!raw) return;
+    let data = null;
+    try { data = JSON.parse(raw); } catch (err) { return; }
+    if (!data || data.v !== 1) return;
+    if (SALTS.indexOf(data.salt) >= 0) state.salt = data.salt;
+    if (typeof data.temp === 'number') state.temp = clamp(data.temp, 0, 100);
+    if (typeof data.conc === 'number') state.conc = clamp(data.conc, 0, 100);
+    soundOn = data.sound === 1;
+    tempIn.value = String(Math.round(state.temp));
+    concIn.value = String(Math.round(state.conc));
+    state.crystals = [];
+    const list = Array.isArray(data.crystals) ? data.crystals.slice(0, MAX_CRYSTALS) : [];
+    list.forEach(function (item) {
+      if (!item || SALTS.indexOf(item.salt) < 0) return;
+      const c = makeCrystal(item.salt, item.seed | 0);
+      c.nx = clamp(+item.nx || 0.5, 0.05, 0.95);
+      c.ny = clamp(+item.ny || 0.7, 0.2, 0.95);
+      c.r = clamp(+item.r || 8, 4, 160);
+      c.rot = +item.rot || 0;
+      c.settled = !!item.settled;
+      c.onString = !!item.onString;
+      c.vy = c.settled ? 0 : 30;
+      applyNorm(c);
+      if (item.salt === 'schneeflocke' && Array.isArray(item.cells)) restoreDla(c, item.cells);
+      else if (item.salt === 'schneeflocke' && c.settled) initDla(c);
+      state.crystals.push(c);
+    });
+    if (state.crystals.length) hintEl.hidden = true;
+  }
+
+  function makeCrystal(salt, seed) {
+    const s = seed || ((Math.random() * 1e9) | 0) || 1;
+    return {
+      id: nextId++,
+      salt: salt,
+      seed: s,
+      nx: 0.5,
+      ny: 0.3,
+      x: 0,
+      y: 0,
+      r: 7 + hash(s, 2) * 2,
+      rot: 0.35 + hash(s, 3) * 0.9,
+      vy: 24,
+      settled: false,
+      onString: false,
+      age: 0,
+      cells: null,
+      ice: null,
+      maxR: 0,
+      sprite: null,
+      dirty: false
+    };
+  }
+  function idxOf(q, r) { return (r + R) * N + (q + R); }
+  function inGrid(q, r) {
+    return Math.abs(q) <= R && Math.abs(r) <= R && hexDist(q, r) <= R;
+  }
+  function hasIce(c, q, r) {
+    if (!inGrid(q, r)) return false;
+    return c.ice[idxOf(q, r)] === 1;
+  }
+  function setIce(c, q, r) {
+    if (!inGrid(q, r)) return;
+    const id = idxOf(q, r);
+    if (c.ice[id]) return;
+    c.ice[id] = 1;
+    c.cells.push(id);
+    const d = hexDist(q, r);
+    if (d > c.maxR) c.maxR = d;
+    c.dirty = true;
+  }
+  function initDla(c) {
+    c.ice = new Uint8Array(N * N);
+    c.cells = [];
+    c.maxR = 0;
+    c.sprite = document.createElement('canvas');
+    setIce(c, 0, 0);
+    c.r = 8;
+  }
+  function restoreDla(c, packed) {
+    initDla(c);
+    c.cells = [];
+    c.ice.fill(0);
+    c.maxR = 0;
+    for (let i = 0; i < packed.length; i++) {
+      const p = packed[i] | 0;
+      const q = (p & 255) - R;
+      const r = ((p >> 8) & 255) - R;
+      setIce(c, q, r);
+    }
+    if (!c.cells.length) setIce(c, 0, 0);
+    c.r = Math.max(8, c.maxR * CELL * 0.92);
+  }
+  function neighCount(c, q, r) {
+    let n = 0;
+    for (let k = 0; k < 6; k++) if (hasIce(c, q + DQ[k], r + DR[k])) n++;
+    return n;
+  }
+  function stamp6(c, q, r) {
+    let cq = q;
+    let cr = r;
+    for (let i = 0; i < 6; i++) {
+      setIce(c, cq, cr);
+      const nq = -cr;
+      const nr = cq + cr;
+      cq = nq;
+      cr = nr;
+    }
+  }
+  function growDla(c, e, dt) {
+    const rate = e.speed;
+    if (rate < 0) {
+      const n = Math.min(12, Math.ceil(-rate * 26 * dt));
+      for (let k = 0; k < n && c.cells.length > 1; k++) {
+        let pick = -1;
+        for (let t = 0; t < 8; t++) {
+          const i = 1 + ((Math.random() * (c.cells.length - 1)) | 0);
+          const id = c.cells[i];
+          const q = (id % N) - R;
+          const r = Math.floor(id / N) - R;
+          if (neighCount(c, q, r) <= 3) { pick = i; break; }
+        }
+        if (pick < 0) pick = c.cells.length - 1;
+        const id = c.cells[pick];
+        c.ice[id] = 0;
+        c.cells.splice(pick, 1);
+        c.dirty = true;
+      }
+      c.maxR = 0;
+      for (let i = 0; i < c.cells.length; i++) {
+        const id = c.cells[i];
+        const d = hexDist((id % N) - R, Math.floor(id / N) - R);
+        if (d > c.maxR) c.maxR = d;
+      }
+      c.r = Math.max(6, c.maxR * CELL * 0.92);
+      return;
+    }
+    if (c.maxR >= R - 2) {
+      c.r = Math.max(8, c.maxR * CELL * 0.92);
+      return;
+    }
+    const branch = e.branch;
+    const tries = Math.max(1, Math.min(16, Math.round(rate * 240 * dt)));
+    for (let w = 0; w < tries; w++) {
+      const ang = Math.random() * Math.PI * 2;
+      const rad = c.maxR + 1.15;
+      const x = rad * Math.cos(ang);
+      const y = rad * Math.sin(ang);
+      let q = Math.round(x - y / SQ3);
+      let r = Math.round((y * 2) / SQ3);
+      for (let s = 0; s < 42; s++) {
+        const k = (Math.random() * 6) | 0;
+        q += DQ[k];
+        r += DR[k];
+        const hd = hexDist(q, r);
+        if (hd > c.maxR + 6 || hd > R - 1) break;
+        if (hasIce(c, q, r) || !neighCount(c, q, r)) continue;
+        const nb = neighCount(c, q, r);
+        let p = 0.22 + (1 - branch) * 0.78;
+        if (branch > 0.45 && nb >= 3) p *= 0.12;
+        if (branch < 0.32 && nb < 2 && c.maxR > 2) p = 0.08;
+        if (Math.random() < p) {
+          stamp6(c, q, r);
+          if (((c.cells.length / 6) | 0) % 10 === 0) tink(1680 + hash(c.seed, c.cells.length | 0) * 700, 0.03);
+        }
+        break;
+      }
+    }
+    c.r = Math.max(8, c.maxR * CELL * 0.92);
+  }
+
+  function settle(c, onString) {
+    if (c.settled) return;
+    c.settled = true;
+    c.onString = onString;
+    c.vy = 0;
+    if (c.salt === 'schneeflocke') initDla(c);
+    writeNorm(c);
+    tink(1500 + hash(c.seed, 4) * 900, 0.055);
+    save();
+  }
+  function dropAt(x, y) {
+    if (!g() || !inJar(x, y)) return false;
+    if (state.crystals.length >= MAX_CRYSTALS) {
+      say('Das Glas ist voll. Mit Neu kannst du leeren.');
+      return false;
+    }
+    const yL = liquidY();
+    const hw = Math.max(8, hwAt(yL) - 10);
+    const sx = clamp(x, g().cx - hw, g().cx + hw);
+    const c = makeCrystal(state.salt, 0);
+    c.x = sx;
+    c.y = yL + 1;
+    c.vy = 18;
+    writeNorm(c);
+    state.crystals.push(c);
+    hintEl.hidden = true;
+    save();
+    return true;
+  }
+  function clearJar() {
+    state.crystals = [];
+    hintEl.hidden = false;
+    bNeu.textContent = 'Neu';
+    arm = 0;
+    say('Das Glas ist leer.');
+    save();
+  }
+
+  function spawnMote(m) {
+    const y = g().top + g().jh * (0.34 + Math.random() * 0.55);
+    const hw = Math.max(6, hwAt(y) - 10);
+    m.x = g().cx + (Math.random() * 2 - 1) * hw;
+    m.y = y;
+    m.vx = (Math.random() - 0.5) * 10;
+    m.vy = (Math.random() - 0.5) * 10;
+    m.rad = 1.1 + Math.random() * 1.5;
+  }
+  function nearest(x, y) {
+    let best = null;
+    let bestD = 1e9;
+    for (let i = 0; i < state.crystals.length; i++) {
+      const c = state.crystals[i];
+      if (!c.settled) continue;
+      const d = Math.hypot(c.x - x, c.y - y);
+      if (d < bestD) { bestD = d; best = c; }
+    }
+    return best ? { c: best, d: bestD } : null;
+  }
+  function simulate(dt) {
+    const geom = g();
+    if (!geom) return;
+    state.time += dt;
+    const e = envNow();
+    if (state.motes.length < 46) {
+      while (state.motes.length < 46) state.motes.push({});
+      state.motes.forEach(spawnMote);
+    }
+    for (let i = 0; i < state.motes.length; i++) {
+      const m = state.motes[i];
+      m.vx += (Math.random() - 0.5) * 50 * dt;
+      m.vy += (Math.random() - 0.5) * 50 * dt;
+      const near = nearest(m.x, m.y);
+      if (near && e.supersat > 0) {
+        const dx = near.c.x - m.x;
+        const dy = near.c.y - m.y;
+        const d = near.d || 1;
+        m.vx += (dx / d) * e.supersat * 22;
+        m.vy += (dy / d) * e.supersat * 22;
+        if (d < near.c.r * 0.85 + 3) spawnMote(m);
+      } else if (e.supersat < 0) {
+        m.vy -= 8 * dt;
+      }
+      m.x += m.vx * dt;
+      m.y += m.vy * dt;
+      m.vx *= 0.985;
+      m.vy *= 0.985;
+      if (!inJar(m.x, m.y) || m.y < liquidY()) spawnMote(m);
+    }
+    if (state.bubbles.length < 6) {
+      for (let i = state.bubbles.length; i < 6; i++) {
+        state.bubbles.push({ x: geom.cx, y: floorY(), rad: 2, vy: -18 });
+      }
+    }
+    for (let i = 0; i < state.bubbles.length; i++) {
+      const b = state.bubbles[i];
+      b.y += b.vy * dt;
+      b.x += Math.sin(state.time * 2 + i) * 6 * dt;
+      if (b.y < liquidY() + 4) {
+        b.y = floorY() - 8 - Math.random() * 30;
+        b.x = geom.cx + (Math.random() * 2 - 1) * (hwAt(b.y) - 12);
+        b.rad = 1.5 + Math.random() * 2.2;
+        b.vy = -12 - Math.random() * 16;
+      }
+    }
+    const load = state.crystals.reduce(function (s, c) { return s + c.r; }, 0);
+    const crowd = 1 / (1 + load / 340);
+    for (let i = 0; i < state.crystals.length; i++) {
+      const c = state.crystals[i];
+      c.age += dt;
+      if (!c.settled) {
+        c.vy += 640 * dt;
+        const ends = stringEnds();
+        if (c.hooked) {
+          c.vy = Math.min(c.vy, 240);
+          c.y += c.vy * dt;
+          c.x = stringX(c.y);
+          let stop = ends.y1 - c.r * 0.35;
+          for (let j = 0; j < state.crystals.length; j++) {
+            const o = state.crystals[j];
+            if (o !== c && o.settled && o.onString) {
+              const gap = o.y - (o.r + c.r) * 0.62;
+              if (gap < stop) stop = gap;
+            }
+          }
+          if (c.y >= stop) {
+            c.y = stop;
+            c.x = stringX(c.y);
+            settle(c, true);
+          }
+        } else {
+          c.y += c.vy * dt;
+          c.x += Math.sin(c.age * 7 + c.seed) * 10 * dt;
+          const hw = hwAt(c.y) - 8;
+          if (c.x < geom.cx - hw) c.x = geom.cx - hw;
+          if (c.x > geom.cx + hw) c.x = geom.cx + hw;
+          if (c.y > liquidY() + 28 && c.y < ends.y1 - 8 && Math.abs(c.x - stringX(c.y)) < 6) {
+            c.hooked = true;
+            c.x = stringX(c.y);
+          }
+        }
+        const fy = floorY() - c.r * 0.45;
+        if (!c.settled && !c.hooked && c.y >= fy) {
+          c.y = fy;
+          settle(c, false);
+        }
+        if (!c.settled && !c.hooked) {
+          for (let j = 0; j < state.crystals.length; j++) {
+            const o = state.crystals[j];
+            if (o === c || !o.settled) continue;
+            const dx = c.x - o.x;
+            const dy = c.y - o.y;
+            const d = Math.hypot(dx, dy) || 0.001;
+            const min = (c.r + o.r) * 0.7;
+            if (d < min) {
+              let px = dx / d;
+              let py = dy / d;
+              if (py < 0.2) {
+                py = 0.65;
+                px *= 0.45;
+                const L = Math.hypot(px, py) || 1;
+                px /= L;
+                py /= L;
+              }
+              c.x = o.x + px * min;
+              c.y = o.y + py * min;
+              settle(c, false);
+              break;
+            }
+          }
+        }
+        writeNorm(c);
+      } else if (c.salt === 'schneeflocke') {
+        if (!c.ice) initDla(c);
+        growDla(c, e, dt);
+      } else {
+        const maxR = Math.min(geom.jw, geom.jh) * 0.23;
+        const before = c.r;
+        if (e.speed >= 0) {
+          const room = Math.max(0.04, 1 - c.r / maxR);
+          c.r += e.speed * 58 * room * crowd * dt;
+        } else {
+          c.r += e.speed * 18 * dt;
+          if (c.r < 5) c.r = 5;
+        }
+        if (Math.floor(c.r / 16) > Math.floor(before / 16)) tink(1900 + hash(c.seed, c.r | 0) * 500, 0.028);
+      }
+    }
+    relax();
+    if (arm && performance.now() > arm && bNeu.textContent !== 'Neu') {
+      arm = 0;
+      bNeu.textContent = 'Neu';
+    }
+    if (saveAt && performance.now() > saveAt) {
+      saveAt = 0;
+      save();
+    }
+    syncStatus();
+  }
+  function relax() {
+    const list = state.crystals;
+    for (let i = 0; i < list.length; i++) {
+      const a = list[i];
+      if (!a.settled) continue;
+      for (let j = i + 1; j < list.length; j++) {
+        const b = list[j];
+        if (!b.settled) continue;
+        let dx = b.x - a.x;
+        let dy = b.y - a.y;
+        let d = Math.hypot(dx, dy) || 0.001;
+        const min = (a.r + b.r) * 0.58;
+        if (d < min) {
+          const push = (min - d) * 0.18;
+          dx /= d;
+          dy /= d;
+          if (!a.onString) { a.x -= dx * push; a.y -= dy * push; }
+          if (!b.onString) { b.x += dx * push; b.y += dy * push; }
+        }
+      }
+      if (!a.onString) {
+        const fy = floorY() - a.r * 0.42;
+        if (a.y > fy) a.y = fy;
+        const hw = hwAt(a.y) - a.r * 0.35 - 6;
+        if (a.x < g().cx - hw) a.x = g().cx - hw;
+        if (a.x > g().cx + hw) a.x = g().cx + hw;
+      } else {
+        a.x += (stringX(a.y) - a.x) * 0.25;
+      }
+      writeNorm(a);
+    }
+  }
+
+  function orderNeighbors(verts, vi, neigh) {
+    const p = verts[vi];
+    const n = norm(p);
+    let up = Math.abs(n[1]) > 0.85 ? [1, 0, 0] : [0, 1, 0];
+    const t1 = norm(cross(up, n));
+    const t2 = cross(n, t1);
+    return neigh.map(function (i) {
+      const d = sub(verts[i], p);
+      return { i: i, a: Math.atan2(dot(d, t2), dot(d, t1)) };
+    }).sort(function (a, b) { return a.a - b.a; }).map(function (x) { return x.i; });
+  }
+  function adjacency(verts, faces) {
+    const adj = verts.map(function () { return []; });
+    faces.forEach(function (f) {
+      for (let i = 0; i < f.length; i++) {
+        const a = f[i];
+        const b = f[(i + 1) % f.length];
+        if (adj[a].indexOf(b) < 0) adj[a].push(b);
+        if (adj[b].indexOf(a) < 0) adj[b].push(a);
+      }
+    });
+    return adj.map(function (neigh, vi) { return orderNeighbors(verts, vi, neigh); });
+  }
+  const CUBE_ADJ = adjacency(CUBE_V, CUBE_F);
+  const OCT_ADJ = adjacency(OCT_V, OCT_F);
+
+  function project(v, rot, origin, scale) {
+    const c = Math.cos(rot);
+    const s = Math.sin(rot);
+    const xr = v[0] * c - v[2] * s;
+    const zr = v[0] * s + v[2] * c;
+    return {
+      x: origin.x + (xr + zr * 0.58) * scale,
+      y: origin.y + (-v[1] * 0.86 + zr * 0.34) * scale,
+      z: zr + v[1] * 0.05
+    };
+  }
+  function rotY(n, rot) {
+    const c = Math.cos(rot);
+    const s = Math.sin(rot);
+    return [n[0] * c - n[2] * s, n[1], n[0] * s + n[2] * c];
+  }
+  const LIGHT = norm([-0.42, 0.78, 0.48]);
+  function faceColor(rgb, shade, alpha) {
+    const vivid = rgb[2] > rgb[0] + 40;
+    const s = vivid ? 0.4 + shade * 0.6 : 0.78 + shade * 0.22;
+    const spec = Math.pow(Math.max(0, shade), vivid ? 2.4 : 1.7);
+    let r = rgb[0] * s + 255 * (1 - s) * 0.55;
+    let gc = rgb[1] * s + 255 * (1 - s) * 0.55;
+    let b = rgb[2] * s + 255 * (1 - s) * 0.55;
+    r += (255 - r) * spec * 0.72;
+    gc += (255 - gc) * spec * 0.72;
+    b += (255 - b) * spec * 0.72;
+    return 'rgba(' + (r | 0) + ',' + (gc | 0) + ',' + (b | 0) + ',' + (alpha == null ? 0.9 : alpha) + ')';
+  }
+  function polyPath(pts) {
+    ctx.beginPath();
+    ctx.moveTo(pts[0].x, pts[0].y);
+    for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y);
+    ctx.closePath();
+  }
+  function drawPoly(pts, fill, stroke) {
+    if (pts.length < 3) return;
+    polyPath(pts);
+    ctx.fillStyle = fill;
+    ctx.fill();
+    if (stroke) {
+      ctx.strokeStyle = stroke;
+      ctx.lineWidth = 1;
+      ctx.stroke();
+    }
+  }
+  function outward(pts) {
+    const a = pts[0];
+    const b = pts[1];
+    const c = pts[2];
+    let n = cross(sub(b, a), sub(c, a));
+    if (dot(n, a) < 0) n = [-n[0], -n[1], -n[2]];
+    return norm(n);
+  }
+  function drawMesh(verts, faces, adj, origin, scale, rot, trunc, hopper, rgb, sparkles) {
+    const t = clamp(trunc, 0, 0.42);
+    const polys = [];
+    function pushPoly(pts3) {
+      if (pts3.length < 3) return;
+      const n = outward(pts3);
+      const rn = rotY(n, rot);
+      const shade = clamp(0.5 + 0.5 * dot(rn, LIGHT), 0, 1);
+      let z = 0;
+      const screen = pts3.map(function (p) {
+        const s = project(p, rot, origin, scale);
+        z += s.z;
+        return s;
+      });
+      polys.push({ screen: screen, shade: shade, z: z / pts3.length, n: rn });
+    }
+    for (let f = 0; f < faces.length; f++) {
+      const face = faces[f];
+      const pts = [];
+      for (let i = 0; i < face.length; i++) {
+        const a = verts[face[i]];
+        const b = verts[face[(i + 1) % face.length]];
+        pts.push(lerp3(a, b, t < 0.02 ? 0 : t));
+        if (t > 0.02 && t < 0.4) pts.push(lerp3(a, b, 1 - t));
+      }
+      pushPoly(pts);
+    }
+    if (t > 0.02) {
+      for (let vi = 0; vi < verts.length; vi++) {
+        const p = verts[vi];
+        const tri = adj[vi].map(function (ni) { return lerp3(p, verts[ni], t); });
+        pushPoly(tri);
+      }
+    }
+    polys.sort(function (a, b) { return a.z - b.z; });
+    for (let i = 0; i < polys.length; i++) {
+      const poly = polys[i];
+      const glass = rgb[2] > rgb[0] + 40 ? 0.94 : 0.9;
+      drawPoly(poly.screen, faceColor(rgb, poly.shade, glass), 'rgba(255,255,255,0.8)');
+      if (hopper > 0.34 && poly.screen.length >= 4 && poly.shade > 0.42) {
+        let cx = 0;
+        let cy = 0;
+        const pts = poly.screen;
+        for (let k = 0; k < pts.length; k++) { cx += pts[k].x; cy += pts[k].y; }
+        cx /= pts.length;
+        cy /= pts.length;
+        const inset = 0.12 + Math.min(hopper, 0.7) * 0.2;
+        const inner = pts.map(function (p) {
+          return { x: cx + (p.x - cx) * (1 - inset), y: cy + (p.y - cy) * (1 - inset) };
+        });
+        for (let k = 0; k < pts.length; k++) {
+          const a = pts[k];
+          const b = pts[(k + 1) % pts.length];
+          const c = inner[(k + 1) % pts.length];
+          const d = inner[k];
+          drawPoly([a, b, c, d], faceColor(rgb, poly.shade * 0.78, glass), null);
+        }
+        drawPoly(inner, faceColor(rgb, poly.shade * 0.62, glass), 'rgba(255,255,255,0.55)');
+      }
+      if (sparkles && poly.shade > 0.72 && Math.sin(state.time * 5 + poly.z * 3 + i) > 0.35) {
+        let bx = poly.screen[0].x;
+        let by = poly.screen[0].y;
+        for (let k = 1; k < poly.screen.length; k++) {
+          if (poly.screen[k].y < by) { bx = poly.screen[k].x; by = poly.screen[k].y; }
+        }
+        sparkle(bx, by, state.time * 6 + i, Math.max(4, scale * 0.16));
+      }
+    }
+  }
+  function prismVerts(elong, skew) {
+    return CUBE_V.map(function (v) {
+      const z = v[2] * 0.92;
+      const y = v[1] * elong;
+      const x = v[0] * 0.82 + z * skew;
+      return [x, y, z];
+    });
+  }
+  function drawFaceted(c, e) {
+    const shape = shapeOf(c.salt, e);
+    const rgb = PAL[c.salt];
+    const origin = { x: c.x, y: c.y };
+    ctx.save();
+    ctx.fillStyle = 'rgba(70,50,30,0.16)';
+    ctx.beginPath();
+    ctx.ellipse(c.x, c.y + c.r * 0.55, c.r * 0.7, c.r * 0.16, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+    if (c.salt === 'kochsalz') {
+      drawMesh(CUBE_V, CUBE_F, CUBE_ADJ, origin, c.r, c.rot, shape.trunc, shape.hopper, rgb, true);
+    } else if (c.salt === 'alaun') {
+      drawMesh(OCT_V, OCT_F, OCT_ADJ, origin, c.r * 1.05, c.rot, shape.trunc, shape.hopper * 0.4, rgb, true);
+    } else if (c.salt === 'kupfersulfat') {
+      const verts = prismVerts(shape.elong, 0.58);
+      const adj = adjacency(verts, CUBE_F);
+      drawMesh(verts, CUBE_F, adj, origin, c.r * 0.82, c.rot, shape.trunc * 0.45, shape.hopper, rgb, true);
+    } else {
+      const n = 4 + Math.min(2, (shape.branch * 2.2 + hash(c.seed, 1)) | 0);
+      const chunks = [];
+      for (let i = 0; i < n; i++) {
+        chunks.push({
+          ox: (hash(c.seed, i) - 0.5) * 1.55,
+          oy: (hash(c.seed, i + 5) - 0.5) * 1.2,
+          oz: (hash(c.seed, i + 9) - 0.5) * 0.7,
+          rot: hash(c.seed, i + 3) * Math.PI,
+          elong: 0.9 + hash(c.seed, i + 4) * 0.75,
+          skew: 0.12 + hash(c.seed, i + 6) * 0.28,
+          sc: 0.3 + hash(c.seed, i + 8) * 0.2,
+          z: 0
+        });
+      }
+      chunks.forEach(function (ch) {
+        const o = project([ch.ox, ch.oy, ch.oz], c.rot, origin, c.r);
+        ch.z = o.z;
+        ch.origin = o;
+      });
+      chunks.sort(function (a, b) { return a.z - b.z; });
+      chunks.forEach(function (ch) {
+        const verts = prismVerts(ch.elong, ch.skew);
+        const adj = adjacency(verts, CUBE_F);
+        drawMesh(verts, CUBE_F, adj, ch.origin, c.r * ch.sc, c.rot + ch.rot, shape.trunc, 0.05, rgb, true);
+      });
+    }
+  }
+  function paintSprite(c) {
+    const size = Math.ceil((R * 2 + 2) * CELL + 8);
+    if (c.sprite.width !== size) {
+      c.sprite.width = size;
+      c.sprite.height = size;
+    }
+    const sctx = c.sprite.getContext('2d');
+    sctx.clearRect(0, 0, size, size);
+    sctx.beginPath();
+    const rad = CELL * 0.6;
+    for (let i = 0; i < c.cells.length; i++) {
+      const id = c.cells[i];
+      const q = (id % N) - R;
+      const r = Math.floor(id / N) - R;
+      const x = size / 2 + CELL * (q + r / 2);
+      const y = size / 2 + CELL * (r * SQ3 / 2);
+      for (let k = 0; k < 6; k++) {
+        const a = (Math.PI / 3) * k + Math.PI / 6;
+        const px = x + Math.cos(a) * rad;
+        const py = y + Math.sin(a) * rad;
+        if (k === 0) sctx.moveTo(px, py); else sctx.lineTo(px, py);
+      }
+      sctx.closePath();
+    }
+    sctx.fillStyle = 'rgba(250,253,255,0.96)';
+    sctx.fill();
+    sctx.strokeStyle = 'rgba(150,190,220,0.85)';
+    sctx.lineWidth = 0.6;
+    sctx.stroke();
+    c.dirty = false;
+  }
+  function drawSnow(c) {
+    if (!c.sprite) return;
+    if (c.dirty) paintSprite(c);
+    const size = c.sprite.width;
+    ctx.save();
+    ctx.translate(c.x, c.y);
+    ctx.rotate(c.rot);
+    const glow = ctx.createRadialGradient(0, 0, c.r * 0.1, 0, 0, Math.max(8, c.r));
+    glow.addColorStop(0, 'rgba(255,255,255,0.45)');
+    glow.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = glow;
+    ctx.beginPath();
+    ctx.arc(0, 0, Math.max(8, c.r), 0, Math.PI * 2);
+    ctx.fill();
+    ctx.drawImage(c.sprite, -size / 2, -size / 2);
+    ctx.restore();
+    let shown = 0;
+    for (let i = 0; i < c.cells.length && shown < 8; i++) {
+      const id = c.cells[i];
+      const q = (id % N) - R;
+      const r = Math.floor(id / N) - R;
+      if (hexDist(q, r) < c.maxR - 0.5) continue;
+      const lx = CELL * (q + r / 2);
+      const ly = CELL * (r * SQ3 / 2);
+      const cs = Math.cos(c.rot);
+      const sn = Math.sin(c.rot);
+      sparkle(c.x + lx * cs - ly * sn, c.y + lx * sn + ly * cs, state.time * 5 + q + r, 5);
+      shown++;
+    }
+  }
+  function sparkle(x, y, phase, scale) {
+    const tw = reduceMotion ? 0.75 : (0.5 + 0.5 * Math.sin(phase));
+    if (tw < 0.42) return;
+    const s = scale * (0.45 + tw * 0.7);
+    ctx.save();
+    ctx.globalAlpha = (tw - 0.35);
+    ctx.translate(x, y);
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 1.25;
+    ctx.beginPath();
+    ctx.moveTo(-s, 0); ctx.lineTo(s, 0);
+    ctx.moveTo(0, -s); ctx.lineTo(0, s);
+    ctx.moveTo(-s * 0.45, -s * 0.45); ctx.lineTo(s * 0.45, s * 0.45);
+    ctx.moveTo(-s * 0.45, s * 0.45); ctx.lineTo(s * 0.45, -s * 0.45);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function roundRect(x, y, w, h, r) {
+    const rr = Math.min(r, w / 2, h / 2);
+    ctx.beginPath();
+    ctx.moveTo(x + rr, y);
+    ctx.arcTo(x + w, y, x + w, y + h, rr);
+    ctx.arcTo(x + w, y + h, x, y + h, rr);
+    ctx.arcTo(x, y + h, x, y, rr);
+    ctx.arcTo(x, y, x + w, y, rr);
+    ctx.closePath();
+  }
+  function traceJar() {
+    const geom = g();
+    const s = geom.samples;
+    ctx.beginPath();
+    ctx.moveTo(geom.cx + s[0].hw, s[0].y);
+    for (let i = 1; i < s.length; i++) ctx.lineTo(geom.cx + s[i].hw, s[i].y);
+    const last = s[s.length - 1];
+    ctx.quadraticCurveTo(geom.cx, last.y + Math.min(16, geom.jh * 0.03), geom.cx - last.hw, last.y);
+    for (let i = s.length - 2; i >= 0; i--) ctx.lineTo(geom.cx - s[i].hw, s[i].y);
+    ctx.quadraticCurveTo(geom.cx, s[0].y - 8, geom.cx + s[0].hw, s[0].y);
+  }
+  function traceLiquid() {
+    const geom = g();
+    const y0 = liquidY();
+    const s = geom.samples;
+    const wob = reduceMotion ? 0 : Math.sin(state.time * 1.4) * 1.4;
+    ctx.beginPath();
+    ctx.moveTo(geom.cx - hwAt(y0), y0 + wob);
+    ctx.quadraticCurveTo(geom.cx, y0 + 8 + wob, geom.cx + hwAt(y0), y0 - wob);
+    for (let i = 0; i < s.length; i++) {
+      if (s[i].y >= y0) ctx.lineTo(geom.cx + s[i].hw, s[i].y);
+    }
+    const last = s[s.length - 1];
+    ctx.quadraticCurveTo(geom.cx, last.y + Math.min(16, geom.jh * 0.03), geom.cx - last.hw, last.y);
+    for (let i = s.length - 1; i >= 0; i--) {
+      if (s[i].y >= y0) ctx.lineTo(geom.cx - s[i].hw, s[i].y);
+    }
+    ctx.closePath();
+  }
+  function drawBackground() {
+    const geom = g();
+    const w = geom.w;
+    const h = geom.h;
+    const sky = ctx.createLinearGradient(0, 0, 0, h);
+    sky.addColorStop(0, '#b7daf2');
+    sky.addColorStop(0.42, '#dceee4');
+    sky.addColorStop(0.7, '#f6e7cf');
+    sky.addColorStop(1, '#e7c89a');
+    ctx.fillStyle = sky;
+    ctx.fillRect(0, 0, w, h);
+    const leftRoom = geom.cx - geom.jw * 0.52 - 14;
+    const ww = Math.min(150, h * 0.28, Math.max(0, leftRoom - 8));
+    const wh = Math.min(ww * 0.85, h * 0.22);
+    const wx = 10;
+    const wy = Math.max(8, h * 0.05);
+    if (ww > 54 && wh > 40) {
+    roundRect(wx, wy, ww, wh, 8);
+    const wg = ctx.createLinearGradient(wx, wy, wx + ww, wy + wh);
+    wg.addColorStop(0, '#f4fbff');
+    wg.addColorStop(1, '#c5e4f6');
+    ctx.fillStyle = wg;
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,0.9)';
+    ctx.lineWidth = 5;
+    ctx.stroke();
+    ctx.strokeStyle = 'rgba(90,120,140,0.28)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(wx + ww / 2, wy + 6);
+    ctx.lineTo(wx + ww / 2, wy + wh - 6);
+    ctx.moveTo(wx + 6, wy + wh / 2);
+    ctx.lineTo(wx + ww - 6, wy + wh / 2);
+    ctx.stroke();
+    }
+    ctx.save();
+    ctx.globalAlpha = 0.16;
+    ctx.fillStyle = '#fff4cc';
+    ctx.beginPath();
+    ctx.moveTo(wx + ww * 0.25, wy + wh);
+    ctx.lineTo(wx + ww * 0.95, wy + wh * 0.35);
+    ctx.lineTo(geom.cx + geom.jw * 0.2, geom.tableY);
+    ctx.lineTo(geom.cx - geom.jw * 0.45, geom.tableY);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+    ctx.fillStyle = '#d09755';
+    ctx.fillRect(0, geom.tableY, w, h - geom.tableY + 2);
+    ctx.fillStyle = '#b67b3d';
+    ctx.fillRect(0, geom.tableY, w, 7);
+    ctx.strokeStyle = 'rgba(110,64,24,0.16)';
+    ctx.lineWidth = 1.5;
+    for (let i = 0; i < 3; i++) {
+      const y = geom.tableY + 16 + i * 10;
+      if (y > h) break;
+      ctx.beginPath();
+      ctx.moveTo(0, y);
+      ctx.bezierCurveTo(w * 0.3, y - 3, w * 0.62, y + 4, w, y - 1);
+      ctx.stroke();
+    }
+    ctx.fillStyle = 'rgba(90,48,16,0.2)';
+    ctx.beginPath();
+    ctx.ellipse(geom.cx, geom.tableY + 3, geom.jw * 0.38, 9, 0, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  function drawJarBack() {
+    traceJar();
+    ctx.fillStyle = 'rgba(255,255,255,0.14)';
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(170,198,214,0.45)';
+    ctx.lineWidth = 8;
+    ctx.stroke();
+  }
+  function drawLiquid() {
+    const geom = g();
+    const cols = LIQ[state.salt];
+    traceLiquid();
+    const grd = ctx.createLinearGradient(geom.cx, liquidY(), geom.cx, floorY());
+    grd.addColorStop(0, cols[0]);
+    grd.addColorStop(1, cols[1]);
+    ctx.fillStyle = grd;
+    ctx.fill();
+    ctx.save();
+    traceLiquid();
+    ctx.clip();
+    ctx.globalAlpha = 0.55;
+    ctx.strokeStyle = 'rgba(255,255,255,0.18)';
+    ctx.lineWidth = 8;
+    const left = geom.cx - geom.jw * 0.48;
+    const right = geom.cx + geom.jw * 0.48;
+    for (let i = 0; i < 4; i++) {
+      const y = liquidY() + (i + 1) * (floorY() - liquidY()) / 5;
+      ctx.beginPath();
+      for (let x = left; x <= right; x += 8) {
+        const yy = y + Math.sin(x * 0.05 + state.time * (reduceMotion ? 0 : 1.2) + i) * 4;
+        if (x === left) ctx.moveTo(x, yy); else ctx.lineTo(x, yy);
+      }
+      ctx.stroke();
+    }
+    ctx.restore();
+    const y0 = liquidY();
+    const hw = hwAt(y0);
+    ctx.beginPath();
+    ctx.ellipse(geom.cx, y0 + 3, hw * 0.96, 7, 0, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(255,255,255,0.28)';
+    ctx.fill();
+  }
+  function drawContents(e) {
+    const moteCol = state.salt === 'kupfersulfat' ? 'rgba(232,246,255,0.75)'
+      : state.salt === 'zucker' ? 'rgba(255,248,230,0.8)'
+      : 'rgba(255,255,255,0.75)';
+    ctx.fillStyle = moteCol;
+    for (let i = 0; i < state.motes.length; i++) {
+      const m = state.motes[i];
+      ctx.beginPath();
+      ctx.arc(m.x, m.y, m.rad, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.strokeStyle = 'rgba(255,255,255,0.55)';
+    ctx.lineWidth = 1;
+    for (let i = 0; i < state.bubbles.length; i++) {
+      const b = state.bubbles[i];
+      ctx.beginPath();
+      ctx.arc(b.x, b.y, b.rad, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    const ends = stringEnds();
+    ctx.strokeStyle = 'rgba(92,64,40,0.75)';
+    ctx.lineWidth = 1.6;
+    ctx.beginPath();
+    ctx.moveTo(g().cx, ends.y0);
+    const mid = (ends.y0 + ends.y1) / 2;
+    ctx.bezierCurveTo(stringX(mid) + 4, mid, stringX(ends.y1) - 3, ends.y1 - 20, stringX(ends.y1), ends.y1);
+    ctx.stroke();
+    const ordered = state.crystals.slice().sort(function (a, b) { return a.y - b.y; });
+    for (let i = 0; i < ordered.length; i++) {
+      const c = ordered[i];
+      if (c.salt === 'schneeflocke' && c.settled) drawSnow(c);
+      else drawFaceted(c, e);
+    }
+  }
+  function refract() {
+    const geom = g();
+    const dpr = state.dpr;
+    if (snap.width !== canvas.width || snap.height !== canvas.height) {
+      snap.width = canvas.width;
+      snap.height = canvas.height;
+    }
+    snapCtx.setTransform(1, 0, 0, 1, 0, 0);
+    snapCtx.drawImage(canvas, 0, 0);
+    ctx.save();
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    traceLiquid();
+    ctx.clip();
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    const y0 = Math.max(0, liquidY() * dpr);
+    const y1 = Math.min(snap.height, (floorY() + 8) * dpr);
+    const slices = 26;
+    const sh = (y1 - y0) / slices;
+    if (sh >= 1) {
+      for (let i = 0; i < slices; i++) {
+        const sy = y0 + i * sh;
+        const u = i / (slices - 1);
+        const barrel = Math.sin(u * Math.PI) * 6.5 * dpr;
+        const wob = reduceMotion ? 0 : Math.sin(state.time * 0.8 + u * 5.5) * 2.2 * dpr;
+        const shift = barrel * 0.15 + wob;
+        ctx.drawImage(snap, 0, sy, snap.width, sh + 1, shift, sy, snap.width, sh + 1);
+      }
+    }
+    ctx.restore();
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+  function drawRays() {
+    const geom = g();
+    const yS = liquidY();
+    const xS = geom.cx - geom.jw * 0.05;
+    const x0 = geom.cx - geom.jw * 0.72;
+    const y0 = geom.top + geom.jh * 0.02;
+    ctx.save();
+    ctx.lineCap = 'round';
+    ctx.strokeStyle = 'rgba(255,248,214,0.7)';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(x0, y0);
+    ctx.lineTo(xS, yS);
+    ctx.stroke();
+    ctx.save();
+    traceLiquid();
+    ctx.clip();
+    const yB = floorY() - 8;
+    const xB = xS + (yB - yS) * 0.16;
+    ctx.strokeStyle = 'rgba(255,250,226,0.4)';
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.moveTo(xS, yS);
+    ctx.lineTo(xB, yB);
+    ctx.stroke();
+    const cols = ['rgba(255,168,168,0.35)', 'rgba(196,255,206,0.28)', 'rgba(168,206,255,0.4)'];
+    for (let i = 0; i < cols.length; i++) {
+      const spread = (i - 1) * 0.06;
+      ctx.strokeStyle = cols[i];
+      ctx.lineWidth = 1.7;
+      ctx.beginPath();
+      ctx.moveTo(xS, yS);
+      ctx.lineTo(xB + spread * (yB - yS), yB);
+      ctx.stroke();
+    }
+    const cg = ctx.createRadialGradient(xB, yB, 2, xB, yB, geom.jw * 0.22);
+    cg.addColorStop(0, 'rgba(255,255,236,0.7)');
+    cg.addColorStop(1, 'rgba(255,255,236,0)');
+    ctx.fillStyle = cg;
+    ctx.beginPath();
+    ctx.ellipse(xB, yB, geom.jw * 0.18, 11, 0, 0, Math.PI * 2);
+    ctx.fill();
+    sparkle(xS, yS + 6, state.time * 6.2, 7);
+    sparkle((xS + xB) / 2, (yS + yB) / 2, state.time * 5.1 + 1, 5);
+    sparkle(xB, yB - 6, state.time * 7 + 2, 8);
+    ctx.restore();
+    ctx.restore();
+  }
+  function drawGlassFront() {
+    const geom = g();
+    ctx.save();
+    traceJar();
+    ctx.clip();
+    ctx.strokeStyle = 'rgba(255,255,255,0.72)';
+    ctx.lineWidth = 3.5;
+    ctx.beginPath();
+    const s = geom.samples;
+    for (let i = 2; i < s.length - 2; i++) {
+      const x = geom.cx - s[i].hw + 8;
+      if (i === 2) ctx.moveTo(x, s[i].y); else ctx.lineTo(x, s[i].y);
+    }
+    ctx.stroke();
+    ctx.restore();
+    traceJar();
+    ctx.strokeStyle = 'rgba(186,214,226,0.55)';
+    ctx.lineWidth = 7;
+    ctx.stroke();
+    traceJar();
+    ctx.strokeStyle = 'rgba(255,255,255,0.92)';
+    ctx.lineWidth = 2.2;
+    ctx.stroke();
+    const lip = s0();
+    ctx.beginPath();
+    ctx.ellipse(geom.cx, lip.y, lip.hw * 0.98, 8, 0, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(255,255,255,0.38)';
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,0.95)';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    const stickW = lip.hw * 1.35;
+    const stickY = geom.top + geom.jh * 0.045;
+    roundRect(geom.cx - stickW / 2, stickY, stickW, 8, 3);
+    ctx.fillStyle = '#8a552c';
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(255,236,210,0.4)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    sparkle(geom.cx - lip.hw * 0.55, lip.y + geom.jh * 0.18, state.time * 3.2, 6);
+    sparkle(geom.cx + lip.hw * 0.72, lip.y + geom.jh * 0.34, state.time * 4.1 + 2, 5);
+  }
+  function s0() { return g().samples[0]; }
+  function drawLoupe() {
+    if (!state.lupe) return;
+    const geom = g();
+    const R = Math.max(56, Math.min(92, geom.w * 0.18, geom.h * 0.2));
+    const z = 2.5;
+    const lx = clamp(state.lx, R + 2, geom.w - R - 2);
+    const ly = clamp(state.ly, R + 2, geom.h - R - 2);
+    const dpr = state.dpr;
+    snapCtx.setTransform(1, 0, 0, 1, 0, 0);
+    if (snap.width !== canvas.width || snap.height !== canvas.height) {
+      snap.width = canvas.width;
+      snap.height = canvas.height;
+    }
+    snapCtx.drawImage(canvas, 0, 0);
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(lx, ly, R, 0, Math.PI * 2);
+    ctx.clip();
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    const sw = (2 * R / z) * dpr;
+    const sh = sw;
+    ctx.drawImage(
+      snap,
+      (lx - R / z) * dpr,
+      (ly - R / z) * dpr,
+      sw,
+      sh,
+      (lx - R) * dpr,
+      (ly - R) * dpr,
+      (2 * R) * dpr,
+      (2 * R) * dpr
+    );
+    ctx.restore();
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.beginPath();
+    ctx.arc(lx, ly, R, 0, Math.PI * 2);
+    ctx.strokeStyle = '#8d6234';
+    ctx.lineWidth = 7;
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(lx, ly, R - 2, 0, Math.PI * 2);
+    ctx.strokeStyle = 'rgba(255,255,255,0.9)';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    let ang = Math.PI * 0.32;
+    if (ly + Math.sin(ang) * (R + 34) > geom.h - 4) ang = -0.4;
+    if (lx + Math.cos(ang) * (R + 34) > geom.w - 4) ang = Math.PI - 0.4;
+    ctx.strokeStyle = '#8d6234';
+    ctx.lineWidth = 8;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(lx + Math.cos(ang) * (R - 2), ly + Math.sin(ang) * (R - 2));
+    ctx.lineTo(lx + Math.cos(ang) * (R + 32), ly + Math.sin(ang) * (R + 32));
+    ctx.stroke();
+  }
+  function draw() {
+    if (!g() || g().w < 2 || g().h < 2) return;
+    const e = envNow();
+    ctx.setTransform(state.dpr, 0, 0, state.dpr, 0, 0);
+    ctx.lineJoin = 'round';
+    ctx.lineCap = 'round';
+    drawBackground();
+    drawJarBack();
+    drawLiquid();
+    ctx.save();
+    traceJar();
+    ctx.clip();
+    drawContents(e);
+    ctx.restore();
+    refract();
+    drawRays();
+    drawGlassFront();
+    drawLoupe();
+  }
+
+  function cssPoint(ev) {
+    const rect = canvas.getBoundingClientRect();
+    return {
+      x: (ev.clientX - rect.left) / rect.width * g().w,
+      y: (ev.clientY - rect.top) / rect.height * g().h
+    };
+  }
+  canvas.addEventListener('pointerdown', function (ev) {
+    noteGesture();
+    if (!g()) return;
+    const p = cssPoint(ev);
+    pointer = true;
+    state.lx = p.x;
+    state.ly = p.y;
+    dropAt(p.x, p.y);
+  });
+  canvas.addEventListener('pointermove', function (ev) {
+    if (!state.lupe || !g()) return;
+    const p = cssPoint(ev);
+    pointer = true;
+    state.lx = p.x;
+    state.ly = p.y;
+  });
+  saltButtons.forEach(function (b) {
+    b.addEventListener('click', function () {
+      noteGesture();
+      state.salt = b.getAttribute('data-salt');
+      syncSalt();
+      syncStatus();
+      saveSoon();
+    });
+  });
+  tempIn.addEventListener('input', function () {
+    noteGesture();
+    state.temp = +tempIn.value;
+    syncOutputs();
+    syncStatus();
+    saveSoon();
+  });
+  concIn.addEventListener('input', function () {
+    noteGesture();
+    state.conc = +concIn.value;
+    syncOutputs();
+    syncStatus();
+    saveSoon();
+  });
+  bLupe.addEventListener('click', function () {
+    noteGesture();
+    state.lupe = !state.lupe;
+    syncToggles();
+  });
+  bInfo.addEventListener('click', function () {
+    noteGesture();
+    openInfo();
+  });
+  bClose.addEventListener('click', function () {
+    noteGesture();
+    closeInfo();
+  });
+  veil.addEventListener('pointerdown', function (ev) {
+    if (ev.target === veil) closeInfo();
+  });
+  bNeu.addEventListener('click', function () {
+    noteGesture();
+    if (!state.crystals.length) {
+      say('Das Glas ist schon leer.');
+      bNeu.textContent = 'Neu';
+      arm = 0;
+      return;
+    }
+    if (performance.now() > arm) {
+      arm = performance.now() + 2400;
+      bNeu.textContent = 'Leeren?';
+      return;
+    }
+    clearJar();
+  });
+  bTon.addEventListener('click', function () {
+    noteGesture();
+    soundOn = !soundOn;
+    syncToggles();
+    if (soundOn) tink(2093, 0.045);
+    save();
+  });
+  document.addEventListener('pointerdown', function () { noteGesture(); }, true);
+  document.addEventListener('keydown', function (ev) {
+    noteGesture();
+    if (ev.repeat) return;
+    const k = ev.key.toLowerCase();
+    if (!veil.hidden) {
+      if (k === 'escape') { closeInfo(); ev.preventDefault(); }
+      return;
+    }
+    if (k >= '1' && k <= '5') {
+      state.salt = SALTS[+k - 1];
+      syncSalt();
+      syncStatus();
+      saveSoon();
+    } else if (k === 'l') {
+      state.lupe = !state.lupe;
+      syncToggles();
+    } else if (k === 'i') openInfo();
+    else if (k === 'n') bNeu.click();
+    else if (k === 'm') bTon.click();
+    else if (k === ' ' && ev.target === document.body) ev.preventDefault();
+  });
+  function openInfo() {
+    cardTitle.textContent = NAME[state.salt];
+    cardBody.textContent = INFO[state.salt];
+    veil.hidden = false;
+    bClose.focus();
+  }
+  function closeInfo() { veil.hidden = true; }
+  window.addEventListener('resize', function () { layout(); });
+  window.addEventListener('pagehide', function () { save(); });
+
+  function frame(t) {
+    const dt = lastFrame ? Math.min(0.05, (t - lastFrame) / 1000) : 0.016;
+    lastFrame = t;
+    simulate(dt);
+    draw();
+    requestAnimationFrame(frame);
+  }
+
+  layout();
+  load();
+  syncSalt();
+  syncOutputs();
+  syncToggles();
+  syncStatus();
+  requestAnimationFrame(frame);
+
+  window.__kg = {
+    drop: dropAt,
+    dropMiddle: function () {
+      if (!g()) layout();
+      return dropAt(g().cx, liquidY() + 2);
+    },
+    step: function (dt) {
+      let left = Math.min(Math.max(dt || 0, 0), 4);
+      while (left > 0.0001) {
+        const h = Math.min(0.05, left);
+        simulate(h);
+        left -= h;
+      }
+    },
+    crystals: function () {
+      return state.crystals.map(function (c) {
+        return {
+          salt: c.salt, r: c.r, settled: c.settled, onString: c.onString,
+          cells: c.cells ? c.cells.length : 0, x: c.x, y: c.y
+        };
+      });
+    },
+    salt: function () { return state.salt; },
+    setSalt: function (id) { if (SALTS.indexOf(id) >= 0) { state.salt = id; syncSalt(); } },
+    setTemp: function (v) { state.temp = clamp(v, 0, 100); tempIn.value = String(state.temp); syncOutputs(); },
+    setConc: function (v) { state.conc = clamp(v, 0, 100); concIn.value = String(state.conc); syncOutputs(); },
+    env: envNow,
+    sound: function () { return soundOn; },
+    gesture: function () { return gesture; },
+    audio: function () { return !!actx; },
+    lupe: function () { return state.lupe; },
+    openInfo: openInfo,
+    closeInfo: closeInfo,
+    wipe: function () {
+      closed = true;
+      state.crystals = [];
+      try { localStorage.removeItem(KEY); } catch (err) { /* ignore */ }
+    }
+  };
+})();
+</script>
+</body>
+</html>
