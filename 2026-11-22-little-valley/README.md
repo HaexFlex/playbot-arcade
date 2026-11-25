@@ -281,6 +281,8 @@ counted river, or the longest stream while none gets through, is a faint glowing
 (`screenshot-boat.png`: the canoe on its way down a river to the edge.)
 Where the river crosses a lake on its way, the canoe slows to a drift over the still water, rests for a moment
 in the middle (paddle laid across the boat, a gentle bob, small ripple rings) and then paddles on.
+With sound on you hear it come to rest: the paddle knocks softly on the gunwale and water laps at the hull
+(only when the canoe is on screen).
 (`screenshot-boat-lake.png`: the canoe resting on a small lake.)
 
 ## Save and share
