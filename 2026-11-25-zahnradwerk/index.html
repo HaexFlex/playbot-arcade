@@ -1,0 +1,1710 @@
+<!DOCTYPE html>
+<html lang="de-CH">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="Zahnradwerk: Räder, Riemen und eine Schnecke auf einem Holzbrett. Schweizer Rechtschreibung.">
+<title>Zahnradwerk</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='6' fill='%23e6b34e'/%3E%3Cpath d='M16 2l2 6-2 2-2-2zm0 28l2-6-2-2-2 2zM2 16l6 2 2-2-2-2zm28 0l-6 2-2-2 2-2z' fill='%23c4842a'/%3E%3C/svg%3E">
+<style>
+  :root {
+    --ink: #f3e6d0;
+    --brass: #e6b34e;
+    --brass-deep: #a36b22;
+    --wood: #2a1a12;
+    --panel: #3a2618;
+    --good: #2f6b3a;
+    --jam: #9c2b2b;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; height: 100%; overflow: hidden; max-width: 100%;
+    background: var(--wood); color: var(--ink);
+    font-family: "Iowan Old Style", Palatino, Georgia, serif;
+  }
+  #app {
+    height: 100%; height: 100dvh; max-width: 100%;
+    display: flex; flex-direction: column; overflow: hidden;
+    padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+  }
+  #top {
+    flex: 0 1 auto; max-height: calc(100dvh - 188px); overflow-x: hidden; overflow-y: auto;
+    padding: 6px 8px 4px;
+  }
+  header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 14px; }
+  h1 { margin: 0; font-size: clamp(18px, 4.2vw, 28px); letter-spacing: 0.03em; color: var(--brass); font-weight: 700; }
+  #readout { margin: 0; font-size: 14px; line-height: 1.3; opacity: 0.92; }
+  #hint { margin: 4px 0 0; font-size: 13px; line-height: 1.3; min-height: 1.3em; opacity: 0.8; overflow-wrap: anywhere; }
+  #tools, #orders { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+  button {
+    min-height: 40px; min-width: 40px; max-width: 100%;
+    padding: 6px 10px; border-radius: 10px;
+    border: 1px solid #6b4a2a; background: #4a3120; color: var(--ink);
+    font: 600 14px/1.2 system-ui, sans-serif;
+    touch-action: manipulation; user-select: none;
+  }
+  button.on { background: #6d4a16; border-color: var(--brass); color: #fff6df; }
+  button:focus-visible { outline: 2px solid var(--brass); outline-offset: 2px; }
+  .order {
+    flex: 1 1 132px; min-width: min(100%, 120px);
+    text-align: left; background: #3d2a1c; font-weight: 600;
+    white-space: nowrap;
+  }
+  .order.ok { background: var(--good); border-color: #8dcea0; }
+  #board { flex: 1 1 auto; width: 100%; min-height: 120px; touch-action: none; display: block; }
+  @media (max-height: 520px) {
+    button { min-height: 36px; padding: 4px 8px; font-size: 13px; }
+    #top { max-height: calc(100dvh - 150px); padding-top: 4px; }
+    h1 { font-size: 18px; }
+    #hint { display: none; }
+    .order { flex: 1 1 108px; }
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="top">
+    <header>
+      <h1>Zahnradwerk</h1>
+      <p id="readout" aria-live="polite">Antrieb 0 U/min</p>
+    </header>
+    <div id="tools"></div>
+    <div id="orders"></div>
+    <p id="hint">Tippe eine Kurbel aufs Brett, dann Räder auf die Löcher. Zähne, die sich fast berühren, greifen ineinander.</p>
+  </div>
+  <canvas id="board" aria-label="Lochbrett mit Zahnrädern"></canvas>
+</div>
+<script>
+'use strict';
+const COLS = 18, ROWS = 13;
+const TEETH = [8, 12, 16, 20, 24, 36, 40, 48];
+const PULLEYS = [12, 24, 40];
+const MESH_TOL = 0.05;
+const TAU = Math.PI * 2;
+const STORE = 'zahnradwerk-v1';
+const NOTES = [392, 440, 494, 523.25, 587.33, 659.25, 783.99, 880];
+const PIN_AT = [0, 0.11, 0.25, 0.38, 0.5, 0.63, 0.75, 0.88];
+
+const canvas = document.getElementById('board');
+const ctx = canvas.getContext('2d');
+const readout = document.getElementById('readout');
+const hintEl = document.getElementById('hint');
+const toolsEl = document.getElementById('tools');
+const ordersEl = document.getElementById('orders');
+
+let pegs = new Map();
+let belts = [];
+let links = { uhr: null, kuckuck: null, walze: null, stift: [null, null] };
+let motor = { on: false, rpm: 30 };
+let crankAngle = 0;
+let simTime = 0;
+let ratios = new Map();
+let viaWorm = new Set();
+let jammed = new Set();
+let parents = new Map();
+let phases = new Map();
+let angles = new Map();
+let paper = [];
+let tool = 'wahl';
+let pulleySize = 24;
+let selected = null;
+let selectedBelt = -1;
+let beltArm = null;
+let stiftSlot = 0;
+let soundOn = false;
+let userMuted = false;
+let audio = null;
+let prevCrank = 0;
+let prevWatch = { walze: null, kuckuck: null };
+let bird = 0, birdTarget = 0, birdUntil = 0;
+let toothFlash = new Array(8).fill(0);
+let handRpm = 0;
+let draggingCrank = false;
+let drag = null;
+let saveTimer = 0;
+let confirmClear = 0;
+let L = null;
+let boardCache = null;
+let sprites = new Map();
+let beltGeom = [];
+let pointer = null;
+const frameMs = [];
+let lastNow = 0;
+
+const ORDERS = [
+  { id: 'halb', title: 'Halb rückwärts', text: 'Ein Rad mit −1/2.', hint: 'Ein Rad soll halb so schnell und entgegengesetzt laufen. 20 Zähne an der Kurbel, daneben 40 Zähne.' },
+  { id: 'doppelt', title: 'Doppelt vorwärts', text: 'Ein Rad mit +2.', hint: 'Gleicher Sinn, doppelt so schnell. 16 an der Kurbel, Zwischenrad 12, dann ein Rad mit 8.' },
+  { id: 'minute', title: 'Minutenzeiger', text: 'Die Uhr mit +1/60.', hint: 'Die Uhr muss im gleichen Sinn 60-mal langsamer laufen. Grosse Räder und ein gekreuzter Riemen helfen.' },
+  { id: 'schnecke', title: 'Schneckengang', text: 'Mindestens 20-mal langsamer.', hint: 'Setze die Schnecke auf die Kurbel. Ein Rad mit 20 Zähnen direkt darüber oder darunter wird 20-mal langsamer.' },
+  { id: 'stift', title: 'Zeichenarm', text: 'Zwei verschiedene Tempi.', hint: 'Tippe Stift, dann zwei Wellen mit verschiedener Übersetzung. Der Arm zeichnet aufs Papier.' },
+  { id: 'kuckuck', title: 'Kuckuck 1:6', text: 'Welle mit 1:6.', hint: 'Kopple den Kuckuck an ein Rad, das sechsmal langsamer läuft. 8 Zähne in 48 ergeben 1:6.' }
+];
+
+function keyOf(x, y) { return x + ',' + y; }
+function pitch(t) { return t / 20; }
+function reduce(n, d) {
+  n = BigInt(n); d = BigInt(d);
+  if (d < 0n) { n = -n; d = -d; }
+  let a = n < 0n ? -n : n, b = d;
+  while (b) { const t = b; b = a % b; a = t; }
+  return { n: n / a, d: d / a };
+}
+function sameRat(a, b) { return a.n * b.d === b.n * a.d; }
+function mulRat(r, n, d) { return reduce(r.n * BigInt(n), r.d * BigInt(d)); }
+function numRat(r) { return Number(r.n) / Number(r.d); }
+function fmtRat(r) {
+  if (!r || r.d === 0n) return '—';
+  const neg = r.n < 0n;
+  const n = neg ? -r.n : r.n;
+  return (neg ? '−' : '+') + n.toString() + '/' + r.d.toString();
+}
+function say(s) { hintEl.textContent = s; }
+function pegAt(x, y) { return pegs.get(keyOf(x, y)) || null; }
+function ensure(x, y) {
+  const k = keyOf(x, y);
+  let p = pegs.get(k);
+  if (!p) { p = { x, y, gears: [], pulley: 0, worm: null, crank: false }; pegs.set(k, p); }
+  return p;
+}
+function onBoard(x, y) { return x >= 0 && y >= 0 && x < COLS && y < ROWS; }
+function crankPeg() {
+  for (const p of pegs.values()) if (p.crank) return p;
+  return null;
+}
+function emptyPeg(p) { return !p.gears.length && !p.pulley && !p.worm && !p.crank; }
+function dropIfEmpty(p) {
+  if (emptyPeg(p)) pegs.delete(keyOf(p.x, p.y));
+}
+
+function gearClash(x, y, t, L, ignore) {
+  for (const p of pegs.values()) {
+    if (ignore && p.x === ignore.x && p.y === ignore.y) continue;
+    for (const g of p.gears) {
+      if (g.L !== L) continue;
+      const d = Math.hypot(p.x - x, p.y - y);
+      const need = (g.t + t) / 20;
+      if (d < need - MESH_TOL) return 'ueberlappt';
+    }
+  }
+  return null;
+}
+
+function placeGear(x, y, t) {
+  if (!onBoard(x, y) || TEETH.indexOf(t) < 0) return { ok: false, reason: 'rand' };
+  const p = ensure(x, y);
+  if (p.gears.length >= 2) return { ok: false, reason: 'voll' };
+  const L = p.gears.some(g => g.L === 0) ? 1 : 0;
+  const clash = gearClash(x, y, t, L, null);
+  if (clash) { dropIfEmpty(p); return { ok: false, reason: clash }; }
+  p.gears.push({ t, L });
+  selected = keyOf(x, y);
+  selectedBelt = -1;
+  solveAll();
+  return { ok: true };
+}
+function setCrank(x, y) {
+  if (!onBoard(x, y)) return { ok: false, reason: 'rand' };
+  for (const p of pegs.values()) p.crank = false;
+  ensure(x, y).crank = true;
+  selected = keyOf(x, y);
+  solveAll();
+  return { ok: true };
+}
+function setPulley(x, y, size) {
+  if (!onBoard(x, y) || PULLEYS.indexOf(size) < 0) return { ok: false, reason: 'rand' };
+  const p = ensure(x, y);
+  for (const q of pegs.values()) {
+    if (q === p) continue;
+    const d = Math.hypot(q.x - x, q.y - y);
+    for (const g of q.gears) {
+      if (d < size / 20 + pitch(g.t) - 0.15 && d > 0) {
+        /* pulley may sit inside its own gear; only block a hard bury of a neighbour hub */
+      }
+    }
+  }
+  p.pulley = size;
+  selected = keyOf(x, y);
+  solveAll();
+  return { ok: true };
+}
+function setWorm(x, y, axis) {
+  if (!onBoard(x, y)) return { ok: false, reason: 'rand' };
+  const p = ensure(x, y);
+  p.worm = { axis: axis ? 1 : 0 };
+  selected = keyOf(x, y);
+  solveAll();
+  return { ok: true };
+}
+function addBelt(x1, y1, x2, y2, crossed) {
+  const a = keyOf(x1, y1), b = keyOf(x2, y2);
+  if (a === b) return { ok: false, reason: 'gleich' };
+  const A = pegs.get(a), B = pegs.get(b);
+  if (!A || !B || !A.pulley || !B.pulley) return { ok: false, reason: 'keine-rolle' };
+  const d = Math.hypot(A.x - B.x, A.y - B.y);
+  const ra = A.pulley / 20, rb = B.pulley / 20;
+  if (d < Math.abs(ra - rb) + 0.35) return { ok: false, reason: 'nah' };
+  if (crossed && d < ra + rb + 0.35) return { ok: false, reason: 'nah' };
+  const i = belts.findIndex(e => (e.a === a && e.b === b) || (e.a === b && e.b === a));
+  if (i >= 0) belts[i].crossed = !!crossed;
+  else belts.push({ a, b, crossed: !!crossed });
+  selectedBelt = i >= 0 ? i : belts.length - 1;
+  solveAll();
+  return { ok: true };
+}
+function linkTo(name, x, y) {
+  const k = (x == null) ? null : keyOf(x, y);
+  if (k && !pegs.has(k)) return { ok: false, reason: 'leer' };
+  if (name === 'stift0' || name === 'stift1') links.stift[name === 'stift0' ? 0 : 1] = k;
+  else links[name] = k;
+  solveAll();
+  return { ok: true };
+}
+
+function wormHits(p) {
+  if (!p.worm) return [];
+  const hits = [];
+  for (const q of pegs.values()) {
+    if (q === p || !q.gears.length) continue;
+    const dx = q.x - p.x, dy = q.y - p.y;
+    const dist = Math.hypot(dx, dy);
+    const ang = Math.atan2(dy, dx);
+    const axis = p.worm.axis ? Math.PI / 2 : 0;
+    const rel = Math.atan2(Math.sin(ang - axis), Math.cos(ang - axis));
+    const fromPerp = Math.abs(Math.abs(rel) - Math.PI / 2);
+    if (fromPerp > 0.48) continue;
+    let best = null;
+    for (const g of q.gears) {
+      const err = Math.abs(dist - (pitch(g.t) + 0.75));
+      if (err < 0.42 && (!best || err < best.err)) best = { t: g.t, err };
+    }
+    if (!best) continue;
+    const ax = p.worm.axis ? 0 : 1;
+    const ay = p.worm.axis ? 1 : 0;
+    const side = (ax * dy - ay * dx) >= 0 ? 1 : -1;
+    hits.push({ key: keyOf(q.x, q.y), t: best.t, side });
+  }
+  return hits;
+}
+
+function solveAll() {
+  const gearE = [], beltE = [], wormE = [];
+  const arr = [...pegs.values()];
+  for (let i = 0; i < arr.length; i++) {
+    for (let j = i + 1; j < arr.length; j++) {
+      const a = arr[i], b = arr[j];
+      const dist = Math.hypot(a.x - b.x, a.y - b.y);
+      for (const ga of a.gears) for (const gb of b.gears) {
+        if (ga.L !== gb.L) continue;
+        const need = (ga.t + gb.t) / 20;
+        if (Math.abs(dist - need) <= MESH_TOL) {
+          const r = reduce(-ga.t, gb.t);
+          gearE.push({ a: keyOf(a.x, a.y), b: keyOf(b.x, b.y), n: r.n, d: r.d, ta: ga.t, tb: gb.t });
+        }
+      }
+    }
+  }
+  for (const e of belts) {
+    const A = pegs.get(e.a), B = pegs.get(e.b);
+    if (!A || !B || !A.pulley || !B.pulley) continue;
+    const sign = e.crossed ? -1 : 1;
+    const r = reduce(sign * A.pulley, B.pulley);
+    beltE.push({ a: e.a, b: e.b, n: r.n, d: r.d });
+  }
+  for (const p of pegs.values()) {
+    for (const h of wormHits(p)) {
+      const r = reduce(h.side, h.t);
+      wormE.push({ a: keyOf(p.x, p.y), b: h.key, n: r.n, d: r.d, tb: h.t });
+    }
+  }
+  const und = new Map();
+  function join(a, b) {
+    if (!und.has(a)) und.set(a, []);
+    und.get(a).push(b);
+  }
+  for (const e of gearE) { join(e.a, e.b); join(e.b, e.a); }
+  for (const e of beltE) { join(e.a, e.b); join(e.b, e.a); }
+  for (const e of wormE) { join(e.a, e.b); join(e.b, e.a); }
+
+  function outgoing(k) {
+    const o = [];
+    for (const e of gearE) {
+      if (e.a === k) o.push({ v: e.b, n: e.n, d: e.d, kind: 'gear', ta: e.ta, tb: e.tb });
+      else if (e.b === k) o.push({ v: e.a, n: e.d, d: e.n, kind: 'gear', ta: e.tb, tb: e.ta });
+    }
+    for (const e of beltE) {
+      if (e.a === k) o.push({ v: e.b, n: e.n, d: e.d, kind: 'belt' });
+      else if (e.b === k) o.push({ v: e.a, n: e.d, d: e.n, kind: 'belt' });
+    }
+    for (const e of wormE) {
+      if (e.a === k) o.push({ v: e.b, n: e.n, d: e.d, kind: 'worm', tb: e.tb });
+    }
+    return o;
+  }
+
+  const oldA = new Map(angles);
+  ratios = new Map(); viaWorm = new Set(); jammed = new Set(); parents = new Map();
+  const crank = crankPeg();
+  if (crank) {
+    const ck = keyOf(crank.x, crank.y);
+    ratios.set(ck, { n: 1n, d: 1n });
+    const q = [ck];
+    const conflict = new Set();
+    while (q.length) {
+      const u = q.shift();
+      const ru = ratios.get(u);
+      for (const e of outgoing(u)) {
+        const rv = mulRat(ru, e.n, e.d);
+        const prev = ratios.get(e.v);
+        if (!prev) {
+          ratios.set(e.v, rv);
+          parents.set(e.v, { from: u, edge: e });
+          if (e.kind === 'worm' || viaWorm.has(u)) viaWorm.add(e.v);
+          q.push(e.v);
+        } else if (!sameRat(prev, rv)) {
+          conflict.add(u); conflict.add(e.v);
+        } else if (e.kind === 'worm' || viaWorm.has(u)) {
+          viaWorm.add(e.v);
+        }
+      }
+    }
+    if (conflict.size) {
+      const stack = [...conflict];
+      const seen = new Set();
+      while (stack.length) {
+        const k = stack.pop();
+        if (seen.has(k)) continue;
+        seen.add(k);
+        jammed.add(k);
+        for (const n of (und.get(k) || [])) if (!seen.has(n)) stack.push(n);
+      }
+    }
+    phases.set(ck, 0);
+    angles.set(ck, crankAngle);
+    const order = [];
+    const qq = [ck];
+    const seen = new Set([ck]);
+    while (qq.length) {
+      const u = qq.shift();
+      order.push(u);
+      for (const e of outgoing(u)) if (ratios.has(e.v) && !seen.has(e.v) && parents.get(e.v) && parents.get(e.v).from === u) {
+        seen.add(e.v); qq.push(e.v);
+      }
+    }
+    for (const k of order) {
+      if (k === ck || jammed.has(k)) continue;
+      const r = ratios.get(k);
+      const par = parents.get(k);
+      if (oldA.has(k) && par && par.edge.kind !== 'gear') {
+        phases.set(k, oldA.get(k) - numRat(r) * crankAngle);
+        angles.set(k, oldA.get(k));
+        continue;
+      }
+      if (par && par.edge.kind === 'gear') {
+        const pk = par.from;
+        const angU = angles.get(pk) || 0;
+        const P = pegs.get(pk), C = pegs.get(k);
+        const alpha = Math.atan2(C.y - P.y, C.x - P.x);
+        const Na = par.edge.ta, Nb = par.edge.tb;
+        const angV = alpha + Math.PI - ((alpha - angU) * Na + Math.PI) / Nb;
+        phases.set(k, angV - numRat(r) * crankAngle);
+        angles.set(k, angV);
+      } else if (par && par.edge.kind === 'worm') {
+        const pk = par.from;
+        const angU = angles.get(pk) || 0;
+        const angV = angU * (Number(par.edge.n) / Number(par.edge.d));
+        phases.set(k, angV - numRat(r) * crankAngle);
+        angles.set(k, angV);
+      } else {
+        const phase = oldA.has(k) ? oldA.get(k) - numRat(r) * crankAngle : 0;
+        phases.set(k, phase);
+        angles.set(k, numRat(r) * crankAngle + phase);
+      }
+    }
+  }
+  for (const [k, p] of pegs) {
+    if (!ratios.has(k) && !angles.has(k)) angles.set(k, 0);
+    if (emptyPeg(p)) pegs.delete(k);
+  }
+  refreshHud();
+}
+
+function applyAngles() {
+  const crank = crankPeg();
+  if (!crank) return;
+  const ck = keyOf(crank.x, crank.y);
+  if (jammed.has(ck)) return;
+  angles.set(ck, crankAngle);
+  for (const [k, r] of ratios) {
+    if (jammed.has(k) || k === ck) continue;
+    angles.set(k, crankAngle * numRat(r) + (phases.get(k) || 0));
+  }
+}
+
+function challenges() {
+  const out = { halb: false, doppelt: false, minute: false, schnecke: false, stift: false, kuckuck: false };
+  function live(k) { return k && ratios.has(k) && !jammed.has(k); }
+  for (const [k, r] of ratios) {
+    if (jammed.has(k)) continue;
+    if (sameRat(r, { n: -1n, d: 2n })) out.halb = true;
+    if (sameRat(r, { n: 2n, d: 1n })) out.doppelt = true;
+    if (viaWorm.has(k)) {
+      const an = r.n < 0n ? -r.n : r.n;
+      if (an !== 0n && an * 20n <= 1n * r.d) out.schnecke = true;
+    }
+  }
+  if (live(links.uhr) && sameRat(ratios.get(links.uhr), { n: 1n, d: 60n })) out.minute = true;
+  if (live(links.kuckuck)) {
+    const r = ratios.get(links.kuckuck);
+    if (sameRat(r, { n: 1n, d: 6n }) || sameRat(r, { n: -1n, d: 6n })) out.kuckuck = true;
+  }
+  const a = links.stift[0], b = links.stift[1];
+  if (live(a) && live(b) && !sameRat(ratios.get(a), ratios.get(b)) && ratios.get(a).n !== 0n && ratios.get(b).n !== 0n) out.stift = true;
+  return out;
+}
+
+function refreshHud() {
+  const ch = challenges();
+  const rpmShown = displayRpm();
+  let text = 'Antrieb ' + fmtNum(rpmShown) + ' U/min';
+  if (jammed.size) text += ' · verklemmt';
+  if (selected && pegs.has(selected)) {
+    const p = pegs.get(selected);
+    const teeth = p.gears.map(g => g.t).join('+');
+    text += teeth ? ' · ' + teeth + ' Zähne' : '';
+    if (p.pulley) text += ' · Rolle ' + p.pulley;
+    if (p.worm) text += ' · Schnecke';
+    if (ratios.has(selected) && !jammed.has(selected)) {
+      const r = ratios.get(selected);
+      const pr = Math.abs(numRat(r) * rpmShown);
+      text += ' · ' + fmtNum(pr) + ' U/min · Übersetzung ' + fmtRat(r);
+      text += r.n < 0n ? ' · Gegenlauf' : ' · gleicher Sinn';
+    } else if (jammed.has(selected)) text += ' · verklemmt';
+    else text += ' · steht';
+  }
+  readout.textContent = text;
+  for (const o of ORDERS) {
+    const el = document.getElementById('ord-' + o.id);
+    if (!el) continue;
+    el.classList.toggle('ok', !!ch[o.id]);
+    el.textContent = (ch[o.id] ? '✓ ' : '') + o.title;
+  }
+}
+function fmtNum(x) {
+  if (!isFinite(x)) return '0';
+  const a = Math.abs(x);
+  if (a >= 12) return String(Math.round(x));
+  return (Math.round(x * 10) / 10).toFixed(1).replace('.', ',');
+}
+function displayRpm() {
+  const c = crankPeg();
+  if (!c || jammed.has(keyOf(c.x, c.y))) return 0;
+  if (motor.on) return motor.rpm;
+  return Math.abs(handRpm);
+}
+
+function resetWorld() {
+  pegs = new Map(); belts = [];
+  links = { uhr: null, kuckuck: null, walze: null, stift: [null, null] };
+  motor = { on: false, rpm: 30 };
+  crankAngle = 0; selected = null; selectedBelt = -1; beltArm = null; stiftSlot = 0;
+  ratios = new Map(); viaWorm = new Set(); jammed = new Set(); parents = new Map();
+  phases = new Map(); angles = new Map(); paper = [];
+  prevCrank = 0; prevWatch = { walze: null, kuckuck: null };
+  bird = 0; birdTarget = 0;
+}
+function clearWorld() {
+  resetWorld();
+  solveAll();
+  try { history.replaceState(null, '', location.pathname + location.search); } catch (e) {}
+  save();
+  say('Brett leer. Zuerst die Kurbel setzen.');
+}
+
+function loadExample() {
+  resetWorld();
+  placeGear(3, 4, 8);
+  setCrank(3, 4);
+  setWorm(3, 4, 0);
+  placeGear(5, 6, 48); setPulley(5, 6, 12);
+  placeGear(12, 6, 12); setPulley(12, 6, 12);
+  placeGear(15, 6, 48); setPulley(15, 6, 12);
+  placeGear(12, 11, 16); setPulley(12, 11, 12);
+  placeGear(10, 9, 40);
+  placeGear(3, 2, 20);
+  addBelt(5, 6, 12, 6, false);
+  addBelt(15, 6, 12, 11, true);
+  linkTo('uhr', 10, 9);
+  linkTo('kuckuck', 5, 6);
+  linkTo('walze', 3, 4);
+  linkTo('stift0', 12, 6);
+  linkTo('stift1', 15, 6);
+  motor.on = true; motor.rpm = 24;
+  solveAll();
+  const phase = phases.get('10,9') || 0;
+  const end = (1.05 - phase) * 60;
+  paper = [];
+  if (L) {
+    const steps = 24 * 36;
+    for (let i = 0; i <= steps; i++) {
+      crankAngle = end - (steps - i) / steps * 24 * TAU;
+      applyAngles();
+      const uv = paperUV();
+      if (uv) paper.push(uv);
+    }
+  }
+  crankAngle = end;
+  applyAngles();
+  prevCrank = crankAngle;
+  prevWatch.walze = angles.get(links.walze) ?? null;
+  prevWatch.kuckuck = angles.get(links.kuckuck) ?? null;
+  selected = '10,9';
+  syncMotorButton();
+  refreshHud();
+  save();
+  say('Beispiel läuft. Motor an. Die Uhr ist 60-mal langsamer, die Schnecke kriecht.');
+}
+
+function pack() {
+  const list = [];
+  for (const p of pegs.values()) {
+    list.push({
+      x: p.x, y: p.y,
+      g: p.gears.map(g => [g.t, g.L]),
+      p: p.pulley || 0,
+      w: p.worm ? p.worm.axis : null,
+      c: p.crank ? 1 : 0
+    });
+  }
+  const step = Math.max(1, Math.ceil(paper.length / 700));
+  const ink = [];
+  for (let i = 0; i < paper.length; i += step) ink.push([Math.round(paper[i].u * 1000), Math.round(paper[i].v * 1000)]);
+  return {
+    v: 1, pegs: list,
+    belts: belts.map(e => ({ a: e.a, b: e.b, x: e.crossed ? 1 : 0 })),
+    links: {
+      u: links.uhr, k: links.kuckuck, w: links.walze, s: links.stift.slice()
+    },
+    motor: { on: motor.on ? 1 : 0, rpm: motor.rpm },
+    ang: Math.round(crankAngle * 1000) / 1000,
+    ink
+  };
+}
+function b64e(s) { return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); }
+function b64d(s) {
+  s = s.replace(/-/g, '+').replace(/_/g, '/');
+  while (s.length % 4) s += '=';
+  return atob(s);
+}
+function serialize() { return b64e(JSON.stringify(pack())); }
+function applyPack(data) {
+  resetWorld();
+  for (const p of data.pegs || []) {
+    if (!onBoard(p.x, p.y)) continue;
+    const peg = ensure(p.x, p.y);
+    peg.gears = (p.g || []).slice(0, 2).map(g => ({ t: g[0], L: g[1] ? 1 : 0 }));
+    peg.pulley = PULLEYS.indexOf(p.p) >= 0 ? p.p : 0;
+    peg.worm = (p.w === 0 || p.w === 1) ? { axis: p.w } : null;
+    peg.crank = !!p.c;
+  }
+  let cranks = 0;
+  for (const p of pegs.values()) { if (p.crank) { cranks++; if (cranks > 1) p.crank = false; } }
+  belts = [];
+  for (const e of data.belts || []) {
+    if (pegs.has(e.a) && pegs.has(e.b)) belts.push({ a: e.a, b: e.b, crossed: !!e.x });
+  }
+  const Lnk = data.links || {};
+  links.uhr = Lnk.u || null;
+  links.kuckuck = Lnk.k || null;
+  links.walze = Lnk.w || null;
+  links.stift = [Lnk.s && Lnk.s[0] || null, Lnk.s && Lnk.s[1] || null];
+  motor.on = !!(data.motor && data.motor.on);
+  motor.rpm = (data.motor && data.motor.rpm) || 30;
+  crankAngle = data.ang || 0;
+  paper = (data.ink || []).map(p => ({ u: p[0] / 1000, v: p[1] / 1000 }));
+  solveAll();
+  applyAngles();
+  prevCrank = crankAngle;
+  prevWatch.walze = angles.get(links.walze) ?? null;
+  prevWatch.kuckuck = angles.get(links.kuckuck) ?? null;
+  syncMotorButton();
+}
+function save() {
+  try { localStorage.setItem(STORE, serialize()); } catch (e) {}
+}
+function loadHash() {
+  const h = location.hash || '';
+  const m = h.match(/z=([A-Za-z0-9\-_]+)/);
+  if (!m) return false;
+  try { applyPack(JSON.parse(b64d(m[1]))); return true; } catch (e) { return false; }
+}
+function loadStore() {
+  try {
+    const s = localStorage.getItem(STORE);
+    if (!s) return false;
+    applyPack(JSON.parse(b64d(s)));
+    return pegs.size > 0;
+  } catch (e) { return false; }
+}
+
+function toolButtons() {
+  const specs = [
+    ['wahl', 'Wahl'], ['kurbel', 'Kurbel'],
+    ['g8', '8'], ['g12', '12'], ['g16', '16'], ['g20', '20'], ['g24', '24'], ['g36', '36'], ['g40', '40'], ['g48', '48'],
+    ['rolle', 'Rolle'], ['riemen', 'Riemen'], ['schnecke', 'Schnecke'],
+    ['uhr', 'Uhr'], ['kuckuck', 'Kuckuck'], ['walze', 'Walze'], ['stift', 'Stift'],
+    ['motor', 'Motor'], ['rpm-', '−'], ['rpm+', '+'],
+    ['weg', 'Weg'], ['leeren', 'Leeren'], ['beispiel', 'Beispiel'],
+    ['teilen', 'Teilen'], ['ton', 'Ton aus'], ['kreuz', 'Kreuz'], ['papier', 'Papier']
+  ];
+  for (const [id, label] of specs) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.id = 't-' + id;
+    b.dataset.tool = id;
+    b.textContent = label;
+    if (id.startsWith('g')) b.title = label + ' Zähne';
+    if (id === 'rpm-') b.setAttribute('aria-label', 'langsamer');
+    if (id === 'rpm+') b.setAttribute('aria-label', 'schneller');
+    b.addEventListener('click', () => onTool(id));
+    toolsEl.appendChild(b);
+  }
+  for (const o of ORDERS) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'order';
+    b.id = 'ord-' + o.id;
+    b.textContent = o.title;
+    b.title = o.text;
+    b.addEventListener('click', () => say(o.hint));
+    ordersEl.appendChild(b);
+  }
+  markTool();
+  syncMotorButton();
+  syncSoundButton();
+}
+function markTool() {
+  for (const b of toolsEl.querySelectorAll('button')) b.classList.toggle('on', b.dataset.tool === tool);
+  const st = document.getElementById('t-stift');
+  if (st) st.textContent = stiftSlot === 0 ? 'Stift X' : 'Stift Y';
+  const ro = document.getElementById('t-rolle');
+  if (ro) ro.textContent = 'Rolle ' + pulleySize;
+}
+function syncMotorButton() {
+  const b = document.getElementById('t-motor');
+  if (!b) return;
+  b.textContent = motor.on ? 'Motor an' : 'Motor';
+  b.classList.toggle('on', motor.on);
+  b.setAttribute('aria-pressed', motor.on ? 'true' : 'false');
+}
+function syncSoundButton() {
+  const b = document.getElementById('t-ton');
+  if (!b) return;
+  b.textContent = soundOn ? 'Ton an' : 'Ton aus';
+  b.classList.toggle('on', soundOn);
+  b.setAttribute('aria-pressed', soundOn ? 'true' : 'false');
+  b.setAttribute('aria-label', soundOn ? 'Ton ist an' : 'Ton ist aus');
+}
+const RPMS = [15, 20, 30, 45, 60, 90, 120];
+function onTool(id) {
+  if (id === 'motor') {
+    motor.on = !motor.on;
+    syncMotorButton();
+    saveSoon();
+    say(motor.on ? 'Motor an, ' + motor.rpm + ' U/min.' : 'Motor aus. Ziehe am Griff.');
+    refreshHud();
+    return;
+  }
+  if (id === 'rpm-' || id === 'rpm+') {
+    let i = RPMS.indexOf(motor.rpm);
+    if (i < 0) i = 2;
+    i = Math.max(0, Math.min(RPMS.length - 1, i + (id === 'rpm+' ? 1 : -1)));
+    motor.rpm = RPMS[i];
+    saveSoon();
+    say('Drehzahl ' + motor.rpm + ' U/min.');
+    refreshHud();
+    return;
+  }
+  if (id === 'weg') { removeSelected(); return; }
+  if (id === 'leeren') {
+    const now = performance.now();
+    if (now - confirmClear < 2500) { confirmClear = 0; clearWorld(); document.getElementById('t-leeren').textContent = 'Leeren'; }
+    else { confirmClear = now; document.getElementById('t-leeren').textContent = 'Wirklich?'; say('Nochmal tippen leert das Brett.'); }
+    return;
+  }
+  if (id === 'beispiel') { loadExample(); markTool(); return; }
+  if (id === 'teilen') { share(); return; }
+  if (id === 'ton') { toggleSound(); return; }
+  if (id === 'kreuz') { toggleCross(); return; }
+  if (id === 'papier') { paper = []; saveSoon(); say('Papier leer.'); return; }
+  if (id === 'rolle' && tool === 'rolle') {
+    pulleySize = PULLEYS[(PULLEYS.indexOf(pulleySize) + 1) % PULLEYS.length];
+    say('Rolle mit ' + pulleySize + '. Nochmal tippen wechselt die Grösse.');
+    markTool();
+    return;
+  }
+  tool = id;
+  if (id === 'stift') say(stiftSlot === 0 ? 'Stift: tippe die Welle für die erste Achse.' : 'Stift: tippe die Welle für die zweite Achse.');
+  else if (id === 'riemen') say('Tippe zwei Rollen. Ein weiterer Tipp auf den Riemen kreuzt ihn.');
+  else if (id === 'kurbel') say('Tippe ein Loch für die Kurbel. Ziehe am Griff, oder schalte den Motor ein.');
+  else if (id.startsWith('g')) say(id.slice(1) + ' Zähne. Tippe ein Loch. Ein zweites Rad auf derselben Welle dreht mit.');
+  else if (id === 'schnecke') say('Tippe eine Welle. Nochmal tippen dreht die Schnecke. Sie treibt nur vorwärts.');
+  else if (id === 'uhr') say('Tippe die Welle für den Minutenzeiger.');
+  else if (id === 'kuckuck') say('Tippe die Welle, an der der Kuckuck hängt.');
+  else if (id === 'walze') say('Tippe die Welle für die Walze.');
+  else if (id === 'wahl') say('Ziehen verschiebt die Welle. Weg räumt sie ab.');
+  markTool();
+}
+function toggleCross() {
+  let i = selectedBelt;
+  if (i < 0) i = belts.length - 1;
+  if (i < 0) { say('Noch kein Riemen.'); return; }
+  belts[i].crossed = !belts[i].crossed;
+  selectedBelt = i;
+  solveAll();
+  saveSoon();
+  say(belts[i].crossed ? 'Riemen gekreuzt, Gegenlauf.' : 'Riemen offen, gleicher Sinn.');
+}
+function removeSelected() {
+  if (selectedBelt >= 0 && belts[selectedBelt]) {
+    belts.splice(selectedBelt, 1);
+    selectedBelt = -1;
+    solveAll(); saveSoon();
+    say('Riemen weg.');
+    return;
+  }
+  if (!selected || !pegs.has(selected)) { say('Nichts gewählt.'); return; }
+  const p = pegs.get(selected);
+  if (p.gears.length) p.gears.pop();
+  else if (p.pulley) {
+    p.pulley = 0;
+    belts = belts.filter(e => e.a !== selected && e.b !== selected);
+  } else if (p.worm) p.worm = null;
+  else if (p.crank) p.crank = false;
+  if (emptyPeg(p)) {
+    forgetKey(selected);
+    pegs.delete(selected);
+    selected = null;
+  }
+  solveAll(); saveSoon();
+  say('Abgeräumt.');
+}
+function forgetKey(k) {
+  belts = belts.filter(e => e.a !== k && e.b !== k);
+  if (links.uhr === k) links.uhr = null;
+  if (links.kuckuck === k) links.kuckuck = null;
+  if (links.walze === k) links.walze = null;
+  if (links.stift[0] === k) links.stift[0] = null;
+  if (links.stift[1] === k) links.stift[1] = null;
+}
+function movePeg(from, x, y) {
+  if (!onBoard(x, y)) return false;
+  const dest = keyOf(x, y);
+  if (dest === from) return true;
+  if (pegs.has(dest)) return false;
+  const p = pegs.get(from);
+  if (!p) return false;
+  for (const g of p.gears) if (gearClash(x, y, g.t, g.L, p)) return false;
+  pegs.delete(from);
+  p.x = x; p.y = y;
+  pegs.set(dest, p);
+  const rep = s => s === from ? dest : s;
+  for (const e of belts) { e.a = rep(e.a); e.b = rep(e.b); }
+  links.uhr = rep(links.uhr);
+  links.kuckuck = rep(links.kuckuck);
+  links.walze = rep(links.walze);
+  links.stift[0] = rep(links.stift[0]);
+  links.stift[1] = rep(links.stift[1]);
+  selected = dest;
+  solveAll();
+  saveSoon();
+  return true;
+}
+function saveSoon() { saveTimer = 0.35; }
+
+function share() {
+  const s = serialize();
+  try { history.replaceState(null, '', '#z=' + s); } catch (e) {}
+  try { localStorage.setItem(STORE, s); } catch (e) {}
+  const url = location.href;
+  const done = () => say('Link kopiert.');
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(url).then(done).catch(() => say('Der Link steht in der Adresszeile.'));
+  } else say('Der Link steht in der Adresszeile.');
+}
+
+function toggleSound() {
+  soundOn = !soundOn;
+  userMuted = !soundOn;
+  if (soundOn) unlockAudio();
+  syncSoundButton();
+  say(soundOn ? 'Ton an.' : 'Ton aus.');
+}
+function unlockAudio() {
+  const AC = window.AudioContext || window.webkitAudioContext;
+  if (!AC) return;
+  if (!audio) {
+    const ac = new AC();
+    const master = ac.createGain();
+    master.gain.value = 0.9;
+    master.connect(ac.destination);
+    audio = { ac, master };
+  }
+  if (audio.ac.state === 'suspended') audio.ac.resume();
+}
+function armSound(e) {
+  if (e.target && e.target.closest && e.target.closest('#t-ton')) return;
+  if (!soundOn && !userMuted) { soundOn = true; unlockAudio(); syncSoundButton(); }
+  else unlockAudio();
+}
+function blip(freq, delay, dur, vol, type) {
+  if (!audio || !soundOn) return;
+  const t = audio.ac.currentTime + delay;
+  const o = audio.ac.createOscillator();
+  o.type = type || 'sine';
+  o.frequency.setValueAtTime(freq, t);
+  const g = audio.ac.createGain();
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.exponentialRampToValueAtTime(vol, t + 0.012);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  o.connect(g); g.connect(audio.master);
+  o.start(t); o.stop(t + dur + 0.02);
+}
+let tickBudget = 0;
+function playTick() {
+  if (!audio || !soundOn) return;
+  if (tickBudget > 6) return;
+  tickBudget++;
+  const t = audio.ac.currentTime;
+  const o = audio.ac.createOscillator();
+  o.type = 'triangle';
+  o.frequency.setValueAtTime(1600, t);
+  o.frequency.exponentialRampToValueAtTime(220, t + 0.03);
+  const g = audio.ac.createGain();
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.exponentialRampToValueAtTime(0.05, t + 0.004);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + 0.045);
+  o.connect(g); g.connect(audio.master);
+  o.start(t); o.stop(t + 0.05);
+}
+function playCuckoo() {
+  blip(784, 0, 0.18, 0.07, 'sine');
+  blip(622, 0.24, 0.26, 0.07, 'sine');
+}
+function playPluck(freq) { blip(freq, 0, 0.28, 0.06, 'triangle'); }
+function startBird(noisy) {
+  birdUntil = simTime + 1.2;
+  birdTarget = 1;
+  if (noisy) playCuckoo();
+}
+function crossPins(prev, next, n, at, fn) {
+  let c = 0;
+  for (let i = 0; i < n; i++) {
+    const p = (at ? at[i] : i / n) * TAU;
+    if (Math.floor((prev - p) / TAU) !== Math.floor((next - p) / TAU)) {
+      fn(i);
+      if (++c > 8) return;
+    }
+  }
+}
+
+function resize() {
+  const r = canvas.getBoundingClientRect();
+  const dpr = Math.min(2, window.devicePixelRatio || 1);
+  canvas.width = Math.max(1, Math.round(r.width * dpr));
+  canvas.height = Math.max(1, Math.round(r.height * dpr));
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  layout(r.width, r.height);
+  boardCache = null;
+}
+function layout(w, h) {
+  const land = w > h * 1.08 && h < 560;
+  let board, bay;
+  if (land) {
+    const bw = Math.max(108, Math.min(170, w * 0.24));
+    board = { x: 0, y: 0, w: w - bw, h };
+    bay = { x: w - bw, y: 0, w: bw, h, vertical: true };
+  } else {
+    const bh = Math.max(84, Math.min(132, h * 0.26));
+    board = { x: 0, y: 0, w, h: Math.max(40, h - bh) };
+    bay = { x: 0, y: board.h, w, h: h - board.h, vertical: false };
+  }
+  const peg = Math.min(board.w / COLS, board.h / ROWS);
+  const ox = board.x + (board.w - peg * COLS) / 2;
+  const oy = board.y + (board.h - peg * ROWS) / 2;
+  L = { peg, ox, oy, board, bay, w, h };
+}
+function toPx(x, y) { return [L.ox + (x + 0.5) * L.peg, L.oy + (y + 0.5) * L.peg]; }
+function pegFromPx(px, py) {
+  const x = Math.floor((px - L.ox) / L.peg);
+  const y = Math.floor((py - L.oy) / L.peg);
+  if (!onBoard(x, y)) return null;
+  return { x, y };
+}
+function slotRect(i) {
+  const b = L.bay;
+  if (b.vertical) {
+    const h = b.h / 4;
+    return { x: b.x + 5, y: b.y + i * h + 3, w: b.w - 10, h: h - 6 };
+  }
+  const w = b.w / 4;
+  return { x: b.x + i * w + 4, y: b.y + 3, w: w - 8, h: b.h - 6 };
+}
+function ang(k) { return k && angles.has(k) ? angles.get(k) : 0; }
+function penXY(slot) {
+  const a = ang(links.stift[0]);
+  const b = links.stift[1] ? ang(links.stift[1]) : a;
+  const cx = slot.x + slot.w * 0.5, cy = slot.y + slot.h * 0.56;
+  const rx = slot.w * 0.32, ry = slot.h * 0.30;
+  return {
+    x: cx + Math.sin(a) * rx + Math.sin(b) * rx * 0.58,
+    y: cy + Math.cos(a) * ry * 0.72 + Math.cos(b + 0.55) * ry * 0.52
+  };
+}
+function paperUV() {
+  if (!L) return null;
+  const s = slotRect(3);
+  if (s.w < 8 || s.h < 8) return null;
+  const p = penXY(s);
+  return { u: (p.x - s.x) / s.w, v: (p.y - s.y) / s.h };
+}
+
+function sprite(teeth) {
+  if (sprites.has(teeth)) return sprites.get(teeth);
+  const U = 86;
+  const r = teeth / 20 * U;
+  const m = U / 10;
+  const outer = r + m * 0.95;
+  const root = Math.max(m * 0.7, r - m * 1.05);
+  const pad = m * 0.8;
+  const size = Math.ceil((outer + pad) * 2);
+  const c = document.createElement('canvas');
+  c.width = c.height = size;
+  const g = c.getContext('2d');
+  g.translate(size / 2, size / 2);
+  g.beginPath();
+  const step = TAU / teeth;
+  for (let i = 0; i < teeth; i++) {
+    const a = i * step;
+    const tw = step * 0.34, rw = step * 0.46;
+    const pts = [[a - rw, root], [a - tw, outer], [a + tw, outer], [a + rw, root]];
+    for (let k = 0; k < pts.length; k++) {
+      const x = Math.cos(pts[k][0]) * pts[k][1];
+      const y = Math.sin(pts[k][0]) * pts[k][1];
+      if (i === 0 && k === 0) g.moveTo(x, y); else g.lineTo(x, y);
+    }
+  }
+  g.closePath();
+  const grd = g.createRadialGradient(-r * 0.28, -r * 0.32, r * 0.1, 0, 0, outer);
+  grd.addColorStop(0, '#fff3c9');
+  grd.addColorStop(0.42, '#e8b84a');
+  grd.addColorStop(0.8, '#b87428');
+  grd.addColorStop(1, '#6e4512');
+  g.fillStyle = grd;
+  g.fill();
+  g.strokeStyle = '#4e300c';
+  g.lineWidth = Math.max(1, m * 0.16);
+  g.stroke();
+  g.beginPath(); g.arc(0, 0, Math.max(2, r * 0.27), 0, TAU);
+  g.fillStyle = '#7a4c16'; g.fill();
+  g.beginPath(); g.arc(0, 0, Math.max(1.4, r * 0.13), 0, TAU);
+  g.fillStyle = '#24160c'; g.fill();
+  g.beginPath(); g.arc(r * 0.46, 0, Math.max(1.2, m * 0.26), 0, TAU);
+  g.fillStyle = '#3a2412'; g.fill();
+  const spr = { canvas: c, size };
+  sprites.set(teeth, spr);
+  return spr;
+}
+
+function drawBoard() {
+  if (boardCache && boardCache.w === L.w && boardCache.h === L.h) {
+    ctx.drawImage(boardCache.c, 0, 0, L.w, L.h);
+    return;
+  }
+  const c = document.createElement('canvas');
+  const dpr = Math.min(2, window.devicePixelRatio || 1);
+  c.width = Math.max(1, Math.round(L.w * dpr));
+  c.height = Math.max(1, Math.round(L.h * dpr));
+  const g = c.getContext('2d');
+  g.setTransform(dpr, 0, 0, dpr, 0, 0);
+  const b = L.board;
+  g.fillStyle = '#1a100c';
+  g.fillRect(0, 0, L.w, L.h);
+  const plank = Math.max(18, L.peg * 1.05);
+  for (let y = b.y, i = 0; y < b.y + b.h + plank; y += plank, i++) {
+    g.fillStyle = (i % 2) ? '#c4925c' : '#b5814a';
+    g.fillRect(b.x, y, b.w, plank + 1);
+    g.strokeStyle = 'rgba(70,36,14,0.28)';
+    g.beginPath(); g.moveTo(b.x, y + 0.5); g.lineTo(b.x + b.w, y + 0.5); g.stroke();
+    g.strokeStyle = 'rgba(255,220,170,0.05)';
+    g.beginPath();
+    for (let x = b.x; x < b.x + b.w; x += 14) {
+      g.moveTo(x, y + 4); g.lineTo(x + 8, y + plank - 4);
+    }
+    g.stroke();
+  }
+  const hole = Math.max(2.1, L.peg * 0.1);
+  for (let x = 0; x < COLS; x++) for (let y = 0; y < ROWS; y++) {
+    const px = L.ox + (x + 0.5) * L.peg, py = L.oy + (y + 0.5) * L.peg;
+    g.beginPath(); g.arc(px, py, hole, 0, TAU);
+    g.fillStyle = '#3a2618'; g.fill();
+    g.fillStyle = 'rgba(255,236,200,0.28)';
+    g.fillRect(px - hole * 0.2, py - hole * 0.55, hole * 0.35, hole * 0.35);
+  }
+  g.strokeStyle = '#5a3a22';
+  g.lineWidth = 6;
+  g.strokeRect(b.x + 3, b.y + 3, b.w - 6, b.h - 6);
+  boardCache = { c, w: L.w, h: L.h };
+  ctx.drawImage(c, 0, 0, L.w, L.h);
+}
+
+function beltLines(ax, ay, ra, bx, by, rb, crossed) {
+  const dx = bx - ax, dy = by - ay;
+  const dist = Math.hypot(dx, dy);
+  const ang = Math.atan2(dy, dx);
+  if (!crossed) {
+    if (dist <= Math.abs(ra - rb) + 0.5) return null;
+    const phi = Math.acos(Math.max(-1, Math.min(1, (ra - rb) / dist)));
+    return [ends(ax, ay, ra, ang + phi, bx, by, rb, ang + phi), ends(ax, ay, ra, ang - phi, bx, by, rb, ang - phi)];
+  }
+  if (dist <= ra + rb + 0.5) return null;
+  const phi = Math.acos(Math.max(-1, Math.min(1, (ra + rb) / dist)));
+  return [ends(ax, ay, ra, ang + phi, bx, by, rb, ang + Math.PI - phi), ends(ax, ay, ra, ang - phi, bx, by, rb, ang + Math.PI + phi)];
+}
+function ends(x1, y1, r1, a1, x2, y2, r2, a2) {
+  return {
+    x1: x1 + Math.cos(a1) * r1, y1: y1 + Math.sin(a1) * r1,
+    x2: x2 + Math.cos(a2) * r2, y2: y2 + Math.sin(a2) * r2
+  };
+}
+function drawBelts() {
+  beltGeom = [];
+  belts.forEach((e, i) => {
+    const A = pegs.get(e.a), B = pegs.get(e.b);
+    if (!A || !B || !A.pulley || !B.pulley) return;
+    const [ax, ay] = toPx(A.x, A.y);
+    const [bx, by] = toPx(B.x, B.y);
+    const ra = A.pulley / 20 * L.peg, rb = B.pulley / 20 * L.peg;
+    const lines = beltLines(ax, ay, ra, bx, by, rb, e.crossed);
+    const segs = lines || [{ x1: ax, y1: ay, x2: bx, y2: by }];
+    beltGeom.push({ i, segs });
+    if (lines && lines.length === 2) {
+      ctx.beginPath();
+      ctx.moveTo(lines[0].x1, lines[0].y1);
+      ctx.lineTo(lines[0].x2, lines[0].y2);
+      ctx.lineTo(lines[1].x2, lines[1].y2);
+      ctx.lineTo(lines[1].x1, lines[1].y1);
+      ctx.closePath();
+      ctx.fillStyle = i === selectedBelt ? '#e0b15c' : '#6b4128';
+      ctx.fill();
+      ctx.lineWidth = 1.25;
+      ctx.strokeStyle = '#2c1810';
+      ctx.stroke();
+    } else {
+      ctx.lineWidth = Math.max(3, L.peg * 0.09);
+      ctx.strokeStyle = '#6b4128';
+      ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by); ctx.stroke();
+    }
+  });
+}
+function drawPulley(px, py, size) {
+  const r = size / 20 * L.peg;
+  ctx.beginPath(); ctx.arc(px, py, r, 0, TAU);
+  ctx.fillStyle = '#7a4e2c'; ctx.fill();
+  ctx.lineWidth = Math.max(1.5, r * 0.12);
+  ctx.strokeStyle = '#3a2416'; ctx.stroke();
+  ctx.beginPath(); ctx.arc(px, py, r * 0.7, 0, TAU);
+  ctx.strokeStyle = '#d9b48a'; ctx.lineWidth = Math.max(1, r * 0.06); ctx.stroke();
+}
+function drawGear(px, py, teeth, angle, layer, isJam) {
+  const spr = sprite(teeth);
+  const sc = L.peg / 86;
+  ctx.save();
+  ctx.translate(px, py);
+  ctx.rotate(angle);
+  ctx.drawImage(spr.canvas, -spr.size / 2 * sc, -spr.size / 2 * sc, spr.size * sc, spr.size * sc);
+  ctx.restore();
+  if (layer === 1) {
+    ctx.beginPath();
+    ctx.arc(px, py, pitch(teeth) * L.peg + L.peg * 0.04, 0, TAU);
+    ctx.strokeStyle = 'rgba(255,236,190,0.35)';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+  }
+  if (isJam) {
+    ctx.beginPath();
+    ctx.arc(px, py, pitch(teeth) * L.peg + 4, 0, TAU);
+    ctx.fillStyle = 'rgba(180, 24, 24, 0.28)';
+    ctx.fill();
+  }
+}
+function drawWorm(p, px, py) {
+  const hits = wormHits(p);
+  let dir = p.worm.axis ? -Math.PI / 2 : 0;
+  if (hits.length) {
+    const q = pegs.get(hits[0].key);
+    dir = Math.atan2(q.y - p.y, q.x - p.x);
+  } else if (p.worm.axis) dir = Math.PI / 2;
+  const len = L.peg * 1.35;
+  const rad = L.peg * 0.34;
+  const spin = ang(keyOf(p.x, p.y));
+  ctx.save();
+  ctx.translate(px, py);
+  ctx.rotate(dir);
+  ctx.fillStyle = '#c4923a';
+  roundRect(ctx, 0, -rad, len, rad * 2, rad);
+  ctx.fill();
+  ctx.strokeStyle = '#6a4014';
+  ctx.lineWidth = 1;
+  for (let i = 0; i < 7; i++) {
+    const x = 8 + i * (len - 16) / 6 + (spin * rad * 0.4) % ((len - 16) / 6);
+    ctx.beginPath();
+    ctx.moveTo(x, -rad + 1); ctx.lineTo(x + rad * 0.7, rad - 1);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+function roundRect(g, x, y, w, h, r) {
+  g.beginPath();
+  g.moveTo(x + r, y);
+  g.arcTo(x + w, y, x + w, y + h, r);
+  g.arcTo(x + w, y + h, x, y + h, r);
+  g.arcTo(x, y + h, x, y, r);
+  g.arcTo(x, y, x + w, y, r);
+  g.closePath();
+}
+function drawCrank(p) {
+  const [px, py] = toPx(p.x, p.y);
+  const jam = jammed.has(keyOf(p.x, p.y));
+  let a = ang(keyOf(p.x, p.y));
+  if (jam) a += Math.sin(simTime * 28) * 0.08;
+  let reach = Math.max(22, L.peg * 0.7);
+  for (const g of p.gears) reach = Math.max(reach, pitch(g.t) * L.peg + 14);
+  if (p.pulley) reach = Math.max(reach, p.pulley / 20 * L.peg + 12);
+  const kx = px + Math.cos(a) * reach, ky = py + Math.sin(a) * reach;
+  ctx.strokeStyle = '#e6c278';
+  ctx.lineWidth = Math.max(4, L.peg * 0.09);
+  ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(kx, ky); ctx.stroke();
+  const kr = Math.max(8, L.peg * 0.2);
+  ctx.beginPath(); ctx.arc(kx, ky, kr, 0, TAU);
+  ctx.fillStyle = '#8b4e2a'; ctx.fill();
+  ctx.lineWidth = 2; ctx.strokeStyle = '#f0d7a4'; ctx.stroke();
+  p._knob = { x: kx, y: ky, r: Math.max(18, kr + 8) };
+}
+function linkDot(px, py, color) {
+  ctx.beginPath(); ctx.arc(px, py, Math.max(3.5, L.peg * 0.09), 0, TAU);
+  ctx.fillStyle = color; ctx.fill();
+}
+
+function drawBays() {
+  const names = ['Uhr', 'Kuckuck', 'Walze', 'Papier'];
+  for (let i = 0; i < 4; i++) {
+    const s = slotRect(i);
+    ctx.save();
+    ctx.beginPath(); ctx.rect(s.x, s.y, s.w, s.h); ctx.clip();
+    ctx.fillStyle = '#3a2618';
+    ctx.fillRect(s.x, s.y, s.w, s.h);
+    ctx.strokeStyle = '#8a6438';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(s.x + 1, s.y + 1, s.w - 2, s.h - 2);
+    ctx.fillStyle = '#f0d7a4';
+    ctx.font = '600 ' + Math.max(10, Math.min(13, s.h * 0.16)) + 'px system-ui,sans-serif';
+    ctx.fillText(names[i], s.x + 6, s.y + Math.max(12, s.h * 0.16));
+    if (i === 0) drawClock(s);
+    else if (i === 1) drawCuckoo(s);
+    else if (i === 2) drawCylinder(s);
+    else drawPaper(s);
+    ctx.restore();
+  }
+}
+function drawClock(s) {
+  const on = !!(links.uhr && pegs.has(links.uhr));
+  const cx = s.x + s.w * 0.5, cy = s.y + s.h * 0.58;
+  const r = Math.min(s.w, s.h) * 0.32;
+  ctx.beginPath(); ctx.arc(cx, cy, r, 0, TAU);
+  ctx.fillStyle = on ? '#fbf6ea' : '#d9d0c2'; ctx.fill();
+  ctx.lineWidth = Math.max(2, r * 0.08);
+  ctx.strokeStyle = '#8a5a1c'; ctx.stroke();
+  ctx.fillStyle = '#2a1c12';
+  for (let i = 0; i < 12; i++) {
+    const a = i / 12 * TAU;
+    const inner = r * (i % 3 === 0 ? 0.72 : 0.82);
+    ctx.beginPath();
+    ctx.moveTo(cx + Math.sin(a) * inner, cy - Math.cos(a) * inner);
+    ctx.lineTo(cx + Math.sin(a) * r * 0.92, cy - Math.cos(a) * r * 0.92);
+    ctx.lineWidth = i % 3 === 0 ? 2 : 1;
+    ctx.strokeStyle = '#2a1c12';
+    ctx.stroke();
+  }
+  const a = on ? ang(links.uhr) : 0;
+  hand(cx, cy, a / 12, r * 0.48, Math.max(2.5, r * 0.09));
+  hand(cx, cy, a, r * 0.72, Math.max(1.4, r * 0.045));
+  ctx.beginPath(); ctx.arc(cx, cy, Math.max(2, r * 0.06), 0, TAU);
+  ctx.fillStyle = '#8a2a22'; ctx.fill();
+  if (!on) faint(s, 'frei');
+}
+function hand(cx, cy, a, len, w) {
+  ctx.beginPath();
+  ctx.moveTo(cx, cy);
+  ctx.lineTo(cx + Math.sin(a) * len, cy - Math.cos(a) * len);
+  ctx.strokeStyle = '#1c140e';
+  ctx.lineWidth = w;
+  ctx.lineCap = 'round';
+  ctx.stroke();
+}
+function drawCuckoo(s) {
+  const on = !!(links.kuckuck && pegs.has(links.kuckuck));
+  const x = s.x + s.w * 0.18, y = s.y + s.h * 0.28;
+  const w = s.w * 0.64, h = s.h * 0.62;
+  ctx.fillStyle = on ? '#6b3e28' : '#5a4638';
+  ctx.beginPath();
+  ctx.moveTo(x, y + h * 0.35);
+  ctx.lineTo(x + w / 2, y);
+  ctx.lineTo(x + w, y + h * 0.35);
+  ctx.lineTo(x + w, y + h);
+  ctx.lineTo(x, y + h);
+  ctx.closePath();
+  ctx.fill();
+  ctx.fillStyle = '#8d5a34';
+  ctx.fillRect(x + 3, y + h * 0.38, w - 6, h * 0.58);
+  const dx = x + w * 0.5, dy = y + h * 0.62, dr = Math.min(w, h) * 0.16;
+  ctx.beginPath(); ctx.arc(dx, dy, dr, 0, TAU);
+  ctx.fillStyle = '#14241c'; ctx.fill();
+  ctx.save();
+  ctx.translate(dx - dr, dy - dr);
+  ctx.rotate(-bird * 1.1);
+  ctx.fillStyle = '#2f6a45';
+  ctx.fillRect(0, 0, dr * 1.7, dr * 2);
+  ctx.restore();
+  if (bird > 0.05) {
+    ctx.save();
+    ctx.translate(dx, dy);
+    ctx.scale(bird, bird);
+    ctx.fillStyle = '#f0d15a';
+    ctx.beginPath(); ctx.ellipse(dr * 0.2, 0, dr * 0.7, dr * 0.45, 0, 0, TAU); ctx.fill();
+    ctx.fillStyle = '#e07020';
+    ctx.beginPath(); ctx.moveTo(dr * 0.8, 0); ctx.lineTo(dr * 1.25, -dr * 0.12); ctx.lineTo(dr * 0.8, dr * 0.12); ctx.fill();
+    ctx.fillStyle = '#1c140e';
+    ctx.beginPath(); ctx.arc(dr * 0.45, -dr * 0.08, dr * 0.08, 0, TAU); ctx.fill();
+    ctx.restore();
+  }
+  const swing = Math.sin(simTime * (on ? 2.2 : 1.1)) * 0.35;
+  ctx.strokeStyle = '#e6c278';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(x + w * 0.5, y + h);
+  ctx.lineTo(x + w * 0.5 + Math.sin(swing) * 10, y + h + Math.min(14, s.h * 0.12));
+  ctx.stroke();
+  if (!on) faint(s, 'frei');
+}
+function drawCylinder(s) {
+  const on = !!(links.walze && pegs.has(links.walze));
+  const a = on ? ang(links.walze) : 0;
+  const cx = s.x + s.w * 0.5, cy = s.y + s.h * 0.48;
+  const rw = s.w * 0.34, rh = Math.min(s.h * 0.22, 18);
+  ctx.beginPath(); ctx.ellipse(cx, cy, rw, rh, 0, 0, TAU);
+  ctx.fillStyle = on ? '#d7a84a' : '#b7a48a'; ctx.fill();
+  ctx.strokeStyle = '#6a4014'; ctx.stroke();
+  for (let i = 0; i < PIN_AT.length; i++) {
+    const t = a + PIN_AT[i] * TAU;
+    const px = cx + Math.cos(t) * rw * 0.82;
+    const py = cy + Math.sin(t) * rh * 0.82;
+    ctx.beginPath(); ctx.arc(px, py, Math.max(1.6, rh * 0.16), 0, TAU);
+    ctx.fillStyle = '#f6efe0'; ctx.fill();
+  }
+  const teeth = 8;
+  for (let i = 0; i < teeth; i++) {
+    const x = cx - rw + (i + 0.5) * (rw * 2 / teeth);
+    const bend = toothFlash[i] * 4;
+    ctx.strokeStyle = '#c5ccd1';
+    ctx.lineWidth = 1.4;
+    ctx.beginPath();
+    ctx.moveTo(x, cy + rh + 2);
+    ctx.lineTo(x, cy + rh + Math.min(16, s.h * 0.2) - bend);
+    ctx.stroke();
+  }
+  if (!on) faint(s, 'frei');
+}
+function drawPaper(s) {
+  const pad = 6;
+  const x = s.x + pad, y = s.y + s.h * 0.22, w = s.w - pad * 2, h = s.h * 0.72;
+  ctx.fillStyle = '#f7f1e4';
+  ctx.fillRect(x, y, w, h);
+  ctx.strokeStyle = '#e2d3b8';
+  ctx.strokeRect(x, y, w, h);
+  if (paper.length > 1) {
+    ctx.beginPath();
+    for (let i = 0; i < paper.length; i++) {
+      const px = x + paper[i].u * w, py = y + paper[i].v * h;
+      if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+    }
+    ctx.strokeStyle = 'rgba(28, 36, 64, 0.85)';
+    ctx.lineWidth = 1.15;
+    ctx.stroke();
+  }
+  const nib = penXY(s);
+  ctx.beginPath(); ctx.arc(nib.x, nib.y, 2.4, 0, TAU);
+  ctx.fillStyle = '#1d2438'; ctx.fill();
+  const both = links.stift[0] && links.stift[1];
+  if (!both) faint(s, 'zwei Achsen');
+}
+function faint(s, t) {
+  ctx.fillStyle = 'rgba(42,28,18,0.45)';
+  ctx.font = '12px system-ui,sans-serif';
+  ctx.fillText(t, s.x + 6, s.y + s.h - 6);
+}
+
+function render() {
+  if (!L) return;
+  drawBoard();
+  drawBelts();
+  const list = [...pegs.values()];
+  for (const p of list) {
+    if (!p.pulley) continue;
+    const [px, py] = toPx(p.x, p.y);
+    const bigger = p.gears.some(g => pitch(g.t) > p.pulley / 20 + 0.05);
+    if (!bigger) drawPulley(px, py, p.pulley);
+  }
+  for (const layer of [0, 1]) {
+    for (const p of list) {
+      const gs = p.gears.filter(g => g.L === layer).sort((a, b) => b.t - a.t);
+      if (!gs.length) continue;
+      const [px, py] = toPx(p.x, p.y);
+      const k = keyOf(p.x, p.y);
+      const jam = jammed.has(k);
+      let a = ang(k);
+      if (jam) a += Math.sin(simTime * 22 + p.x * 2) * 0.07;
+      for (const g of gs) {
+        ctx.beginPath();
+        ctx.arc(px + 1.2, py + 2, pitch(g.t) * L.peg * 0.92, 0, TAU);
+        ctx.fillStyle = 'rgba(50,24,8,0.18)';
+        ctx.fill();
+        drawGear(px, py, g.t, a, layer, jam);
+      }
+      if (p.pulley && p.gears.some(g => pitch(g.t) > p.pulley / 20)) {
+        ctx.beginPath();
+        ctx.arc(px, py, p.pulley / 20 * L.peg, 0, TAU);
+        ctx.strokeStyle = 'rgba(80,40,16,0.7)';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+      }
+    }
+  }
+  for (const p of list) if (p.worm) {
+    const [px, py] = toPx(p.x, p.y);
+    drawWorm(p, px, py);
+  }
+  for (const p of list) if (p.crank) drawCrank(p);
+  for (const p of list) {
+    const k = keyOf(p.x, p.y);
+    const [px, py] = toPx(p.x, p.y);
+    if (k === links.uhr) linkDot(px + L.peg * 0.16, py - L.peg * 0.16, '#f4e2b0');
+    if (k === links.kuckuck) linkDot(px - L.peg * 0.16, py - L.peg * 0.16, '#7dcea0');
+    if (k === links.walze) linkDot(px + L.peg * 0.16, py + L.peg * 0.16, '#9fd0ff');
+    if (k === links.stift[0] || k === links.stift[1]) linkDot(px - L.peg * 0.16, py + L.peg * 0.16, '#d0d4f0');
+    if (k === selected) {
+      let r = L.peg * 0.42;
+      for (const g of p.gears) r = Math.max(r, pitch(g.t) * L.peg + 6);
+      ctx.beginPath(); ctx.arc(px, py, r, 0, TAU);
+      ctx.strokeStyle = '#fff1c4'; ctx.lineWidth = 1.5; ctx.setLineDash([4, 3]); ctx.stroke(); ctx.setLineDash([]);
+    }
+  }
+  if (!crankPeg()) {
+    ctx.fillStyle = 'rgba(42,24,14,0.78)';
+    ctx.font = '600 15px system-ui,sans-serif';
+    ctx.fillText('Kurbel wählen, dann ein Loch tippen.', L.ox + 8, L.oy + 22);
+  }
+  if (jammed.size) {
+    const c = crankPeg();
+    const [px, py] = c ? toPx(c.x, c.y) : [L.ox + 20, L.oy + 20];
+    ctx.fillStyle = '#9c2b2b';
+    ctx.font = '700 14px system-ui,sans-serif';
+    ctx.fillText('verklemmt', px + 10, py - 10);
+  }
+  drawBays();
+}
+
+function canvasPos(e) {
+  const r = canvas.getBoundingClientRect();
+  return { x: e.clientX - r.left, y: e.clientY - r.top };
+}
+function hitKnob(x, y) {
+  const c = crankPeg();
+  if (!c || !c._knob) return false;
+  const k = c._knob;
+  return Math.hypot(x - k.x, y - k.y) <= k.r;
+}
+function hitBelt(x, y) {
+  let best = -1, bd = 14;
+  for (const g of beltGeom) for (const s of g.segs) {
+    const d = distSeg(x, y, s.x1, s.y1, s.x2, s.y2);
+    if (d < bd) { bd = d; best = g.i; }
+  }
+  return best;
+}
+function distSeg(px, py, x1, y1, x2, y2) {
+  const dx = x2 - x1, dy = y2 - y1;
+  const l2 = dx * dx + dy * dy || 1;
+  let t = ((px - x1) * dx + (py - y1) * dy) / l2;
+  t = Math.max(0, Math.min(1, t));
+  return Math.hypot(px - (x1 + t * dx), py - (y1 + t * dy));
+}
+function contentPeg(x, y) {
+  const p = pegAt(x, y);
+  if (!p || emptyPeg(p)) return null;
+  return p;
+}
+
+canvas.addEventListener('pointerdown', e => {
+  if (!L) return;
+  canvas.setPointerCapture(e.pointerId);
+  const p = canvasPos(e);
+  pointer = { id: e.pointerId, x: p.x, y: p.y, moved: false, t: performance.now() };
+  if (!motor.on && hitKnob(p.x, p.y)) {
+    const c = crankPeg();
+    const ck = keyOf(c.x, c.y);
+    if (jammed.has(ck)) { say('Verklemmt. Nimm ein Rad weg, das den Kreis schliesst.'); return; }
+    const [cx, cy] = toPx(c.x, c.y);
+    draggingCrank = true;
+    pointer.cx = cx; pointer.cy = cy;
+    pointer.last = Math.atan2(p.y - cy, p.x - cx);
+    pointer.angT = performance.now();
+    return;
+  }
+  const belt = hitBelt(p.x, p.y);
+  const cell = pegFromPx(p.x, p.y);
+  if (tool === 'wahl' || tool === 'riemen') {
+    if (belt >= 0 && (!cell || !contentPeg(cell.x, cell.y))) {
+      selectedBelt = belt; selected = null;
+      if (tool === 'riemen') { toggleCross(); }
+      return;
+    }
+  }
+  if (tool === 'wahl' && cell && contentPeg(cell.x, cell.y)) {
+    selected = keyOf(cell.x, cell.y);
+    selectedBelt = -1;
+    drag = { from: selected, x: cell.x, y: cell.y };
+    refreshHud();
+  }
+});
+canvas.addEventListener('pointermove', e => {
+  if (!pointer || e.pointerId !== pointer.id) return;
+  const p = canvasPos(e);
+  if (Math.hypot(p.x - pointer.x, p.y - pointer.y) > 5) pointer.moved = true;
+  if (draggingCrank) {
+    const a = Math.atan2(p.y - pointer.cy, p.x - pointer.cx);
+    let d = a - pointer.last;
+    if (d > Math.PI) d -= TAU;
+    if (d < -Math.PI) d += TAU;
+    pointer.last = a;
+    const now = performance.now();
+    const dt = Math.max(0.016, (now - pointer.angT) / 1000);
+    pointer.angT = now;
+    crankAngle += d;
+    handRpm = handRpm * 0.5 + (d / dt) * (60 / TAU) * 0.5;
+    applyAngles();
+    noteMotion();
+    return;
+  }
+  if (drag && pointer.moved) {
+    const cell = pegFromPx(p.x, p.y);
+    if (cell) drag.hover = cell;
+  }
+});
+function endPointer(e) {
+  if (!pointer || (e && e.pointerId !== pointer.id)) return;
+  const p = e ? canvasPos(e) : pointer;
+  if (draggingCrank) {
+    draggingCrank = false;
+    saveSoon();
+  } else if (drag && pointer.moved && drag.hover) {
+    const ok = movePeg(drag.from, drag.hover.x, drag.hover.y);
+    if (!ok) say('Dorthin passt die Welle nicht.');
+  } else if (!pointer.moved) {
+    const cell = pegFromPx(p.x, p.y);
+    if (cell) useToolOn(cell.x, cell.y);
+  }
+  drag = null;
+  pointer = null;
+  refreshHud();
+}
+canvas.addEventListener('pointerup', endPointer);
+canvas.addEventListener('pointercancel', endPointer);
+canvas.addEventListener('contextmenu', e => e.preventDefault());
+
+function useToolOn(x, y) {
+  const k = keyOf(x, y);
+  if (tool === 'wahl') {
+    if (contentPeg(x, y)) { selected = k; selectedBelt = -1; refreshHud(); }
+    return;
+  }
+  if (tool === 'kurbel') { setCrank(x, y); saveSoon(); say('Kurbel sitzt. Ziehe am Griff.'); return; }
+  if (tool.startsWith('g')) {
+    const t = parseInt(tool.slice(1), 10);
+    const res = placeGear(x, y, t);
+    if (!res.ok && res.reason === 'ueberlappt') say('Das Rad überlappt ein anderes auf derselben Ebene.');
+    else if (!res.ok && res.reason === 'voll') say('Die Welle trägt schon zwei Räder.');
+    else { saveSoon(); const mes = meshingCount(x, y); say(mes ? 'Greift.' : 'Sitzt frei. Schieb es an ein passendes Rad.'); }
+    return;
+  }
+  if (tool === 'rolle') {
+    const p = pegAt(x, y);
+    if (p && p.pulley) {
+      pulleySize = PULLEYS[(PULLEYS.indexOf(p.pulley) + 1) % PULLEYS.length];
+      setPulley(x, y, pulleySize);
+      markTool();
+    } else setPulley(x, y, pulleySize);
+    saveSoon();
+    say('Rolle ' + (pegAt(x, y) ? pegAt(x, y).pulley : pulleySize) + '.');
+    return;
+  }
+  if (tool === 'riemen') {
+    const p = pegAt(x, y);
+    if (!p || !p.pulley) { say('Zuerst eine Rolle auf diese Welle.'); return; }
+    if (!beltArm) { beltArm = k; say('Jetzt die zweite Rolle.'); return; }
+    if (beltArm === k) { beltArm = null; say('Riemen abgebrochen.'); return; }
+    const [x1, y1] = beltArm.split(',').map(Number);
+    const res = addBelt(x1, y1, x, y, false);
+    beltArm = null;
+    if (!res.ok) say(res.reason === 'nah' ? 'Die Rollen sind zu nah.' : 'Zwei Rollen brauchen den Riemen.');
+    else { saveSoon(); say('Riemen liegt. Kreuz dreht den Sinn um.'); }
+    return;
+  }
+  if (tool === 'schnecke') {
+    const p = pegAt(x, y);
+    if (p && p.worm) { p.worm.axis = p.worm.axis ? 0 : 1; solveAll(); saveSoon(); say(p.worm.axis ? 'Schnecke senkrecht.' : 'Schnecke waagrecht.'); }
+    else { setWorm(x, y, 0); saveSoon(); say('Schnecke sitzt. Ein Rad direkt darüber oder darunter greift.'); }
+    return;
+  }
+  if (tool === 'uhr' || tool === 'kuckuck' || tool === 'walze') {
+    if (!pegs.has(k)) { say('Dort ist keine Welle.'); return; }
+    linkTo(tool, x, y);
+    saveSoon();
+    const name = tool === 'uhr' ? 'Uhr' : tool === 'kuckuck' ? 'Kuckuck' : 'Walze';
+    say(name + ' hängt an dieser Welle.');
+    return;
+  }
+  if (tool === 'stift') {
+    if (!pegs.has(k)) { say('Dort ist keine Welle.'); return; }
+    linkTo(stiftSlot === 0 ? 'stift0' : 'stift1', x, y);
+    stiftSlot = stiftSlot === 0 ? 1 : 0;
+    markTool();
+    saveSoon();
+    say(stiftSlot === 1 ? 'Erste Achse gesetzt. Jetzt die zweite.' : 'Beide Achsen gesetzt. Das Papier zeichnet mit.');
+    return;
+  }
+}
+function meshingCount(x, y) {
+  const k = keyOf(x, y);
+  let n = 0;
+  const p = pegs.get(k);
+  if (!p) return 0;
+  for (const q of pegs.values()) {
+    if (q === p) continue;
+    const dist = Math.hypot(q.x - x, q.y - y);
+    for (const ga of p.gears) for (const gb of q.gears) {
+      if (ga.L !== gb.L) continue;
+      if (Math.abs(dist - (ga.t + gb.t) / 20) <= MESH_TOL) n++;
+    }
+  }
+  n += wormHits(p).length;
+  for (const q of pegs.values()) if (q.worm) for (const h of wormHits(q)) if (h.key === k) n++;
+  return n;
+}
+
+document.addEventListener('pointerdown', armSound, { passive: true });
+window.addEventListener('keydown', e => {
+  if (e.key === 'm' || e.key === 'M') toggleSound();
+  else if (e.key === ' ') { e.preventDefault(); onTool('motor'); }
+  else if (e.key === 'Backspace' || e.key === 'Delete') { e.preventDefault(); removeSelected(); }
+  else if (e.key === 'Escape') onTool('wahl');
+  else if (e.key === '[') onTool('rpm-');
+  else if (e.key === ']') onTool('rpm+');
+});
+
+function noteMotion() {
+  const uv = paperUV();
+  if (uv && links.stift[0] && ratios.has(links.stift[0]) && !jammed.has(links.stift[0])) {
+    const last = paper[paper.length - 1];
+    if (!last || Math.hypot(last.u - uv.u, last.v - uv.v) > 0.004) {
+      paper.push(uv);
+      if (paper.length > 2800) paper.splice(0, paper.length - 2200);
+    }
+  }
+  tickBudget = 0;
+  const c = crankPeg();
+  if (c && !jammed.has(keyOf(c.x, c.y))) crossPins(prevCrank, crankAngle, 6, null, playTick);
+  prevCrank = crankAngle;
+  if (links.walze && ratios.has(links.walze) && !jammed.has(links.walze)) {
+    const a = angles.get(links.walze);
+    if (prevWatch.walze != null) crossPins(prevWatch.walze, a, PIN_AT.length, PIN_AT, i => {
+      playPluck(NOTES[i % NOTES.length]);
+      toothFlash[i] = 1;
+    });
+    prevWatch.walze = a;
+  } else prevWatch.walze = null;
+  if (links.kuckuck && ratios.has(links.kuckuck) && !jammed.has(links.kuckuck)) {
+    const a = angles.get(links.kuckuck);
+    if (prevWatch.kuckuck != null && Math.floor(a / TAU) !== Math.floor(prevWatch.kuckuck / TAU)) startBird(true);
+    prevWatch.kuckuck = a;
+  } else prevWatch.kuckuck = null;
+}
+
+function frame(now) {
+  const dt = Math.min(0.05, lastNow ? (now - lastNow) / 1000 : 0.016);
+  lastNow = now;
+  window.__zwFrames = (window.__zwFrames || 0) + 1;
+  frameMs.push(dt * 1000);
+  if (frameMs.length > 120) frameMs.shift();
+  simTime += dt;
+  const c = crankPeg();
+  const stalled = c && jammed.has(keyOf(c.x, c.y));
+  if (motor.on && c && !stalled && !draggingCrank) {
+    crankAngle += motor.rpm / 60 * TAU * dt;
+    applyAngles();
+    noteMotion();
+  } else if (draggingCrank) {
+    /* audio already in pointermove */
+  }
+  if (!draggingCrank) handRpm *= Math.exp(-dt * 1.8);
+  if (simTime > birdUntil) birdTarget = 0;
+  bird += (birdTarget - bird) * Math.min(1, dt * 6);
+  for (let i = 0; i < toothFlash.length; i++) toothFlash[i] = Math.max(0, toothFlash[i] - dt * 4);
+  if (saveTimer > 0) { saveTimer -= dt; if (saveTimer <= 0) save(); }
+  if ((window.__zwFrames % 20) === 0) refreshHud();
+  render();
+  requestAnimationFrame(frame);
+}
+
+window.addEventListener('resize', () => { resize(); if (paper.length === 0 && pegs.size) { /* keep */ } });
+new ResizeObserver(() => resize()).observe(canvas);
+
+toolButtons();
+resize();
+if (!loadHash() && !loadStore()) loadExample();
+else if (L && paper.length === 0 && links.stift[0]) {
+  /* saved without ink is fine */
+}
+requestAnimationFrame(frame);
+
+window.ZW = {
+  clear: clearWorld,
+  example: loadExample,
+  placeGear, setCrank, setPulley, setWorm, addBelt,
+  link(name, x, y) { return linkTo(name, x, y); },
+  linkStift(i, x, y) { return linkTo(i ? 'stift1' : 'stift0', x, y); },
+  setMotor(on, rpm) { motor.on = !!on; if (rpm) motor.rpm = rpm; syncMotorButton(); solveAll(); },
+  crankBy(rad) { crankAngle += rad; applyAngles(); },
+  challenges,
+  snapshot() {
+    const ratiosOut = {};
+    for (const [k, r] of ratios) ratiosOut[k] = r.n.toString() + '/' + r.d.toString();
+    return { jammed: [...jammed], ratios: ratiosOut, viaWorm: [...viaWorm], belts: belts.length, paper: paper.length };
+  },
+  serialize, load(s) { applyPack(JSON.parse(b64d(s))); },
+  nudgeCuckoo() { bird = 1; birdTarget = 1; birdUntil = simTime + 3; },
+  frameMs: () => frameMs.slice()
+};
+</script>
+</body>
+</html>
