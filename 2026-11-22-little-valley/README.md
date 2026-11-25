@@ -40,6 +40,7 @@ find its way: lakes fill, rivers spill over ridges, carve gullies and drop sand.
   (`screenshot-mill.png`: a village by the upper river with three turning mill wheels.)
 - **Speed** cycles 1x, 2x, 4x and **8x Time-lapse** (hourglass): erosion and growth run four
   times faster, so you can watch a river carve its gorge and the forest follow the new banks.
+  (`river-carving.gif`: a fresh valley with one spring on the high ground, from midsummer into autumn: the river cuts its bed, the forest closes in along the banks and turns red and gold; made with `node tools/carve-gif.js`.)
 - **Shower** rains on the whole valley, **Map** switches to a top view, **New** makes a new
   named world, **Reset** restarts the same one, the speaker turns the sound on or off. Keys 1–9 pick tools, Space pauses.
 

@@ -114,6 +114,8 @@ every feature must be visible on screen (no hidden numbers); stays at 30+ fps at
 
 **Update 2026-11-25 (14:34 run): millpond screenshot** via new `tools/millpond-shot.js` (test world from the millpond browser check, 3x crop at `st.weirPos`), in the README. Next: choose the next Little Valley idea or a side project.
 
+**Update 2026-11-25 (16:30 run): river-carving GIF for the README** (idea from item 5): new `tools/carve-gif.js` (env SEED, F, K, RATE; defaults Misty Brook 3, one spring at the highest point of the back third, rate 1.5, here F 56 K 400) makes `river-carving.gif` (745 KB, 440 px): the valley starts dry, the river finds its way and cuts its bed, the forest follows the banks into autumn. Linked under Speed in the README.
+
 ## Checklist (every step)
 - [ ] `node tools/build.js` then `node tools/test.js` (all pass)
 - [ ] `node tools/browser-test.js` (all checks, 0 console errors) and save its output to `tools/browser_test_output.txt`
