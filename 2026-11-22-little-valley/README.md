@@ -268,6 +268,13 @@ valleys over a whole year: the first shower drains to the edge as a 1.2-1.7 km f
 melt lets a river through now and then (1.2-1.47 km). With effort (three more springs on the longest stream
 and a deep channel from the lake where it stops to the outlet) rivers reached 1.1-2.0 km. The panel line also
 says how far the longest stream gets and whether it stops in a lake or dries out. `tools/river-check.js`.
+When a counted river reaches the edge, a little wooden canoe (a paddler in a red jacket and a straw hat,
+the paddle dipping left and right, a soft V of wake, a lantern at the bow at night) drifts down it from the
+spring to the edge at a calm pace (about 40 s for a 1.6 km river), fades out at the edge and sets off again after
+a short rest. It follows the river's own walk (smoothed once whenever the wish check finds a new one, twice a
+second), hides behind ridges and on ice, and never shows while no river reaches the edge. In the map view the
+counted river, or the longest stream while none gets through, is a faint glowing line.
+(`screenshot-boat.png`: the canoe on its way down a river to the edge.)
 
 ## Save and share
 Tap **Share** (next to the wishes star) for a small panel with three buttons:
