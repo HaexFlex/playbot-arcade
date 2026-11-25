@@ -1861,6 +1861,7 @@ function renderTilt(t) {
   { const t0 = performance.now(); drawKingfishers(t); st.kfMs = (st.kfMs || 0) * 0.9 + (performance.now() - t0) * 0.1; }
   { const t0 = performance.now(); drawDippers(t); st.dipMs = (st.dipMs || 0) * 0.9 + (performance.now() - t0) * 0.1; }
   drawBoat(t);
+  drawRiverHint('tilt');
   { const t0 = performance.now(); drawWebs(t); st.webMs = (st.webMs || 0) * 0.9 + (performance.now() - t0) * 0.1; }
   { const t0 = performance.now(); drawHoarFrost(t); st.frostMs = (st.frostMs || 0) * 0.9 + (performance.now() - t0) * 0.1; }
   { const t0 = performance.now(); drawFox(t); st.foxMs = (st.foxMs || 0) * 0.9 + (performance.now() - t0) * 0.1; }
@@ -3800,6 +3801,40 @@ function drawRiverTop() { // map view: the counted river (or the longest stream)
     drawCanoe(X, Y, H, ang, BOAT.a, 1); st.boatDrawn = 1; st.boatAt = g; st.boatPx = [X, Y]; st.boatH = H; }
   st.boatMs = (st.boatMs || 0) * 0.9 + (performance.now() - t0) * 0.1;
 }
+// the long river hint: while no river reaches the valley's edge, a small pulsing ring marks where the longest stream
+// stops (the last cell of st.river.best's walk), so the player knows where to dig an outlet or add a spring. Shown only
+// while the wish panel is open and for RHINT_LINGER s after it closes (the panel line already says why: a lake without
+// an outlet, it dries out, or it spreads out), and only while the long river wish still lacks a star to earn.
+// Gold ring + a soft dot, coloured by the reason (blue lake, sandy dry, pale green spreads); behind a ridge it is drawn
+// dimmer (it is a hint, it should not get lost). Hooks: st.rhintOn, st.rhintDrawn, st.rhintAt (grid), st.rhintPx, st.rhintEnd.
+const RHINT_LINGER = 12, RHINT_COL = { lake: [90, 170, 240], dry: [226, 160, 70], spreads: [120, 200, 120] };
+function rhintTarget() {
+  const R = st.river, S = st.S, b = R && R.best, wr = WISHES.find(w => w.id === 'river');
+  const show = W.open || performance.now() - (W.closedAt || -1e9) < RHINT_LINGER * 1000;
+  if (!show || !b || R.reached || !b.path || b.path.length < 2 || b.m <= 50 || !wr || W.stars.river >= 3) return null;
+  const e = b.path[b.path.length - 1], N = S.N; return { x: e % N + 0.5, y: ((e / N) | 0) + 0.5, end: b.end === 'lake' ? 'lake' : b.end === 'dry' ? 'dry' : 'spreads' };
+}
+function drawRiverHintRing(X, Y, r, col, al, flat) { // two rings growing outward and a soft dot in the middle
+  const t = performance.now() / 1000, [cr, cg, cb] = col; cx.save();
+  for (let k = 0; k < 2; k++) { const f = (t * 0.7 + k * 0.5) % 1, rr = r * (0.45 + 1.1 * f);
+    cx.globalAlpha = al * (1 - f) * 0.9; cx.strokeStyle = `rgb(${cr},${cg},${cb})`; cx.lineWidth = Math.max(1.5, r * 0.16);
+    cx.beginPath(); cx.ellipse(X, Y, rr, rr * flat, 0, 0, 7); cx.stroke(); }
+  cx.globalAlpha = al; cx.strokeStyle = 'rgba(255,210,63,0.95)'; cx.lineWidth = Math.max(1.5, r * 0.14); cx.beginPath(); cx.ellipse(X, Y, r * 0.55, r * 0.55 * flat, 0, 0, 7); cx.stroke();
+  cx.fillStyle = `rgba(${cr},${cg},${cb},0.85)`; cx.beginPath(); cx.ellipse(X, Y, r * 0.2, r * 0.2 * flat, 0, 0, 7); cx.fill();
+  cx.restore();
+}
+function drawRiverHint(view) {
+  st.rhintDrawn = 0; st.rhintPx = null; const g = rhintTarget(); st.rhintOn = !!g; st.rhintAt = g ? [g.x, g.y] : null; st.rhintEnd = g ? g.end : null;
+  if (!g) return; const S = st.S, N = S.N, col = RHINT_COL[g.end];
+  if (view === 'top') { const R = st.topRect; if (!R) return; const X = R.x + g.x / N * R.sz, Y = R.y + g.y / N * R.sz;
+    drawRiverHintRing(X, Y, Math.max(isPhone ? 11 : 13, R.sz / N * 4), col, 1, 1); st.rhintDrawn = 1; st.rhintPx = [X, Y]; return; }
+  const T = tilt; if (!T || T.s == null) return;
+  const gx = Math.max(0, Math.min(N - 1, g.x - 0.5)), gy = Math.max(0, Math.min(N - 1, g.y - 0.5)), k0 = (gy | 0) * N + (gx | 0);
+  const cp = T.cp, sc = persp(gy, N), ox = (gx + 0.5 - N / 2) * cp * sc + T.ow / 2, oy = baseY(T, gy, N) - surf[k0] * cp * T.hEx * sc, px = Math.round(ox), py = Math.round(oy);
+  let hid = false; if (px >= 0 && px < T.ow && py >= 0 && py < T.oh) { const pc = T.pick[py * T.ow + px]; hid = pc >= 0 && ((pc / N) | 0) > gy + 3; }
+  const X = T.sx + ox * T.s, Y = T.sy + oy * T.s, u = cp * sc * T.s;
+  drawRiverHintRing(X, Y, Math.max(isPhone ? 11 : 13, u * 3), col, hid ? 0.45 : 1, 0.55); st.rhintDrawn = 1; st.rhintPx = [X, Y]; st.rhintHid = hid;
+}
 function drawButterflies(t) {
   const T = tilt, S = st.S, N = S.N; st.butterfliesDrawn = 0; st.btfAt = null; st.btfPerched = 0; st.btfKinds = 0; st.btfPts = [];
   const amt = st.btfAmt = btfAmt(), dt = Math.max(0, Math.min(0.1, t - BTF.last)); BTF.last = t;
@@ -4667,7 +4702,7 @@ function frame(now) {
   const tc0 = performance.now(); computeColours(st.time); st.colMs = (st.colMs || 0) * 0.9 + (performance.now() - tc0) * 0.1;
   cx.setTransform(dpr, 0, 0, dpr, 0, 0);
   if (st.view === 'tilt') { tiltGeom(); drawSky(st.time, dtReal); renderTilt(st.time); }
-  else { drawSky(st.time, dtReal); renderTop(st.time); drawRiverTop(); drawCottagesTop(); drawWindowGlowTop(st.time); st.heronsDrawn = 0; st.heronAt = null; st.heronStates = []; HER.birds = []; st.kfDrawn = 0; st.kfAt = null; st.kfStates = []; st.kfPts = []; KF.birds = []; KF.sp = []; st.dipDrawn = 0; st.dipAt = null; st.dipStates = []; st.dipPts = []; DIP.birds = []; DIP.sp = []; st.websDrawn = 0; st.webAt = []; st.webCells = []; st.webGlints = 0; WEB.webs.forEach(w => { w.a = 0; }); st.frostTrees = 0; st.frostGlints = 0; st.frostGlintAt = []; FR.src = []; FR.gl.forEach(g => { g.age = g.life; }); st.foxTracks = 0; st.foxPrints = 0; st.foxPrintCells = []; st.foxDrawn = 0; st.foxAt = null; if (FOX.fox) { FOX.fox = null; FOX.rest = 5; } FOX.last = st.time; st.glowwormsDrawn = 0; st.glowwormAt = []; st.glowwormCells = []; st.glowwormLvl = []; GW.worms.forEach(w => { w.a = 0; }); st.petalsDrawn = 0; st.mistDrawn = 0; st.mistDrift = 0; st.puddlesDrawn = 0; st.icyPuddles = 0; st.puddleIcePx = 0; st.splashKids = 0; st.splashHopping = 0; st.splashDrops = 0; st.splashSpots = 0; st.splashPuds = []; KID.on = false; st.batsDrawn = 0; st.batAt = null; st.midgesDrawn = 0; st.midgeSpecks = 0; st.midgeGlints = 0; st.midgeCols = []; MID.last = st.time; st.dragonfliesDrawn = 0; st.dfAt = null; st.butterfliesDrawn = 0; st.btfAt = null; BTF.flies.forEach(f => { f.a = 0; }); st.dfHover = 0; DF.last = st.time; st.duckFams = 0; st.ducksDrawn = 0; st.ducklingsDrawn = 0; st.duckLine = null; DUCK.last = null; st.swallowsDrawn = 0; st.swallowRings = 0; st.swallowAt = null; SW.last = st.time; st.bfDrawn = 0; st.bfSit = 0; st.bfFlying = 0; st.bfAtFeeder = 0; st.bfFeeders = 0; st.bfAt = []; st.bfFeederAt = []; BF.birds = []; BF.feeders = []; BF.home = null; BF.crowns = []; } // no petals in the map view (seen from far above they would be specks of dust)
+  else { drawSky(st.time, dtReal); renderTop(st.time); drawRiverTop(); drawRiverHint('top'); drawCottagesTop(); drawWindowGlowTop(st.time); st.heronsDrawn = 0; st.heronAt = null; st.heronStates = []; HER.birds = []; st.kfDrawn = 0; st.kfAt = null; st.kfStates = []; st.kfPts = []; KF.birds = []; KF.sp = []; st.dipDrawn = 0; st.dipAt = null; st.dipStates = []; st.dipPts = []; DIP.birds = []; DIP.sp = []; st.websDrawn = 0; st.webAt = []; st.webCells = []; st.webGlints = 0; WEB.webs.forEach(w => { w.a = 0; }); st.frostTrees = 0; st.frostGlints = 0; st.frostGlintAt = []; FR.src = []; FR.gl.forEach(g => { g.age = g.life; }); st.foxTracks = 0; st.foxPrints = 0; st.foxPrintCells = []; st.foxDrawn = 0; st.foxAt = null; if (FOX.fox) { FOX.fox = null; FOX.rest = 5; } FOX.last = st.time; st.glowwormsDrawn = 0; st.glowwormAt = []; st.glowwormCells = []; st.glowwormLvl = []; GW.worms.forEach(w => { w.a = 0; }); st.petalsDrawn = 0; st.mistDrawn = 0; st.mistDrift = 0; st.puddlesDrawn = 0; st.icyPuddles = 0; st.puddleIcePx = 0; st.splashKids = 0; st.splashHopping = 0; st.splashDrops = 0; st.splashSpots = 0; st.splashPuds = []; KID.on = false; st.batsDrawn = 0; st.batAt = null; st.midgesDrawn = 0; st.midgeSpecks = 0; st.midgeGlints = 0; st.midgeCols = []; MID.last = st.time; st.dragonfliesDrawn = 0; st.dfAt = null; st.butterfliesDrawn = 0; st.btfAt = null; BTF.flies.forEach(f => { f.a = 0; }); st.dfHover = 0; DF.last = st.time; st.duckFams = 0; st.ducksDrawn = 0; st.ducklingsDrawn = 0; st.duckLine = null; DUCK.last = null; st.swallowsDrawn = 0; st.swallowRings = 0; st.swallowAt = null; SW.last = st.time; st.bfDrawn = 0; st.bfSit = 0; st.bfFlying = 0; st.bfAtFeeder = 0; st.bfFeeders = 0; st.bfAt = []; st.bfFeederAt = []; BF.birds = []; BF.feeders = []; BF.home = null; BF.crowns = []; } // no petals in the map view (seen from far above they would be specks of dust)
   floeStep(S, dtReal); drawFloes();
   drawCottageBadges(st.time);
   drawNaturalRain(st.time); drawOverlays(st.time); drawShower(st.time);
@@ -5238,7 +5273,7 @@ function wishLine(w) {
   if (s >= 3) return 'All three stars!' + (v >= w.tiers[0] ? ' Now ' + fmtW(w, v) + ' ' + w.unit : ' ✨');
   const next = w.tiers[Math.max(s, cur)] != null ? w.tiers[Math.max(s, cur)] : w.tiers[2];
   const rb = w.id === 'river' && st.river && st.river.best; // the river that got furthest, for a hint where it stops
-  return `${fmtW(w, v)} ${w.unit} · next ★ at ${fmtW(w, next)}` + (rb && !rb.reached && rb.m > 50 ? ` (longest stream ${fmtW(w, rb.m)}, ${rb.end === 'lake' ? 'stops in a lake' : rb.end === 'dry' ? 'dries out' : 'spreads out'})` : '') + (w.id === 'storm' && W.storm.last === -1 ? ' (last storm: wet feet)' : '');
+  return `${fmtW(w, v)} ${w.unit} · next ★ at ${fmtW(w, next)}` + (rb && !rb.reached && rb.m > 50 ? ` (longest stream ${fmtW(w, rb.m)}, ${rb.end === 'lake' ? 'stops in a lake' : rb.end === 'dry' ? 'dries out' : 'spreads out'}, marked ◎ in the valley)` : '') + (w.id === 'storm' && W.storm.last === -1 ? ' (last storm: wet feet)' : '');
 }
 function renderWishes() {
   const n = wishTotal();
@@ -5251,7 +5286,7 @@ function renderWishes() {
   h += `</div><div class="wf">Wishes are optional: the valley is yours to play.</div>`;
   wPanel.innerHTML = h; $('wishClose').onclick = () => wishOpen(false);
 }
-function wishOpen(on) { W.open = on; if (on) { wishEval(true); renderWishes(); } wPanel.classList.toggle('show', on); updWishBtn(); }
+function wishOpen(on) { if (W.open && !on) W.closedAt = performance.now(); W.open = on; if (on) { wishEval(true); renderWishes(); } wPanel.classList.toggle('show', on); updWishBtn(); }
 cv.addEventListener('pointerdown', () => { if (W.open) wishOpen(false); });
 function wishToast() {
   const it = W.toasts.shift(); if (!it) { W.showing = false; return; } W.showing = true;
