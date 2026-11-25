@@ -1,0 +1,1058 @@
+<!DOCTYPE html>
+<html lang="de-CH">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Tangram</title>
+<style>
+  :root { color-scheme: light; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    min-height: 100dvh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    font-family: "Avenir Next", "Segoe UI", system-ui, sans-serif;
+    color: #3a2414;
+    background: #c4956a;
+    touch-action: manipulation;
+  }
+  h1 {
+    font-family: Palatino, "Palatino Linotype", Georgia, serif;
+    font-size: 20px;
+    font-weight: 700;
+    margin: 0;
+    letter-spacing: 0.02em;
+  }
+  .bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    align-items: center;
+    padding: 8px 8px 6px;
+    background: linear-gradient(#8a542c, #6e4122);
+    color: #fff6e8;
+    max-width: 100%;
+  }
+  .bar h1 { color: #fff6e8; padding: 0 4px; }
+  button {
+    min-height: 40px;
+    min-width: 40px;
+    padding: 8px 12px;
+    border-radius: 12px;
+    border: 1px solid #e6c59a;
+    background: #f6e6cc;
+    color: #3a2414;
+    font: 600 15px/1.2 "Avenir Next", "Segoe UI", system-ui, sans-serif;
+    cursor: pointer;
+  }
+  button:focus-visible { outline: 3px solid #fff; outline-offset: 1px; }
+  button[aria-pressed="true"] { background: #3a2414; color: #fff6e8; border-color: #3a2414; }
+  button:active { transform: translateY(1px); }
+  .help {
+    margin: 0;
+    padding: 0 10px 8px;
+    background: #6e4122;
+    color: #f6e6cc;
+    font-size: 13px;
+    line-height: 1.35;
+  }
+  #stage { position: relative; flex: 1; min-height: 0; min-width: 0; }
+  canvas { width: 100%; height: 100%; display: block; touch-action: none; }
+  #toast {
+    position: absolute;
+    left: 12px; right: 12px; bottom: 10px;
+    text-align: center;
+    color: #fff8ee;
+    background: rgba(48, 28, 14, 0.78);
+    border-radius: 12px;
+    padding: 8px 10px;
+    font-size: 14px;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.2s linear;
+  }
+  #toast.show { opacity: 1; }
+  #win {
+    position: absolute;
+    left: 0; right: 0; top: 10%;
+    display: flex;
+    justify-content: center;
+    pointer-events: none;
+  }
+  #win[hidden] { display: none !important; }
+  #win .card {
+    pointer-events: auto;
+    max-width: calc(100% - 24px);
+    background: #fff8ee;
+    color: #3a2414;
+    border-radius: 18px;
+    padding: 16px 16px 14px;
+    text-align: center;
+    box-shadow: 0 12px 30px rgba(40, 20, 8, 0.35);
+    border: 2px solid #e2b56a;
+  }
+  #win h2 { font-family: Palatino, Georgia, serif; margin: 0 0 4px; font-size: 28px; }
+  #win p { margin: 0 0 12px; }
+  #win .row { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
+  #picker {
+    position: fixed;
+    inset: 0;
+    background: rgba(40, 22, 10, 0.46);
+    z-index: 5;
+    overflow: auto;
+    padding: 12px;
+  }
+  #picker[hidden] { display: none !important; }
+  #picker .sheet {
+    max-width: 920px;
+    margin: 0 auto;
+    background: #fff8ee;
+    border-radius: 16px;
+    padding: 12px;
+  }
+  #pickGrid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(108px, 1fr));
+    gap: 8px;
+  }
+  #pickGrid button {
+    min-width: 0;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    padding: 8px 6px;
+  }
+  #pickGrid canvas { width: 100%; height: 64px; background: #efe2cc; border-radius: 8px; touch-action: auto; }
+  #pickGrid .nm { font-size: 13px; }
+  .mark { color: #2f7a3a; font-weight: 700; }
+</style>
+</head>
+<body>
+  <header class="bar">
+    <h1>Tangram</h1>
+    <button type="button" id="btnMode" aria-pressed="false">Rätsel</button>
+    <button type="button" id="btnPrev" aria-label="Vorheriges Rätsel">‹</button>
+    <button type="button" id="btnList" aria-haspopup="dialog">Quadrat</button>
+    <button type="button" id="btnNext" aria-label="Nächstes Rätsel">›</button>
+    <span id="count" aria-live="polite">0 von 0</span>
+    <button type="button" id="btnRot">Drehen</button>
+    <button type="button" id="btnFlip">Wenden</button>
+    <button type="button" id="btnTip">Tipp</button>
+    <button type="button" id="btnMix">Mischen</button>
+    <button type="button" id="btnSound" aria-pressed="false">Ton</button>
+  </header>
+  <p class="help">Ziehen. Drehen mit Knopf, Mausrad oder zwei Fingern. Wenden spiegelt das Parallelogramm.</p>
+  <div id="stage">
+    <canvas id="cv"></canvas>
+    <div id="toast" role="status"></div>
+    <div id="win" hidden>
+      <div class="card">
+        <h2>Geschafft!</h2>
+        <p id="winName">Die Figur steht.</p>
+        <div class="row">
+          <button type="button" id="winStay">Schliessen</button>
+          <button type="button" id="winNext">Weiter</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div id="picker" hidden role="dialog" aria-label="Rätsel wählen">
+    <div class="sheet">
+      <button type="button" id="pickClose">Schliessen</button>
+      <div id="pickGrid"></div>
+    </div>
+  </div>
+<script>
+'use strict';
+const S2 = Math.SQRT2;
+const SAVE_KEY = 'playbot-tangram-v1';
+const PUZZLES = [{"id":"quadrat","name":"Quadrat","poses":[{"t":"large","x":0.8854310390564993,"y":-0.10714433249816772,"r":3,"f":0,"id":"large1"},{"t":"large","x":1.8282872210906422,"y":0.8357118495359751,"r":1,"f":0,"id":"large2"},{"t":"square","x":2.535394002277189,"y":-0.10714433249816764,"r":1,"f":0,"id":"square"},{"t":"small","x":3.00675138261614,"y":0.5999624486883797,"r":7,"f":0,"id":"small1"},{"t":"small","x":1.8282872210906418,"y":-0.5785017128371202,"r":5,"f":0,"id":"small2"},{"t":"para","x":1.4747338304973685,"y":-1.1678045042779892,"r":1,"f":1,"id":"para"},{"t":"medium","x":2.771072692446665,"y":-1.049929803854192,"r":2,"f":0,"id":"medium"}]},{"id":"dreieck","name":"Dreieck","poses":[{"t":"large","x":-1.4142000000000001,"y":0.4714,"r":5,"f":0,"id":"large1"},{"t":"large","x":1.4142000000000001,"y":0.47140000000000004,"r":5,"f":0,"id":"large2"},{"t":"medium","x":0.4713999999999999,"y":1.8855999999999995,"r":0,"f":0,"id":"medium"},{"t":"small","x":2.4671528654676006e-17,"y":0.4714000000000001,"r":1,"f":0,"id":"small1"},{"t":"small","x":-0.23569999999999988,"y":2.1213,"r":7,"f":0,"id":"small2"},{"t":"square","x":-0.7071000000000003,"y":1.4142000000000003,"r":1,"f":0,"id":"square"},{"t":"para","x":0.35360000000000014,"y":1.0607,"r":1,"f":1,"id":"para"}]},{"id":"pyramide","name":"Pyramide","poses":[{"t":"large","x":-1.4142000000000001,"y":0.4714,"r":5,"f":0,"id":"large1"},{"t":"large","x":1.4142000000000001,"y":0.47140000000000004,"r":5,"f":0,"id":"large2"},{"t":"small","x":2.4671528654676006e-17,"y":0.4714000000000001,"r":1,"f":0,"id":"small1"},{"t":"para","x":-0.35359999999999997,"y":1.0607,"r":3,"f":0,"id":"para"},{"t":"square","x":0.7071,"y":1.4142000000000001,"r":1,"f":0,"id":"square"},{"t":"medium","x":-0.47140000000000004,"y":1.8855999999999995,"r":2,"f":0,"id":"medium"},{"t":"small","x":0.23569999999999988,"y":2.1213,"r":3,"f":0,"id":"small2"}]},{"id":"pfeil","name":"Pfeil","poses":[{"t":"large","x":1.4142000000000001,"y":0.47140000000000004,"r":5,"f":0,"id":"large1"},{"t":"large","x":0.47139999999999976,"y":1.4142000000000001,"r":3,"f":0,"id":"large2"},{"t":"medium","x":2.7106,"y":2.946299999999999,"r":2,"f":0,"id":"medium"},{"t":"small","x":1.7677999999999998,"y":1.5321000000000002,"r":1,"f":0,"id":"small1"},{"t":"small","x":3.4177,"y":3.182,"r":3,"f":0,"id":"small2"},{"t":"square","x":3.8891000000000027,"y":3.8891000000000027,"r":1,"f":0,"id":"square"},{"t":"para","x":2.1213,"y":2.1213,"r":1,"f":1,"id":"para"}]},{"id":"herz","name":"Herz","poses":[{"t":"large","x":1.4142000000000001,"y":-0.47139999999999976,"r":1,"f":0,"id":"large1"},{"t":"large","x":2.8283999999999994,"y":0.47140000000000004,"r":5,"f":0,"id":"large2"},{"t":"para","x":1.0607,"y":0.35359999999999997,"r":1,"f":1,"id":"para"},{"t":"small","x":1.4141999999999997,"y":0.9428000000000001,"r":5,"f":0,"id":"small1"},{"t":"medium","x":3.2997999999999994,"y":-0.47139999999999976,"r":6,"f":0,"id":"medium"},{"t":"small","x":2.5927,"y":-0.7071000000000006,"r":7,"f":0,"id":"small2"},{"t":"square","x":2.1212999999999997,"y":-1.4141999999999997,"r":1,"f":0,"id":"square"}]},{"id":"haus","name":"Haus","poses":[{"t":"large","x":1.4142000000000001,"y":0.47140000000000004,"r":5,"f":0,"id":"large1"},{"t":"medium","x":0.4714,"y":0.9427999999999996,"r":6,"f":0,"id":"medium"},{"t":"para","x":0.49999999999999994,"y":1.9142,"r":0,"f":0,"id":"para"},{"t":"large","x":1.9142,"y":1.8856000000000002,"r":5,"f":0,"id":"large2"},{"t":"square","x":1,"y":2.9142,"r":0,"f":0,"id":"square"},{"t":"small","x":2.1213,"y":1.1785000000000003,"r":1,"f":0,"id":"small1"},{"t":"small","x":2.5927000000000002,"y":0.7071000000000001,"r":7,"f":0,"id":"small2"}]},{"id":"turm","name":"Turm","poses":[{"t":"large","x":-0.6667000000000002,"y":0.6667000000000004,"r":2,"f":0,"id":"large1"},{"t":"large","x":0.6667000000000004,"y":0.6667000000000004,"r":0,"f":0,"id":"large2"},{"t":"para","x":0.5,"y":2.0000000000000004,"r":2,"f":0,"id":"para"},{"t":"small","x":0.7643,"y":2.707099999999999,"r":7,"f":0,"id":"small1"},{"t":"medium","x":0.29290000000000005,"y":3.3737999999999997,"r":1,"f":0,"id":"medium"},{"t":"square","x":0.5,"y":4.2071,"r":0,"f":0,"id":"square"},{"t":"small","x":0.49999999999999983,"y":4.942800000000003,"r":5,"f":0,"id":"small2"}]},{"id":"tanne","name":"Tanne","poses":[{"t":"square","x":0.5,"y":0.5,"r":0,"f":0,"id":"square"},{"t":"large","x":-0.1667,"y":1.6667000000000005,"r":2,"f":0,"id":"large1"},{"t":"large","x":1.1667000000000003,"y":1.6667000000000003,"r":0,"f":0,"id":"large2"},{"t":"para","x":1.5,"y":2.5,"r":0,"f":1,"id":"para"},{"t":"small","x":-0.8332999999999999,"y":2.3332999999999986,"r":2,"f":0,"id":"small1"},{"t":"small","x":-0.16669999999999993,"y":2.6667,"r":6,"f":0,"id":"small2"},{"t":"medium","x":0.5,"y":3.3332999999999995,"r":5,"f":0,"id":"medium"}]},{"id":"schiff","name":"Schiff","poses":[{"t":"large","x":0.47139999999999976,"y":1.4142000000000001,"r":3,"f":0,"id":"large1"},{"t":"large","x":-0.6667000000000001,"y":1.0167,"r":2,"f":0,"id":"large2"},{"t":"small","x":0.7071000000000001,"y":0.23570000000000002,"r":5,"f":0,"id":"small1"},{"t":"square","x":1.4142,"y":0.7071,"r":1,"f":0,"id":"square"},{"t":"medium","x":0.4141999999999999,"y":-0.33329999999999993,"r":1,"f":0,"id":"medium"},{"t":"small","x":0.33330000000000004,"y":3.1618,"r":0,"f":0,"id":"small2"},{"t":"para","x":-0.5857999999999999,"y":-0.5,"r":0,"f":1,"id":"para"}]},{"id":"rakete","name":"Rakete","poses":[{"t":"large","x":1.3333,"y":0.6667000000000002,"r":2,"f":0,"id":"large1"},{"t":"large","x":0.6667000000000001,"y":1.3333000000000002,"r":6,"f":0,"id":"large2"},{"t":"medium","x":1.0000000000000002,"y":2.3333,"r":5,"f":0,"id":"medium"},{"t":"square","x":1,"y":-0.5,"r":0,"f":0,"id":"square"},{"t":"small","x":0.1666999999999999,"y":-0.6666999999999998,"r":2,"f":0,"id":"small1"},{"t":"small","x":-0.1666999999999999,"y":-1.3333,"r":6,"f":0,"id":"small2"},{"t":"para","x":2,"y":-1,"r":2,"f":0,"id":"para"}]},{"id":"flugzeug","name":"Flugzeug","poses":[{"t":"large","x":0.6667000000000004,"y":0.6667000000000004,"r":0,"f":0,"id":"large1"},{"t":"large","x":0.6667000000000001,"y":-0.6667,"r":6,"f":0,"id":"large2"},{"t":"small","x":2.0000000000000004,"y":-0.47140000000000004,"r":5,"f":0,"id":"small1"},{"t":"para","x":3.0606999999999993,"y":-0.35359999999999997,"r":3,"f":0,"id":"para"},{"t":"square","x":-0.5,"y":-0.25,"r":0,"f":0,"id":"square"},{"t":"small","x":-1.3332999999999995,"y":-0.0833,"r":4,"f":0,"id":"small2"},{"t":"medium","x":-1.5286,"y":0.7214000000000002,"r":0,"f":0,"id":"medium"}]},{"id":"hemd","name":"Hemd","poses":[{"t":"large","x":0.6667000000000004,"y":0.6667000000000004,"r":0,"f":0,"id":"large1"},{"t":"large","x":1.3333000000000002,"y":1.3333000000000002,"r":4,"f":0,"id":"large2"},{"t":"medium","x":0,"y":2.3333,"r":5,"f":0,"id":"medium"},{"t":"small","x":0.6667000000000002,"y":2.6667,"r":4,"f":0,"id":"small1"},{"t":"square","x":1.5,"y":2.5,"r":0,"f":0,"id":"square"},{"t":"small","x":-0.6666999999999997,"y":1.6667000000000003,"r":6,"f":0,"id":"small2"},{"t":"para","x":2.5,"y":2,"r":2,"f":0,"id":"para"}]},{"id":"fabrik","name":"Fabrik","poses":[{"t":"large","x":-1.4142000000000001,"y":0.4714,"r":5,"f":0,"id":"large1"},{"t":"large","x":-0.4713999999999998,"y":1.4142,"r":7,"f":0,"id":"large2"},{"t":"medium","x":-0.9428,"y":2.357,"r":6,"f":0,"id":"medium"},{"t":"square","x":-0.5,"y":3.3284,"r":0,"f":0,"id":"square"},{"t":"small","x":-0.5000000000000002,"y":4.064099999999999,"r":5,"f":0,"id":"small1"},{"t":"para","x":-2.3283999999999994,"y":1,"r":2,"f":1,"id":"para"},{"t":"small","x":-2.4950999999999985,"y":1.6666999999999998,"r":6,"f":0,"id":"small2"}]},{"id":"ufo","name":"Ufo","poses":[{"t":"square","x":-5.551115123125784e-17,"y":-0.7071000000000001,"r":1,"f":0,"id":"square"},{"t":"large","x":1.3333000000000002,"y":-0.6667000000000002,"r":4,"f":0,"id":"large1"},{"t":"large","x":-1.3333,"y":-0.6666999999999997,"r":6,"f":0,"id":"large2"},{"t":"medium","x":-7.401486830834374e-17,"y":0.3332999999999999,"r":5,"f":0,"id":"medium"},{"t":"para","x":2.5,"y":-1,"r":2,"f":0,"id":"para"},{"t":"small","x":-2.3333000000000004,"y":-0.6666999999999998,"r":2,"f":0,"id":"small1"},{"t":"small","x":-2.6667,"y":-1.3333000000000002,"r":6,"f":0,"id":"small2"}]},{"id":"katze","name":"Katze","poses":[{"t":"square","x":0.5857999999999999,"y":4.121300000000001,"r":1,"f":0,"id":"square"},{"t":"large","x":1.3333,"y":0.6667000000000002,"r":2,"f":0,"id":"large1"},{"t":"large","x":1.0571999999999997,"y":2,"r":3,"f":0,"id":"large2"},{"t":"para","x":3,"y":0.5,"r":0,"f":0,"id":"para"},{"t":"small","x":0.11440000000000003,"y":4.8284,"r":3,"f":0,"id":"small1"},{"t":"small","x":1.0572000000000004,"y":4.828400000000001,"r":7,"f":0,"id":"small2"},{"t":"medium","x":0.25250000000000006,"y":2.4142,"r":7,"f":0,"id":"medium"}]},{"id":"pinguin","name":"Pinguin","poses":[{"t":"large","x":0.47139999999999976,"y":1.4142000000000001,"r":3,"f":0,"id":"large1"},{"t":"large","x":0.9428000000000002,"y":2.8234431575143343e-22,"r":7,"f":0,"id":"large2"},{"t":"medium","x":0.41419999999999996,"y":-1.0809000000000002,"r":5,"f":0,"id":"medium"},{"t":"para","x":-0.3536000000000001,"y":0.3536,"r":1,"f":0,"id":"para"},{"t":"square","x":-0.5,"y":2.3284,"r":0,"f":0,"id":"square"},{"t":"small","x":1.7475,"y":-1.0809000000000004,"r":0,"f":0,"id":"small1"},{"t":"small","x":-1.3333000000000002,"y":2.161799999999999,"r":2,"f":0,"id":"small2"}]},{"id":"vogel","name":"Vogel","poses":[{"t":"large","x":0.9428000000000002,"y":2.8234431575143343e-22,"r":7,"f":0,"id":"large1"},{"t":"square","x":-5.551115123125784e-17,"y":-0.7071000000000001,"r":1,"f":0,"id":"square"},{"t":"large","x":-0.7071,"y":0.23570000000000013,"r":1,"f":0,"id":"large2"},{"t":"para","x":-2.1213,"y":1.2071,"r":0,"f":1,"id":"para"},{"t":"medium","x":-3.1213,"y":2.0403999999999995,"r":5,"f":0,"id":"medium"},{"t":"small","x":1.6499,"y":-1.4142000000000001,"r":3,"f":0,"id":"small1"},{"t":"small","x":0.16669999999999996,"y":-1.5808999999999997,"r":2,"f":0,"id":"small2"}]},{"id":"ente","name":"Ente","poses":[{"t":"large","x":1.4142000000000001,"y":0.47140000000000004,"r":5,"f":0,"id":"large1"},{"t":"large","x":4.934305730935201e-17,"y":0.9428000000000002,"r":1,"f":0,"id":"large2"},{"t":"square","x":2.828399999999999,"y":0.7071,"r":1,"f":0,"id":"square"},{"t":"small","x":2.1213,"y":1.1785000000000003,"r":1,"f":0,"id":"small1"},{"t":"small","x":3.2022,"y":1.3738000000000001,"r":4,"f":0,"id":"small2"},{"t":"para","x":2.5354999999999994,"y":2.2070999999999996,"r":0,"f":1,"id":"para"},{"t":"medium","x":2.5355000000000003,"y":3.040399999999999,"r":5,"f":0,"id":"medium"}]},{"id":"schwan","name":"Schwan","poses":[{"t":"large","x":1.4142000000000001,"y":0.47140000000000004,"r":5,"f":0,"id":"large1"},{"t":"large","x":2.8284,"y":0.9428000000000001,"r":1,"f":0,"id":"large2"},{"t":"small","x":2.0808999999999997,"y":1.7474999999999998,"r":2,"f":0,"id":"small1"},{"t":"square","x":2.9142000000000015,"y":1.9142000000000006,"r":0,"f":0,"id":"square"},{"t":"medium","x":0.3332999999999999,"y":0.9999999999999999,"r":3,"f":0,"id":"medium"},{"t":"para","x":0.35359999999999997,"y":2.3536,"r":3,"f":1,"id":"para"},{"t":"small","x":-0.3333000000000001,"y":2.7475,"r":2,"f":0,"id":"small2"}]},{"id":"hahn","name":"Hahn","poses":[{"t":"large","x":0.6667000000000001,"y":-0.6667,"r":6,"f":0,"id":"large1"},{"t":"large","x":-0.6666999999999997,"y":0.33329999999999993,"r":4,"f":0,"id":"large2"},{"t":"small","x":1.3643000000000005,"y":-1.1071,"r":7,"f":0,"id":"small1"},{"t":"medium","x":-1.0000000000000002,"y":1.3332999999999997,"r":5,"f":0,"id":"medium"},{"t":"square","x":1.5,"y":0.5,"r":0,"f":0,"id":"square"},{"t":"small","x":1.7070999999999994,"y":1.2356999999999996,"r":5,"f":0,"id":"small2"},{"t":"para","x":-1.6464000000000003,"y":-0.060699999999999775,"r":3,"f":1,"id":"para"}]},{"id":"huhn","name":"Huhn","poses":[{"t":"large","x":-0.6666999999999996,"y":1.3332999999999995,"r":4,"f":0,"id":"large1"},{"t":"large","x":0.6667000000000001,"y":1.3333000000000002,"r":6,"f":0,"id":"large2"},{"t":"small","x":0.9167,"y":0.5833000000000002,"r":2,"f":0,"id":"small1"},{"t":"medium","x":-0.2356999999999999,"y":-0.2356999999999999,"r":0,"f":0,"id":"medium"},{"t":"square","x":1.5,"y":2.5,"r":0,"f":0,"id":"square"},{"t":"small","x":1.7070999999999992,"y":3.2357000000000005,"r":5,"f":0,"id":"small2"},{"t":"para","x":-2,"y":2.5,"r":0,"f":1,"id":"para"}]},{"id":"flamingo","name":"Flamingo","poses":[{"t":"large","x":-1.3333,"y":-0.6666999999999997,"r":6,"f":0,"id":"large1"},{"t":"large","x":-1.4142000000000001,"y":0.4714,"r":5,"f":0,"id":"large2"},{"t":"square","x":-5.0885363134144225e-17,"y":0.7071000000000001,"r":1,"f":0,"id":"square"},{"t":"para","x":-0.3536,"y":1.7677999999999998,"r":1,"f":0,"id":"para"},{"t":"medium","x":0.47140000000000004,"y":2.3569999999999998,"r":6,"f":0,"id":"medium"},{"t":"small","x":-1.7356999999999998,"y":-2.2070999999999996,"r":7,"f":0,"id":"small1"},{"t":"small","x":-1.5166999999999997,"y":-3.230899999999999,"r":0,"f":0,"id":"small2"}]},{"id":"fisch","name":"Fisch","poses":[{"t":"small","x":0.7071000000000001,"y":0.23570000000000002,"r":5,"f":0,"id":"small1"},{"t":"para","x":1.0607,"y":-0.3535999999999999,"r":3,"f":0,"id":"para"},{"t":"medium","x":-0.6667000000000002,"y":4.934249262072049e-17,"r":3,"f":0,"id":"medium"},{"t":"small","x":1.4142,"y":0.47140000000000004,"r":1,"f":0,"id":"small2"},{"t":"square","x":2.1213,"y":1.8503717077085947e-17,"r":1,"f":0,"id":"square"},{"t":"large","x":0.7879999999999998,"y":1.3737999999999995,"r":0,"f":0,"id":"large1"},{"t":"large","x":0.788,"y":-1.3738000000000001,"r":6,"f":0,"id":"large2"}]},{"id":"krebs","name":"Krebs","poses":[{"t":"large","x":0.6667000000000004,"y":0.6667000000000004,"r":0,"f":0,"id":"large1"},{"t":"large","x":2.3333,"y":0.3333000000000001,"r":4,"f":0,"id":"large2"},{"t":"small","x":0.33330000000000004,"y":-0.33329999999999993,"r":6,"f":0,"id":"small1"},{"t":"square","x":1.5,"y":1.5,"r":0,"f":0,"id":"square"},{"t":"para","x":3,"y":1.5,"r":0,"f":0,"id":"para"},{"t":"small","x":3.333300000000001,"y":2.3333000000000004,"r":0,"f":0,"id":"small2"},{"t":"medium","x":-0.3333,"y":2,"r":7,"f":0,"id":"medium"}]},{"id":"schnecke","name":"Schnecke","poses":[{"t":"large","x":0.47139999999999976,"y":1.4142000000000001,"r":3,"f":0,"id":"large1"},{"t":"large","x":-0.4713999999999998,"y":1.4142,"r":7,"f":0,"id":"large2"},{"t":"para","x":1,"y":0.5,"r":0,"f":0,"id":"para"},{"t":"medium","x":1.9999999999999998,"y":0.3332999999999999,"r":5,"f":0,"id":"medium"},{"t":"small","x":-0.6666999999999998,"y":0.33329999999999993,"r":0,"f":0,"id":"small1"},{"t":"small","x":-1.3333,"y":0.3333,"r":2,"f":0,"id":"small2"},{"t":"square","x":2.7070999999999987,"y":1.0000000000000002,"r":1,"f":0,"id":"square"}]},{"id":"schildkroete","name":"Schildkröte","poses":[{"t":"large","x":1.3333,"y":0.6667000000000002,"r":2,"f":0,"id":"large1"},{"t":"large","x":0.6667000000000001,"y":1.3333000000000002,"r":6,"f":0,"id":"large2"},{"t":"para","x":2.5,"y":1.0000000000000002,"r":2,"f":1,"id":"para"},{"t":"square","x":3.5,"y":1.5,"r":0,"f":0,"id":"square"},{"t":"medium","x":-0.3333,"y":1,"r":7,"f":0,"id":"medium"},{"t":"small","x":-0.4714000000000001,"y":2.4671528654676006e-17,"r":3,"f":0,"id":"small1"},{"t":"small","x":2.4714,"y":-3.7007434154171895e-17,"r":7,"f":0,"id":"small2"}]},{"id":"giraffe","name":"Giraffe","poses":[{"t":"large","x":-0.4713999999999999,"y":-1.4141999999999997,"r":7,"f":0,"id":"large1"},{"t":"small","x":0.2356999999999999,"y":-0.7071000000000001,"r":3,"f":0,"id":"small1"},{"t":"square","x":0.7071,"y":1.8503646491007004e-17,"r":1,"f":0,"id":"square"},{"t":"large","x":0.9428000000000001,"y":-1.4142,"r":7,"f":0,"id":"large2"},{"t":"para","x":1.0606999999999998,"y":1.0607000000000004,"r":3,"f":1,"id":"para"},{"t":"small","x":1.1785,"y":2.1213,"r":7,"f":0,"id":"small2"},{"t":"medium","x":1.8856000000000002,"y":2.5927,"r":0,"f":0,"id":"medium"}]},{"id":"kaenguru","name":"Känguru","poses":[{"t":"large","x":1.3333,"y":0.6667000000000002,"r":2,"f":0,"id":"large1"},{"t":"large","x":0.6667000000000001,"y":-0.6667,"r":6,"f":0,"id":"large2"},{"t":"small","x":2.2357,"y":0.20710000000000012,"r":3,"f":0,"id":"small1"},{"t":"small","x":2.333300000000001,"y":2.333300000000001,"r":0,"f":0,"id":"small2"},{"t":"para","x":-1.0606999999999995,"y":-2.3536,"r":1,"f":1,"id":"para"},{"t":"medium","x":0.2928999999999999,"y":-2.3738000000000006,"r":5,"f":0,"id":"medium"},{"t":"square","x":1.0000000000000002,"y":-1.7070999999999998,"r":1,"f":0,"id":"square"}]},{"id":"pferd","name":"Pferd","poses":[{"t":"large","x":-0.4713999999999999,"y":-1.4141999999999997,"r":7,"f":0,"id":"large1"},{"t":"large","x":0.6667000000000001,"y":-0.6667,"r":6,"f":0,"id":"large2"},{"t":"small","x":2.0000000000000004,"y":-0.47140000000000004,"r":5,"f":0,"id":"small1"},{"t":"small","x":0.33330000000000004,"y":-3.166699999999999,"r":0,"f":0,"id":"small2"},{"t":"square","x":0.5,"y":0.5,"r":0,"f":0,"id":"square"},{"t":"medium","x":1.0000000000000002,"y":1.3332999999999997,"r":5,"f":0,"id":"medium"},{"t":"para","x":-1.9141999999999995,"y":-2.4141999999999997,"r":2,"f":1,"id":"para"}]},{"id":"laeufer","name":"Läufer","poses":[{"t":"large","x":4.93436219979835e-17,"y":-0.9427999999999997,"r":5,"f":0,"id":"large1"},{"t":"large","x":0.4142000000000001,"y":0.5286000000000001,"r":1,"f":0,"id":"large2"},{"t":"square","x":0.4142000000000001,"y":1.7071,"r":1,"f":0,"id":"square"},{"t":"medium","x":0.9427999999999995,"y":-1.8855999999999995,"r":4,"f":0,"id":"medium"},{"t":"small","x":1.2333000000000003,"y":-2.9809,"r":0,"f":0,"id":"small1"},{"t":"para","x":-1.4142,"y":-1.9142,"r":0,"f":0,"id":"para"},{"t":"small","x":-2.5808999999999993,"y":-2.247499999999999,"r":6,"f":0,"id":"small2"}]},{"id":"taenzer","name":"Tänzer","poses":[{"t":"large","x":1.3333,"y":0.6667000000000002,"r":2,"f":0,"id":"large1"},{"t":"large","x":2.1667,"y":2.8332999999999995,"r":6,"f":0,"id":"large2"},{"t":"square","x":1.5,"y":4.2071000000000005,"r":1,"f":0,"id":"square"},{"t":"para","x":3,"y":2.5,"r":0,"f":0,"id":"para"},{"t":"small","x":-0.16669999999999996,"y":-0.33329999999999993,"r":6,"f":0,"id":"small1"},{"t":"medium","x":2.3333,"y":0.49999999999999994,"r":3,"f":0,"id":"medium"},{"t":"small","x":2.2643000000000004,"y":-0.7071000000000002,"r":7,"f":0,"id":"small2"}]}];
+
+const WOOD = {
+  large1: ['#f3c98a', '#c4843c', '#8a5a28'],
+  large2: ['#e7b56e', '#b87438', '#7a4a22'],
+  medium: ['#f6d7a2', '#d09a52', '#8d6230'],
+  small1: ['#e8b184', '#c26e3c', '#7a4424'],
+  small2: ['#f0c896', '#cc8a48', '#8a5428'],
+  square: ['#f6e0b8', '#d0a15c', '#8d6840'],
+  para:   ['#e09a72', '#b5653a', '#7a3e24']
+};
+
+const cv = document.getElementById('cv');
+const ctx = cv.getContext('2d');
+let cssW = 1, cssH = 1, dpr = 1;
+let view = { scale: 40, ox: 0, oy: 0 };
+let mask = null, maskKey = '';
+let pieces = [];
+let selectedId = null;
+let mode = 'puzzle';
+let puzzleIx = 0;
+let solved = {};
+let layouts = {};
+let soundOn = false;
+let audioUnlocked = false;
+let actx = null;
+let toastTimer = 0;
+let confetti = [];
+let animating = false;
+const ptr = new Map();
+let drag = null;
+let twist = null;
+const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+function sub(a, b) { return [a[0] - b[0], a[1] - b[1]]; }
+function dot(a, b) { return a[0] * b[0] + a[1] * b[1]; }
+function cross(a, b) { return a[0] * b[1] - a[1] * b[0]; }
+function area(poly) {
+  let a = 0;
+  for (let i = 0; i < poly.length; i++) {
+    const j = (i + 1) % poly.length;
+    a += poly[i][0] * poly[j][1] - poly[j][0] * poly[i][1];
+  }
+  return a / 2;
+}
+function ensureCCW(poly) { return area(poly) < 0 ? poly.slice().reverse() : poly.slice(); }
+function centroid(poly) {
+  const p = ensureCCW(poly);
+  let a = 0, cx = 0, cy = 0;
+  for (let i = 0; i < p.length; i++) {
+    const j = (i + 1) % p.length;
+    const cr = p[i][0] * p[j][1] - p[j][0] * p[i][1];
+    a += cr;
+    cx += (p[i][0] + p[j][0]) * cr;
+    cy += (p[i][1] + p[j][1]) * cr;
+  }
+  a *= 0.5;
+  return [cx / (6 * a), cy / (6 * a)];
+}
+function canon(type, flip) {
+  if (type === 'small') return [[0, 0], [1, 0], [0, 1]];
+  if (type === 'medium') return [[0, 0], [S2, 0], [0, S2]];
+  if (type === 'large') return [[0, 0], [2, 0], [0, 2]];
+  if (type === 'square') return [[0, 0], [1, 0], [1, 1], [0, 1]];
+  return flip ? [[0, 0], [1, -1], [2, -1], [1, 0]] : [[0, 0], [1, 0], [2, 1], [1, 1]];
+}
+function rotPoint(p, k) {
+  const a = ((k % 8) + 8) % 8 * Math.PI / 4;
+  const c = Math.cos(a), s = Math.sin(a);
+  return [c * p[0] - s * p[1], s * p[0] + c * p[1]];
+}
+function placeRaw(type, rot, flip) {
+  return canon(type, !!flip).map(p => rotPoint(p, rot));
+}
+function verts(piece) {
+  const raw = placeRaw(piece.t, piece.r, piece.f);
+  const c = centroid(raw);
+  return raw.map(q => [q[0] - c[0] + piece.x, q[1] - c[1] + piece.y]);
+}
+function distToSeg(a, b, p) {
+  const ab = sub(b, a);
+  const denom = dot(ab, ab) || 1e-12;
+  const t = Math.max(0, Math.min(1, dot(sub(p, a), ab) / denom));
+  const qx = a[0] + ab[0] * t, qy = a[1] + ab[1] * t;
+  return Math.hypot(p[0] - qx, p[1] - qy);
+}
+function distToPolyBoundary(poly, p) {
+  let d = Infinity;
+  for (let i = 0; i < poly.length; i++) d = Math.min(d, distToSeg(poly[i], poly[(i + 1) % poly.length], p));
+  return d;
+}
+function pointInPoly(poly, pt, eps) {
+  if (eps && distToPolyBoundary(poly, pt) < eps) return true;
+  let inside = false;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const yi = poly[i][1], yj = poly[j][1];
+    const xi = poly[i][0], xj = poly[j][0];
+    if ((yi > pt[1]) !== (yj > pt[1])) {
+      const xint = (xj - xi) * (pt[1] - yi) / (yj - yi) + xi;
+      if (xint >= pt[0]) inside = !inside;
+    }
+  }
+  return inside;
+}
+function bounds(polys) {
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (const p of polys) for (const q of p) {
+    minX = Math.min(minX, q[0]); minY = Math.min(minY, q[1]);
+    maxX = Math.max(maxX, q[0]); maxY = Math.max(maxY, q[1]);
+  }
+  if (!isFinite(minX)) { minX = -2; minY = -2; maxX = 2; maxY = 2; }
+  return { minX, minY, maxX, maxY, w: maxX - minX, h: maxY - minY };
+}
+function sameShape(a, b) {
+  if (a.length !== b.length) return false;
+  return a.every(p => b.some(q => Math.hypot(p[0] - q[0], p[1] - q[1]) < 0.06));
+}
+function coverage(piecePolys, targetPolys, step) {
+  step = step || 0.08;
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  const all = piecePolys.concat(targetPolys);
+  for (const p of all) for (const q of p) {
+    minX = Math.min(minX, q[0]); minY = Math.min(minY, q[1]);
+    maxX = Math.max(maxX, q[0]); maxY = Math.max(maxY, q[1]);
+  }
+  minX -= step; minY -= step; maxX += step; maxY += step;
+  let tgt = 0, hit = 0, spill = 0, overlap = 0, pieceCells = 0;
+  for (let y = minY + step / 2; y < maxY; y += step) {
+    for (let x = minX + step / 2; x < maxX; x += step) {
+      const pt = [x, y];
+      let near = false;
+      for (const p of all) if (distToPolyBoundary(p, pt) < step * 0.15) { near = true; break; }
+      if (near) continue;
+      let inT = false;
+      for (const t of targetPolys) if (pointInPoly(t, pt, 0)) { inT = true; break; }
+      let n = 0;
+      for (const p of piecePolys) if (pointInPoly(p, pt, 0)) n++;
+      if (inT) { tgt++; if (n > 0) hit++; }
+      if (n > 0) pieceCells++;
+      if (n > 0 && !inT) spill++;
+      if (n > 1) overlap++;
+    }
+  }
+  const cover = tgt ? hit / tgt : 0;
+  const spillR = pieceCells ? spill / pieceCells : 0;
+  const overR = pieceCells ? overlap / pieceCells : 0;
+  return { tgt, hit, spill, overlap, pieceCells, cover, spillR, overR, ok: tgt > 0 && cover > 0.985 && spillR < 0.02 && overR < 0.02 };
+}
+
+function puzzle() { return PUZZLES[puzzleIx]; }
+function solutionPoses() { return puzzle().poses; }
+function solutionPolys() { return solutionPoses().map(verts); }
+function pieceById(id) { return pieces.find(p => p.id === id); }
+function selected() { return pieceById(selectedId); }
+
+function metrics() {
+  if (mode !== 'puzzle') {
+    return { minX: -5.2, maxX: 5.2, minY: -4.4, maxY: 4.2, cols: 4, rows: 2, gapX: 1.7, gapY: 1.8, mid: 0, baseY: -1.2 };
+  }
+  const b = bounds(solutionPolys());
+  const short = cssH < 520 && cssW > cssH;
+  const cols = short ? 7 : 4;
+  const rows = short ? 1 : 2;
+  const gapX = 1.65, gapY = 1.8;
+  const dockW = (cols - 1) * gapX;
+  const mid = (b.minX + b.maxX) / 2;
+  const side = 1.7;
+  return {
+    minX: Math.min(b.minX - side, mid - dockW / 2 - side),
+    maxX: Math.max(b.maxX + side, mid + dockW / 2 + side),
+    maxY: b.maxY + 1.05,
+    minY: b.minY - 1.2 - rows * gapY - 0.55,
+    cols, rows, gapX, gapY, mid,
+    baseY: b.minY - 1.25
+  };
+}
+
+function loadSave() {
+  try {
+    const s = JSON.parse(localStorage.getItem(SAVE_KEY) || 'null');
+    if (!s || typeof s !== 'object') return;
+    soundOn = !!s.sound;
+    if (s.mode === 'free' || s.mode === 'puzzle') mode = s.mode;
+    if (Array.isArray(s.solved)) for (const id of s.solved) solved[id] = true;
+    if (s.lay && typeof s.lay === 'object') layouts = s.lay;
+    const ix = PUZZLES.findIndex(p => p.id === s.puzzle);
+    if (ix >= 0) puzzleIx = ix;
+  } catch (e) { /* private mode */ }
+}
+function persist() {
+  const lay = Object.assign({}, layouts);
+  lay[mode === 'free' ? 'free' : puzzle().id] = pieces.map(p => ({ id: p.id, t: p.t, x: p.x, y: p.y, r: p.r, f: p.f ? 1 : 0 }));
+  layouts = lay;
+  try {
+    localStorage.setItem(SAVE_KEY, JSON.stringify({
+      sound: soundOn, mode, puzzle: puzzle().id,
+      solved: Object.keys(solved), lay
+    }));
+  } catch (e) { /* private mode */ }
+}
+function freshPieces() {
+  return solutionPoses().map(p => ({ id: p.id, t: p.t, x: p.x, y: p.y, r: p.r, f: p.f ? 1 : 0 }));
+}
+function validLayout(arr) {
+  if (!Array.isArray(arr) || arr.length !== 7) return false;
+  const ids = new Set(solutionPoses().map(p => p.id));
+  return arr.every(p => ids.has(p.id) && isFinite(p.x) && isFinite(p.y) && p.r >= 0 && p.r < 8);
+}
+function scatter(list) {
+  const m = metrics();
+  list.forEach((p, i) => {
+    const col = i % m.cols;
+    const row = Math.floor(i / m.cols);
+    p.x = m.mid - ((m.cols - 1) * m.gapX) / 2 + col * m.gapX;
+    p.y = m.baseY - row * m.gapY;
+    p.r = Math.floor(Math.random() * 8);
+    p.f = p.t === 'para' && Math.random() < 0.5 ? 1 : 0;
+  });
+}
+function applyLayout(arr) {
+  const byId = {};
+  for (const p of arr) byId[p.id] = p;
+  pieces = solutionPoses().map(s => {
+    const p = byId[s.id] || s;
+    return { id: s.id, t: s.t, x: p.x, y: p.y, r: p.r | 0, f: p.f ? 1 : 0 };
+  });
+}
+function openPuzzle(ix, keep) {
+  puzzleIx = (ix + PUZZLES.length) % PUZZLES.length;
+  selectedId = null;
+  hideWin();
+  const key = mode === 'free' ? 'free' : puzzle().id;
+  const saved = layouts[key];
+  if (keep && pieces.length === 7 && mode !== 'free') {
+    /* keep current, used by settle */
+  } else if (validLayout(saved)) applyLayout(saved);
+  else {
+    pieces = freshPieces();
+    scatter(pieces);
+  }
+  maskKey = '';
+  fit();
+  updateChrome();
+  persist();
+  draw();
+}
+
+function resize() {
+  const stage = document.getElementById('stage');
+  cssW = Math.max(1, stage.clientWidth);
+  cssH = Math.max(1, stage.clientHeight);
+  dpr = Math.min(2, window.devicePixelRatio || 1);
+  cv.width = Math.round(cssW * dpr);
+  cv.height = Math.round(cssH * dpr);
+  maskKey = '';
+  fit();
+  draw();
+}
+function fit() {
+  const m = metrics();
+  const w = m.maxX - m.minX, h = m.maxY - m.minY;
+  const scale = Math.min(cssW / w, cssH / h);
+  view = {
+    scale,
+    ox: (cssW - w * scale) / 2 - m.minX * scale,
+    oy: (cssH - h * scale) / 2 + m.maxY * scale,
+    m
+  };
+}
+function worldToScreen(p) { return [view.ox + p[0] * view.scale, view.oy - p[1] * view.scale]; }
+function screenToWorld(sx, sy) { return [(sx - view.ox) / view.scale, (view.oy - sy) / view.scale]; }
+function clamp(p) {
+  const m = view.m || metrics();
+  p.x = Math.max(m.minX + 0.15, Math.min(m.maxX - 0.15, p.x));
+  p.y = Math.max(m.minY + 0.15, Math.min(m.maxY - 0.15, p.y));
+}
+
+function roundRect(x, y, w, h, r) {
+  const rr = Math.min(r, w / 2, h / 2);
+  ctx.beginPath();
+  ctx.moveTo(x + rr, y);
+  ctx.arcTo(x + w, y, x + w, y + h, rr);
+  ctx.arcTo(x + w, y + h, x, y + h, rr);
+  ctx.arcTo(x, y + h, x, y, rr);
+  ctx.arcTo(x, y, x + w, y, rr);
+  ctx.closePath();
+}
+function trace(poly) {
+  ctx.beginPath();
+  poly.forEach((p, i) => {
+    const s = worldToScreen(p);
+    if (i) ctx.lineTo(s[0], s[1]); else ctx.moveTo(s[0], s[1]);
+  });
+  ctx.closePath();
+}
+function rebuildMask() {
+  const key = (mode === 'puzzle' ? puzzle().id : 'free') + ':' + cv.width + 'x' + cv.height + ':' + view.scale.toFixed(3) + ':' + view.ox.toFixed(1);
+  if (key === maskKey && mask) return;
+  maskKey = key;
+  mask = document.createElement('canvas');
+  mask.width = cv.width;
+  mask.height = cv.height;
+  const m = mask.getContext('2d');
+  m.setTransform(dpr, 0, 0, dpr, 0, 0);
+  if (mode !== 'puzzle') return;
+  m.fillStyle = '#241910';
+  for (const poly of solutionPolys()) {
+    m.beginPath();
+    poly.forEach((p, i) => {
+      const s = worldToScreen(p);
+      if (i) m.lineTo(s[0], s[1]); else m.moveTo(s[0], s[1]);
+    });
+    m.closePath();
+    m.fill();
+  }
+}
+function drawTable() {
+  const g = ctx.createLinearGradient(0, 0, 0, cssH);
+  g.addColorStop(0, '#f0d2a8');
+  g.addColorStop(0.45, '#e2b583');
+  g.addColorStop(1, '#c49262');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, cssW, cssH);
+  ctx.save();
+  ctx.strokeStyle = 'rgba(110, 62, 28, 0.14)';
+  ctx.lineWidth = 2;
+  for (let y = 16; y < cssH; y += 26) {
+    ctx.beginPath();
+    ctx.moveTo(0, y);
+    ctx.bezierCurveTo(cssW * 0.3, y + 2.5, cssW * 0.65, y - 2, cssW, y + 1);
+    ctx.stroke();
+  }
+  ctx.restore();
+  const v = ctx.createRadialGradient(cssW / 2, cssH * 0.42, cssW * 0.1, cssW / 2, cssH * 0.45, Math.max(cssW, cssH) * 0.72);
+  v.addColorStop(0, 'rgba(255,255,255,0.08)');
+  v.addColorStop(1, 'rgba(80, 36, 12, 0.28)');
+  ctx.fillStyle = v;
+  ctx.fillRect(0, 0, cssW, cssH);
+}
+function drawFelt() {
+  if (mode !== 'puzzle') return;
+  const b = bounds(solutionPolys());
+  const pad = 0.28;
+  const a = worldToScreen([b.minX - pad, b.maxY + pad]);
+  const c = worldToScreen([b.maxX + pad, b.minY - pad]);
+  ctx.save();
+  ctx.fillStyle = 'rgba(54, 74, 58, 0.72)';
+  roundRect(a[0], a[1], c[0] - a[0], c[1] - a[1], 16);
+  ctx.fill();
+  ctx.restore();
+}
+function hash(s) { let h = 2166136261; for (let i = 0; i < s.length; i++) h = Math.imul(h ^ s.charCodeAt(i), 16777619); return h >>> 0; }
+function drawPiece(piece) {
+  const poly = verts(piece);
+  const wood = WOOD[piece.id] || WOOD.medium;
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (const p of poly) {
+    const s = worldToScreen(p);
+    minX = Math.min(minX, s[0]); minY = Math.min(minY, s[1]);
+    maxX = Math.max(maxX, s[0]); maxY = Math.max(maxY, s[1]);
+  }
+  const on = piece.id === selectedId;
+  ctx.save();
+  ctx.shadowColor = 'rgba(50, 24, 8, 0.35)';
+  ctx.shadowBlur = on ? 16 : 8;
+  ctx.shadowOffsetY = on ? 6 : 3;
+  trace(poly);
+  const g = ctx.createLinearGradient(minX, minY, maxX, maxY);
+  g.addColorStop(0, wood[0]);
+  g.addColorStop(0.55, wood[1]);
+  g.addColorStop(1, wood[2]);
+  ctx.fillStyle = g;
+  ctx.fill();
+  ctx.shadowColor = 'transparent';
+  ctx.clip();
+  const seed = hash(piece.id);
+  ctx.strokeStyle = 'rgba(90, 48, 18, 0.22)';
+  ctx.lineWidth = 1;
+  const span = Math.max(maxX - minX, maxY - minY) + 8;
+  for (let i = 0; i < 6; i++) {
+    const y = minY + ((seed >> (i * 3)) % 100) / 100 * (maxY - minY);
+    ctx.beginPath();
+    ctx.moveTo(minX - 4, y);
+    ctx.bezierCurveTo(minX + span * 0.3, y + ((seed >> i) % 7) - 3, minX + span * 0.6, y - ((seed >> (i + 2)) % 6), maxX + 4, y + 1);
+    ctx.stroke();
+  }
+  ctx.restore();
+  trace(poly);
+  ctx.lineJoin = 'round';
+  ctx.lineWidth = on ? 3.5 : 1.6;
+  ctx.strokeStyle = on ? '#fff4d4' : 'rgba(62, 32, 12, 0.72)';
+  ctx.stroke();
+  if (on) {
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = 'rgba(90, 48, 16, 0.45)';
+    ctx.stroke();
+  }
+}
+function drawConfetti() {
+  const now = performance.now();
+  confetti = confetti.filter(p => now - p.t0 < p.life);
+  for (const p of confetti) {
+    const u = (now - p.t0) / p.life;
+    const x = p.x + p.vx * u;
+    const y = p.y + p.vy * u + 90 * u * u;
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(p.rot + u * 4);
+    ctx.globalAlpha = 1 - u;
+    ctx.fillStyle = p.color;
+    ctx.fillRect(-p.s / 2, -p.s / 4, p.s, p.s / 2);
+    ctx.restore();
+  }
+  if (confetti.length && !animating) requestAnimationFrame(draw);
+}
+function draw() {
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  drawTable();
+  drawFelt();
+  if (mode === 'puzzle') {
+    rebuildMask();
+    ctx.save();
+    ctx.shadowColor = 'rgba(20, 12, 8, 0.55)';
+    ctx.shadowBlur = 14;
+    ctx.drawImage(mask, 0, 0, cssW, cssH);
+    ctx.restore();
+    ctx.drawImage(mask, 0, 0, cssW, cssH);
+  }
+  const ordered = pieces.filter(p => p.id !== selectedId).concat(pieces.filter(p => p.id === selectedId));
+  for (const p of ordered) drawPiece(p);
+  drawConfetti();
+}
+
+function toast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('show'), 2400);
+}
+function updateChrome() {
+  const pz = puzzle();
+  document.getElementById('btnList').textContent = mode === 'free' ? 'Frei' : pz.name;
+  document.getElementById('btnMode').textContent = mode === 'free' ? 'Frei' : 'Rätsel';
+  document.getElementById('btnMode').setAttribute('aria-pressed', mode === 'free' ? 'true' : 'false');
+  document.getElementById('btnSound').setAttribute('aria-pressed', soundOn ? 'true' : 'false');
+  const n = Object.keys(solved).length;
+  document.getElementById('count').textContent = n + ' von ' + PUZZLES.length + (solved[pz.id] && mode === 'puzzle' ? ' · gelöst' : '');
+}
+function hideWin() { document.getElementById('win').hidden = true; }
+function celebrate() {
+  const el = document.getElementById('win');
+  document.getElementById('winName').textContent = puzzle().name + ' steht.';
+  el.hidden = false;
+  if (reduceMotion) return;
+  const colors = ['#f3d7a4', '#e8c56b', '#fff8ee', '#d4784a', '#8d5a32'];
+  const t0 = performance.now();
+  confetti = [];
+  for (let i = 0; i < 42; i++) {
+    confetti.push({
+      x: cssW * (0.2 + Math.random() * 0.6),
+      y: cssH * 0.22,
+      vx: (Math.random() - 0.5) * 220,
+      vy: -80 - Math.random() * 160,
+      rot: Math.random() * 6,
+      s: 7 + Math.random() * 8,
+      color: colors[i % colors.length],
+      t0, life: 1100 + Math.random() * 700
+    });
+  }
+  chime();
+  requestAnimationFrame(draw);
+}
+function checkNow() {
+  if (mode !== 'puzzle') return { ok: false, cover: 0, spillR: 0, overR: 0 };
+  return coverage(pieces.map(verts), solutionPolys(), 0.08);
+}
+function maybeCelebrate(quiet) {
+  const res = checkNow();
+  if (res.ok) {
+    solved[puzzle().id] = true;
+    updateChrome();
+    if (!quiet && document.getElementById('win').hidden) celebrate();
+    persist();
+  } else if (!quiet && res.cover > 0.9) {
+    hideWin();
+    toast('Fast geschafft.');
+  } else hideWin();
+  return res;
+}
+
+function unlockAudio() {
+  if (!soundOn) return;
+  try {
+    if (!actx) {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) return;
+      actx = new AC();
+    }
+    if (actx.state === 'suspended') actx.resume();
+    audioUnlocked = true;
+  } catch (e) { /* this browser has no audio */ }
+}
+function noiseBurst(freq, gain, dur) {
+  if (!actx || !audioUnlocked || !soundOn) return;
+  const t = actx.currentTime;
+  const n = Math.floor(actx.sampleRate * dur);
+  const buf = actx.createBuffer(1, n, actx.sampleRate);
+  const d = buf.getChannelData(0);
+  for (let i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * Math.exp(-i / (n * 0.18));
+  const src = actx.createBufferSource();
+  src.buffer = buf;
+  const bp = actx.createBiquadFilter();
+  bp.type = 'bandpass';
+  bp.frequency.value = freq;
+  bp.Q.value = 0.7;
+  const g = actx.createGain();
+  g.gain.setValueAtTime(gain, t);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  src.connect(bp); bp.connect(g); g.connect(actx.destination);
+  src.start(t); src.stop(t + dur + 0.02);
+  const o = actx.createOscillator();
+  const og = actx.createGain();
+  o.type = 'sine';
+  o.frequency.setValueAtTime(freq * 0.45, t);
+  o.frequency.exponentialRampToValueAtTime(freq * 0.22, t + 0.07);
+  og.gain.setValueAtTime(gain * 0.45, t);
+  og.gain.exponentialRampToValueAtTime(0.0001, t + 0.08);
+  o.connect(og); og.connect(actx.destination);
+  o.start(t); o.stop(t + 0.09);
+}
+function wood() { noiseBurst(520 + Math.random() * 180, 0.08, 0.07); }
+function chime() {
+  if (!soundOn || !audioUnlocked || !actx) return;
+  noiseBurst(660, 0.07, 0.08);
+  setTimeout(() => noiseBurst(880, 0.06, 0.09), 90);
+}
+
+function edgeOverlap(poly, host) {
+  let total = 0;
+  for (let i = 0; i < poly.length; i++) {
+    const a1 = poly[i], a2 = poly[(i + 1) % poly.length];
+    const abx = a2[0] - a1[0], aby = a2[1] - a1[1];
+    const al = Math.hypot(abx, aby) || 1;
+    for (let j = 0; j < host.length; j++) {
+      const b1 = host[j], b2 = host[(j + 1) % host.length];
+      const bbx = b2[0] - b1[0], bby = b2[1] - b1[1];
+      const bl = Math.hypot(bbx, bby) || 1;
+      if (Math.abs(abx * bby - aby * bbx) > 0.03 * al * bl) continue;
+      const nx = -bby / bl, ny = bbx / bl;
+      if (Math.abs((a1[0] - b1[0]) * nx + (a1[1] - b1[1]) * ny) > 0.045) continue;
+      const ux = bbx / bl, uy = bby / bl;
+      const ap1 = (a1[0] - b1[0]) * ux + (a1[1] - b1[1]) * uy;
+      const ap2 = (a2[0] - b1[0]) * ux + (a2[1] - b1[1]) * uy;
+      const lo = Math.max(Math.min(ap1, ap2), 0);
+      const hi = Math.min(Math.max(ap1, ap2), bl);
+      if (hi - lo > 0.08) total += (hi - lo) * 0.85;
+    }
+  }
+  return total;
+}
+function snap(piece) {
+  const base = verts(piece);
+  const hosts = pieces.filter(p => p !== piece).map(verts);
+  if (mode === 'puzzle') for (const s of solutionPolys()) hosts.push(s);
+  const THRESH = 0.36;
+  let best = null;
+  function consider(dx, dy) {
+    const dist = Math.hypot(dx, dy);
+    if (dist > THRESH) return;
+    const moved = base.map(p => [p[0] + dx, p[1] + dy]);
+    let score = -dist * 0.15;
+    for (const h of hosts) {
+      for (const a of moved) for (const b of h) if (Math.hypot(a[0] - b[0], a[1] - b[1]) < 0.05) score += 2;
+      score += edgeOverlap(moved, h);
+    }
+    if (score < 1.15) return;
+    if (!best || score > best.score) best = { dx, dy, score };
+  }
+  for (const a of base) for (const h of hosts) for (const b of h) {
+    const dx = b[0] - a[0], dy = b[1] - a[1];
+    if (Math.hypot(dx, dy) <= THRESH) consider(dx, dy);
+  }
+  for (let i = 0; i < base.length; i++) {
+    const a1 = base[i], a2 = base[(i + 1) % base.length];
+    const adx = a2[0] - a1[0], ady = a2[1] - a1[1], al = Math.hypot(adx, ady) || 1;
+    for (const h of hosts) for (let j = 0; j < h.length; j++) {
+      const b1 = h[j], b2 = h[(j + 1) % h.length];
+      const bdx = b2[0] - b1[0], bdy = b2[1] - b1[1], bl = Math.hypot(bdx, bdy) || 1;
+      if (Math.abs(adx * bdy - ady * bdx) > 0.03 * al * bl) continue;
+      const nx = -bdy / bl, ny = bdx / bl;
+      const dist = (a1[0] - b1[0]) * nx + (a1[1] - b1[1]) * ny;
+      if (Math.abs(dist) <= THRESH) consider(-dist * nx, -dist * ny);
+    }
+  }
+  if (!best) return false;
+  piece.x += best.dx;
+  piece.y += best.dy;
+  clamp(piece);
+  return true;
+}
+function rotate(piece, dir) {
+  if (!piece) { toast('Wähle zuerst ein Teil.'); return; }
+  piece.r = (piece.r + (dir < 0 ? 7 : 1)) % 8;
+  snap(piece);
+  wood();
+  persist();
+  maybeCelebrate();
+  draw();
+}
+function flip(piece) {
+  if (!piece) { toast('Wähle zuerst ein Teil.'); return; }
+  if (piece.t !== 'para') { toast('Nur das Parallelogramm kann man wenden.'); return; }
+  piece.f = piece.f ? 0 : 1;
+  snap(piece);
+  wood();
+  persist();
+  maybeCelebrate();
+  draw();
+}
+function tip() {
+  if (mode !== 'puzzle') { toast('Im freien Spiel gibt es keinen Tipp.'); return; }
+  const sol = {};
+  for (const s of solutionPoses()) sol[s.id] = s;
+  const wrong = pieces.find(p => !sameShape(verts(p), verts(sol[p.id])));
+  if (!wrong) { toast('Alles liegt schon richtig.'); maybeCelebrate(); return; }
+  selectedId = wrong.id;
+  const fromX = wrong.x, fromY = wrong.y;
+  wrong.r = sol[wrong.id].r;
+  wrong.f = sol[wrong.id].f ? 1 : 0;
+  const toX = sol[wrong.id].x, toY = sol[wrong.id].y;
+  toast('Der Tipp setzt ein Teil an seinen Platz.');
+  if (reduceMotion) {
+    wrong.x = toX; wrong.y = toY;
+    wood(); persist(); maybeCelebrate(); draw();
+    return;
+  }
+  const t0 = performance.now();
+  animating = true;
+  function step(now) {
+    const u = Math.min(1, (now - t0) / 340);
+    const e = 1 - Math.pow(1 - u, 3);
+    wrong.x = fromX + (toX - fromX) * e;
+    wrong.y = fromY + (toY - fromY) * e;
+    draw();
+    if (u < 1) requestAnimationFrame(step);
+    else {
+      animating = false;
+      wrong.x = toX; wrong.y = toY;
+      wood(); persist(); maybeCelebrate(); draw();
+    }
+  }
+  requestAnimationFrame(step);
+}
+function mix() {
+  hideWin();
+  pieces = freshPieces();
+  scatter(pieces);
+  selectedId = pieces[0] ? pieces[0].id : null;
+  maskKey = '';
+  fit();
+  toast('Neu gemischt.');
+  persist();
+  draw();
+}
+
+function hit(world) {
+  for (let i = pieces.length - 1; i >= 0; i--) if (pointInPoly(verts(pieces[i]), world, 0.02)) return pieces[i];
+  return null;
+}
+function localPoint(e) {
+  const r = cv.getBoundingClientRect();
+  return [e.clientX - r.left, e.clientY - r.top];
+}
+cv.addEventListener('pointerdown', e => {
+  if (soundOn) unlockAudio();
+  cv.setPointerCapture(e.pointerId);
+  const [x, y] = localPoint(e);
+  ptr.set(e.pointerId, { x, y });
+  if (ptr.size >= 2) {
+    drag = null;
+    const pts = [...ptr.values()];
+    const under = hit(screenToWorld(pts[0].x, pts[0].y));
+    const piece = under || selected();
+    if (piece) selectedId = piece.id;
+    twist = { last: Math.atan2(pts[1].y - pts[0].y, pts[1].x - pts[0].x), id: piece ? piece.id : null };
+    draw();
+    return;
+  }
+  const piece = hit(screenToWorld(x, y));
+  if (!piece) { selectedId = null; draw(); return; }
+  selectedId = piece.id;
+  const ix = pieces.indexOf(piece);
+  if (ix >= 0) { pieces.splice(ix, 1); pieces.push(piece); }
+  drag = { id: piece.id, sx: x, sy: y, ox: piece.x, oy: piece.y, moved: false };
+  draw();
+});
+cv.addEventListener('pointermove', e => {
+  if (!ptr.has(e.pointerId)) return;
+  const [x, y] = localPoint(e);
+  ptr.set(e.pointerId, { x, y });
+  if (ptr.size >= 2 && twist) {
+    const pts = [...ptr.values()];
+    const ang = Math.atan2(pts[1].y - pts[0].y, pts[1].x - pts[0].x);
+    let d = ang - twist.last;
+    while (d > Math.PI) d -= Math.PI * 2;
+    while (d < -Math.PI) d += Math.PI * 2;
+    if (Math.abs(d) > 0.6) {
+      const p = pieceById(twist.id) || selected();
+      if (p) rotate(p, d > 0 ? 1 : -1);
+      twist.last = ang;
+    }
+    return;
+  }
+  if (!drag) return;
+  const p = pieceById(drag.id);
+  if (!p) return;
+  const w0 = screenToWorld(drag.sx, drag.sy);
+  const w1 = screenToWorld(x, y);
+  if ((x - drag.sx) ** 2 + (y - drag.sy) ** 2 > 16) drag.moved = true;
+  p.x = drag.ox + (w1[0] - w0[0]);
+  p.y = drag.oy + (w1[1] - w0[1]);
+  clamp(p);
+  draw();
+});
+function endPointer(e) {
+  ptr.delete(e.pointerId);
+  if (ptr.size < 2) twist = null;
+  if (drag && ptr.size === 0) {
+    const moved = drag.moved;
+    const p = pieceById(drag.id);
+    drag = null;
+    if (p && moved) {
+      snap(p);
+      wood();
+      persist();
+      maybeCelebrate();
+    }
+    draw();
+  }
+}
+cv.addEventListener('pointerup', endPointer);
+cv.addEventListener('pointercancel', endPointer);
+cv.addEventListener('wheel', e => {
+  e.preventDefault();
+  const [x, y] = localPoint(e);
+  const p = hit(screenToWorld(x, y)) || selected();
+  if (!p) return;
+  selectedId = p.id;
+  rotate(p, e.deltaY > 0 ? 1 : -1);
+}, { passive: false });
+
+function setMode(next) {
+  layouts[mode === 'free' ? 'free' : puzzle().id] = pieces.map(p => ({ id: p.id, t: p.t, x: p.x, y: p.y, r: p.r, f: p.f ? 1 : 0 }));
+  mode = next;
+  openPuzzle(puzzleIx);
+  toast(mode === 'free' ? 'Freies Spiel. Baue, was du magst.' : 'Lege jedes Teil auf den Schatten.');
+}
+document.getElementById('btnMode').addEventListener('click', () => { if (soundOn) unlockAudio(); setMode(mode === 'free' ? 'puzzle' : 'free'); });
+document.getElementById('btnPrev').addEventListener('click', () => { if (soundOn) unlockAudio(); if (mode === 'free') setMode('puzzle'); openPuzzle(puzzleIx - 1); });
+document.getElementById('btnNext').addEventListener('click', () => { if (soundOn) unlockAudio(); if (mode === 'free') setMode('puzzle'); openPuzzle(puzzleIx + 1); });
+document.getElementById('btnRot').addEventListener('click', () => { if (soundOn) unlockAudio(); rotate(selected(), 1); });
+document.getElementById('btnFlip').addEventListener('click', () => { if (soundOn) unlockAudio(); flip(selected()); });
+document.getElementById('btnTip').addEventListener('click', () => { if (soundOn) unlockAudio(); tip(); });
+document.getElementById('btnMix').addEventListener('click', () => { if (soundOn) unlockAudio(); mix(); });
+document.getElementById('btnSound').addEventListener('click', () => {
+  soundOn = !soundOn;
+  if (soundOn) { unlockAudio(); wood(); toast('Ton an'); }
+  else toast('Ton aus');
+  updateChrome();
+  persist();
+});
+document.getElementById('btnList').addEventListener('click', () => openPicker());
+document.getElementById('pickClose').addEventListener('click', () => { document.getElementById('picker').hidden = true; });
+document.getElementById('winStay').addEventListener('click', () => hideWin());
+document.getElementById('winNext').addEventListener('click', () => { hideWin(); openPuzzle(puzzleIx + 1); });
+document.getElementById('picker').addEventListener('click', e => { if (e.target.id === 'picker') document.getElementById('picker').hidden = true; });
+
+function openPicker() {
+  const grid = document.getElementById('pickGrid');
+  grid.replaceChildren();
+  PUZZLES.forEach((pz, ix) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    const mini = document.createElement('canvas');
+    mini.width = 160; mini.height = 96;
+    drawMini(mini, pz);
+    const nm = document.createElement('span');
+    nm.className = 'nm';
+    nm.textContent = pz.name + (solved[pz.id] ? ' ✓' : '');
+    b.append(mini, nm);
+    b.addEventListener('click', () => {
+      document.getElementById('picker').hidden = true;
+      if (mode === 'free') setMode('puzzle');
+      openPuzzle(ix);
+    });
+    grid.appendChild(b);
+  });
+  document.getElementById('picker').hidden = false;
+}
+function drawMini(canvas, pz) {
+  const m = canvas.getContext('2d');
+  const polys = pz.poses.map(verts);
+  const b = bounds(polys);
+  const pad = 0.2;
+  const w = b.w + pad * 2, h = b.h + pad * 2;
+  const scale = Math.min(canvas.width / w, canvas.height / h);
+  const ox = (canvas.width - w * scale) / 2 - (b.minX - pad) * scale;
+  const oy = (canvas.height - h * scale) / 2 + (b.maxY + pad) * scale;
+  m.clearRect(0, 0, canvas.width, canvas.height);
+  m.fillStyle = '#3a4a3c';
+  m.fillRect(0, 0, canvas.width, canvas.height);
+  m.fillStyle = '#1c140e';
+  for (const poly of polys) {
+    m.beginPath();
+    poly.forEach((p, i) => {
+      const x = ox + p[0] * scale, y = oy - p[1] * scale;
+      if (i) m.lineTo(x, y); else m.moveTo(x, y);
+    });
+    m.closePath();
+    m.fill();
+  }
+}
+
+document.addEventListener('keydown', e => {
+  const tag = (e.target && e.target.tagName) || '';
+  if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+  if (e.key === 'Escape') { document.getElementById('picker').hidden = true; hideWin(); return; }
+  if (e.key === 'ArrowLeft') openPuzzle(puzzleIx - 1);
+  else if (e.key === 'ArrowRight') openPuzzle(puzzleIx + 1);
+  else if (e.key === 'r' || e.key === 'R') rotate(selected(), 1);
+  else if (e.key === 'w' || e.key === 'W') flip(selected());
+  else if (e.key === 't' || e.key === 'T') tip();
+  else if (e.key === 'm' || e.key === 'M') mix();
+  else return;
+  e.preventDefault();
+});
+
+window.addEventListener('resize', resize);
+if (window.ResizeObserver) new ResizeObserver(resize).observe(document.getElementById('stage'));
+
+loadSave();
+openPuzzle(puzzleIx);
+resize();
+
+window.TANGRAM = {
+  puzzles: () => PUZZLES.map(p => ({ id: p.id, name: p.name })),
+  mode: () => mode,
+  puzzleId: () => puzzle().id,
+  soundOn: () => soundOn,
+  audio: () => actx,
+  solved: () => Object.keys(solved),
+  isSolved: id => !!solved[id],
+  placeSolution(id) {
+    const ix = id ? PUZZLES.findIndex(p => p.id === id) : puzzleIx;
+    if (ix < 0) return null;
+    mode = 'puzzle';
+    puzzleIx = ix;
+    hideWin();
+    pieces = freshPieces();
+    selectedId = null;
+    maskKey = '';
+    fit();
+    const res = maybeCelebrate(true);
+    draw();
+    return res;
+  },
+  nudge(id, dx, dy) {
+    const p = pieceById(id);
+    if (!p) return;
+    p.x += dx; p.y += dy;
+    draw();
+    return checkNow();
+  },
+  check: checkNow,
+  resize,
+  buttons() {
+    return [...document.querySelectorAll('button')].filter(b => !b.closest('#picker') || !document.getElementById('picker').hidden).map(b => {
+      const r = b.getBoundingClientRect();
+      return { t: b.textContent.trim(), w: r.width, h: r.height, x: r.x, right: r.right };
+    });
+  }
+};
+</script>
+</body>
+</html>
