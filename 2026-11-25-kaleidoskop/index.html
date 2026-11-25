@@ -1,0 +1,1396 @@
+<!doctype html>
+<html lang="de-CH">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Kaleidoskop</title>
+<meta name="description" content="Ein Kaleidoskop zum Drehen. Glasperlen und Scherben fallen im Spiegel.">
+<meta name="theme-color" content="#120c18">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23140e22'/%3E%3Ccircle cx='16' cy='16' r='12' fill='%23e6c98a'/%3E%3Ccircle cx='16' cy='16' r='9' fill='%23160e28'/%3E%3Cpath d='M16 7 L19 16 L16 25 L13 16 Z' fill='%235fd0c8'/%3E%3Cpath d='M7 16 L16 13 L25 16 L16 19 Z' fill='%23ffb14a'/%3E%3C/svg%3E">
+<style>
+html{color-scheme:dark;height:100%;height:100dvh}
+html,body{margin:0;height:100%;overflow:hidden;overscroll-behavior:none;background:#07060c;font-family:"Iowan Old Style",Palatino,Georgia,serif;color:#f6efe2;-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent;-webkit-touch-callout:none}
+*,*::before,*::after{box-sizing:border-box}
+#c{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:none;cursor:grab}
+body.drag #c{cursor:grabbing}
+button{font-family:system-ui,-apple-system,"Segoe UI",sans-serif;cursor:pointer;touch-action:manipulation}
+button:focus-visible{outline:2px solid #f0d48a;outline-offset:2px}
+#top{position:fixed;z-index:3;left:max(8px,env(safe-area-inset-left));top:max(8px,env(safe-area-inset-top));max-width:calc(100% - 16px);pointer-events:none;background:rgba(16,12,24,.74);border:1px solid rgba(230,201,138,.38);border-radius:14px;padding:8px 12px 9px;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+#top strong{display:block;font-size:17px;font-weight:650;letter-spacing:.02em}
+#status{font-family:system-ui,-apple-system,"Segoe UI",sans-serif;font-size:13px;margin-top:2px;line-height:1.3;color:#f3e6c8}
+#bar{position:fixed;z-index:3;left:0;right:0;bottom:0;display:flex;flex-wrap:wrap;justify-content:center;align-items:center;gap:6px;max-width:100%;padding:8px max(8px,env(safe-area-inset-right)) calc(8px + env(safe-area-inset-bottom)) max(8px,env(safe-area-inset-left));pointer-events:none}
+#bar button{pointer-events:auto;min-width:36px;min-height:40px;padding:6px 12px;font-size:15px;line-height:1.1;white-space:nowrap;color:#2a2116;background:#f4ead7;border:1px solid #c4a46a;border-radius:999px;box-shadow:inset 0 1px 0 rgba(255,255,255,.45),0 1px 2px rgba(0,0,0,.28)}
+#bar button.on{background:#e7c27a;border-color:#8a6a32;color:#24180c}
+#bar button:active{transform:translateY(1px)}
+#hintWrap{position:fixed;z-index:3;left:0;right:0;bottom:calc(var(--bar, 72px) + 6px);display:flex;justify-content:center;padding:0 8px;pointer-events:none}
+#hint{margin:0;max-width:100%;text-align:center;color:#f7f1e4;background:rgba(16,12,24,.82);border:1px solid rgba(230,201,138,.32);border-radius:999px;padding:8px 14px;font-family:system-ui,-apple-system,"Segoe UI",sans-serif;font-size:14px;line-height:1.35;transition:opacity .6s ease}
+#hint.gone{opacity:0}
+#hint[hidden]{display:none}
+#toast{position:fixed;z-index:4;top:max(8px,env(safe-area-inset-top));right:max(8px,env(safe-area-inset-right));width:max-content;max-width:calc(100% - 16px);pointer-events:none;color:#f7f1e4;background:rgba(16,12,24,.92);border:1px solid rgba(230,201,138,.45);border-radius:999px;padding:8px 14px;font-family:system-ui,-apple-system,"Segoe UI",sans-serif;font-size:14px;line-height:1.35}
+#toast[hidden]{display:none}
+@media (max-height:430px){
+  #hintWrap{display:none}
+  #top{padding:4px 8px}
+  #top strong{font-size:14px}
+  #status{font-size:12px}
+  #bar{gap:4px;padding:4px 4px calc(4px + env(safe-area-inset-bottom))}
+  #bar button{min-height:36px;padding:4px 8px;font-size:13px}
+}
+</style>
+</head>
+<body>
+<canvas id="c" aria-label="Kaleidoskop. Ziehe, um das Rohr zu drehen."></canvas>
+<div id="top">
+  <strong>Kaleidoskop</strong>
+  <div id="status" aria-live="polite">Glas · sechs Spiegel</div>
+</div>
+<div id="bar" role="toolbar" aria-label="Kaleidoskop">
+  <button id="bTon" type="button" aria-pressed="false" aria-label="Ton einschalten" title="Ton (M)">Ton</button>
+  <button id="bSpiegel" type="button" aria-label="Symmetrie, sechs Spiegel. Tippen für die nächste." title="Spiegel (S)">Spiegel 6</button>
+  <button type="button" data-set="glas" class="on" aria-pressed="true" aria-label="Glas einlegen" title="Glas (1)">Glas</button>
+  <button type="button" data-set="edel" aria-pressed="false" aria-label="Edelsteine einlegen" title="Edelsteine (2)">Edelsteine</button>
+  <button type="button" data-set="blueten" aria-pressed="false" aria-label="Blüten einlegen" title="Blüten (3)">Blüten</button>
+  <button type="button" data-set="winter" aria-pressed="false" aria-label="Winter einlegen" title="Winter (4)">Winter</button>
+  <button id="bShake" type="button" aria-label="Schütteln" title="Schütteln (Leertaste)">Schütteln</button>
+  <button id="bFoto" type="button" aria-label="Foto speichern" title="Foto (F)">Foto</button>
+</div>
+<div id="hintWrap"><p id="hint">Ziehen oder neigen dreht das Rohr. Die Perlen fallen mit.</p></div>
+<div id="toast" hidden role="status"></div>
+<script>
+'use strict';
+(function () {
+  const TAU = Math.PI * 2;
+  const KEY = 'playbot-kaleidoskop';
+  const GRAV = 560;
+  const FOLDS = [3, 4, 6, 8];
+  const FOLD_WORD = { 3: 'drei', 4: 'vier', 6: 'sechs', 8: 'acht' };
+  const SET_NAME = { glas: 'Glas', edel: 'Edelsteine', blueten: 'Blüten', winter: 'Winter' };
+  const FILE_NAME = { glas: 'glas', edel: 'edelsteine', blueten: 'blueten', winter: 'winter' };
+  const COLL = { bead: 0.96, shard: 0.82, gem: 0.9, bloom: 0.78, petal: 0.72, leaf: 0.7, pollen: 0.96, flake: 0.8, ice: 0.84, berry: 0.96 };
+  const PAL = {
+    glas: [[255, 176, 72], [90, 214, 206], [255, 112, 146], [178, 142, 255], [154, 214, 112], [110, 164, 255], [255, 236, 214]],
+    edel: [[212, 36, 64], [18, 164, 112], [48, 82, 216], [154, 70, 206], [236, 176, 48], [236, 242, 255], [154, 32, 68]],
+    blueten: [[255, 122, 158], [255, 186, 198], [255, 204, 96], [214, 150, 255], [255, 246, 236], [58, 148, 86], [36, 110, 68]],
+    winter: [[234, 248, 255], [168, 214, 236], [255, 255, 255], [196, 208, 238], [128, 184, 214], [28, 112, 98], [196, 42, 62]]
+  };
+  const WELL = {
+    glas: ['#2a2140', '#0c0a14'],
+    edel: ['#321820', '#12080c'],
+    blueten: ['#3a2030', '#140a10'],
+    winter: ['#163448', '#0a1218']
+  };
+  const GLOW = {
+    glas: 'rgba(150, 120, 210, 0.20)',
+    edel: 'rgba(190, 70, 90, 0.18)',
+    blueten: 'rgba(230, 110, 150, 0.18)',
+    winter: 'rgba(130, 190, 220, 0.18)'
+  };
+  const BG = {
+    glas: ['#221c36', '#0c0a14', '#05040a'],
+    edel: ['#2a1820', '#100c10', '#05040a'],
+    blueten: ['#2c1824', '#120c12', '#05040a'],
+    winter: ['#163040', '#0c1218', '#05060a']
+  };
+  const RECIPES = {
+    glas: [
+      ['bead', 0, 0.092], ['bead', 1, 0.07], ['bead', 1, 0.048], ['bead', 2, 0.08],
+      ['bead', 3, 0.058], ['bead', 4, 0.05], ['bead', 5, 0.064], ['bead', 6, 0.044],
+      ['shard', 2, 0.105], ['shard', 0, 0.096], ['shard', 5, 0.088], ['shard', 3, 0.08],
+      ['shard', 4, 0.078], ['shard', 1, 0.072], ['bead', 2, 0.038], ['bead', 0, 0.042]
+    ],
+    edel: [
+      ['gem', 0, 0.09], ['gem', 1, 0.084], ['gem', 2, 0.08], ['gem', 3, 0.076],
+      ['gem', 4, 0.086], ['gem', 5, 0.07], ['gem', 6, 0.074], ['gem', 0, 0.055],
+      ['gem', 1, 0.05], ['gem', 2, 0.06], ['gem', 4, 0.048], ['gem', 5, 0.042],
+      ['gem', 3, 0.058], ['gem', 6, 0.046]
+    ],
+    blueten: [
+      ['bloom', 0, 0.09], ['bloom', 1, 0.078], ['bloom', 2, 0.084], ['bloom', 3, 0.07],
+      ['petal', 0, 0.075], ['petal', 1, 0.066], ['petal', 4, 0.06], ['petal', 3, 0.055],
+      ['leaf', 5, 0.08], ['leaf', 6, 0.066], ['leaf', 5, 0.05],
+      ['pollen', 2, 0.032], ['pollen', 2, 0.026], ['pollen', 2, 0.022],
+      ['bloom', 4, 0.06], ['petal', 0, 0.048]
+    ],
+    winter: [
+      ['flake', 0, 0.09], ['flake', 2, 0.07], ['flake', 1, 0.055],
+      ['ice', 1, 0.086], ['ice', 3, 0.074], ['ice', 4, 0.06],
+      ['bead', 0, 0.05], ['bead', 2, 0.04], ['bead', 3, 0.034],
+      ['shard', 1, 0.08], ['shard', 4, 0.066], ['leaf', 5, 0.07],
+      ['berry', 6, 0.036], ['berry', 6, 0.028], ['flake', 2, 0.046]
+    ]
+  };
+
+  const canvas = document.getElementById('c');
+  const ctx = canvas.getContext('2d', { alpha: false });
+  const bar = document.getElementById('bar');
+  const topEl = document.getElementById('top');
+  const statusEl = document.getElementById('status');
+  const hintWrap = document.getElementById('hintWrap');
+  const hintEl = document.getElementById('hint');
+  const toastEl = document.getElementById('toast');
+  const bTon = document.getElementById('bTon');
+  const bSpiegel = document.getElementById('bSpiegel');
+  const reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  let folds = 6;
+  let alpha = TAU / folds;
+  let setId = 'glas';
+  let pieces = [];
+  let W = 1, H = 1, dpr = 1, cx = 0, cy = 0, R = 120, ring = 18, worldR = 0;
+  let layKey = '';
+  let dragAngle = 0;
+  let tubeV = 0;
+  let tiltAngle = 0;
+  let tiltTarget = 0;
+  let tiltRef = null;
+  let gravUx = 0;
+  let gravUy = 1;
+  let dragging = false;
+  let ptr = null;
+  let lastAng = 0;
+  let lastPtr = 0;
+  let soundOn = false;
+  let gestured = false;
+  let actx = null;
+  let master = null;
+  let nextChime = 0;
+  let lastTone = 0;
+  let hit = 0;
+  let hitR = 12;
+  let shakeAmp = 0;
+  let flash = 0;
+  let acc = 0;
+  let lastT = 0;
+  let toastTimer = 0;
+  const motes = [];
+
+  function clamp(v, a, b) { return v < a ? a : (v > b ? b : v); }
+  function rgb(c) { return 'rgb(' + (c[0] | 0) + ',' + (c[1] | 0) + ',' + (c[2] | 0) + ')'; }
+  function rgba(c, a) { return 'rgba(' + (c[0] | 0) + ',' + (c[1] | 0) + ',' + (c[2] | 0) + ',' + a + ')'; }
+  function mix(a, b, t) {
+    return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
+  }
+  function shade(c, m) {
+    return [clamp(c[0] * m, 0, 255), clamp(c[1] * m, 0, 255), clamp(c[2] * m, 0, 255)];
+  }
+  function mulberry32(seed) {
+    let a = seed >>> 0;
+    return function () {
+      a |= 0;
+      a = (a + 0x6D2B79F5) | 0;
+      let t = Math.imul(a ^ (a >>> 15), 1 | a);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+  function hashStr(s) {
+    let h = 2166136261;
+    for (let i = 0; i < s.length; i++) {
+      h ^= s.charCodeAt(i);
+      h = Math.imul(h, 16777619);
+    }
+    return h >>> 0;
+  }
+  function viewAngle() { return dragAngle + tiltAngle; }
+  // Keep the cell's bisector toward the bottom of the screen, so a resting pile
+  // sits in the middle of the wedge and every mirror shows its own copy.
+  function orient() { return viewAngle() + Math.PI / 2 - alpha / 2; }
+
+  function makePts(kind, rnd) {
+    let n = 4;
+    let rot = rnd() * TAU;
+    let jitter = 0.08;
+    let sx = 1;
+    let sy = 1;
+    if (kind === 'shard') {
+      n = rnd() < 0.45 ? 3 : 4;
+      jitter = 0.22;
+      sx = 0.7 + rnd() * 0.7;
+      sy = 0.35 + rnd() * 0.35;
+    } else if (kind === 'ice') {
+      n = rnd() < 0.5 ? 4 : 6;
+      rot = -Math.PI / 2;
+      jitter = 0.06;
+      sx = 1.15;
+      sy = 0.72;
+    } else {
+      const choices = [3, 4, 5, 6, 8];
+      n = choices[(rnd() * choices.length) | 0];
+      rot = -Math.PI / 2 + rnd() * 0.25;
+      jitter = 0.06;
+    }
+    const pts = [];
+    for (let i = 0; i < n; i++) {
+      const a = rot + (i / n) * TAU;
+      const m = 1 - jitter * rnd();
+      pts.push(Math.cos(a) * m * sx, Math.sin(a) * m * sy);
+    }
+    let max = 0.001;
+    for (let i = 0; i < pts.length; i += 2) {
+      const h = Math.hypot(pts[i], pts[i + 1]);
+      if (h > max) max = h;
+    }
+    for (let i = 0; i < pts.length; i++) pts[i] /= max;
+    return pts;
+  }
+
+  function pathPts(g, pts, r) {
+    g.beginPath();
+    g.moveTo(pts[0] * r, pts[1] * r);
+    for (let i = 2; i < pts.length; i += 2) g.lineTo(pts[i] * r, pts[i + 1] * r);
+    g.closePath();
+  }
+
+  function drawBead(g, p) {
+    const r = p.r;
+    const glassy = p.kind === 'bead';
+    const grd = g.createRadialGradient(-r * 0.32, -r * 0.36, r * 0.08, r * 0.08, r * 0.1, r);
+    grd.addColorStop(0, 'rgba(255,255,255,0.96)');
+    grd.addColorStop(0.2, rgba(mix(p.color, [255, 255, 255], 0.62), glassy ? 0.78 : 0.96));
+    grd.addColorStop(0.58, rgba(p.color, glassy ? 0.45 : 0.94));
+    grd.addColorStop(1, rgba(shade(p.color, 0.45), glassy ? 0.16 : 0.9));
+    g.beginPath();
+    g.arc(0, 0, r, 0, TAU);
+    g.fillStyle = grd;
+    g.fill();
+    g.lineWidth = Math.max(1, r * 0.07);
+    g.strokeStyle = glassy ? 'rgba(255,255,255,0.72)' : 'rgba(255,248,230,0.8)';
+    g.stroke();
+    g.beginPath();
+    g.ellipse(-r * 0.28, -r * 0.34, r * 0.26, r * 0.13, -0.7, 0, TAU);
+    g.fillStyle = 'rgba(255,255,255,0.82)';
+    g.fill();
+  }
+
+  function drawShard(g, p) {
+    const r = p.r;
+    pathPts(g, p.pts, r);
+    const grd = g.createLinearGradient(-r, -r, r, r);
+    grd.addColorStop(0, rgba(mix(p.color, [255, 255, 255], 0.55), 0.78));
+    grd.addColorStop(0.48, rgba(p.color, 0.42));
+    grd.addColorStop(1, rgba(shade(p.color, 0.4), 0.26));
+    g.fillStyle = grd;
+    g.fill();
+    g.lineWidth = Math.max(1.25, r * 0.09);
+    g.strokeStyle = 'rgba(255,248,236,0.88)';
+    g.stroke();
+    g.lineWidth = Math.max(0.6, r * 0.035);
+    g.strokeStyle = 'rgba(40,24,16,0.35)';
+    g.stroke();
+  }
+
+  function drawGem(g, p) {
+    const r = p.r;
+    const pts = p.pts;
+    const n = pts.length / 2;
+    const dark = shade(p.color, 0.4);
+    const light = mix(p.color, [255, 255, 255], 0.62);
+    pathPts(g, pts, r);
+    g.fillStyle = rgb(dark);
+    g.fill();
+    for (let i = 0; i < n; i++) {
+      const j = (i + 1) % n;
+      const x1 = pts[i * 2], y1 = pts[i * 2 + 1];
+      const x2 = pts[j * 2], y2 = pts[j * 2 + 1];
+      g.beginPath();
+      g.moveTo(0, 0);
+      g.lineTo(x1 * r * 0.98, y1 * r * 0.98);
+      g.lineTo(x2 * r * 0.98, y2 * r * 0.98);
+      g.closePath();
+      const my = (y1 + y2) * 0.5;
+      const lit = clamp(0.25 + (0.5 - my) * 0.85, 0.12, 1);
+      g.fillStyle = rgb(mix(dark, light, lit));
+      g.fill();
+    }
+    pathPts(g, pts, r);
+    g.lineWidth = Math.max(0.8, r * 0.055);
+    g.strokeStyle = 'rgba(255,232,190,0.82)';
+    g.stroke();
+    g.beginPath();
+    g.arc(0, 0, r * 0.15, 0, TAU);
+    g.fillStyle = rgba(light, 0.92);
+    g.fill();
+    g.beginPath();
+    g.ellipse(-r * 0.22, -r * 0.28, r * 0.13, r * 0.065, -0.8, 0, TAU);
+    g.fillStyle = 'rgba(255,255,255,0.88)';
+    g.fill();
+  }
+
+  function drawIce(g, p) {
+    const r = p.r;
+    pathPts(g, p.pts, r);
+    const grd = g.createLinearGradient(-r, -r, r, r);
+    grd.addColorStop(0, 'rgba(255,255,255,0.72)');
+    grd.addColorStop(0.45, rgba(p.color, 0.38));
+    grd.addColorStop(1, 'rgba(170,210,230,0.16)');
+    g.fillStyle = grd;
+    g.fill();
+    g.lineWidth = Math.max(1, r * 0.07);
+    g.strokeStyle = 'rgba(255,255,255,0.92)';
+    g.stroke();
+    g.beginPath();
+    g.moveTo(-r * 0.45, -r * 0.05);
+    g.lineTo(r * 0.55, r * 0.04);
+    g.strokeStyle = 'rgba(190,230,245,0.85)';
+    g.lineWidth = Math.max(0.6, r * 0.04);
+    g.stroke();
+    g.beginPath();
+    g.ellipse(-r * 0.2, -r * 0.22, r * 0.16, r * 0.07, -0.5, 0, TAU);
+    g.fillStyle = 'rgba(255,255,255,0.78)';
+    g.fill();
+  }
+
+  function drawBloom(g, p) {
+    const r = p.r;
+    const n = p.petals || 5;
+    for (let i = 0; i < n; i++) {
+      g.save();
+      g.rotate((i / n) * TAU);
+      g.beginPath();
+      g.ellipse(r * 0.36, 0, r * 0.46, r * 0.2, 0, 0, TAU);
+      g.fillStyle = rgba(p.color, 0.94);
+      g.fill();
+      g.strokeStyle = rgba(shade(p.color, 0.62), 0.85);
+      g.lineWidth = Math.max(0.6, r * 0.045);
+      g.stroke();
+      g.restore();
+    }
+    g.beginPath();
+    g.arc(0, 0, r * 0.26, 0, TAU);
+    g.fillStyle = '#f0c24e';
+    g.fill();
+    g.beginPath();
+    g.arc(0, 0, r * 0.11, 0, TAU);
+    g.fillStyle = '#fff4c8';
+    g.fill();
+  }
+
+  function drawPetal(g, p) {
+    const r = p.r;
+    g.beginPath();
+    g.ellipse(0, 0, r, r * 0.4, 0, 0, TAU);
+    g.fillStyle = rgba(p.color, 0.94);
+    g.fill();
+    g.strokeStyle = rgba(shade(p.color, 0.62), 0.8);
+    g.lineWidth = Math.max(0.7, r * 0.06);
+    g.stroke();
+    g.beginPath();
+    g.moveTo(-r * 0.72, 0);
+    g.quadraticCurveTo(0, -r * 0.12, r * 0.72, 0);
+    g.strokeStyle = 'rgba(255,255,255,0.5)';
+    g.lineWidth = Math.max(0.6, r * 0.04);
+    g.stroke();
+  }
+
+  function drawLeaf(g, p) {
+    const r = p.r;
+    g.beginPath();
+    g.moveTo(-r, 0);
+    g.quadraticCurveTo(0, -r * 0.62, r, 0);
+    g.quadraticCurveTo(0, r * 0.62, -r, 0);
+    g.fillStyle = rgb(p.color);
+    g.fill();
+    g.lineWidth = Math.max(0.7, r * 0.06);
+    g.strokeStyle = rgba(shade(p.color, 0.55), 0.95);
+    g.stroke();
+    g.beginPath();
+    g.moveTo(-r * 0.72, 0);
+    g.lineTo(r * 0.78, 0);
+    g.strokeStyle = 'rgba(236,255,220,0.55)';
+    g.lineWidth = Math.max(0.6, r * 0.045);
+    g.stroke();
+  }
+
+  function drawFlake(g, p) {
+    const r = p.r;
+    g.strokeStyle = 'rgba(255,255,255,0.95)';
+    g.fillStyle = 'rgba(255,255,255,0.95)';
+    g.lineWidth = Math.max(1, r * 0.07);
+    g.lineCap = 'round';
+    for (let i = 0; i < 6; i++) {
+      g.save();
+      g.rotate((i / 6) * TAU);
+      g.beginPath();
+      g.moveTo(0, 0);
+      g.lineTo(r, 0);
+      g.moveTo(r * 0.42, 0);
+      g.lineTo(r * 0.64, r * 0.16);
+      g.moveTo(r * 0.42, 0);
+      g.lineTo(r * 0.64, -r * 0.16);
+      g.moveTo(r * 0.68, 0);
+      g.lineTo(r * 0.84, r * 0.12);
+      g.moveTo(r * 0.68, 0);
+      g.lineTo(r * 0.84, -r * 0.12);
+      g.stroke();
+      g.restore();
+    }
+    g.beginPath();
+    g.arc(0, 0, Math.max(1.2, r * 0.1), 0, TAU);
+    g.fill();
+  }
+
+  function drawBerry(g, p) {
+    const r = p.r;
+    const grd = g.createRadialGradient(-r * 0.3, -r * 0.32, r * 0.1, 0, 0, r);
+    grd.addColorStop(0, rgb(mix(p.color, [255, 255, 255], 0.55)));
+    grd.addColorStop(1, rgb(shade(p.color, 0.62)));
+    g.beginPath();
+    g.arc(0, 0, r, 0, TAU);
+    g.fillStyle = grd;
+    g.fill();
+    g.beginPath();
+    g.ellipse(-r * 0.28, -r * 0.3, r * 0.18, r * 0.1, -0.6, 0, TAU);
+    g.fillStyle = 'rgba(255,255,255,0.72)';
+    g.fill();
+  }
+
+  function drawShape(g, p) {
+    g.lineJoin = 'round';
+    g.lineCap = 'round';
+    if (p.kind === 'bead' || p.kind === 'pollen') drawBead(g, p);
+    else if (p.kind === 'shard') drawShard(g, p);
+    else if (p.kind === 'gem') drawGem(g, p);
+    else if (p.kind === 'ice') drawIce(g, p);
+    else if (p.kind === 'bloom') drawBloom(g, p);
+    else if (p.kind === 'petal') drawPetal(g, p);
+    else if (p.kind === 'leaf') drawLeaf(g, p);
+    else if (p.kind === 'flake') drawFlake(g, p);
+    else if (p.kind === 'berry') drawBerry(g, p);
+  }
+
+  function bake(p) {
+    const size = p.r * 2 + 8;
+    const S = dpr;
+    const cnv = document.createElement('canvas');
+    cnv.width = Math.max(2, Math.ceil(size * S));
+    cnv.height = cnv.width;
+    const g = cnv.getContext('2d');
+    g.setTransform(S, 0, 0, S, cnv.width / 2, cnv.height / 2);
+    drawShape(g, p);
+    p.sprite = cnv;
+    p.spr = size;
+  }
+  function bakeAll() {
+    for (let i = 0; i < pieces.length; i++) bake(pieces[i]);
+  }
+
+  function syncRadii() {
+    const scale = Math.max(0.58, Math.min(1, alpha / (TAU / 6)));
+    for (let i = 0; i < pieces.length; i++) {
+      const p = pieces[i];
+      p.r = Math.max(5.5, p.rf * R * scale);
+      p.cr = p.r * (COLL[p.kind] || 0.9);
+    }
+  }
+
+  function spawn() {
+    const rnd = mulberry32(hashStr(setId) ^ 0x51A7C0);
+    const rec = RECIPES[setId];
+    const pal = PAL[setId];
+    pieces = [];
+    for (let i = 0; i < rec.length; i++) {
+      const kind = rec[i][0];
+      const ci = rec[i][1];
+      const src = pal[ci] || pal[0];
+      const p = {
+        kind: kind,
+        color: [src[0], src[1], src[2]],
+        rf: rec[i][2],
+        r: 8,
+        cr: 8,
+        x: 0, y: 0, vx: 0, vy: 0,
+        ang: rnd() * TAU,
+        av: (rnd() - 0.5) * 1.4,
+        pts: null,
+        petals: kind === 'bloom' ? (rnd() < 0.5 ? 5 : 6) : 0,
+        sprite: null,
+        spr: 8
+      };
+      if (kind === 'shard' || kind === 'gem' || kind === 'ice') p.pts = makePts(kind, rnd);
+      pieces.push(p);
+    }
+    pieces.sort(function (a, b) { return b.rf - a.rf; });
+    syncRadii();
+    for (let i = 0; i < pieces.length; i++) {
+      const p = pieces[i];
+      let placed = false;
+      for (let t = 0; t < 28; t++) {
+        const ang = alpha * (0.08 + rnd() * 0.84);
+        const rad = Math.max(p.cr + 2, R * (0.2 + rnd() * 0.64));
+        p.x = Math.cos(ang) * rad;
+        p.y = Math.sin(ang) * rad;
+        let ok = true;
+        for (let j = 0; j < i; j++) {
+          const q = pieces[j];
+          const dx = p.x - q.x;
+          const dy = p.y - q.y;
+          const min = (p.cr + q.cr) * 0.82;
+          if (dx * dx + dy * dy < min * min) { ok = false; break; }
+        }
+        if (ok) { placed = true; break; }
+      }
+      if (!placed) {
+        const ang = alpha * (0.15 + (i / pieces.length) * 0.7);
+        const rad = R * (0.28 + (i % 5) * 0.12);
+        p.x = Math.cos(ang) * rad;
+        p.y = Math.sin(ang) * rad;
+      }
+      const sp = R * (0.35 + rnd() * 0.85);
+      const va = rnd() * TAU;
+      p.vx = Math.cos(va) * sp;
+      p.vy = Math.sin(va) * sp;
+    }
+    bakeAll();
+    for (let k = 0; k < 6; k++) {
+      for (let i = 0; i < pieces.length; i++) walls(pieces[i], false);
+      collide(false);
+    }
+  }
+
+  function reflectAcross(x, y, phi) {
+    const c = Math.cos(phi);
+    const s = Math.sin(phi);
+    const x1 = x * c + y * s;
+    const y1 = -x * s + y * c;
+    const y2 = -y1;
+    return [x1 * c - y2 * s, x1 * s + y2 * c];
+  }
+
+  function foldPiece(p) {
+    for (let k = 0; k < 16; k++) {
+      let a = Math.atan2(p.y, p.x);
+      if (a < 0) a += TAU;
+      if (a <= alpha + 1e-3) break;
+      if (p.y < 0) {
+        p.y = -p.y;
+        p.vy = -p.vy;
+      } else {
+        const rp = reflectAcross(p.x, p.y, alpha);
+        const rv = reflectAcross(p.vx, p.vy, alpha);
+        p.x = rp[0];
+        p.y = rp[1];
+        p.vx = rv[0];
+        p.vy = rv[1];
+      }
+    }
+    const d = Math.hypot(p.x, p.y);
+    const max = Math.max(p.cr + 1, R - p.cr - 1);
+    if (d > max && d > 0) {
+      p.x *= max / d;
+      p.y *= max / d;
+    }
+  }
+
+  function bounce(p, nx, ny, pen, doVel) {
+    p.x += nx * pen;
+    p.y += ny * pen;
+    if (!doVel) return;
+    const vdot = p.vx * nx + p.vy * ny;
+    if (vdot < 0) {
+      const e = vdot < -36 ? 0.33 : 0;
+      p.vx -= (1 + e) * vdot * nx;
+      p.vy -= (1 + e) * vdot * ny;
+      const tx = -ny;
+      const ty = nx;
+      const vt = p.vx * tx + p.vy * ty;
+      p.vx -= vt * 0.16 * tx;
+      p.vy -= vt * 0.16 * ty;
+      p.av += (vt / Math.max(8, p.r)) * 0.12;
+      if (vdot < -80) noteHit(-vdot, p.r);
+    }
+  }
+
+  function walls(p, doVel) {
+    const sinA = Math.sin(alpha * 0.5);
+    const minD = (sinA > 0.05 ? p.cr / sinA : p.cr) + 0.6;
+    let d = Math.hypot(p.x, p.y);
+    if (!(d > 0)) {
+      p.x = Math.cos(alpha * 0.5) * minD;
+      p.y = Math.sin(alpha * 0.5) * minD;
+      d = minD;
+    }
+    if (d < minD) {
+      const bx = Math.cos(alpha * 0.5);
+      const by = Math.sin(alpha * 0.5);
+      bounce(p, bx, by, minD - d, doVel);
+    }
+    d = Math.hypot(p.x, p.y);
+    const max = R - p.cr;
+    if (d > max && d > 0) bounce(p, -p.x / d, -p.y / d, d - max, doVel);
+    if (p.y < p.cr) bounce(p, 0, 1, p.cr - p.y, doVel);
+    const nx = Math.sin(alpha);
+    const ny = -Math.cos(alpha);
+    const dist = p.x * nx + p.y * ny;
+    if (dist < p.cr) bounce(p, nx, ny, p.cr - dist, doVel);
+  }
+
+  function collide(doVel) {
+    for (let i = 0; i < pieces.length; i++) {
+      const a = pieces[i];
+      for (let j = i + 1; j < pieces.length; j++) {
+        const b = pieces[j];
+        let dx = b.x - a.x;
+        let dy = b.y - a.y;
+        const min = a.cr + b.cr;
+        let d2 = dx * dx + dy * dy;
+        if (d2 >= min * min) continue;
+        let d = Math.sqrt(d2);
+        if (d < 1e-4) { dx = 1; dy = 0; d = 1; }
+        const nx = dx / d;
+        const ny = dy / d;
+        const pen = min - d;
+        const ima = 1 / (a.cr * a.cr);
+        const imb = 1 / (b.cr * b.cr);
+        const im = ima + imb;
+        a.x -= nx * pen * (ima / im);
+        a.y -= ny * pen * (ima / im);
+        b.x += nx * pen * (imb / im);
+        b.y += ny * pen * (imb / im);
+        if (!doVel) continue;
+        const rv = (b.vx - a.vx) * nx + (b.vy - a.vy) * ny;
+        if (rv >= 0) continue;
+        const e = rv < -30 ? 0.3 : 0;
+        const jimp = -(1 + e) * rv / im;
+        a.vx -= jimp * ima * nx;
+        a.vy -= jimp * ima * ny;
+        b.vx += jimp * imb * nx;
+        b.vy += jimp * imb * ny;
+        const spin = jimp * 0.0008;
+        a.av -= spin;
+        b.av += spin;
+        if (-rv > 90) noteHit(-rv, (a.r + b.r) * 0.5);
+      }
+    }
+  }
+
+  function respawn(p) {
+    const ang = alpha * 0.5;
+    const rad = Math.max(p.cr + 2, R * 0.45);
+    p.x = Math.cos(ang) * rad;
+    p.y = Math.sin(ang) * rad;
+    p.vx = 0;
+    p.vy = 0;
+    p.av = 0;
+  }
+
+  function physics(h) {
+    if (!dragging && !reduceMotion) {
+      dragAngle += tubeV * h;
+      tubeV *= Math.exp(-1.55 * h);
+      if (Math.abs(tubeV) < 0.01) tubeV = 0;
+    }
+    let dtilt = tiltTarget - tiltAngle;
+    while (dtilt > Math.PI) dtilt -= TAU;
+    while (dtilt < -Math.PI) dtilt += TAU;
+    tiltAngle += dtilt * Math.min(1, h * 8);
+
+    const v = orient();
+    gravUx = Math.sin(v);
+    gravUy = Math.cos(v);
+    const ax = gravUx * GRAV;
+    const ay = gravUy * GRAV;
+    const damp = Math.exp(-(reduceMotion ? 2.6 : 1.05) * h);
+    const adamp = Math.exp(-2.1 * h);
+    const maxV = R * 5.2;
+
+    for (let i = 0; i < pieces.length; i++) {
+      const p = pieces[i];
+      p.vx += ax * h;
+      p.vy += ay * h;
+      p.vx *= damp;
+      p.vy *= damp;
+      p.x += p.vx * h;
+      p.y += p.vy * h;
+      p.ang += p.av * h;
+      p.av *= adamp;
+      const sp = Math.hypot(p.vx, p.vy);
+      if (sp > maxV) {
+        p.vx *= maxV / sp;
+        p.vy *= maxV / sp;
+      }
+    }
+    for (let i = 0; i < pieces.length; i++) walls(pieces[i], true);
+    collide(true);
+    for (let k = 0; k < 4; k++) {
+      collide(false);
+      for (let i = 0; i < pieces.length; i++) walls(pieces[i], false);
+    }
+    for (let i = 0; i < pieces.length; i++) {
+      const p = pieces[i];
+      if (!Number.isFinite(p.x) || !Number.isFinite(p.y) || !Number.isFinite(p.vx)) respawn(p);
+    }
+  }
+
+  function layout() {
+    dpr = Math.min(2, window.devicePixelRatio || 1);
+    const w = window.innerWidth;
+    const h = window.innerHeight;
+    const topBox = topEl.getBoundingClientRect();
+    const barH = bar.offsetHeight;
+    document.documentElement.style.setProperty('--top', topEl.offsetHeight + 'px');
+    document.documentElement.style.setProperty('--bar', barH + 'px');
+    const hintShown = hintWrap && !hintEl.hidden && !hintEl.classList.contains('gone') && getComputedStyle(hintWrap).display !== 'none';
+    const hintH = hintShown ? hintWrap.offsetHeight : 0;
+    const availTop = topBox.bottom + 8;
+    const availBot = h - barH - 8 - (hintH ? hintH + 6 : 0);
+    const availH = Math.max(48, availBot - availTop);
+    const availW = Math.max(48, w - 16);
+    const maxD = Math.min(availW, availH, 740);
+    ring = Math.max(12, Math.min(26, maxD * 0.046));
+    const newR = Math.max(40, maxD / 2 - ring - 4);
+    W = w;
+    H = h;
+    cx = w * 0.5;
+    cy = availTop + availH * 0.5;
+    const bw = Math.max(1, Math.round(w * dpr));
+    const bh = Math.max(1, Math.round(h * dpr));
+    if (canvas.width !== bw) canvas.width = bw;
+    if (canvas.height !== bh) canvas.height = bh;
+    if (pieces.length && R > 0 && Math.abs(newR - R) > 0.75) {
+      const s = newR / R;
+      for (let i = 0; i < pieces.length; i++) {
+        pieces[i].x *= s;
+        pieces[i].y *= s;
+        pieces[i].vx *= s;
+        pieces[i].vy *= s;
+      }
+    }
+    R = newR;
+    worldR = R;
+    const key = w + 'x' + h + ':' + Math.round(newR) + ':' + dpr;
+    if (key === layKey) return;
+    layKey = key;
+    if (pieces.length) {
+      syncRadii();
+      bakeAll();
+    }
+  }
+
+  function drawMotes(now) {
+    for (let i = 0; i < motes.length; i++) {
+      const m = motes[i];
+      let y = m.y - (reduceMotion ? 0 : now * 0.000008 * m.s);
+      y = y % 1;
+      if (y < 0) y += 1;
+      const x = m.x + (reduceMotion ? 0 : Math.sin(now * 0.00025 + m.ph) * 0.012);
+      const px = x * W;
+      const py = y * H;
+      const dx = px - cx;
+      const dy = py - cy;
+      const lim = R + ring + 10;
+      if (dx * dx + dy * dy < lim * lim) continue;
+      const tw = reduceMotion ? 0.7 : (0.55 + 0.45 * Math.sin(now * 0.0012 + m.ph));
+      ctx.beginPath();
+      ctx.arc(px, py, m.r, 0, TAU);
+      ctx.fillStyle = 'rgba(244,232,210,' + (m.a * tw) + ')';
+      ctx.fill();
+    }
+  }
+
+  function drawPieces() {
+    for (let i = 0; i < pieces.length; i++) {
+      const p = pieces[i];
+      ctx.save();
+      ctx.translate(p.x + gravUx * 3.2, p.y + gravUy * 3.2);
+      ctx.globalAlpha = 0.2;
+      ctx.fillStyle = '#000';
+      ctx.beginPath();
+      ctx.ellipse(0, 0, p.r * 0.7, p.r * 0.4, p.ang, 0, TAU);
+      ctx.fill();
+      ctx.restore();
+    }
+    for (let i = 0; i < pieces.length; i++) {
+      const p = pieces[i];
+      if (!p.sprite) continue;
+      ctx.save();
+      ctx.translate(p.x, p.y);
+      ctx.rotate(p.ang);
+      ctx.drawImage(p.sprite, -p.spr / 2, -p.spr / 2, p.spr, p.spr);
+      ctx.restore();
+    }
+  }
+
+  function draw(now) {
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, W, H);
+    const bgc = BG[setId];
+    const bg = ctx.createRadialGradient(cx, cy * 0.85, 30, cx, cy, Math.max(W, H) * 0.72);
+    bg.addColorStop(0, bgc[0]);
+    bg.addColorStop(0.42, bgc[1]);
+    bg.addColorStop(1, bgc[2]);
+    ctx.fillStyle = bg;
+    ctx.fillRect(0, 0, W, H);
+    drawMotes(now);
+
+    const j = reduceMotion ? 0 : shakeAmp * 2.4;
+    const jx = Math.sin(now * 0.055) * j;
+    const jy = Math.cos(now * 0.073) * j;
+    ctx.save();
+    ctx.translate(jx, jy);
+
+    ctx.beginPath();
+    ctx.arc(cx, cy, R * 1.28, 0, TAU);
+    const glow = ctx.createRadialGradient(cx, cy, R * 0.7, cx, cy, R * 1.32);
+    glow.addColorStop(0, GLOW[setId]);
+    glow.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = glow;
+    ctx.fill();
+
+    const well = WELL[setId];
+    const wg = ctx.createRadialGradient(cx - R * 0.18, cy - R * 0.22, R * 0.08, cx, cy, R);
+    wg.addColorStop(0, well[0]);
+    wg.addColorStop(1, well[1]);
+    ctx.beginPath();
+    ctx.arc(cx, cy, R, 0, TAU);
+    ctx.fillStyle = wg;
+    ctx.fill();
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(cx, cy, R, 0, TAU);
+    ctx.clip();
+    ctx.translate(cx, cy);
+    ctx.rotate(orient());
+    const a = alpha;
+    for (let i = 0; i < folds; i++) {
+      ctx.save();
+      ctx.rotate(i * a);
+      if (i % 2 === 1) {
+        ctx.rotate(a);
+        ctx.scale(1, -1);
+      }
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      const steps = 24;
+      const span = a + 0.02;
+      for (let s = 0; s <= steps; s++) {
+        const t = -0.01 + (s / steps) * span;
+        ctx.lineTo(Math.cos(t) * (R + 4), Math.sin(t) * (R + 4));
+      }
+      ctx.closePath();
+      ctx.clip();
+      drawPieces();
+      ctx.restore();
+    }
+    ctx.restore();
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(cx, cy, R - 0.5, 0, TAU);
+    ctx.clip();
+    ctx.translate(cx, cy);
+    const sheen = ctx.createLinearGradient(-R, -R * 0.95, R * 0.35, R * 0.85);
+    sheen.addColorStop(0, 'rgba(255,255,255,0.18)');
+    sheen.addColorStop(0.22, 'rgba(255,255,255,0.05)');
+    sheen.addColorStop(0.48, 'rgba(255,255,255,0)');
+    sheen.addColorStop(1, 'rgba(0,0,0,0.14)');
+    ctx.fillStyle = sheen;
+    ctx.fillRect(-R, -R, R * 2, R * 2);
+    ctx.beginPath();
+    ctx.ellipse(-R * 0.32, -R * 0.38, R * 0.2, R * 0.09, -0.6, 0, TAU);
+    ctx.fillStyle = 'rgba(255,255,255,0.12)';
+    ctx.fill();
+    if (flash > 0.01) {
+      ctx.beginPath();
+      ctx.arc(0, 0, R, 0, TAU);
+      ctx.fillStyle = 'rgba(255,255,255,' + (flash * 0.72) + ')';
+      ctx.fill();
+    }
+    ctx.restore();
+
+    const outer = R + ring;
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.beginPath();
+    ctx.arc(0, 2, outer + 5, 0, TAU);
+    ctx.fillStyle = 'rgba(0,0,0,0.28)';
+    ctx.fill();
+    const brass = ctx.createLinearGradient(-outer, -outer, outer, outer * 0.7);
+    brass.addColorStop(0, '#f6e6c2');
+    brass.addColorStop(0.2, '#c4964e');
+    brass.addColorStop(0.42, '#f8ebcf');
+    brass.addColorStop(0.64, '#8a6230');
+    brass.addColorStop(0.84, '#e6c98a');
+    brass.addColorStop(1, '#6b4a22');
+    ctx.beginPath();
+    ctx.arc(0, 0, outer, 0, TAU);
+    ctx.arc(0, 0, R - 0.5, 0, TAU, true);
+    ctx.fillStyle = brass;
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(70,42,16,0.42)';
+    ctx.lineWidth = 1;
+    for (let i = 0; i < 60; i++) {
+      const ang = (i / 60) * TAU;
+      const inner = R + (i % 5 === 0 ? 3 : 6.5);
+      ctx.beginPath();
+      ctx.moveTo(Math.cos(ang) * inner, Math.sin(ang) * inner);
+      ctx.lineTo(Math.cos(ang) * (outer - 2), Math.sin(ang) * (outer - 2));
+      ctx.stroke();
+    }
+    ctx.beginPath();
+    ctx.arc(0, 0, R, 0, TAU);
+    ctx.strokeStyle = 'rgba(0,0,0,0.55)';
+    ctx.lineWidth = 3;
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(0, 0, R + 1.4, 0, TAU);
+    ctx.strokeStyle = 'rgba(255,236,200,0.4)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    for (let i = 0; i < 4; i++) {
+      const ang = (i / 4) * TAU + Math.PI / 4;
+      const rr = R + ring * 0.52;
+      const sx = Math.cos(ang) * rr;
+      const sy = Math.sin(ang) * rr;
+      const sr = Math.max(2.4, ring * 0.16);
+      ctx.beginPath();
+      ctx.arc(sx, sy, sr, 0, TAU);
+      ctx.fillStyle = '#3a2a16';
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(sx - sr * 0.25, sy - sr * 0.28, sr * 0.38, 0, TAU);
+      ctx.fillStyle = 'rgba(255,230,180,0.75)';
+      ctx.fill();
+    }
+    const cap = Math.max(4.5, R * 0.026);
+    const cg = ctx.createRadialGradient(-cap * 0.3, -cap * 0.35, cap * 0.2, 0, 0, cap);
+    cg.addColorStop(0, '#f6e6c2');
+    cg.addColorStop(1, '#6b4a22');
+    ctx.beginPath();
+    ctx.arc(0, 0, cap, 0, TAU);
+    ctx.fillStyle = cg;
+    ctx.fill();
+    ctx.restore();
+    ctx.restore();
+
+    const vg = ctx.createRadialGradient(cx, cy, R * 0.95, cx, cy, Math.max(W, H) * 0.68);
+    vg.addColorStop(0, 'rgba(0,0,0,0)');
+    vg.addColorStop(1, 'rgba(0,0,0,0.38)');
+    ctx.fillStyle = vg;
+    ctx.fillRect(0, 0, W, H);
+  }
+
+  function noteHit(speed, r) {
+    if (speed > hit) { hit = speed; hitR = r; }
+  }
+
+  function tone(freq, when, dur, amp) {
+    if (!actx || !master || !soundOn || !gestured) return;
+    const o = actx.createOscillator();
+    const g = actx.createGain();
+    o.type = 'sine';
+    o.frequency.setValueAtTime(freq, when);
+    g.gain.setValueAtTime(0.0001, when);
+    g.gain.exponentialRampToValueAtTime(Math.max(0.0002, amp), when + 0.028);
+    g.gain.exponentialRampToValueAtTime(0.0001, when + dur);
+    o.connect(g);
+    g.connect(master);
+    o.start(when);
+    o.stop(when + dur + 0.03);
+    const o2 = actx.createOscillator();
+    const g2 = actx.createGain();
+    o2.type = 'sine';
+    o2.frequency.setValueAtTime(freq * 2.005, when);
+    g2.gain.setValueAtTime(0.0001, when);
+    g2.gain.exponentialRampToValueAtTime(Math.max(0.0002, amp * 0.22), when + 0.02);
+    g2.gain.exponentialRampToValueAtTime(0.0001, when + dur * 0.55);
+    o2.connect(g2);
+    g2.connect(master);
+    o2.start(when);
+    o2.stop(when + dur * 0.6 + 0.03);
+  }
+
+  function playHits() {
+    if (hit > 80) {
+      const freq = clamp(920 * (11 / Math.max(6, hitR)), 340, 1320);
+      chime(freq, Math.min(1, hit / 420));
+    }
+    hit = 0;
+  }
+
+  function chime(freq, amp) {
+    if (!soundOn || !gestured || !actx) return;
+    const now = performance.now();
+    if (now - lastTone < 90) return;
+    lastTone = now;
+    tone(freq, actx.currentTime + 0.01, 0.62, 0.018 + amp * 0.03);
+  }
+
+  function ambient(now) {
+    if (!soundOn || !gestured || !actx) return;
+    if (!nextChime) nextChime = now + 1100;
+    if (now < nextChime) return;
+    nextChime = now + 2700 + Math.random() * 2100;
+    const scale = [523.25, 587.33, 659.25, 783.99, 880, 1046.5];
+    const f = scale[(Math.random() * scale.length) | 0];
+    const t = actx.currentTime + 0.02;
+    tone(f, t, 1.7, 0.03);
+    if (Math.random() < 0.7) tone(f * 1.5, t + 0.09, 1.45, 0.018);
+  }
+
+  function ensureAudio() {
+    if (actx) {
+      if (actx.state === 'suspended') actx.resume().catch(function () {});
+      return true;
+    }
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return false;
+    try {
+      actx = new AC();
+      master = actx.createGain();
+      master.gain.value = 0;
+      const lp = actx.createBiquadFilter();
+      lp.type = 'lowpass';
+      lp.frequency.value = 2100;
+      lp.Q.value = 0.5;
+      master.connect(lp);
+      lp.connect(actx.destination);
+      if (actx.state === 'suspended') actx.resume().catch(function () {});
+      return true;
+    } catch (e) {
+      actx = null;
+      master = null;
+      return false;
+    }
+  }
+
+  function applyGain() {
+    if (!master || !actx) return;
+    const t = actx.currentTime;
+    const target = soundOn && gestured ? 0.85 : 0;
+    master.gain.cancelScheduledValues(t);
+    master.gain.setTargetAtTime(target, t, 0.04);
+  }
+
+  function noteGesture() {
+    const first = !gestured;
+    gestured = true;
+    if (first) askTilt();
+    if (soundOn && actx && actx.state === 'suspended') actx.resume().catch(function () {});
+  }
+
+  function askTilt() {
+    const D = window.DeviceOrientationEvent;
+    if (!D || typeof D.requestPermission !== 'function') return;
+    D.requestPermission().then(function (state) {
+      if (state === 'granted') startTilt();
+    }).catch(function () {});
+  }
+
+  function startTilt() {
+    window.addEventListener('deviceorientation', onTilt, true);
+  }
+
+  function onTilt(e) {
+    if (e.beta == null && e.gamma == null) return;
+    const gamma = (e.gamma || 0) * Math.PI / 180;
+    const beta = (e.beta || 0) * Math.PI / 180;
+    const gx = Math.sin(gamma);
+    const gy = Math.sin(beta);
+    if (Math.hypot(gx, gy) < 0.14) return;
+    const ang = Math.atan2(gx, gy);
+    if (tiltRef == null) {
+      tiltRef = ang;
+      return;
+    }
+    let next = ang - tiltRef;
+    while (next - tiltTarget > Math.PI) next -= TAU;
+    while (tiltTarget - next > Math.PI) next += TAU;
+    tiltTarget = next;
+  }
+
+  function toast(msg) {
+    toastEl.textContent = msg;
+    toastEl.hidden = false;
+    if (toastTimer) clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { toastEl.hidden = true; }, 1600);
+  }
+
+  function hideHint() {
+    if (!hintEl || hintEl.classList.contains('gone')) return;
+    hintEl.classList.add('gone');
+    setTimeout(function () {
+      hintEl.hidden = true;
+      layout();
+    }, 700);
+  }
+
+  function updateLabels() {
+    const word = FOLD_WORD[folds] || 'sechs';
+    bSpiegel.textContent = 'Spiegel ' + folds;
+    bSpiegel.setAttribute('aria-label', 'Symmetrie, ' + word + ' Spiegel. Tippen für die nächste.');
+    statusEl.textContent = SET_NAME[setId] + ' · ' + word + ' Spiegel';
+    const sets = bar.querySelectorAll('[data-set]');
+    for (let i = 0; i < sets.length; i++) {
+      const on = sets[i].getAttribute('data-set') === setId;
+      sets[i].classList.toggle('on', on);
+      sets[i].setAttribute('aria-pressed', on ? 'true' : 'false');
+    }
+    bTon.classList.toggle('on', soundOn);
+    bTon.setAttribute('aria-pressed', soundOn ? 'true' : 'false');
+    bTon.setAttribute('aria-label', soundOn ? 'Ton ausschalten' : 'Ton einschalten');
+  }
+
+  function persist() {
+    try {
+      localStorage.setItem(KEY, JSON.stringify({ v: 1, setId: setId, folds: folds }));
+    } catch (e) {}
+  }
+
+  function restore() {
+    try {
+      const raw = localStorage.getItem(KEY);
+      if (!raw) return;
+      const o = JSON.parse(raw);
+      if (o && RECIPES[o.setId]) setId = o.setId;
+      if (o && (o.folds === 3 || o.folds === 4 || o.folds === 6 || o.folds === 8)) folds = o.folds;
+    } catch (e) {}
+  }
+
+  function toggleSound() {
+    noteGesture();
+    soundOn = !soundOn;
+    if (soundOn) {
+      if (!ensureAudio()) soundOn = false;
+      else {
+        applyGain();
+        const t = actx.currentTime + 0.03;
+        tone(523.25, t, 1.15, 0.034);
+        tone(783.99, t + 0.12, 1.3, 0.022);
+        nextChime = performance.now() + 1700;
+      }
+    } else {
+      applyGain();
+    }
+    updateLabels();
+  }
+
+  function cycleFold() {
+    const i = FOLDS.indexOf(folds);
+    folds = FOLDS[(i + 1) % FOLDS.length];
+    alpha = TAU / folds;
+    syncRadii();
+    for (let k = 0; k < pieces.length; k++) foldPiece(pieces[k]);
+    bakeAll();
+    for (let n = 0; n < 8; n++) {
+      for (let k = 0; k < pieces.length; k++) walls(pieces[k], false);
+      collide(false);
+    }
+    updateLabels();
+    persist();
+  }
+
+  function chooseSet(id) {
+    if (!RECIPES[id] || id === setId) return;
+    setId = id;
+    spawn();
+    updateLabels();
+    persist();
+  }
+
+  function shake() {
+    for (let i = 0; i < pieces.length; i++) {
+      const p = pieces[i];
+      const a = Math.random() * TAU;
+      const s = R * (1.5 + Math.random() * 2.2);
+      p.vx += Math.cos(a) * s;
+      p.vy += Math.sin(a) * s;
+      p.av += (Math.random() - 0.5) * 8;
+    }
+    if (!reduceMotion) {
+      tubeV += (Math.random() - 0.5) * 1.3;
+      shakeAmp = 1;
+    }
+  }
+
+  function foto() {
+    try {
+      flash = 1;
+      const url = canvas.toDataURL('image/png');
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'kaleidoskop-' + (FILE_NAME[setId] || 'bild') + '.png';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      toast('Foto gespeichert.');
+    } catch (e) {
+      toast('Das Foto ging nicht.');
+    }
+  }
+
+  function onKey(e) {
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
+    const onButton = e.target && e.target.closest && e.target.closest('button');
+    const k = e.key.toLowerCase();
+    if (e.code === 'Space') {
+      if (onButton) return;
+      noteGesture();
+      shake();
+      hideHint();
+      e.preventDefault();
+      return;
+    }
+    if (k === 'arrowleft' || k === 'arrowright') {
+      noteGesture();
+      dragAngle += (k === 'arrowleft' ? -1 : 1) * (Math.PI / 16);
+      hideHint();
+      e.preventDefault();
+      return;
+    }
+    if (k === 'm') { noteGesture(); toggleSound(); e.preventDefault(); }
+    else if (k === 's') { noteGesture(); cycleFold(); e.preventDefault(); }
+    else if (k === 'f') { noteGesture(); foto(); e.preventDefault(); }
+    else if (k === '1') { noteGesture(); chooseSet('glas'); }
+    else if (k === '2') { noteGesture(); chooseSet('edel'); }
+    else if (k === '3') { noteGesture(); chooseSet('blueten'); }
+    else if (k === '4') { noteGesture(); chooseSet('winter'); }
+  }
+
+  function pointerAngle(e) {
+    return Math.atan2(e.clientY - cy, e.clientX - cx);
+  }
+
+  canvas.addEventListener('pointerdown', function (e) {
+    if (ptr != null) return;
+    if (e.button != null && e.button !== 0) return;
+    noteGesture();
+    dragging = true;
+    ptr = e.pointerId;
+    lastAng = pointerAngle(e);
+    lastPtr = performance.now();
+    tubeV = 0;
+    document.body.classList.add('drag');
+    hideHint();
+    try { canvas.setPointerCapture(e.pointerId); } catch (err) {}
+    e.preventDefault();
+  });
+  canvas.addEventListener('pointermove', function (e) {
+    if (!dragging || e.pointerId !== ptr) return;
+    const a = pointerAngle(e);
+    let d = a - lastAng;
+    while (d > Math.PI) d -= TAU;
+    while (d < -Math.PI) d += TAU;
+    const now = performance.now();
+    const dt = Math.max(0.008, (now - lastPtr) / 1000);
+    lastPtr = now;
+    lastAng = a;
+    dragAngle += d;
+    if (!reduceMotion) tubeV = clamp(d / dt, -5, 5);
+  });
+  function endDrag(e) {
+    if (e.pointerId !== ptr) return;
+    dragging = false;
+    ptr = null;
+    document.body.classList.remove('drag');
+    try { canvas.releasePointerCapture(e.pointerId); } catch (err) {}
+  }
+  canvas.addEventListener('pointerup', endDrag);
+  canvas.addEventListener('pointercancel', endDrag);
+  canvas.addEventListener('contextmenu', function (e) { e.preventDefault(); });
+
+  bar.addEventListener('click', function (e) {
+    const b = e.target.closest ? e.target.closest('button') : null;
+    if (!b || !bar.contains(b)) return;
+    noteGesture();
+    if (b === bTon) toggleSound();
+    else if (b === bSpiegel) cycleFold();
+    else if (b.id === 'bShake') shake();
+    else if (b.id === 'bFoto') foto();
+    else if (b.getAttribute('data-set')) chooseSet(b.getAttribute('data-set'));
+  });
+  window.addEventListener('keydown', onKey);
+  window.addEventListener('resize', layout);
+  if (window.ResizeObserver) {
+    const ro = new ResizeObserver(function () { layout(); });
+    ro.observe(bar);
+    ro.observe(topEl);
+  }
+  setTimeout(hideHint, 9000);
+
+  for (let i = 0; i < 32; i++) {
+    motes.push({
+      x: Math.random(),
+      y: Math.random(),
+      r: 0.7 + Math.random() * 1.3,
+      a: 0.05 + Math.random() * 0.1,
+      s: 0.5 + Math.random(),
+      ph: Math.random() * TAU
+    });
+  }
+
+  restore();
+  const params = new URLSearchParams(location.search);
+  const qs = params.get('satz');
+  if (qs && RECIPES[qs]) setId = qs;
+  const qf = parseInt(params.get('spiegel'), 10);
+  if (qf === 3 || qf === 4 || qf === 6 || qf === 8) folds = qf;
+  alpha = TAU / folds;
+  layout();
+  spawn();
+  updateLabels();
+  startTilt();
+
+  function frame(now) {
+    if (!lastT) lastT = now;
+    let dt = (now - lastT) / 1000;
+    lastT = now;
+    if (dt > 0.05) dt = 0.05;
+    if (dt < 0) dt = 0;
+    acc += dt;
+    const h = 1 / 60;
+    let steps = 0;
+    while (acc >= h && steps < 3) {
+      physics(h);
+      acc -= h;
+      steps++;
+    }
+    if (shakeAmp > 0) shakeAmp *= Math.exp(-3.4 * Math.max(dt, 0.001));
+    if (flash > 0) flash = Math.max(0, flash - dt * 1.7);
+    playHits();
+    ambient(now);
+    draw(now);
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+
+  function looseInside(p) {
+    const d = Math.hypot(p.x, p.y);
+    if (d > R - p.cr + 3) return false;
+    if (p.y < p.cr - 3) return false;
+    const nx = Math.sin(alpha);
+    const ny = -Math.cos(alpha);
+    if (p.x * nx + p.y * ny < p.cr - 3) return false;
+    return true;
+  }
+
+  window.Kaleidoskop = {
+    info: function () {
+      let finite = true;
+      let escaped = 0;
+      let speed = 0;
+      for (let i = 0; i < pieces.length; i++) {
+        const p = pieces[i];
+        if (!Number.isFinite(p.x) || !Number.isFinite(p.y) || !Number.isFinite(p.vx)) finite = false;
+        if (!looseInside(p)) escaped++;
+        speed += Math.hypot(p.vx, p.vy);
+      }
+      return {
+        folds: folds,
+        setId: setId,
+        soundOn: soundOn,
+        gestured: gestured,
+        audio: !!actx,
+        n: pieces.length,
+        finite: finite,
+        escaped: escaped,
+        speed: speed,
+        view: viewAngle(),
+        R: R
+      };
+    }
+  };
+})();
+</script>
+</body>
+</html>
