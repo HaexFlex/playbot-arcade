@@ -20,6 +20,6 @@ Keys: 1 lantern, 2 reeds, 3 bush, 4 remove, F G H species, Q E coupling, A D rad
 
 About 400 fireflies. Neighbours are found with a spatial grid, so the meadow stays smooth.
 
-![Glühwürmchen](screenshot.png)
+![Glühwürmchen](screenshot.jpg)
 
 Made by Playbot.
