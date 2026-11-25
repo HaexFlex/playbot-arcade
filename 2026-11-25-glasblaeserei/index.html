@@ -1,0 +1,1654 @@
+<!doctype html>
+<html lang="de-CH">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Glasbläserei</title>
+<link rel="icon" href="../favicon.svg" type="image/svg+xml">
+<meta name="description" content="Glas an der Pfeife formen: drehen, blasen, färben und ins Sonnenfenster stellen.">
+<meta name="theme-color" content="#e7cbb0">
+<style>
+html,body{margin:0;height:100%;background:#e7cbb0;color:#4a2e22;font-family:system-ui,-apple-system,"Segoe UI",sans-serif}
+html{overflow:hidden;max-width:100%}
+body{overflow:hidden;max-width:100%;-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent}
+#app{display:flex;flex-direction:column;height:100%;height:100dvh;max-width:100%;min-width:0;overflow:hidden}
+#stage{position:relative;flex:1 1 auto;min-width:0;min-height:80px}
+#c{display:block;width:100%;height:100%;touch-action:none;cursor:crosshair}
+#top{position:absolute;z-index:2;left:0;top:0;max-width:min(460px,92%);padding:max(8px,env(safe-area-inset-top)) 12px 10px;pointer-events:none}
+h1{margin:0;font-family:Georgia,Palatino,"Iowan Old Style",serif;font-weight:600;font-size:clamp(20px,4.2vw,28px);letter-spacing:.01em;color:#4a2e22;text-shadow:0 1px 0 rgba(255,248,236,.8)}
+#status{margin:2px 0 0;font-size:14px;line-height:1.35;color:#5c3b28;text-shadow:0 1px 0 rgba(255,248,236,.75)}
+#hint{position:absolute;z-index:2;left:50%;bottom:10px;transform:translateX(-50%);width:min(460px,92%);margin:0;text-align:center;pointer-events:none;color:#4a2e22;text-shadow:0 1px 0 rgba(255,248,236,.8);font-size:14px;line-height:1.35;transition:opacity .6s}
+#hint.gone{opacity:0}
+#foot{flex:0 1 auto;min-width:0;max-width:100%;max-height:48%;overflow-x:hidden;overflow-y:auto;overscroll-behavior:contain;touch-action:pan-y;display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:center;padding:8px 10px calc(8px + env(safe-area-inset-bottom));background:rgba(255,246,234,.96);border-top:1px solid rgba(120,80,40,.18);box-sizing:border-box}
+#tools,#frits{min-width:0;max-width:100%;display:flex;flex-wrap:wrap;gap:8px;justify-content:center;align-items:center;align-content:center}
+#tools{flex:1 1 760px}
+#frits{flex:1 1 300px}
+#fritLabel{flex:0 0 auto;margin:0;font-size:13px;color:#6a4a34}
+button{font:inherit;font-size:15px;color:#3a2a1c;background:#fff;border:1px solid rgba(90,60,30,.28);border-radius:12px;min-height:40px;min-width:40px;padding:8px 12px;cursor:pointer;touch-action:manipulation;box-sizing:border-box}
+button:focus-visible{outline:2px solid #c47a32;outline-offset:-3px}
+button[aria-pressed="true"]{background:#f0c14a;border-color:#c88820}
+.frit{width:40px;height:40px;padding:0;border-radius:50%}
+.frit[aria-checked="true"]{box-shadow:0 0 0 2px #fff,0 0 0 4px #8a4b22}
+@media (max-height:520px){
+  #app{flex-direction:row}
+  #foot{flex-direction:column;flex-wrap:nowrap;align-items:stretch;justify-content:flex-start;max-height:none;height:100%;width:min(232px,46vw);overflow-x:hidden;overflow-y:auto;border-top:none;border-left:1px solid rgba(120,80,40,.18)}
+  #tools,#frits{flex:0 0 auto;flex-direction:row}
+  h1{font-size:20px}
+  #hint{font-size:13px;bottom:6px}
+}
+@media (max-width:380px){
+  h1{font-size:20px}
+  button{padding:8px 10px}
+}
+@media (prefers-reduced-motion:reduce){
+  #hint{transition:none}
+}
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="stage">
+    <canvas id="c" aria-label="Glasbläserei. Ofen, Pfeife und Sonnenfenster."></canvas>
+    <header id="top">
+      <h1>Glasbläserei</h1>
+      <p id="status" role="status" aria-live="polite">Ofen bereit. Hol Glas an die Pfeife.</p>
+    </header>
+    <p id="hint">Hol Glas, dreh die Pfeife, blas auf. Fritte für Farbe, dann ablegen.</p>
+  </div>
+  <section id="foot" aria-label="Werkbank">
+    <div id="tools" role="toolbar" aria-label="Werkzeuge">
+      <button id="bHolen" type="button">Holen</button>
+      <button id="bDrehen" type="button" aria-pressed="true">Drehen</button>
+      <button id="bBlasen" type="button" aria-pressed="false">Blasen</button>
+      <button id="bZiehen" type="button" aria-pressed="false">Ziehen</button>
+      <button id="bKneifen" type="button" aria-pressed="false">Kneifen</button>
+      <button id="bWaermen" type="button">Wärmen</button>
+      <button id="bAblegen" type="button">Ablegen</button>
+      <button id="bTon" type="button" aria-pressed="false" aria-label="Ton aus">Ton</button>
+    </div>
+    <p id="fritLabel">Fritte</p>
+    <div id="frits" role="radiogroup" aria-label="Fritte"></div>
+  </section>
+</div>
+<script>
+'use strict';
+(function () {
+  const TAU = Math.PI * 2;
+  const N = 24;
+  const LEN_MIN = 1.45;
+  const LEN_MAX = 6.2;
+  const R_MIN = 0.1;
+  const R_MAX = 2.25;
+  const KEY = 'glasblaeserei-regal';
+  const FRITS = [
+    { id: 'klar', name: 'Klar', rgb: [232, 240, 244] },
+    { id: 'kobalt', name: 'Kobalt', rgb: [36, 78, 198] },
+    { id: 'rubin', name: 'Rubin', rgb: [198, 32, 58] },
+    { id: 'smaragd', name: 'Smaragd', rgb: [18, 150, 96] },
+    { id: 'bernstein', name: 'Bernstein', rgb: [232, 150, 36] },
+    { id: 'amethyst', name: 'Amethyst', rgb: [142, 72, 196] },
+    { id: 'milch', name: 'Milch', rgb: [250, 246, 238] }
+  ];
+
+  const c = document.getElementById('c');
+  const ctx = c.getContext('2d', { alpha: false });
+  if (!ctx) return;
+  const stage = document.getElementById('stage');
+  const statusEl = document.getElementById('status');
+  const hintEl = document.getElementById('hint');
+  const fritBox = document.getElementById('frits');
+  const bTon = document.getElementById('bTon');
+  const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  let W = 1, H = 1, dpr = 1, geom = null;
+  let time = 0;
+  let piece = null;
+  let shelf = [];
+  let anim = null;
+  let place = null;
+  let puddle = null;
+  let tool = 'drehen';
+  let fritId = 'kobalt';
+  let tonOn = false;
+  let unlocked = false;
+  let banner = '';
+  let bannerT = 0;
+  let coldNote = 0;
+  let grain = null;
+
+  const blowSources = { key: false, button: false, canvas: false };
+  let blowing = false;
+  let spinHold = false;
+  const held = new Set();
+  let pointerId = null;
+  let lastPX = 0, lastPY = 0;
+
+  let ac = null, master = null, noise = null;
+  let humGain = null, blowGain = null, spinGain = null;
+  let spinAcc = 0;
+
+  function clamp(v, a, b) { return v < a ? a : v > b ? b : v; }
+  function lerp(a, b, t) { return a + (b - a) * t; }
+  function mixRgb(a, b, t) {
+    return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
+  }
+  function ease(t) { t = clamp(t, 0, 1); return t * t * (3 - 2 * t); }
+  function softness(h) {
+    const x = clamp((h - 0.16) / 0.84, 0, 1);
+    return x * x * (3 - 2 * x);
+  }
+  function maxRof(pts) {
+    let m = 0;
+    for (let i = 0; i < pts.length; i++) if (pts[i].r > m) m = pts[i].r;
+    return m;
+  }
+  function heatWord(h) {
+    if (h > 0.82) return 'weissglühend';
+    if (h > 0.55) return 'heiss';
+    if (h > 0.3) return 'warm';
+    if (h > 0.14) return 'kühl';
+    return 'starr';
+  }
+  function classify(p) {
+    const pts = p.pts;
+    const n = pts.length;
+    let maxR = 0;
+    let bellyI = 0;
+    for (let i = 0; i < n; i++) {
+      if (pts[i].r > maxR) { maxR = pts[i].r; bellyI = i; }
+    }
+    const mouth = (pts[0].r + pts[1].r + pts[2].r) / 3;
+    const foot = pts[n - 1].r;
+    const aspect = p.len / (2 * maxR + 0.001);
+    const bellyU = bellyI / (n - 1);
+    if (maxR < 0.78 && p.len < 2.8) return 'Anhänger';
+    if (mouth >= maxR * 0.9 && mouth > foot * 1.08 && aspect < 1.7) return 'Schale';
+    if (aspect >= 1.15 && mouth < maxR * 0.86 && bellyU > 0.18) return 'Vase';
+    if (aspect < 1.35) return 'Kugel';
+    if (mouth > maxR * 0.55) return 'Becher';
+    return 'Vase';
+  }
+  function say(msg) { banner = msg; bannerT = 2.5; }
+
+  function gobProfile() {
+    const pts = [];
+    for (let i = 0; i < N; i++) {
+      const u = i / (N - 1);
+      const bulb = Math.sin(Math.PI * Math.pow(1 - u, 0.72));
+      pts.push({ r: 0.15 + bulb * 0.5, thick: 0.2 + (1 - bulb) * 0.06 });
+    }
+    pts[0].r = 0.22;
+    pts[N - 1].r = Math.max(pts[N - 1].r, 0.16);
+    return pts;
+  }
+  function freshPiece() {
+    return {
+      pts: gobProfile(),
+      len: 1.82,
+      heat: 1,
+      sag: 0,
+      spin: 3.4,
+      phase: Math.random() * TAU,
+      tint: [236, 244, 248],
+      tintW: 0,
+      milk: 0,
+      dots: []
+    };
+  }
+  function withFoot(pts) {
+    const copy = pts.map(function (p) { return { r: p.r, thick: p.thick }; });
+    const maxR = maxRof(copy);
+    const foot = Math.max(copy[N - 1].r, Math.min(maxR * 0.52, 0.9));
+    copy[N - 1].r = foot;
+    copy[N - 2].r = Math.max(copy[N - 2].r * 0.82, foot * 0.58);
+    copy[N - 3].r = Math.min(copy[N - 3].r, Math.max(foot * 0.72, copy[N - 3].r * 0.9));
+    return copy;
+  }
+  function clonePiece(src, foot) {
+    return {
+      pts: foot ? withFoot(src.pts) : src.pts.map(function (p) { return { r: p.r, thick: p.thick }; }),
+      len: src.len,
+      heat: src.heat,
+      sag: 0,
+      spin: 0,
+      phase: src.phase,
+      tint: src.tint.slice(),
+      tintW: src.tintW,
+      milk: src.milk,
+      dots: src.dots.map(function (d) { return { t: d.t, a: d.a, s: d.s, col: d.col.slice() }; }),
+      name: src.name || ''
+    };
+  }
+
+  function loadShelf() {
+    try {
+      const raw = JSON.parse(localStorage.getItem(KEY) || '[]');
+      if (!Array.isArray(raw)) return;
+      raw.forEach(function (item) {
+        if (!item || !Array.isArray(item.r) || item.r.length !== N) return;
+        const pts = [];
+        for (let i = 0; i < N; i++) {
+          const r = Number(item.r[i]);
+          const thick = Number(item.k && item.k[i]);
+          if (!isFinite(r)) return;
+          pts.push({ r: clamp(r, R_MIN, R_MAX), thick: clamp(isFinite(thick) ? thick : 0.12, 0.02, 0.6) });
+        }
+        const dots = [];
+        if (Array.isArray(item.dots)) {
+          item.dots.slice(0, 48).forEach(function (d) {
+            if (!d || d.length < 4) return;
+            dots.push({ t: Number(d[0]) || 0, a: Number(d[1]) || 0, s: Number(d[2]) || 0.5, col: d[3] });
+          });
+        }
+        shelf.push({
+          pts: pts,
+          len: clamp(Number(item.len) || 2, LEN_MIN, LEN_MAX),
+          heat: 0,
+          sag: 0,
+          spin: 0,
+          phase: Math.random() * TAU,
+          tint: Array.isArray(item.tint) ? item.tint : [220, 230, 236],
+          tintW: clamp(Number(item.tintW) || 0, 0, 1),
+          milk: clamp(Number(item.milk) || 0, 0, 1),
+          dots: dots,
+          name: typeof item.name === 'string' ? item.name : 'Stück'
+        });
+      });
+      if (shelf.length > 8) shelf.length = 8;
+    } catch (err) { shelf = []; }
+  }
+  function saveShelf() {
+    try {
+      const data = shelf.map(function (p) {
+        return {
+          r: p.pts.map(function (q) { return Math.round(q.r * 1000) / 1000; }),
+          k: p.pts.map(function (q) { return Math.round(q.thick * 1000) / 1000; }),
+          len: Math.round(p.len * 1000) / 1000,
+          tint: p.tint.map(function (n) { return Math.round(n); }),
+          tintW: Math.round(p.tintW * 1000) / 1000,
+          milk: Math.round(p.milk * 1000) / 1000,
+          name: p.name,
+          dots: p.dots.slice(0, 24).map(function (d) {
+            return [Math.round(d.t * 100) / 100, Math.round(d.a * 100) / 100, Math.round(d.s * 100) / 100, d.col];
+          })
+        };
+      });
+      localStorage.setItem(KEY, JSON.stringify(data));
+    } catch (err) { /* private mode */ }
+  }
+
+  function computeGeom(w, h) {
+    const portrait = h > w * 1.02;
+    const floorY = h - Math.max(16, h * 0.045);
+    let furnace, mouth, windowR, shelf, pipeY, handleX, leftLimit;
+    if (portrait) {
+      const topUi = 78;
+      furnace = { x: 8, y: topUi, w: Math.min(126, w * 0.36), h: Math.min(158, Math.max(96, h * 0.2)) };
+      windowR = {
+        x: furnace.x + furnace.w + 8,
+        y: topUi,
+        w: Math.max(40, w - (furnace.x + furnace.w + 16)),
+        h: furnace.h
+      };
+      pipeY = furnace.y + furnace.h + Math.max(108, h * 0.16);
+      handleX = w - 16;
+      const shelfTop = clamp(pipeY + Math.max(118, h * 0.16), h * 0.5, h * 0.7);
+      shelf = { x: 10, y: shelfTop, w: w - 20, h: Math.max(72, floorY - shelfTop - 6) };
+      mouth = {
+        x: furnace.x + furnace.w * 0.58,
+        y: furnace.y + furnace.h * 0.66,
+        r: Math.min(furnace.w, furnace.h) * 0.28
+      };
+      leftLimit = 12;
+    } else {
+      const right = Math.min(h < 520 ? 220 : 400, w * (h < 520 ? 0.36 : 0.32));
+      furnace = {
+        x: 12,
+        y: h < 520 ? 28 : h * 0.14,
+        w: Math.min(h < 520 ? 132 : 260, w * 0.22),
+        h: Math.min(h < 520 ? h * 0.62 : h * 0.52, h < 520 ? 230 : 360)
+      };
+      windowR = { x: w - right, y: 10, w: right - 12, h: Math.max(64, h * (h < 520 ? 0.4 : 0.34)) };
+      const shelfTop = windowR.y + windowR.h + 8;
+      shelf = { x: windowR.x, y: shelfTop, w: windowR.w, h: Math.max(56, floorY - shelfTop - 8) };
+      pipeY = h * (h < 520 ? 0.5 : 0.46);
+      handleX = windowR.x - 16;
+      mouth = {
+        x: furnace.x + furnace.w * 0.7,
+        y: furnace.y + furnace.h * 0.56,
+        r: Math.min(furnace.w, furnace.h) * 0.3
+      };
+      leftLimit = furnace.x + furnace.w + 10;
+    }
+    const pipeMin = Math.min(78, Math.max(48, w * 0.12));
+    const tipMax = Math.max(leftLimit + 36, handleX - pipeMin);
+    const room = Math.max(36, tipMax - leftLimit);
+    const preferred = Math.min(w, h) * (portrait ? 0.11 : 0.12);
+    let unit = clamp(Math.min(preferred, room / LEN_MAX), 8, portrait ? 52 : 78);
+    const bottomLimit = portrait ? shelf.y - 14 : floorY - 10;
+    const topLimit = portrait ? furnace.y + furnace.h + 6 : 28;
+    const allowBelow = bottomLimit - pipeY;
+    const allowAbove = pipeY - topLimit;
+    const allowR = Math.max(18, Math.min(allowBelow, allowAbove));
+    if (R_MAX * unit > allowR) unit = Math.max(8, allowR / R_MAX);
+    const tipX = clamp(leftLimit + LEN_MAX * unit, leftLimit + 24, tipMax);
+    return {
+      W: w, H: h, portrait: portrait, floorY: floorY,
+      furnace: furnace, mouth: mouth, window: windowR, shelf: shelf,
+      pipeY: pipeY, tipX: tipX, handleX: handleX, unit: unit,
+      dipX: mouth.x - tipX, dipY: mouth.y - pipeY, leftLimit: leftLimit
+    };
+  }
+
+  function pipeReach() {
+    if (!anim) return 0;
+    const p = clamp(anim.t / anim.dur, 0, 1);
+    if (p < 0.3) return p / 0.3;
+    if (p < 0.62) return 1;
+    return 1 - (p - 0.62) / 0.38;
+  }
+  function frame() {
+    const reach = pipeReach();
+    const tipX = geom.tipX + geom.dipX * reach;
+    const axisY = geom.pipeY + geom.dipY * reach + (piece ? piece.sag * geom.unit * 0.22 : 0);
+    const len = piece ? piece.len : 1.7;
+    return {
+      unit: geom.unit,
+      tipX: tipX,
+      mouthX: tipX - len * geom.unit,
+      axisY: axisY,
+      handleX: geom.handleX + geom.dipX * reach,
+      handleY: geom.pipeY + geom.dipY * reach * 0.92,
+      angle: piece ? -piece.sag * 0.28 : 0
+    };
+  }
+
+  function resize() {
+    const rect = stage.getBoundingClientRect();
+    W = Math.max(1, rect.width);
+    H = Math.max(1, rect.height);
+    dpr = Math.min(2, window.devicePixelRatio || 1);
+    c.width = Math.max(1, Math.round(W * dpr));
+    c.height = Math.max(1, Math.round(H * dpr));
+    geom = computeGeom(W, H);
+  }
+
+  function makeGrain() {
+    grain = document.createElement('canvas');
+    grain.width = 96;
+    grain.height = 96;
+    const g = grain.getContext('2d');
+    const img = g.createImageData(96, 96);
+    for (let i = 0; i < img.data.length; i += 4) {
+      const v = 180 + Math.random() * 70;
+      img.data[i] = img.data[i + 1] = img.data[i + 2] = v;
+      img.data[i + 3] = 46;
+    }
+    g.putImageData(img, 0, 0);
+  }
+
+  function setTool(name) {
+    tool = name;
+    const map = { drehen: 'bDrehen', blasen: 'bBlasen', ziehen: 'bZiehen', kneifen: 'bKneifen' };
+    Object.keys(map).forEach(function (key) {
+      document.getElementById(map[key]).setAttribute('aria-pressed', tool === key ? 'true' : 'false');
+    });
+    c.style.cursor = tool === 'drehen' ? 'ew-resize' : 'crosshair';
+  }
+  function refreshBlow() {
+    blowing = blowSources.key || blowSources.button || blowSources.canvas;
+    setBlow(blowing);
+  }
+  function hideHint() { hintEl.classList.add('gone'); }
+
+  function noteCold() {
+    if (coldNote > 0) return;
+    coldNote = 1.6;
+    say('Zu kühl zum Formen. Wärmen hilft.');
+  }
+
+  function gatherMore() {
+    if (!piece) {
+      piece = freshPiece();
+      say('Dreh die Pfeife, sonst sackt das Glas ab.');
+      return;
+    }
+    if (maxRof(piece.pts) > 1.85) {
+      piece.heat = Math.max(piece.heat, 0.95);
+      piece.sag *= 0.4;
+      say('Genug Glas. Wärmen und weiterformen.');
+      return;
+    }
+    piece.pts.forEach(function (p) {
+      p.r = clamp(p.r * 1.07 + 0.035, R_MIN, R_MAX);
+      p.thick = clamp(p.thick + 0.045, 0.03, 0.6);
+    });
+    piece.len = clamp(piece.len + 0.06, LEN_MIN, LEN_MAX);
+    piece.heat = Math.max(piece.heat, 0.94);
+    piece.sag *= 0.5;
+    say('Noch eine Lage Glas.');
+  }
+
+  function startDip(kind) {
+    if (anim || place) return;
+    if (kind === 'waermen' && !piece) {
+      say('Hol zuerst Glas an die Pfeife.');
+      return;
+    }
+    anim = { kind: kind, t: 0, dur: reduce ? 0.2 : (kind === 'holen' ? 1.65 : 1.85), did: false };
+    hideHint();
+  }
+
+  function dropPiece() {
+    const f = frame();
+    puddle = {
+      x: (f.mouthX + f.tipX) * 0.5,
+      y: Math.min(geom.floorY - 8, f.axisY + maxRof(piece.pts) * f.unit * 0.8),
+      r: Math.max(18, maxRof(piece.pts) * f.unit * 0.85),
+      tint: piece.tint.slice(),
+      tintW: piece.tintW,
+      heat: piece.heat,
+      life: 0
+    };
+    piece = null;
+    say('Auf die Bank gesackt. Hol neues Glas.');
+    tone(96, 0.28, 'triangle', 0.07, 48);
+  }
+
+  function blow(dt) {
+    const soft = softness(piece.heat);
+    if (soft < 0.05) { noteCold(); return; }
+    const n = piece.pts.length;
+    for (let i = 0; i < n; i++) {
+      const u = i / (n - 1);
+      const belly = Math.exp(-Math.pow((u - 0.28) / 0.24, 2));
+      const lip = Math.exp(-Math.pow(u / 0.14, 2)) * 0.22;
+      const p = piece.pts[i];
+      let grow = dt * soft * (0.78 * belly + 0.32 * lip);
+      if (p.thick < 0.05) grow *= 0.18;
+      const before = p.r;
+      p.r = clamp(p.r + grow, R_MIN, R_MAX);
+      if (p.r > before + 1e-5) p.thick = clamp(p.thick * (before / p.r), 0.028, 0.6);
+    }
+    const mr = maxRof(piece.pts);
+    const roundLen = mr * 2.25;
+    if (piece.len < roundLen) piece.len = clamp(roundLen, LEN_MIN, LEN_MAX);
+    for (let j = 0; j < n; j++) {
+      const u = j / (n - 1);
+      const x = (u - 0.42) * 2.05;
+      const circ = Math.sqrt(Math.max(0, 1 - x * x));
+      const goal = Math.max(R_MIN, circ * mr);
+      const p = piece.pts[j];
+      if (p.r < goal) {
+        const before = p.r;
+        p.r = clamp(p.r + (goal - p.r) * Math.min(1, dt * soft * 2.2), R_MIN, R_MAX);
+        if (p.r > before) p.thick = clamp(p.thick * (before / p.r), 0.028, 0.6);
+      }
+    }
+  }
+
+  function pullBy(dx) {
+    if (!piece || anim) return;
+    const soft = softness(piece.heat);
+    if (soft < 0.05) { noteCold(); return; }
+    const grow = (-dx / geom.unit) * 0.7 * soft;
+    const before = piece.len;
+    piece.len = clamp(piece.len + grow, LEN_MIN, LEN_MAX);
+    const applied = piece.len - before;
+    if (Math.abs(applied) < 1e-5) return;
+    for (let i = 0; i < N; i++) {
+      const u = i / (N - 1);
+      const influence = applied > 0 ? (1 - u * 0.72) : (1 - u * 0.3);
+      const factor = applied > 0
+        ? 1 / (1 + applied * 0.9 * influence)
+        : 1 + (-applied) * 0.5 * influence;
+      const p = piece.pts[i];
+      const old = p.r;
+      p.r = clamp(p.r * factor, R_MIN, R_MAX);
+      p.thick = clamp(p.thick * (old / p.r), 0.028, 0.6);
+    }
+  }
+
+  function pinchAt(px, py) {
+    if (!piece || anim) return;
+    const soft = softness(piece.heat);
+    if (soft < 0.05) { noteCold(); return; }
+    const f = frame();
+    const u = (px - f.mouthX) / Math.max(8, piece.len * f.unit);
+    if (u < -0.08 || u > 1.08) return;
+    const i = clamp(Math.round(u * (N - 1)), 0, N - 1);
+    const desired = clamp(Math.abs(py - f.axisY) / f.unit, R_MIN, R_MAX);
+    const span = 3;
+    for (let j = i - span; j <= i + span; j++) {
+      if (j < 0 || j >= N) continue;
+      const w = 1 - Math.abs(j - i) / (span + 0.4);
+      if (w <= 0) continue;
+      const p = piece.pts[j];
+      const nr = clamp(p.r + (desired - p.r) * 0.55 * soft * w, R_MIN, R_MAX);
+      p.thick = clamp(p.thick * (p.r / nr), 0.028, 0.6);
+      p.r = nr;
+    }
+  }
+
+  function applyFrit() {
+    unlock();
+    hideHint();
+    if (anim) return;
+    if (!piece) { say('Zuerst Glas holen.'); return; }
+    if (softness(piece.heat) < 0.08) { say('Zu kühl für Fritte. Wärmen hilft.'); return; }
+    const f = FRITS.filter(function (x) { return x.id === fritId; })[0];
+    if (f.id === 'klar') {
+      piece.tintW = Math.max(0, piece.tintW - 0.36);
+      piece.milk = Math.max(0, piece.milk - 0.28);
+      say('Klare Schicht.');
+    } else if (f.id === 'milch') {
+      piece.milk = Math.min(1, piece.milk + 0.38);
+      piece.tint = mixRgb(piece.tint, f.rgb, 0.3);
+      say('Milchglas legt sich darüber.');
+    } else {
+      piece.tint = mixRgb(piece.tint, f.rgb, 0.78);
+      piece.tintW = Math.min(1, piece.tintW + 0.66);
+      say(f.name + ' haftet am heissen Glas.');
+    }
+    for (let k = 0; k < 12; k++) {
+      piece.dots.push({
+        t: Math.random() * 0.94,
+        a: Math.random() * TAU,
+        s: 0.55 + Math.random() * 1.15,
+        col: f.rgb.slice()
+      });
+    }
+    if (piece.dots.length > 48) piece.dots.splice(0, piece.dots.length - 48);
+    noiseBurst(0.11, 2600, 0.7, 'highpass', 0.045);
+  }
+
+  function selectFrit(id, apply) {
+    fritId = id;
+    const buttons = fritBox.querySelectorAll('button');
+    for (let i = 0; i < buttons.length; i++) {
+      buttons[i].setAttribute('aria-checked', buttons[i].dataset.id === id ? 'true' : 'false');
+    }
+    if (apply) applyFrit();
+  }
+
+  function ablegen() {
+    unlock();
+    hideHint();
+    if (anim || place) return;
+    if (!piece) { say('Noch kein Glas an der Pfeife.'); return; }
+    const made = clonePiece(piece, true);
+    made.name = classify(piece);
+    made.heat = piece.heat;
+    const f = frame();
+    const slot = Math.min(shelf.length, 7);
+    place = {
+      piece: made,
+      t: 0,
+      dur: reduce ? 0.05 : 0.72,
+      from: { ax: f.tipX, ay: f.axisY, angle: f.angle, unit: f.unit, heat: piece.heat },
+      slot: slot
+    };
+    piece = null;
+    say(made.name + ' kommt ins Fenster.');
+    tone(780, 0.32, 'sine', 0.055, 1240);
+    tone(1560, 0.4, 'sine', 0.028, 1680);
+  }
+
+  function finishPlace() {
+    shelf.push(place.piece);
+    if (shelf.length > 8) {
+      shelf.shift();
+      say('Das älteste Stück macht Platz.');
+    } else {
+      say(place.piece.name + ' steht im Fenster.');
+    }
+    place = null;
+    saveShelf();
+  }
+
+  function slotPose(i, count) {
+    const s = geom.shelf;
+    const n = Math.max(1, count);
+    const gap = s.w / n;
+    const ax = s.x + gap * (i + 0.5);
+    const ay = s.y + s.h - 16;
+    return { ax: ax, ay: ay, gap: gap, maxH: Math.max(24, s.h - 28) };
+  }
+  function pieceUnit(p, pose) {
+    const maxR = maxRof(p.pts);
+    const byH = pose.maxH / Math.max(0.4, p.len);
+    const byW = (pose.gap * 0.42) / Math.max(0.2, maxR);
+    return clamp(Math.min(byH, byW), 4, 80);
+  }
+
+  function liveText() {
+    if (bannerT > 0 && banner) return banner;
+    if (anim && anim.kind === 'holen') return 'Die Pfeife taucht in den Ofen.';
+    if (anim && anim.kind === 'waermen') return 'Das Glas wird wieder weich.';
+    if (!piece) {
+      if (shelf.length === 1) return 'Ein Stück steht im Sonnenfenster.';
+      if (shelf.length > 1) return shelf.length + ' Stück stehen im Sonnenfenster.';
+      return 'Ofen bereit. Hol Glas an die Pfeife.';
+    }
+    const name = classify(piece);
+    let spinWord = 'Pfeife drehen';
+    if (piece.sag > 0.62) spinWord = 'sackt ab';
+    else if (Math.abs(piece.spin) > 3.2) spinWord = 'dreht rund';
+    else if (piece.sag > 0.32) spinWord = 'leicht schief';
+    let text = name + ' · ' + heatWord(piece.heat) + ' · ' + spinWord;
+    const thin = piece.pts.some(function (p) { return p.thick < 0.05; });
+    if (thin) text += ' · dünn';
+    if (blowing && softness(piece.heat) > 0.05) text = 'Luft strömt. ' + text;
+    return text;
+  }
+
+  function step(dt) {
+    time += dt;
+    if (bannerT > 0) bannerT -= dt;
+    if (coldNote > 0) coldNote -= dt;
+    if (anim) {
+      anim.t += dt;
+      const p = anim.t / anim.dur;
+      if (anim.kind === 'holen' && !anim.did && p >= 0.5) {
+        anim.did = true;
+        gatherMore();
+        noiseBurst(0.22, 240, 0.55, 'lowpass', 0.07);
+        tone(160, 0.18, 'sine', 0.04, 80);
+      }
+      if (anim.kind === 'waermen' && piece && pipeReach() > 0.75) {
+        piece.heat = Math.min(1, piece.heat + dt * 1.35);
+        piece.sag *= Math.exp(-dt * 2.2);
+      }
+      if (p >= 1) anim = null;
+    }
+    if (place) {
+      place.t += dt;
+      if (place.t >= place.dur) finishPlace();
+    }
+    if (puddle) {
+      puddle.life += dt;
+      puddle.heat = Math.max(0, puddle.heat - dt * 0.12);
+      if (puddle.life > 9) puddle = null;
+    }
+    shelf.forEach(function (s) {
+      s.heat = Math.max(0, s.heat - dt * 0.15);
+      if (!reduce) s.phase += dt * 0.35;
+    });
+    const spinKey = (held.has('spinR') ? 1 : 0) - (held.has('spinL') ? 1 : 0);
+    if (piece && !anim) {
+      if (spinHold || spinKey) {
+        const target = spinKey ? spinKey * 7.2 : 6.6;
+        piece.spin += (target - piece.spin) * Math.min(1, dt * 5);
+      }
+      piece.phase += piece.spin * dt;
+      piece.spin *= Math.exp(-dt * 0.7);
+      const soft = softness(piece.heat);
+      const spinN = clamp(Math.abs(piece.spin) / 4.2, 0, 1);
+      const targetSag = soft * (1 - spinN);
+      const rate = targetSag > piece.sag ? 0.34 * soft + 0.04 : 1.85 * spinN + 0.12;
+      piece.sag += (targetSag - piece.sag) * Math.min(1, dt * rate);
+      if (piece.sag < 0) piece.sag = 0;
+      if (piece.sag > 0.985 && soft > 0.12) dropPiece();
+    }
+    if (piece && !anim) {
+      const softNow = softness(piece.heat);
+      piece.heat = Math.max(0, piece.heat - dt * (0.026 + (blowing ? 0.02 : 0) + Math.abs(piece.spin) * 0.0012));
+      if (blowing) blow(dt);
+      if (!pointerId && softNow > 0.35) {
+        const amt = Math.min(0.28, dt * softNow * (blowing ? 1.15 : 0.5));
+        const rs = piece.pts.map(function (p) { return p.r; });
+        for (let i = 1; i < N - 1; i++) {
+          const avg = (rs[i - 1] + rs[i + 1]) * 0.5;
+          piece.pts[i].r = rs[i] + (avg - rs[i]) * amt;
+        }
+      }
+    } else if (piece && anim && anim.kind === 'waermen') {
+      piece.phase += 3 * dt;
+    }
+    const next = liveText();
+    if (statusEl.textContent !== next) statusEl.textContent = next;
+    updateSpinAudio(dt);
+  }
+
+  function roundRect(x, y, w, h, r) {
+    const rr = Math.max(0, Math.min(r, w / 2, h / 2));
+    ctx.beginPath();
+    ctx.moveTo(x + rr, y);
+    ctx.arcTo(x + w, y, x + w, y + h, rr);
+    ctx.arcTo(x + w, y + h, x, y + h, rr);
+    ctx.arcTo(x, y + h, x, y, rr);
+    ctx.arcTo(x, y, x + w, y, rr);
+    ctx.closePath();
+  }
+
+  function silhouette(pts, len, unit, sag) {
+    const top = [];
+    const bot = [];
+    const n = pts.length;
+    let minX = 0, maxX = 0, minY = 1e9, maxY = -1e9;
+    for (let i = 0; i < n; i++) {
+      const u = i / (n - 1);
+      const x = -len * unit * (1 - u);
+      const r = pts[i].r * unit;
+      const yShift = sag * unit * (0.15 + pts[i].r * 0.42);
+      const ty = yShift - r * (1 - sag * 0.4);
+      const by = yShift + r * (1 + sag * 0.42);
+      top.push([x, ty]);
+      bot.push([x, by]);
+      if (x < minX) minX = x;
+      if (x > maxX) maxX = x;
+      if (ty < minY) minY = ty;
+      if (by > maxY) maxY = by;
+    }
+    return { top: top, bot: bot, minX: minX, maxX: maxX, minY: minY, maxY: maxY };
+  }
+  function traceSil(s) {
+    const n = s.top.length;
+    ctx.beginPath();
+    ctx.moveTo(s.top[0][0], s.top[0][1]);
+    for (let i = 1; i < n; i++) ctx.lineTo(s.top[i][0], s.top[i][1]);
+    for (let i = n - 1; i >= 0; i--) ctx.lineTo(s.bot[i][0], s.bot[i][1]);
+    ctx.closePath();
+  }
+  function traceInner(pts, len, unit, sag, scale) {
+    const n = pts.length;
+    ctx.beginPath();
+    for (let i = 0; i < n; i++) {
+      const u = i / (n - 1);
+      const x = -len * unit * (1 - u);
+      const r = pts[i].r * unit * scale;
+      const y = sag * unit * 0.2 - r;
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    }
+    for (let i = n - 1; i >= 0; i--) {
+      const u = i / (n - 1);
+      const x = -len * unit * (1 - u);
+      const r = pts[i].r * unit * scale;
+      const y = sag * unit * 0.2 + r;
+      ctx.lineTo(x, y);
+    }
+    ctx.closePath();
+  }
+
+  function paintGlass(o) {
+    const unit = o.unit;
+    const sag = o.sag || 0;
+    const heat = clamp(o.heat || 0, 0, 1);
+    const glow = Math.max(0, (heat - 0.16) / 0.84);
+    const s = silhouette(o.pts, o.len, unit, sag);
+    ctx.save();
+    ctx.translate(o.ax, o.ay);
+    ctx.rotate(o.angle || 0);
+
+    if (glow > 0.04) {
+      ctx.save();
+      ctx.shadowColor = 'rgba(255,' + (80 + heat * 130 | 0) + ',24,' + (0.55 * glow) + ')';
+      ctx.shadowBlur = 14 + 26 * glow;
+      ctx.fillStyle = 'rgba(255,' + (70 + heat * 150 | 0) + ',16,' + (0.28 * glow) + ')';
+      traceSil(s);
+      ctx.fill();
+      ctx.restore();
+    }
+
+    const tint = o.tint || [220, 232, 238];
+    const tw = clamp(o.tintW || 0, 0, 1);
+    const milk = clamp(o.milk || 0, 0, 1);
+    const cr = tint[0] * tw + 214 * (1 - tw);
+    const cg = tint[1] * tw + 230 * (1 - tw);
+    const cb = tint[2] * tw + 236 * (1 - tw);
+    const bodyA = clamp((0.16 + tw * 0.52 + milk * 0.45) * (1 - glow * 0.62) + glow * 0.1, 0.06, 0.94);
+    traceSil(s);
+    const grd = ctx.createLinearGradient(0, s.minY, 0, s.maxY);
+    if (glow > 0.05) {
+      grd.addColorStop(0, 'rgba(' + (160 | 0) + ',' + (40 + heat * 40 | 0) + ',16,' + (0.45 + glow * 0.4) + ')');
+      grd.addColorStop(0.28, 'rgba(255,' + (170 + heat * 70 | 0) + ',' + (70 + heat * 140 | 0) + ',' + (0.5 + glow * 0.45) + ')');
+      grd.addColorStop(0.55, 'rgba(255,' + (210 + heat * 40 | 0) + ',' + (120 + heat * 100 | 0) + ',' + (0.72 * glow + 0.2) + ')');
+      grd.addColorStop(1, 'rgba(150,28,8,' + (0.55 + glow * 0.35) + ')');
+    } else {
+      grd.addColorStop(0, 'rgba(255,255,255,' + (0.18 + milk * 0.25) + ')');
+      grd.addColorStop(0.22, 'rgba(' + (cr | 0) + ',' + (cg | 0) + ',' + (cb | 0) + ',' + (bodyA * 0.55) + ')');
+      grd.addColorStop(0.62, 'rgba(' + (cr * 0.9 | 0) + ',' + (cg * 0.92 | 0) + ',' + (cb | 0) + ',' + bodyA + ')');
+      grd.addColorStop(1, 'rgba(' + (cr * 0.55 | 0) + ',' + (cg * 0.62 | 0) + ',' + (cb * 0.7 | 0) + ',' + Math.min(0.85, bodyA * 1.25) + ')');
+    }
+    ctx.fillStyle = grd;
+    ctx.fill();
+
+    ctx.save();
+    traceSil(s);
+    ctx.clip();
+    const specA = 0.28 + 0.45 * (1 - glow);
+    const sx = s.minX + (s.maxX - s.minX) * (0.38 + Math.sin(o.phase || 0) * 0.07);
+    const sy = s.minY + (s.maxY - s.minY) * (0.28 + Math.cos((o.phase || 0) * 0.8) * 0.03);
+    const rad = Math.max(8, (s.maxY - s.minY) * 0.55);
+    const rg = ctx.createRadialGradient(sx, sy, 1, sx, sy, rad);
+    rg.addColorStop(0, 'rgba(255,255,255,' + specA + ')');
+    rg.addColorStop(0.32, 'rgba(255,255,255,' + (specA * 0.22) + ')');
+    rg.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = rg;
+    ctx.fillRect(s.minX - 4, s.minY - 4, s.maxX - s.minX + 8, s.maxY - s.minY + 8);
+
+    if (glow < 0.92) {
+      const cx = s.minX + (s.maxX - s.minX) * (0.62 + Math.cos((o.phase || 0) * 0.6) * 0.04);
+      const cy = s.minY + (s.maxY - s.minY) * 0.74;
+      const ca = (0.22 + tw * 0.4 + milk * 0.12) * (1 - glow);
+      const cg2 = ctx.createRadialGradient(cx, cy, 1, cx, cy, Math.max(8, (s.maxY - s.minY) * 0.42));
+      cg2.addColorStop(0, 'rgba(' + (tint[0] | 0) + ',' + (tint[1] | 0) + ',' + (tint[2] | 0) + ',' + ca + ')');
+      cg2.addColorStop(1, 'rgba(' + (tint[0] | 0) + ',' + (tint[1] | 0) + ',' + (tint[2] | 0) + ',0)');
+      ctx.fillStyle = cg2;
+      ctx.fillRect(s.minX - 4, s.minY - 4, s.maxX - s.minX + 8, s.maxY - s.minY + 8);
+    }
+
+    if (heat > 0.72) {
+      ctx.fillStyle = 'rgba(255,250,230,' + ((heat - 0.72) * 1.4) + ')';
+      ctx.beginPath();
+      ctx.ellipse((s.minX + s.maxX) * 0.5, (s.minY + s.maxY) * 0.48, Math.max(2, (s.maxX - s.minX) * 0.12), Math.max(2, (s.maxY - s.minY) * 0.16), 0, 0, TAU);
+      ctx.fill();
+    }
+
+    ctx.lineWidth = Math.max(1, unit * 0.045);
+    ctx.lineCap = 'round';
+    for (let k = 0; k < 4; k++) {
+      ctx.beginPath();
+      for (let i = 0; i < o.pts.length; i++) {
+        const u = i / (o.pts.length - 1);
+        const x = -o.len * unit * (1 - u);
+        const r = o.pts[i].r * unit;
+        const y = sag * unit * 0.15 + Math.sin(u * 6.2 + (o.phase || 0) + k * 1.45) * r * 0.22;
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      }
+      ctx.strokeStyle = glow > 0.45
+        ? 'rgba(90,24,8,' + (0.12 * glow) + ')'
+        : 'rgba(' + (tint[0] | 0) + ',' + (tint[1] | 0) + ',' + (tint[2] | 0) + ',' + (0.1 + tw * 0.18) + ')';
+      ctx.stroke();
+    }
+
+    const dots = o.dots || [];
+    for (let d = 0; d < dots.length; d++) {
+      const dot = dots[d];
+      const ang = dot.a + (o.phase || 0);
+      const facing = Math.cos(ang);
+      if (facing < -0.2) continue;
+      const i = clamp(Math.round(dot.t * (o.pts.length - 1)), 0, o.pts.length - 1);
+      const u = i / (o.pts.length - 1);
+      const x = -o.len * unit * (1 - u);
+      const r = o.pts[i].r * unit;
+      const y = Math.sin(ang) * r * 0.78 + sag * unit * 0.15;
+      const rads = Math.max(0.6, dot.s * unit * 0.07 * (0.4 + 0.6 * Math.max(0, facing)));
+      const col = dot.col || tint;
+      ctx.fillStyle = 'rgba(' + (col[0] | 0) + ',' + (col[1] | 0) + ',' + (col[2] | 0) + ',' + (0.3 + 0.55 * Math.max(0, facing)) + ')';
+      ctx.beginPath();
+      ctx.ellipse(x, y, rads * 1.35, rads, 0, 0, TAU);
+      ctx.fill();
+    }
+
+    ctx.strokeStyle = 'rgba(255,252,246,' + (0.55 * (1 - glow * 0.7)) + ')';
+    ctx.lineWidth = Math.max(1.25, unit * 0.055);
+    ctx.beginPath();
+    for (let i = 0; i < s.top.length; i++) {
+      const x = s.top[i][0];
+      const y = s.top[i][1] + o.pts[i].r * unit * 0.16;
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+    ctx.restore();
+
+    traceInner(o.pts, o.len, unit, sag, 0.62);
+    ctx.strokeStyle = glow > 0.5 ? 'rgba(255,220,160,' + (0.18 * glow) + ')' : 'rgba(255,255,255,' + (0.16 + milk * 0.1) + ')';
+    ctx.lineWidth = Math.max(1, unit * 0.03);
+    ctx.stroke();
+    traceSil(s);
+    ctx.strokeStyle = 'rgba(255,250,242,' + (0.28 + 0.4 * (1 - glow)) + ')';
+    ctx.lineWidth = Math.max(1, unit * 0.028);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function lightOf(p) {
+    const tw = clamp(p.tintW || 0, 0, 1);
+    const heat = clamp(p.heat || 0, 0, 1);
+    const glass = [
+      255 * (1 - tw) + p.tint[0] * tw,
+      236 * (1 - tw) + p.tint[1] * tw,
+      214 * (1 - tw) + p.tint[2] * tw
+    ];
+    return mixRgb(glass, [255, 132, 36], heat * 0.75);
+  }
+
+  function drawBeams() {
+    const w = geom.window;
+    const sunX = w.x + w.w * 0.72;
+    const sunY = w.y + w.h * 0.3;
+    ctx.save();
+    ctx.globalAlpha = 0.11;
+    ctx.fillStyle = '#fff4d2';
+    for (let i = 0; i < 3; i++) {
+      ctx.beginPath();
+      ctx.moveTo(sunX, sunY);
+      const x0 = geom.portrait ? -20 : w.x - geom.W * 0.45;
+      const y0 = w.y + w.h * (0.2 + i * 0.35);
+      const y1 = geom.floorY;
+      ctx.lineTo(x0, y0);
+      ctx.lineTo(x0 + 80, y1);
+      ctx.closePath();
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  function drawWindow(t) {
+    const w = geom.window;
+    if (w.w < 8 || w.h < 8) return;
+    roundRect(w.x - 7, w.y - 7, w.w + 14, w.h + 14, 8);
+    ctx.fillStyle = '#f7f1e6';
+    ctx.fill();
+    ctx.save();
+    roundRect(w.x, w.y, w.w, w.h, 3);
+    ctx.clip();
+    const sky = ctx.createLinearGradient(0, w.y, 0, w.y + w.h);
+    sky.addColorStop(0, '#7ec4ef');
+    sky.addColorStop(0.55, '#c5e6f6');
+    sky.addColorStop(1, '#fff0c8');
+    ctx.fillStyle = sky;
+    ctx.fillRect(w.x, w.y, w.w, w.h);
+    const sx = w.x + w.w * 0.74;
+    const sy = w.y + w.h * 0.28;
+    const sg = ctx.createRadialGradient(sx, sy, 2, sx, sy, Math.max(18, w.w * 0.28));
+    sg.addColorStop(0, 'rgba(255,252,236,.95)');
+    sg.addColorStop(1, 'rgba(255,220,140,0)');
+    ctx.fillStyle = sg;
+    ctx.beginPath();
+    ctx.arc(sx, sy, Math.max(18, w.w * 0.28), 0, TAU);
+    ctx.fill();
+    ctx.fillStyle = '#fff7dc';
+    ctx.beginPath();
+    ctx.arc(sx, sy, Math.max(7, w.w * 0.06), 0, TAU);
+    ctx.fill();
+    ctx.fillStyle = '#8eafc2';
+    ctx.beginPath();
+    ctx.moveTo(w.x, w.y + w.h);
+    ctx.lineTo(w.x, w.y + w.h * 0.66);
+    ctx.lineTo(w.x + w.w * 0.22, w.y + w.h * 0.4);
+    ctx.lineTo(w.x + w.w * 0.4, w.y + w.h * 0.6);
+    ctx.lineTo(w.x + w.w * 0.58, w.y + w.h * 0.3);
+    ctx.lineTo(w.x + w.w * 0.74, w.y + w.h * 0.52);
+    ctx.lineTo(w.x + w.w, w.y + w.h * 0.36);
+    ctx.lineTo(w.x + w.w, w.y + w.h);
+    ctx.fill();
+    ctx.fillStyle = '#c5d5df';
+    ctx.beginPath();
+    ctx.moveTo(w.x + w.w * 0.5, w.y + w.h * 0.36);
+    ctx.lineTo(w.x + w.w * 0.58, w.y + w.h * 0.3);
+    ctx.lineTo(w.x + w.w * 0.66, w.y + w.h * 0.4);
+    ctx.fill();
+    const drift = reduce ? w.w * 0.3 : ((t * 14) % (w.w + 50)) - 20;
+    ctx.fillStyle = 'rgba(255,255,255,.88)';
+    softCloud(w.x + drift, w.y + w.h * 0.22, Math.max(16, w.w * 0.12));
+    ctx.restore();
+    ctx.strokeStyle = 'rgba(90,70,48,.4)';
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.moveTo(w.x + w.w / 2, w.y);
+    ctx.lineTo(w.x + w.w / 2, w.y + w.h);
+    ctx.moveTo(w.x, w.y + w.h * 0.55);
+    ctx.lineTo(w.x + w.w, w.y + w.h * 0.55);
+    ctx.stroke();
+  }
+  function softCloud(x, y, r) {
+    ctx.beginPath();
+    ctx.arc(x, y, r * 0.7, 0, TAU);
+    ctx.arc(x + r * 0.7, y + r * 0.1, r * 0.55, 0, TAU);
+    ctx.arc(x - r * 0.6, y + r * 0.15, r * 0.48, 0, TAU);
+    ctx.fill();
+  }
+
+  function drawShelfBack() {
+    const s = geom.shelf;
+    roundRect(s.x, s.y, s.w, s.h, 8);
+    const g = ctx.createLinearGradient(0, s.y, 0, s.y + s.h);
+    g.addColorStop(0, '#f6e7d4');
+    g.addColorStop(1, '#e7d0b4');
+    ctx.fillStyle = g;
+    ctx.fill();
+  }
+  function drawColoredLight(list) {
+    const win = geom.window;
+    const sx = win.x + win.w * 0.74;
+    const sy = win.y + win.h - 2;
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(0, win.y + win.h, W, Math.max(1, H - win.y - win.h));
+    ctx.clip();
+    list.forEach(function (entry) {
+      const rgb = lightOf(entry.piece);
+      const tw = entry.piece.tintW || 0;
+      const amt = 0.45 + tw * 0.7 + (entry.piece.milk || 0) * 0.2;
+      const col = 'rgba(' + (rgb[0] | 0) + ',' + (rgb[1] | 0) + ',' + (rgb[2] | 0) + ',';
+      const dx = entry.x - sx;
+      const dy = entry.y - sy;
+      const reach = Math.hypot(dx, dy) || 1;
+      ctx.save();
+      ctx.translate(sx, sy);
+      ctx.rotate(Math.atan2(dy, dx));
+      const beam = ctx.createLinearGradient(0, 0, reach, 0);
+      beam.addColorStop(0, col + '0)');
+      beam.addColorStop(0.55, col + (0.06 + tw * 0.06) + ')');
+      beam.addColorStop(1, col + (0.2 + tw * 0.16) + ')');
+      ctx.fillStyle = beam;
+      const half = Math.max(16, entry.gap * 0.2);
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.lineTo(reach, -half);
+      ctx.lineTo(reach, half * 0.55);
+      ctx.closePath();
+      ctx.fill();
+      ctx.restore();
+      const streak = ctx.createRadialGradient(entry.x, entry.y - entry.h * 0.45, 4, entry.x, entry.y - entry.h * 0.35, Math.max(24, entry.h * 0.7));
+      streak.addColorStop(0, col + (0.28 * amt) + ')');
+      streak.addColorStop(1, col + '0)');
+      ctx.fillStyle = streak;
+      ctx.beginPath();
+      ctx.ellipse(entry.x, entry.y - entry.h * 0.48, Math.max(14, entry.gap * 0.28), Math.max(20, entry.h * 0.55), 0, 0, TAU);
+      ctx.fill();
+    });
+    ctx.restore();
+  }
+  function drawPlank() {
+    const s = geom.shelf;
+    const y = s.y + s.h - 14;
+    ctx.fillStyle = '#c4894e';
+    ctx.fillRect(s.x + 4, y, s.w - 8, 12);
+    ctx.fillStyle = '#8d5a32';
+    ctx.fillRect(s.x + 4, y + 10, s.w - 8, 4);
+    ctx.fillStyle = 'rgba(255,236,206,.45)';
+    ctx.fillRect(s.x + 4, y, s.w - 8, 3);
+  }
+  function drawPools(list) {
+    list.forEach(function (entry) {
+      const rgb = lightOf(entry.piece);
+      const tw = entry.piece.tintW || 0;
+      const amt = 0.4 + tw * 0.45;
+      const y = geom.shelf.y + geom.shelf.h - 14;
+      const g = ctx.createRadialGradient(entry.x, y, 2, entry.x, y, Math.max(22, entry.gap * 0.46));
+      g.addColorStop(0, 'rgba(' + (rgb[0] | 0) + ',' + (rgb[1] | 0) + ',' + (rgb[2] | 0) + ',' + amt + ')');
+      g.addColorStop(1, 'rgba(' + (rgb[0] | 0) + ',' + (rgb[1] | 0) + ',' + (rgb[2] | 0) + ',0)');
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.ellipse(entry.x, y, Math.max(18, entry.gap * 0.42), 12, 0, 0, TAU);
+      ctx.fill();
+    });
+  }
+  function drawName(entry) {
+    if (entry.gap < 44) return;
+    ctx.save();
+    ctx.fillStyle = '#6a4632';
+    ctx.font = '12px Georgia, Palatino, serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    ctx.fillText(entry.piece.name || 'Stück', entry.x, geom.shelf.y + geom.shelf.h + 1);
+    ctx.restore();
+  }
+
+  function shelfEntries() {
+    const count = shelf.length + (place ? 1 : 0);
+    const list = [];
+    for (let i = 0; i < shelf.length; i++) {
+      const pose = slotPose(i, Math.max(count, shelf.length));
+      list.push({
+        piece: shelf[i],
+        x: pose.ax,
+        y: pose.ay,
+        h: pose.maxH,
+        gap: pose.gap,
+        unit: pieceUnit(shelf[i], pose),
+        angle: Math.PI / 2
+      });
+    }
+    return list;
+  }
+
+  function drawFurnace(t) {
+    const f = geom.furnace;
+    const m = geom.mouth;
+    ctx.save();
+    const glow = ctx.createRadialGradient(m.x, m.y, m.r * 0.3, m.x, m.y, m.r * 3.4);
+    glow.addColorStop(0, 'rgba(255,170,60,.38)');
+    glow.addColorStop(1, 'rgba(255,120,30,0)');
+    ctx.fillStyle = glow;
+    ctx.beginPath();
+    ctx.arc(m.x, m.y, m.r * 3.4, 0, TAU);
+    ctx.fill();
+    roundRect(f.x, f.y, f.w, f.h, 12);
+    ctx.fillStyle = '#4e2c28';
+    ctx.fill();
+    const bw = 16, bh = 9;
+    const rows = Math.ceil(f.h / bh);
+    const cols = Math.ceil(f.w / bw) + 1;
+    for (let row = 0; row < rows; row++) {
+      for (let col = 0; col < cols; col++) {
+        const bx = f.x + 3 + col * bw + (row % 2) * 8;
+        const by = f.y + 3 + row * bh;
+        if (bx > f.x + f.w - 8 || by > f.y + f.h - 8) continue;
+        ctx.fillStyle = (row + col) % 4 === 0 ? '#7d4338' : '#69362e';
+        ctx.fillRect(bx, by, bw - 3, bh - 2);
+      }
+    }
+    ctx.beginPath();
+    ctx.ellipse(m.x, m.y, m.r * 1.15, m.r * 1.05, 0, 0, TAU);
+    ctx.fillStyle = '#1a0c0a';
+    ctx.fill();
+    ctx.restore();
+    drawFire(m, t);
+  }
+  function drawFire(m, t) {
+    const flick = reduce ? 0 : t;
+    const layers = [
+      ['#ff7a32', 1, 0],
+      ['#ffb03a', 0.72, 1.2],
+      ['#ffd56a', 0.48, 2.1],
+      ['#fff1c4', 0.26, 2.8]
+    ];
+    for (let i = 0; i < layers.length; i++) {
+      const L = layers[i];
+      const wob = Math.sin(flick * 3.2 + L[2]) * m.r * 0.06;
+      ctx.fillStyle = L[0];
+      ctx.beginPath();
+      ctx.ellipse(m.x + wob, m.y + Math.cos(flick * 2.4 + i) * 1.5, m.r * L[1], m.r * L[1] * 0.86, 0, 0, TAU);
+      ctx.fill();
+    }
+  }
+
+  function drawPipe(f) {
+    const x0 = f.tipX;
+    const y0 = f.axisY;
+    const x1 = f.handleX;
+    const y1 = f.handleY;
+    ctx.save();
+    ctx.strokeStyle = '#9aa3a8';
+    ctx.lineWidth = Math.max(5, geom.unit * 0.11);
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(x0, y0);
+    ctx.lineTo(x1, y1);
+    ctx.stroke();
+    ctx.strokeStyle = 'rgba(255,255,255,.55)';
+    ctx.lineWidth = 1.4;
+    ctx.beginPath();
+    ctx.moveTo(x0, y0 - 1.5);
+    ctx.lineTo(x1, y1 - 1.5);
+    ctx.stroke();
+    const hx = x1 - 36;
+    ctx.strokeStyle = '#8a5a32';
+    ctx.lineWidth = Math.max(9, geom.unit * 0.16);
+    ctx.beginPath();
+    ctx.moveTo(hx, y1);
+    ctx.lineTo(x1, y1);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function drawFloor() {
+    ctx.fillStyle = '#c48956';
+    ctx.fillRect(0, geom.floorY, W, H - geom.floorY);
+    ctx.strokeStyle = 'rgba(90,50,24,.28)';
+    ctx.lineWidth = 1;
+    for (let x = 0; x < W; x += 28) {
+      ctx.beginPath();
+      ctx.moveTo(x, geom.floorY);
+      ctx.lineTo(x, H);
+      ctx.stroke();
+    }
+  }
+  function drawPuddle() {
+    if (!puddle) return;
+    const a = clamp(1 - puddle.life / 9, 0, 1);
+    const heat = puddle.heat;
+    ctx.save();
+    ctx.globalAlpha = 0.35 + 0.5 * a;
+    const g = ctx.createRadialGradient(puddle.x, puddle.y, 2, puddle.x, puddle.y, puddle.r);
+    if (heat > 0.25) {
+      g.addColorStop(0, 'rgba(255,220,120,' + heat + ')');
+      g.addColorStop(1, 'rgba(180,40,10,0)');
+    } else {
+      const col = puddle.tint;
+      g.addColorStop(0, 'rgba(' + (col[0] | 0) + ',' + (col[1] | 0) + ',' + (col[2] | 0) + ',.45)');
+      g.addColorStop(1, 'rgba(' + (col[0] | 0) + ',' + (col[1] | 0) + ',' + (col[2] | 0) + ',0)');
+    }
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.ellipse(puddle.x, puddle.y, puddle.r, puddle.r * 0.38, 0, 0, TAU);
+    ctx.fill();
+    ctx.restore();
+  }
+  function drawGeranium() {
+    const w = geom.window;
+    const x = w.x + 18;
+    const y = w.y + w.h - 2;
+    ctx.fillStyle = '#c46a3a';
+    roundRect(x - 8, y - 10, 16, 12, 2);
+    ctx.fill();
+    ctx.fillStyle = '#3e8a48';
+    ctx.beginPath();
+    ctx.ellipse(x, y - 16, 10, 6, -0.4, 0, TAU);
+    ctx.ellipse(x + 7, y - 14, 8, 5, 0.5, 0, TAU);
+    ctx.fill();
+    ctx.fillStyle = '#d83b45';
+    ctx.beginPath();
+    ctx.arc(x - 2, y - 22, 3.2, 0, TAU);
+    ctx.arc(x + 4, y - 20, 2.8, 0, TAU);
+    ctx.fill();
+  }
+
+  function entryFromPiece(p, pose, angle, unit) {
+    return { piece: p, x: pose.ax, y: pose.ay, h: pose.maxH, gap: pose.gap, angle: angle, unit: unit };
+  }
+
+  function draw() {
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const wall = ctx.createLinearGradient(0, 0, 0, geom.floorY);
+    wall.addColorStop(0, '#f4e4cf');
+    wall.addColorStop(0.6, '#f0d2b4');
+    wall.addColorStop(1, '#e2bf9e');
+    ctx.fillStyle = wall;
+    ctx.fillRect(0, 0, W, H);
+    if (grain) {
+      ctx.save();
+      ctx.globalAlpha = 0.18;
+      ctx.fillStyle = ctx.createPattern(grain, 'repeat');
+      ctx.fillRect(0, 0, W, H);
+      ctx.restore();
+    }
+    drawWindow(time);
+    drawBeams();
+    drawShelfBack();
+    const entries = shelfEntries();
+    drawColoredLight(entries);
+    drawPlank();
+    drawFloor();
+    drawPuddle();
+    drawGeranium();
+
+    const showGlass = piece && !(anim && anim.kind === 'holen' && !anim.did);
+    if (showGlass) {
+      const f = frame();
+      drawPipe(f);
+      paintGlass({
+        ax: f.tipX,
+        ay: f.axisY,
+        angle: f.angle,
+        pts: piece.pts,
+        len: piece.len,
+        unit: f.unit,
+        sag: piece.sag,
+        heat: piece.heat,
+        tint: piece.tint,
+        tintW: piece.tintW,
+        milk: piece.milk,
+        phase: piece.phase,
+        dots: piece.dots
+      });
+    } else {
+      const f = frame();
+      drawPipe(f);
+    }
+
+    entries.forEach(function (e) {
+      paintGlass({
+        ax: e.x,
+        ay: e.y,
+        angle: Math.PI / 2,
+        pts: e.piece.pts,
+        len: e.piece.len,
+        unit: e.unit,
+        sag: 0,
+        heat: e.piece.heat,
+        tint: e.piece.tint,
+        tintW: e.piece.tintW,
+        milk: e.piece.milk,
+        phase: e.piece.phase,
+        dots: e.piece.dots
+      });
+      ctx.save();
+      ctx.fillStyle = 'rgba(70,40,20,.16)';
+      ctx.beginPath();
+      ctx.ellipse(e.x, e.y + 2, Math.max(6, e.piece.pts[N - 1].r * e.unit * 0.9), 3.2, 0, 0, TAU);
+      ctx.fill();
+      ctx.restore();
+    });
+    drawPools(entries);
+    entries.forEach(drawName);
+
+    if (place) {
+      const u = ease(place.t / place.dur);
+      const pose = slotPose(place.slot, Math.max(shelf.length + 1, place.slot + 1));
+      const unit = lerp(place.from.unit, pieceUnit(place.piece, pose), u);
+      paintGlass({
+        ax: lerp(place.from.ax, pose.ax, u),
+        ay: lerp(place.from.ay, pose.ay, ease(u)),
+        angle: lerp(place.from.angle, Math.PI / 2, ease(u)),
+        pts: place.piece.pts,
+        len: place.piece.len,
+        unit: unit,
+        sag: 0,
+        heat: lerp(place.from.heat, place.from.heat * 0.55, u),
+        tint: place.piece.tint,
+        tintW: place.piece.tintW,
+        milk: place.piece.milk,
+        phase: place.piece.phase,
+        dots: place.piece.dots
+      });
+    }
+
+    drawFurnace(time);
+
+    if (piece && piece.sag > 0.45 && Math.abs(piece.spin) < 2.2 && !anim) {
+      const f = frame();
+      ctx.save();
+      ctx.translate(f.tipX + 18, f.axisY - geom.unit * 0.9);
+      ctx.strokeStyle = 'rgba(120,60,30,.75)';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(0, 0, 10, -2.2, 0.4);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(8, 6);
+      ctx.lineTo(12, 2);
+      ctx.lineTo(6, 2);
+      ctx.stroke();
+      ctx.restore();
+    }
+  }
+
+  function unlock() { unlocked = true; if (ac && ac.state === 'suspended') ac.resume().catch(function () {}); }
+  function canHear() { return tonOn && unlocked && ac && master; }
+  function ensureAudio() {
+    if (ac) return;
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return;
+    try {
+      ac = new AC();
+      master = ac.createGain();
+      master.gain.value = 0.8;
+      master.connect(ac.destination);
+      const len = ac.sampleRate * 2;
+      noise = ac.createBuffer(1, len, ac.sampleRate);
+      const data = noise.getChannelData(0);
+      let b = 0;
+      for (let i = 0; i < len; i++) {
+        const white = Math.random() * 2 - 1;
+        b = b * 0.985 + white * 0.015;
+        data[i] = b * 3.4;
+      }
+      function loop(filterType, freq, q) {
+        const src = ac.createBufferSource();
+        src.buffer = noise;
+        src.loop = true;
+        const f = ac.createBiquadFilter();
+        f.type = filterType;
+        f.frequency.value = freq;
+        f.Q.value = q;
+        const g = ac.createGain();
+        g.gain.value = 0;
+        src.connect(f);
+        f.connect(g);
+        g.connect(master);
+        src.start();
+        return g;
+      }
+      humGain = loop('lowpass', 160, 0.7);
+      blowGain = loop('bandpass', 860, 0.6);
+      spinGain = loop('bandpass', 420, 0.8);
+    } catch (err) {
+      ac = null;
+    }
+  }
+  function ramp(g, v) {
+    if (!g || !ac) return;
+    g.gain.setTargetAtTime(v, ac.currentTime, 0.08);
+  }
+  function setHum(on) { ramp(humGain, on && tonOn ? 0.045 : 0); }
+  function setBlow(on) { ramp(blowGain, on && tonOn && unlocked ? 0.09 : 0); }
+  function setSpinGain(v) { ramp(spinGain, tonOn && unlocked ? v : 0); }
+  function updateSpinAudio(dt) {
+    spinAcc += dt;
+    if (spinAcc < 0.12) return;
+    spinAcc = 0;
+    if (!ac || !tonOn) return;
+    const s = piece ? clamp(Math.abs(piece.spin) / 8, 0, 1) : 0;
+    setSpinGain(s * 0.03);
+  }
+  function tone(freq, dur, type, vol, slide) {
+    if (!canHear()) return;
+    const t = ac.currentTime;
+    const o = ac.createOscillator();
+    const g = ac.createGain();
+    o.type = type || 'sine';
+    o.frequency.setValueAtTime(Math.max(40, freq), t);
+    if (slide) o.frequency.exponentialRampToValueAtTime(Math.max(40, slide), t + dur);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(Math.max(0.0001, vol), t + 0.012);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g);
+    g.connect(master);
+    o.start(t);
+    o.stop(t + dur + 0.02);
+  }
+  function noiseBurst(dur, freq, q, type, vol) {
+    if (!canHear() || !noise) return;
+    const t = ac.currentTime;
+    const src = ac.createBufferSource();
+    src.buffer = noise;
+    const f = ac.createBiquadFilter();
+    f.type = type;
+    f.frequency.value = freq;
+    f.Q.value = q;
+    const g = ac.createGain();
+    g.gain.setValueAtTime(Math.max(0.0001, vol), t);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    src.connect(f);
+    f.connect(g);
+    g.connect(master);
+    src.start(t, Math.random() * 0.4, dur + 0.02);
+    src.stop(t + dur + 0.03);
+  }
+  function toggleTon() {
+    tonOn = !tonOn;
+    bTon.setAttribute('aria-pressed', tonOn ? 'true' : 'false');
+    bTon.setAttribute('aria-label', tonOn ? 'Ton an' : 'Ton aus');
+    unlock();
+    if (tonOn) {
+      ensureAudio();
+      if (ac && ac.state === 'suspended') ac.resume().catch(function () {});
+      setHum(true);
+      setBlow(blowing);
+    } else {
+      setHum(false);
+      setBlow(false);
+      setSpinGain(0);
+    }
+  }
+
+  function pointerPos(ev) {
+    const r = c.getBoundingClientRect();
+    return { x: ev.clientX - r.left, y: ev.clientY - r.top };
+  }
+  function onHandle(p) {
+    const f = frame();
+    const dx = f.handleX - f.tipX;
+    const dy = f.handleY - f.axisY;
+    const L2 = dx * dx + dy * dy || 1;
+    const t = clamp(((p.x - f.tipX) * dx + (p.y - f.axisY) * dy) / L2, 0, 1);
+    const x = f.tipX + dx * t;
+    const y = f.axisY + dy * t;
+    return Math.hypot(p.x - x, p.y - y) < 26 && t > 0.35;
+  }
+
+  c.addEventListener('pointerdown', function (ev) {
+    if (ev.button !== 0) return;
+    unlock();
+    hideHint();
+    pointerId = ev.pointerId;
+    c.setPointerCapture(ev.pointerId);
+    const p = pointerPos(ev);
+    lastPX = p.x;
+    lastPY = p.y;
+    if (tool === 'blasen') { blowSources.canvas = true; refreshBlow(); }
+  });
+  c.addEventListener('pointermove', function (ev) {
+    if (ev.pointerId !== pointerId) return;
+    const p = pointerPos(ev);
+    const dx = p.x - lastPX;
+    const dy = p.y - lastPY;
+    lastPX = p.x;
+    lastPY = p.y;
+    if (!piece || anim) return;
+    if (tool === 'drehen' || onHandle(p)) {
+      piece.spin = clamp(piece.spin + dx * 0.045, -12, 12);
+    } else if (tool === 'ziehen') {
+      pullBy(dx);
+    } else if (tool === 'kneifen') {
+      pinchAt(p.x, p.y);
+    } else if (Math.abs(dx) > Math.abs(dy) * 1.4) {
+      piece.spin = clamp(piece.spin + dx * 0.03, -12, 12);
+    }
+  });
+  function endPointer(ev) {
+    if (ev.pointerId !== pointerId) return;
+    pointerId = null;
+    blowSources.canvas = false;
+    refreshBlow();
+  }
+  c.addEventListener('pointerup', endPointer);
+  c.addEventListener('pointercancel', endPointer);
+  c.addEventListener('contextmenu', function (ev) { ev.preventDefault(); });
+
+  function bindHold(btn, onDown, onUp) {
+    btn.addEventListener('pointerdown', function (ev) {
+      if (ev.button !== 0) return;
+      unlock();
+      btn.setPointerCapture(ev.pointerId);
+      onDown();
+    });
+    function up() { onUp(); }
+    btn.addEventListener('pointerup', up);
+    btn.addEventListener('pointercancel', up);
+  }
+  document.getElementById('bHolen').addEventListener('click', function () { unlock(); startDip('holen'); });
+  bindHold(document.getElementById('bDrehen'), function () {
+    setTool('drehen');
+    spinHold = true;
+  }, function () { spinHold = false; });
+  bindHold(document.getElementById('bBlasen'), function () {
+    setTool('blasen');
+    blowSources.button = true;
+    refreshBlow();
+  }, function () {
+    blowSources.button = false;
+    refreshBlow();
+  });
+  document.getElementById('bZiehen').addEventListener('click', function () { unlock(); setTool('ziehen'); });
+  document.getElementById('bKneifen').addEventListener('click', function () { unlock(); setTool('kneifen'); });
+  document.getElementById('bWaermen').addEventListener('click', function () { unlock(); startDip('waermen'); });
+  document.getElementById('bAblegen').addEventListener('click', ablegen);
+  bTon.addEventListener('click', toggleTon);
+
+  FRITS.forEach(function (f) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'frit';
+    b.dataset.id = f.id;
+    b.setAttribute('role', 'radio');
+    b.setAttribute('aria-label', f.name);
+    b.title = f.name;
+    b.style.background = 'rgb(' + f.rgb.join(',') + ')';
+    if (f.id === 'klar' || f.id === 'milch') b.style.borderColor = 'rgba(80,60,40,.45)';
+    b.addEventListener('click', function () { selectFrit(f.id, true); });
+    fritBox.appendChild(b);
+  });
+  selectFrit('kobalt', false);
+
+  window.addEventListener('keydown', function (ev) {
+    if (ev.metaKey || ev.ctrlKey || ev.altKey) return;
+    const tag = ev.target && ev.target.tagName;
+    if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+    const k = ev.key;
+    if (k === 'ArrowLeft' || k === 'a' || k === 'A') { held.add('spinL'); unlock(); ev.preventDefault(); }
+    else if (k === 'ArrowRight' || k === 'd' || k === 'D') { held.add('spinR'); unlock(); ev.preventDefault(); }
+    else if (k === ' ' || k === 'b' || k === 'B') {
+      blowSources.key = true; refreshBlow(); unlock(); ev.preventDefault();
+    } else if (ev.repeat) return;
+    else if (k === 'h' || k === 'H') { unlock(); startDip('holen'); }
+    else if (k === 'w' || k === 'W') { unlock(); startDip('waermen'); }
+    else if (k === 'z' || k === 'Z') { unlock(); setTool('ziehen'); }
+    else if (k === 'k' || k === 'K') { unlock(); setTool('kneifen'); }
+    else if (k === 'Enter') { ablegen(); ev.preventDefault(); }
+    else if (k === 'f' || k === 'F') applyFrit();
+    else if (k >= '1' && k <= '7') selectFrit(FRITS[Number(k) - 1].id, true);
+    else if (k === 'm' || k === 'M') bTon.click();
+  });
+  window.addEventListener('keyup', function (ev) {
+    const k = ev.key;
+    if (k === 'ArrowLeft' || k === 'a' || k === 'A') held.delete('spinL');
+    else if (k === 'ArrowRight' || k === 'd' || k === 'D') held.delete('spinR');
+    else if (k === ' ' || k === 'b' || k === 'B') { blowSources.key = false; refreshBlow(); }
+  });
+  window.addEventListener('blur', function () {
+    held.clear();
+    blowSources.key = false;
+    blowSources.button = false;
+    blowSources.canvas = false;
+    spinHold = false;
+    refreshBlow();
+  });
+
+  window.__glas = {
+    snapshot: function () {
+      const f = frame();
+      const rect = c.getBoundingClientRect();
+      return {
+        anim: anim ? anim.kind : null,
+        place: !!place,
+        heat: piece ? piece.heat : null,
+        sag: piece ? piece.sag : null,
+        len: piece ? piece.len : null,
+        maxR: piece ? maxRof(piece.pts) : null,
+        name: piece ? classify(piece) : null,
+        thin: piece ? piece.pts.some(function (p) { return p.thick < 0.05; }) : false,
+        shelf: shelf.map(function (s) { return s.name; }),
+        tool: tool,
+        tonOn: tonOn,
+        unlocked: unlocked,
+        blowing: blowing,
+        mouthX: f.mouthX,
+        tipX: f.tipX,
+        axisY: f.axisY,
+        unit: f.unit,
+        handleX: f.handleX,
+        originX: rect.left,
+        originY: rect.top,
+        W: W,
+        H: H
+      };
+    }
+  };
+
+  loadShelf();
+  makeGrain();
+  resize();
+  if (window.ResizeObserver) new ResizeObserver(resize).observe(stage);
+  window.addEventListener('resize', resize);
+  let last = performance.now();
+  function loop(now) {
+    const dt = Math.min(0.034, Math.max(0.001, (now - last) / 1000));
+    last = now;
+    step(dt);
+    draw();
+    requestAnimationFrame(loop);
+  }
+  requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>
