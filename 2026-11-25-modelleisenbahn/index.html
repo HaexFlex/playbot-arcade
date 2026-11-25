@@ -1,0 +1,2202 @@
+<!DOCTYPE html>
+<html lang="de-CH">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Modelleisenbahn</title>
+<style>
+  :root { color-scheme: light; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; overflow: hidden; }
+  body {
+    font-family: "Avenir Next", "Segoe UI", "Helvetica Neue", system-ui, sans-serif;
+    color: #3a2a1c;
+    background: #e7d3ae;
+    user-select: none;
+    -webkit-user-select: none;
+    touch-action: manipulation;
+  }
+  #app {
+    height: 100dvh;
+    display: flex;
+    flex-direction: column;
+    max-width: 100%;
+    overflow: hidden;
+  }
+  #top {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 12px;
+    padding: 6px 10px 4px;
+    background: #f6efe2;
+    border-bottom: 1px solid #e2d3ba;
+    max-width: 100%;
+  }
+  h1 {
+    font-family: Georgia, "Iowan Old Style", Palatino, serif;
+    font-size: 17px;
+    line-height: 1.2;
+    margin: 0;
+    font-weight: 700;
+  }
+  .stats { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: baseline; }
+  .stats div { display: flex; gap: 6px; align-items: baseline; }
+  .stats em { font-style: normal; font-size: 12px; color: #7a624c; }
+  .stats b { font-variant-numeric: tabular-nums; font-size: 15px; }
+  #hint {
+    flex-basis: 100%;
+    margin: 0;
+    font-size: 12px;
+    line-height: 1.35;
+    color: #6d5640;
+    overflow-wrap: anywhere;
+  }
+  #view { flex: 1; min-height: 120px; position: relative; overflow: hidden; }
+  canvas { width: 100%; height: 100%; display: block; touch-action: none; }
+  #toast {
+    position: absolute;
+    left: 50%;
+    bottom: 10px;
+    transform: translateX(-50%);
+    background: rgba(48, 32, 20, 0.92);
+    color: #fffaf3;
+    padding: 8px 12px;
+    border-radius: 10px;
+    font-size: 13px;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.25s;
+    max-width: calc(100% - 24px);
+    text-align: center;
+  }
+  #toast.on { opacity: 1; }
+  #tools {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    padding: 6px;
+    background: #f3e7d2;
+    border-top: 1px solid #e2d3ba;
+    max-width: 100%;
+    max-height: 42vh;
+    overflow-x: hidden;
+    overflow-y: auto;
+  }
+  button {
+    min-width: 36px;
+    min-height: 36px;
+    padding: 6px 10px;
+    border-radius: 10px;
+    border: 1px solid #d9c7a6;
+    background: #fffaf3;
+    color: #3a2a1c;
+    font: 600 14px/1.2 "Avenir Next", "Segoe UI", system-ui, sans-serif;
+    cursor: pointer;
+  }
+  button:active { transform: translateY(1px); }
+  button.active { background: #2f5d3a; color: #fffaf3; border-color: #244a2e; }
+  button:focus-visible { outline: 2px solid #2f5d3a; outline-offset: 1px; }
+  #exbar, #ask {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    flex-basis: 100%;
+    align-items: center;
+  }
+  #exbar[hidden], #ask[hidden] { display: none; }
+  #exbar span, #ask span { font-size: 13px; padding: 0 4px; }
+  @media (max-height: 430px) {
+    #hint { display: none; }
+    #top { padding: 3px 8px; }
+    h1 { font-size: 15px; }
+    #tools { max-height: 38vh; }
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <header id="top">
+    <h1>Modelleisenbahn</h1>
+    <div class="stats">
+      <div><em>Uhr</em> <b id="clk">06:00</b></div>
+      <div><em>Fahrgäste</em> <b id="pax">0</b></div>
+      <div><em>Pünktlichkeit</em> <b id="pun">100%</b></div>
+    </div>
+    <p id="hint">Ziehen legt Gleise. Eine Weiche antippen stellt sie. Zeiger verschiebt die Ansicht, das Mausrad zoomt.</p>
+  </header>
+  <div id="view">
+    <canvas id="c"></canvas>
+    <div id="toast" role="status"></div>
+  </div>
+  <div id="tools" role="toolbar" aria-label="Werkzeuge">
+    <button type="button" data-tool="zeiger">Zeiger</button>
+    <button type="button" data-tool="gerade">Gerade</button>
+    <button type="button" data-tool="kurve">Kurve</button>
+    <button type="button" data-tool="weiche">Weiche</button>
+    <button type="button" data-tool="kreuz">Kreuzung</button>
+    <button type="button" data-tool="prell">Prellbock</button>
+    <button type="button" data-tool="bahnhof">Bahnhof</button>
+    <button type="button" data-tool="tunnel">Tunnel</button>
+    <button type="button" data-tool="bruecke">Brücke</button>
+    <button type="button" data-tool="regional">Regional</button>
+    <button type="button" data-tool="steam">Dampf</button>
+    <button type="button" data-tool="freight">Güter</button>
+    <button type="button" data-tool="haus">Haus</button>
+    <button type="button" data-tool="baum">Baum</button>
+    <button type="button" data-tool="kuh">Kuh</button>
+    <button type="button" data-tool="see">See</button>
+    <button type="button" id="btn-rot">Drehen</button>
+    <button type="button" data-tool="weg">Weg</button>
+    <button type="button" id="btn-pause">Halt</button>
+    <button type="button" id="btn-ex">Beispiele</button>
+    <button type="button" id="btn-share">Teilen</button>
+    <button type="button" id="btn-clear">Leeren</button>
+    <button type="button" id="btn-sound" aria-pressed="false">Ton</button>
+    <button type="button" id="btn-day">Tag</button>
+    <button type="button" id="btn-in" aria-label="Näher">+</button>
+    <button type="button" id="btn-out" aria-label="Weiter">−</button>
+    <button type="button" id="btn-fit">Passend</button>
+    <div id="exbar" hidden>
+      <span>Beispiel</span>
+      <button type="button" data-ex="kreis">Kreis</button>
+      <button type="button" data-ex="achter">Achterbahn</button>
+      <button type="button" data-ex="berg">Bergstrecke</button>
+      <button type="button" id="ex-zu">Zu</button>
+    </div>
+    <div id="ask" hidden>
+      <span>Tabelle leeren?</span>
+      <button type="button" id="ask-ja">Ja</button>
+      <button type="button" id="ask-nein">Nein</button>
+    </div>
+  </div>
+</div>
+<script>
+'use strict';
+const GW = 18, GH = 13;
+const SHEAR = 0.15, YSQ = 0.93;
+const DX = [0, 1, 0, -1];
+const DY = [-1, 0, 1, 0];
+const OPP = [2, 3, 0, 1];
+const PORT = [
+  {x: 0.5, y: 0},
+  {x: 1, y: 0.5},
+  {x: 0.5, y: 1},
+  {x: 0, y: 0.5}
+];
+const TRACK = {gerade:1, kurve:1, weiche:1, kreuz:1, prell:1, bahnhof:1, tunnel:1, bruecke:1};
+const TRAINS = {regional:1, steam:1, freight:1};
+const DECOS = {haus:1, baum:1, kuh:1};
+const UNITS = {
+  regional: [
+    {len: 0.64, role: 'regioLoco'},
+    {len: 0.56, role: 'regio'},
+    {len: 0.56, role: 'regio'}
+  ],
+  steam: [
+    {len: 0.70, role: 'steam'},
+    {len: 0.44, role: 'tender'},
+    {len: 0.56, role: 'coach'},
+    {len: 0.56, role: 'coach'}
+  ],
+  freight: [
+    {len: 0.62, role: 'diesel'},
+    {len: 0.50, role: 'box'},
+    {len: 0.50, role: 'box'},
+    {len: 0.48, role: 'tank'}
+  ]
+};
+const CRUISE = {regional: 1.22, steam: 0.92, freight: 1.02};
+const CAP = {regional: 36, steam: 24, freight: 2};
+const STORE = 'modelleisenbahn-v1';
+
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+const elClk = document.getElementById('clk');
+const elPax = document.getElementById('pax');
+const elPun = document.getElementById('pun');
+const toastEl = document.getElementById('toast');
+
+const cells = new Map();
+let trains = [];
+let cows = [];
+let parts = [];
+let nextId = 1;
+let tool = 'zeiger';
+let rot = 0;
+let hand = 0;
+let weicheIx = 0;
+let cam = {x: 9, y: 6, z: 48};
+let paused = false;
+let soundOn = false;
+let dayMode = 'tag';
+let tod = 0.15;
+let modelMin = 6 * 60;
+let paxN = 0, onN = 0, lateN = 0;
+let collisions = 0, derailments = 0, signalHolds = 0;
+let lastCol = '';
+const occ = new Map();
+let hover = null;
+let saveTimer = 0;
+let fast = false;
+let layoutError = '';
+let clockAcc = 0;
+let audio = null;
+let noiseBuf = null;
+let toastTimer = 0;
+let frameN = 0, frameMs = 0, frameMax = 0;
+const pointers = new Map();
+let gesture = null;
+
+function clamp(v, a, b) { return v < a ? a : v > b ? b : v; }
+function key(x, y) { return x + ',' + y; }
+function at(x, y) { return cells.get(key(x, y)) || null; }
+function ensure(x, y) {
+  let c = cells.get(key(x, y));
+  if (!c) {
+    c = {x, y, k: null, rot: 0, hand: 0, sw: 0, g: null, d: null, drot: 0, wait: 0, name: ''};
+    cells.set(key(x, y), c);
+  }
+  return c;
+}
+function consistLength(type) {
+  const u = UNITS[type];
+  let d = 0;
+  for (let i = 0; i < u.length; i++) {
+    d += u[i].len;
+    if (i < u.length - 1) d += 0.06;
+  }
+  return d;
+}
+function rotDir(d, r) { return (d + r) & 3; }
+function arcCenter(a, b) {
+  const lo = Math.min(a, b), hi = Math.max(a, b);
+  if (lo === 0 && hi === 1) return {x: 1, y: 0};
+  if (lo === 1 && hi === 2) return {x: 1, y: 1};
+  if (lo === 2 && hi === 3) return {x: 0, y: 1};
+  return {x: 0, y: 0};
+}
+function angNorm(d) {
+  while (d > Math.PI) d -= Math.PI * 2;
+  while (d <= -Math.PI) d += Math.PI * 2;
+  return d;
+}
+function pointOn(entry, exit, arc, stub, t) {
+  if (stub || exit == null) {
+    const p = PORT[entry];
+    const span = 0.84;
+    return {
+      x: p.x + (0.5 - p.x) * span * t,
+      y: p.y + (0.5 - p.y) * span * t,
+      ang: Math.atan2(0.5 - p.y, 0.5 - p.x)
+    };
+  }
+  if (!arc) {
+    const p = PORT[entry], q = PORT[exit];
+    return {
+      x: p.x + (q.x - p.x) * t,
+      y: p.y + (q.y - p.y) * t,
+      ang: Math.atan2(q.y - p.y, q.x - p.x)
+    };
+  }
+  const c = arcCenter(entry, exit);
+  const p = PORT[entry], q = PORT[exit];
+  const a0 = Math.atan2(p.y - c.y, p.x - c.x);
+  const a1 = Math.atan2(q.y - c.y, q.x - c.x);
+  const sweep = angNorm(a1 - a0);
+  const a = a0 + sweep * t;
+  return {
+    x: c.x + 0.5 * Math.cos(a),
+    y: c.y + 0.5 * Math.sin(a),
+    ang: sweep >= 0 ? a + Math.PI / 2 : a - Math.PI / 2
+  };
+}
+function logicalPaths(cell) {
+  const r = cell.rot | 0;
+  const R = (d) => rotDir(d, r);
+  if (cell.k === 'gerade' || cell.k === 'bahnhof' || cell.k === 'tunnel' || cell.k === 'bruecke') {
+    return [{a: R(3), b: R(1), arc: false}];
+  }
+  if (cell.k === 'kurve') return [{a: R(0), b: R(1), arc: true}];
+  if (cell.k === 'kreuz') return [{a: 0, b: 2, arc: false}, {a: 1, b: 3, arc: false}];
+  if (cell.k === 'prell') return [{a: R(3), b: null, arc: false, stub: true}];
+  if (cell.k === 'weiche') {
+    const common = R(3), straight = R(1), branch = R(cell.hand ? 2 : 0);
+    if (cell.sw) return [{a: common, b: branch, arc: true}];
+    return [{a: common, b: straight, arc: false}];
+  }
+  return [];
+}
+function bothSwitch(cell) {
+  const r = cell.rot | 0;
+  const R = (d) => rotDir(d, r);
+  const common = R(3), straight = R(1), branch = R(cell.hand ? 2 : 0);
+  return [
+    {a: common, b: straight, arc: false, active: !cell.sw},
+    {a: common, b: branch, arc: true, active: !!cell.sw}
+  ];
+}
+function resolve(cell, entry, doFlip) {
+  if (!cell || !cell.k) return null;
+  let paths = logicalPaths(cell);
+  let p = paths.find((q) => q.a === entry || q.b === entry);
+  if (!p && doFlip && cell.k === 'weiche') {
+    const saved = cell.sw;
+    cell.sw = saved ? 0 : 1;
+    paths = logicalPaths(cell);
+    p = paths.find((q) => q.a === entry || q.b === entry);
+    if (!p) cell.sw = saved;
+  }
+  if (!p) return null;
+  const exit = p.a === entry ? p.b : p.a;
+  const stub = exit == null;
+  const arc = !!p.arc && !stub;
+  const len = stub ? 0.42 : (arc ? Math.PI / 4 : 1);
+  return {entry, exit, arc, stub, len};
+}
+function canConnect(cell, entry, doFlip) {
+  if (!cell || !cell.k) return false;
+  if (resolve(cell, entry, false)) return true;
+  if (cell.k !== 'weiche') return false;
+  const saved = cell.sw;
+  cell.sw = saved ? 0 : 1;
+  const ok = !!resolve(cell, entry, false);
+  if (!ok || !doFlip) cell.sw = saved;
+  return ok;
+}
+function moveBy(start, dir0, dist, opts) {
+  const o = opts || {};
+  let loc = {tx: start.tx, ty: start.ty, entry: start.entry | 0, s: start.s};
+  let dir = dir0 >= 0 ? 1 : -1;
+  let consumed = 0;
+  if (!(dist > 0)) return {loc, dir, consumed, ok: true};
+  for (let guard = 0; guard < 28 && dist > 1e-7; guard++) {
+    const cell = at(loc.tx, loc.ty);
+    const path = cell && resolve(cell, loc.entry, false);
+    if (!path) return {loc, dir, consumed, derail: true, stopped: true, ok: false};
+    if (loc.s < 0) loc.s = 0;
+    if (loc.s > path.len) loc.s = path.len;
+    if (dir > 0) {
+      const room = path.len - loc.s;
+      if (dist <= room + 1e-8) {
+        loc = {tx: loc.tx, ty: loc.ty, entry: loc.entry, s: loc.s + dist};
+        consumed += dist;
+        return {loc, dir, consumed, ok: true};
+      }
+      if (path.exit == null) {
+        loc = {tx: loc.tx, ty: loc.ty, entry: loc.entry, s: path.len};
+        consumed += Math.max(0, room);
+        return {loc, dir, consumed, buffer: true, stopped: true, ok: false};
+      }
+      const nx = loc.tx + DX[path.exit];
+      const ny = loc.ty + DY[path.exit];
+      const nb = at(nx, ny);
+      const nentry = OPP[path.exit];
+      if (!canConnect(nb, nentry, false)) {
+        loc = {tx: loc.tx, ty: loc.ty, entry: loc.entry, s: path.len};
+        consumed += Math.max(0, room);
+        return {loc, dir, consumed, derail: true, stopped: true, ok: false};
+      }
+      if (o.stopAt && o.stopAt(nx, ny)) {
+        loc = {tx: loc.tx, ty: loc.ty, entry: loc.entry, s: path.len};
+        consumed += Math.max(0, room);
+        return {loc, dir, consumed, blocked: true, ok: false};
+      }
+      if (o.flip) canConnect(nb, nentry, true);
+      dist -= room;
+      consumed += Math.max(0, room);
+      loc = {tx: nx, ty: ny, entry: nentry, s: 0};
+      dir = 1;
+    } else {
+      const room = loc.s;
+      if (dist <= room + 1e-8) {
+        loc = {tx: loc.tx, ty: loc.ty, entry: loc.entry, s: loc.s - dist};
+        consumed += dist;
+        return {loc, dir, consumed, ok: true};
+      }
+      const nx = loc.tx + DX[loc.entry];
+      const ny = loc.ty + DY[loc.entry];
+      const nb = at(nx, ny);
+      const nentry = OPP[loc.entry];
+      if (!canConnect(nb, nentry, false)) {
+        loc = {tx: loc.tx, ty: loc.ty, entry: loc.entry, s: 0};
+        consumed += Math.max(0, room);
+        return {loc, dir, consumed, derail: true, stopped: true, ok: false};
+      }
+      if (o.stopAt && o.stopAt(nx, ny)) {
+        loc = {tx: loc.tx, ty: loc.ty, entry: loc.entry, s: 0};
+        consumed += Math.max(0, room);
+        return {loc, dir, consumed, blocked: true, ok: false};
+      }
+      if (o.flip) canConnect(nb, nentry, true);
+      dist -= room;
+      consumed += Math.max(0, room);
+      loc = {tx: nx, ty: ny, entry: nentry, s: 0};
+      dir = 1;
+    }
+  }
+  return {loc, dir, consumed, ok: true};
+}
+
+function tilesOf(t) {
+  const set = new Set();
+  const len = consistLength(t.type);
+  const n = Math.max(1, Math.ceil(len / 0.16));
+  for (let i = 0; i <= n; i++) {
+    const d = Math.min(len, (len * i) / n);
+    const r = moveBy(t.loc, -t.dir, d, {soft: true});
+    set.add(key(r.loc.tx, r.loc.ty));
+    if (r.derail || r.buffer || r.stopped) break;
+  }
+  return set;
+}
+function rebuildOcc() {
+  occ.clear();
+  for (const t of trains) {
+    if (t.dead) { t.tiles = new Set(); continue; }
+    t.tiles = tilesOf(t);
+    for (const k of t.tiles) {
+      let s = occ.get(k);
+      if (!s) { s = new Set(); occ.set(k, s); }
+      s.add(t.id);
+    }
+  }
+}
+function tileBlocked(t, x, y) {
+  const s = occ.get(key(x, y));
+  if (!s) return false;
+  for (const id of s) if (id !== t.id) return true;
+  return false;
+}
+function trainOn(x, y) {
+  const s = occ.get(key(x, y));
+  return !!(s && s.size);
+}
+
+function addTrain(type, tx, ty, entry, s, dir) {
+  const cell = at(tx, ty);
+  const path = cell && resolve(cell, entry, false);
+  if (!path) return null;
+  const ss = clamp(s, 0.02, Math.max(0.02, path.len - 0.02));
+  const t = {
+    id: nextId++,
+    type,
+    loc: {tx, ty, entry, s: ss},
+    dir: dir >= 0 ? 1 : -1,
+    speed: CRUISE[type] * 0.65,
+    state: 'run',
+    dwell: 0,
+    bufT: 0,
+    served: cell.k === 'bahnhof' ? key(tx, ty) : null,
+    redTime: 0,
+    pax: 0,
+    paxDone: false,
+    odo: 0,
+    snd: 0,
+    dead: false,
+    reason: '',
+    tiles: new Set(),
+    people: []
+  };
+  trains.push(t);
+  return t;
+}
+function wouldOverlap(loc, dir, type) {
+  const ghost = {id: -1, type, loc, dir, dead: false};
+  const tiles = tilesOf(ghost);
+  for (const k of tiles) {
+    const s = occ.get(k);
+    if (s && s.size) return true;
+  }
+  return false;
+}
+function spawnAt(type, x, y) {
+  const cell = at(x, y);
+  if (!cell || !cell.k) { toast('Zuerst ein Gleis legen'); return; }
+  if (trains.length >= 6) { toast('Höchstens sechs Züge'); return; }
+  rebuildOcc();
+  const seen = new Set();
+  const paths = cell.k === 'weiche' ? bothSwitch(cell) : logicalPaths(cell);
+  const entries = [];
+  for (const p of paths) {
+    if (p.a != null) entries.push(p.a);
+    if (p.b != null) entries.push(p.b);
+  }
+  for (const entry of entries) {
+    if (seen.has(entry)) continue;
+    seen.add(entry);
+    const path = resolve(cell, entry, false);
+    if (!path) continue;
+    const loc = {tx: x, ty: y, entry, s: path.len * 0.42};
+    const back = moveBy(loc, -1, consistLength(type), {soft: true});
+    const fwd = moveBy(loc, 1, 0.35, {soft: true});
+    if (back.derail || back.stopped || fwd.derail) continue;
+    if (wouldOverlap(loc, 1, type)) continue;
+    addTrain(type, x, y, entry, loc.s, 1);
+    rebuildOcc();
+    toast(type === 'steam' ? 'Dampfzug' : type === 'freight' ? 'Güterzug' : 'Regionalzug');
+    return;
+  }
+  toast('Zu wenig Gleis für den Zug');
+}
+
+function peekNext(t) {
+  const cell = at(t.loc.tx, t.loc.ty);
+  const path = cell && resolve(cell, t.loc.entry, false);
+  if (!path) return null;
+  if (t.dir > 0) {
+    if (path.exit == null) return {buffer: true, room: path.len - t.loc.s, path};
+    const x = t.loc.tx + DX[path.exit], y = t.loc.ty + DY[path.exit];
+    const nb = at(x, y);
+    return {x, y, k: nb && nb.k, key: key(x, y), room: path.len - t.loc.s, path, buffer: false};
+  }
+  const x = t.loc.tx + DX[t.loc.entry], y = t.loc.ty + DY[t.loc.entry];
+  const nb = at(x, y);
+  return {x, y, k: nb && nb.k, key: key(x, y), room: t.loc.s, path, buffer: false};
+}
+function exchange(t, cell) {
+  if (t.type === 'freight') return;
+  const cap = CAP[t.type];
+  const alight = Math.min(t.pax, 1 + ((t.id + (paxN | 0)) % 3));
+  t.pax -= alight;
+  const room = cap - t.pax;
+  const board = Math.min(room, Math.floor(cell.wait));
+  if (board > 0) {
+    cell.wait -= board;
+    t.pax += board;
+    paxN += board;
+  }
+  t.people = [];
+  const n = Math.min(5, board + alight);
+  for (let i = 0; i < n; i++) t.people.push({u: i / n, life: 0.9});
+}
+function updateTrain(t, dt) {
+  if (t.dead) return;
+  if (t.state === 'dwell') {
+    t.speed = 0;
+    t.dwell -= dt;
+    for (const p of t.people) p.life -= dt;
+    if (!t.paxDone) {
+      const cell = at(t.loc.tx, t.loc.ty);
+      if (t.redTime > 1.6) lateN++; else onN++;
+      t.redTime = 0;
+      if (cell) exchange(t, cell);
+      t.paxDone = true;
+      if (t.type !== 'freight') chime();
+    }
+    if (t.dwell <= 0) {
+      t.state = 'run';
+      t.served = key(t.loc.tx, t.loc.ty);
+      t.paxDone = false;
+      t.people = [];
+      if (t.type === 'steam') whistle();
+    }
+    return;
+  }
+  if (t.state === 'buffer') {
+    t.speed = 0;
+    t.bufT -= dt;
+    if (t.bufT <= 0) {
+      const len = consistLength(t.type);
+      const tail = moveBy(t.loc, -t.dir, len, {soft: true});
+      if (tail.derail && tail.consumed < 0.25) {
+        t.state = 'run';
+        t.speed = 0;
+        return;
+      }
+      t.loc = tail.loc;
+      t.dir = tail.dir;
+      t.state = 'run';
+      t.served = null;
+    }
+    return;
+  }
+  const cell = at(t.loc.tx, t.loc.ty);
+  const path = cell && resolve(cell, t.loc.entry, false);
+  if (!path) {
+    t.dead = true;
+    t.reason = 'kein gleis';
+    derailments++;
+    return;
+  }
+  let target = CRUISE[t.type];
+  const nxt = peekNext(t);
+  const hereKey = key(t.loc.tx, t.loc.ty);
+  if (nxt && nxt.buffer) target = Math.min(target, Math.max(0.12, nxt.room * 1.5));
+  const blockedAhead = nxt && !nxt.buffer && tileBlocked(t, nxt.x, nxt.y);
+  const stand = 0.4;
+  if (blockedAhead) {
+    const distToStop = Math.max(0, nxt.room - stand);
+    const allow = Math.sqrt(Math.max(0, 2 * 2.5 * distToStop));
+    target = Math.min(target, allow);
+    if (distToStop < 0.03) target = 0;
+    if (t.speed < 0.08) {
+      t.redTime += dt;
+      if (!t.holding) { t.holding = true; signalHolds++; }
+    }
+  } else {
+    t.holding = false;
+    if (cell && cell.k === 'bahnhof' && t.served !== hereKey) {
+    const mid = path.len * 0.5;
+    const toMid = t.dir > 0 ? mid - t.loc.s : t.loc.s - mid;
+    if (toMid > 0.045) {
+      const allow = Math.sqrt(Math.max(0, 2 * 2.5 * toMid));
+      target = Math.min(target, Math.max(0.1, allow));
+    } else {
+      target = 0;
+      if (t.speed < 0.055) {
+        t.state = 'dwell';
+        t.dwell = t.type === 'freight' ? 1.15 : 2.45;
+        t.paxDone = false;
+        t.speed = 0;
+        return;
+      }
+    }
+  } else if (nxt && nxt.k === 'bahnhof' && t.served !== nxt.key) {
+    target = Math.min(target, 0.4);
+  }
+  }
+  const acc = target > t.speed ? 1.35 : 2.7;
+  if (t.speed < target) t.speed = Math.min(target, t.speed + acc * dt);
+  else t.speed = Math.max(target, t.speed - acc * dt);
+  let dist = t.speed * dt;
+  if (blockedAhead) dist = Math.min(dist, Math.max(0, nxt.room - stand));
+  if (dist > 1e-6) {
+    const r = moveBy(t.loc, t.dir, dist, {
+      flip: true,
+      stopAt: (x, y) => tileBlocked(t, x, y)
+    });
+    t.loc = r.loc;
+    t.dir = r.dir;
+    t.odo += r.consumed;
+    railSound(t, r.consumed);
+    if (r.derail) {
+      t.dead = true;
+      t.reason = 'entgleis ' + r.loc.tx + ',' + r.loc.ty;
+      t.speed = 0;
+      derailments++;
+      return;
+    }
+    if (r.blocked) t.speed = 0;
+    if (r.buffer) {
+      t.state = 'buffer';
+      t.bufT = 0.85;
+      t.speed = 0;
+    }
+  }
+  if (t.served && key(t.loc.tx, t.loc.ty) !== t.served) t.served = null;
+}
+function checkHits() {
+  const seen = new Map();
+  for (const t of trains) {
+    if (t.dead) continue;
+    for (const k of t.tiles) {
+      const o = seen.get(k);
+      if (o && o !== t.id) {
+        collisions++;
+        lastCol = k + ' ' + o + '/' + t.id;
+      } else if (!o) seen.set(k, t.id);
+    }
+  }
+  const pts = [];
+  for (const t of trains) {
+    if (t.dead) continue;
+    const len = consistLength(t.type);
+    for (let d = 0; d <= len + 0.001; d += 0.22) {
+      const r = moveBy(t.loc, -t.dir, Math.min(d, len), {soft: true});
+      const w = worldOf(r.loc);
+      pts.push({id: t.id, x: w.x, y: w.y});
+    }
+  }
+  for (let i = 0; i < pts.length; i++) {
+    for (let j = i + 1; j < pts.length; j++) {
+      if (pts[i].id === pts[j].id) continue;
+      const dx = pts[i].x - pts[j].x, dy = pts[i].y - pts[j].y;
+      if (dx * dx + dy * dy < 0.16 * 0.16) {
+        collisions++;
+        lastCol = 'nah ' + pts[i].id + '/' + pts[j].id;
+      }
+    }
+  }
+}
+function step(dt) {
+  if (!paused) {
+    modelMin += dt * 0.85;
+    if (dayMode === 'verlauf') tod += dt / 96;
+    for (const c of cells.values()) {
+      if (c.k === 'bahnhof') c.wait = Math.min(16, c.wait + dt * 0.32);
+    }
+    stepCows(dt);
+    stepParts(dt);
+    if (Math.random() < dt * 0.8) puffHouse();
+    rebuildOcc();
+    for (const t of trains) {
+      updateTrain(t, dt);
+      rebuildOcc();
+    }
+    checkHits();
+  } else if (dayMode === 'verlauf') {
+    tod += dt / 96;
+  }
+  clockAcc += dt;
+  if (clockAcc > 2 && !fast) { clockAcc = 0; persist(); }
+}
+function stepCows(dt) {
+  for (const cow of cows) {
+    cow.bob += dt;
+    if (cow.walk) {
+      cow.t += dt / 2.1;
+      if (cow.t >= 1) {
+        cow.t = 1;
+        cow.x = cow.tx;
+        cow.y = cow.ty;
+        cow.walk = false;
+        cow.wait = 1.4 + Math.random() * 3.2;
+      }
+    } else if (cow.wait > 0) cow.wait -= dt;
+    else {
+      const nx = Math.round(cow.x - 0.5), ny = Math.round(cow.y - 0.5);
+      const opts = [];
+      for (let d = 0; d < 4; d++) {
+        const x = nx + DX[d], y = ny + DY[d];
+        if (x < 0 || y < 0 || x >= GW || y >= GH) continue;
+        if (Math.abs(x - cow.hx) + Math.abs(y - cow.hy) > 2) continue;
+        const c = at(x, y);
+        if (c && (c.k || c.g === 'w' || (c.d && c.d !== 'kuh'))) continue;
+        opts.push({x, y});
+      }
+      if (opts.length && Math.random() < 0.7) {
+        const o = opts[(Math.random() * opts.length) | 0];
+        cow.fx = cow.x; cow.fy = cow.y;
+        cow.tx = o.x + 0.5; cow.ty = o.y + 0.55;
+        cow.t = 0; cow.walk = true;
+      } else cow.wait = 0.8 + Math.random() * 2;
+    }
+  }
+}
+function stepParts(dt) {
+  for (let i = parts.length - 1; i >= 0; i--) {
+    const p = parts[i];
+    p.age += dt;
+    p.x += p.vx * dt;
+    p.y += p.vy * dt;
+    p.vy -= dt * 0.05;
+    if (p.age > p.life) parts.splice(i, 1);
+  }
+}
+function emitSmoke(x, y, n) {
+  if (fast || parts.length > 70) return;
+  for (let i = 0; i < n; i++) {
+    parts.push({
+      x: x + (Math.random() - 0.5) * 0.06,
+      y: y,
+      vx: (Math.random() - 0.5) * 0.08,
+      vy: -0.12 - Math.random() * 0.08,
+      life: 1.1 + Math.random() * 0.6,
+      age: 0,
+      r: 0.05 + Math.random() * 0.04
+    });
+  }
+}
+function puffHouse() {
+  if (fast) return;
+  const houses = [];
+  for (const c of cells.values()) if (c.d === 'haus') houses.push(c);
+  if (!houses.length) return;
+  const h = houses[(Math.random() * houses.length) | 0];
+  emitSmoke(h.x + 0.66, h.y + 0.22, 1);
+}
+
+function nightAmt() {
+  if (dayMode === 'nacht') return 1;
+  if (dayMode === 'tag') return 0;
+  const u = (Math.sin(tod * Math.PI * 2 - 0.4) + 1) / 2;
+  return u * u * (3 - 2 * u);
+}
+
+function neighborBridge(x, y, dir) {
+  const c = at(x + DX[dir], y + DY[dir]);
+  return !!(c && c.k === 'bruecke');
+}
+function worldOf(loc) {
+  const cell = at(loc.tx, loc.ty);
+  const path = cell && resolve(cell, loc.entry, false);
+  if (!path) return {x: loc.tx + 0.5, y: loc.ty + 0.5, ang: 0, t: 0, k: cell && cell.k};
+  const t = path.len ? clamp(loc.s / path.len, 0, 1) : 0;
+  const p = pointOn(path.entry, path.exit, path.arc, path.stub, t);
+  let lift = 0;
+  if (cell.k === 'bruecke') {
+    const prev = neighborBridge(loc.tx, loc.ty, path.entry);
+    const next = path.exit == null ? false : neighborBridge(loc.tx, loc.ty, path.exit);
+    const a = prev ? 1 : smooth01(t / 0.22);
+    const b = next ? 1 : smooth01((1 - t) / 0.22);
+    lift = -0.12 * Math.min(a, b);
+  }
+  return {x: loc.tx + p.x, y: loc.ty + p.y + lift, ang: p.ang, t, k: cell.k};
+}
+function smooth01(u) { u = clamp(u, 0, 1); return u * u * (3 - 2 * u); }
+function tunnelHide(loc) {
+  const cell = at(loc.tx, loc.ty);
+  if (!cell || cell.k !== 'tunnel') return 1;
+  const path = resolve(cell, loc.entry, false);
+  if (!path || path.exit == null) return 1;
+  const t = path.len ? loc.s / path.len : 0;
+  const prev = at(loc.tx + DX[path.entry], loc.ty + DY[path.entry]);
+  const next = at(loc.tx + DX[path.exit], loc.ty + DY[path.exit]);
+  const prevT = !!(prev && prev.k === 'tunnel');
+  const nextT = !!(next && next.k === 'tunnel');
+  if (prevT && nextT) return 0;
+  let edge = 1;
+  if (!prevT) edge = Math.min(edge, t);
+  if (!nextT) edge = Math.min(edge, 1 - t);
+  if (edge < 0.28) return 1;
+  return clamp(1 - (edge - 0.28) / 0.12, 0, 1);
+}
+
+function prove(train) {
+  let loc = {tx: train.loc.tx, ty: train.loc.ty, entry: train.loc.entry, s: train.loc.s};
+  let dir = train.dir;
+  const start = key(loc.tx, loc.ty);
+  let back = false;
+  for (let i = 0; i < 420; i++) {
+    const r = moveBy(loc, dir, 0.25, {soft: true});
+    if (r.derail) return {ok: false, reason: 'derail ' + loc.tx + ',' + loc.ty + ' e' + loc.entry};
+    if (r.buffer) return {ok: false, reason: 'buffer'};
+    loc = r.loc;
+    dir = r.dir;
+    if (i > 12 && key(loc.tx, loc.ty) === start) back = true;
+    if (back && i > 20) return {ok: true};
+  }
+  return {ok: false, reason: 'open'};
+}
+
+function clearWorld() {
+  cells.clear();
+  trains = [];
+  cows = [];
+  parts = [];
+  collisions = 0;
+  derailments = 0;
+  signalHolds = 0;
+  lastCol = '';
+  paxN = 0; onN = 0; lateN = 0;
+  modelMin = 6 * 60;
+  layoutError = '';
+}
+function spawnCow(x, y) {
+  cows.push({
+    hx: x, hy: y, x: x + 0.5, y: y + 0.58,
+    fx: x + 0.5, fy: y + 0.58, tx: x + 0.5, ty: y + 0.58,
+    t: 1, walk: false, wait: Math.random() * 2, bob: Math.random() * 3
+  });
+}
+function loadExample(name) {
+  clearWorld();
+  dayMode = 'tag';
+  if (name === 'achter') buildAchter();
+  else if (name === 'berg') buildBerg();
+  else buildKreis();
+  rebuildOcc();
+  for (const t of trains) {
+    const p = prove(t);
+    if (!p.ok) layoutError = name + ' zug ' + t.id + ' ' + p.reason;
+  }
+  if (layoutError) console.error(layoutError);
+  syncTools();
+  persist();
+  requestAnimationFrame(fit);
+}
+function put(x, y, k, rot0, extra) {
+  const c = ensure(x, y);
+  c.k = k;
+  c.rot = rot0 || 0;
+  c.hand = extra && extra.hand ? 1 : 0;
+  c.sw = extra && extra.sw ? 1 : 0;
+  c.name = extra && extra.name || '';
+  c.wait = k === 'bahnhof' ? 5 : 0;
+  return c;
+}
+function deco(x, y, d, r) {
+  const c = ensure(x, y);
+  c.d = d;
+  c.drot = r || 0;
+  if (d === 'kuh') spawnCow(x, y);
+}
+function water(x, y) { ensure(x, y).g = 'w'; }
+function fill(x0, x1, y, k, rot0) {
+  for (let x = x0; x <= x1; x++) put(x, y, k, rot0);
+}
+function fillV(x, y0, y1, k, rot0) {
+  for (let y = y0; y <= y1; y++) put(x, y, k, rot0);
+}
+
+function buildKreis() {
+  fill(4, 13, 3, 'gerade', 0);
+  put(8, 3, 'bahnhof', 0, {name: 'Dorf'});
+  fill(4, 13, 9, 'gerade', 0);
+  put(9, 9, 'bahnhof', 0, {name: 'Markt'});
+  fillV(3, 4, 8, 'gerade', 1);
+  fillV(14, 4, 8, 'gerade', 1);
+  put(3, 3, 'kurve', 1);
+  put(3, 9, 'kurve', 0);
+  put(14, 9, 'kurve', 3);
+  put(14, 3, 'kurve', 2);
+  addTrain('regional', 6, 9, 3, 0.4, 1);
+  addTrain('steam', 11, 3, 1, 0.45, 1);
+  deco(1, 2, 'haus', 0);
+  deco(1, 4, 'haus', 1);
+  deco(16, 3, 'haus', 2);
+  deco(6, 11, 'haus', 0);
+  deco(10, 1, 'haus', 1);
+  deco(6, 5, 'baum');
+  deco(9, 6, 'baum');
+  deco(12, 5, 'baum');
+  deco(5, 7, 'baum');
+  deco(11, 7, 'baum');
+  deco(2, 8, 'baum');
+  deco(15, 6, 'baum');
+  deco(7, 1, 'baum');
+  deco(7, 6, 'kuh');
+  deco(10, 6, 'kuh');
+  deco(8, 7, 'kuh');
+  [[16, 9], [16, 10], [16, 11], [15, 10], [15, 11], [16, 8], [17, 10], [17, 9]].forEach(([x, y]) => water(x, y));
+}
+function buildAchter() {
+  const H = (x, y) => put(x, y, 'gerade', 0);
+  const V = (x, y) => put(x, y, 'gerade', 1);
+  [5, 6, 7, 9, 10, 11].forEach((x) => H(x, 6));
+  put(8, 6, 'kreuz', 0);
+  put(10, 3, 'bahnhof', 0, {name: 'Nord'});
+  [11, 9].forEach((x) => H(x, 3));
+  put(8, 3, 'kurve', 1);
+  V(8, 4); V(8, 5);
+  put(12, 6, 'kurve', 3);
+  V(12, 5); V(12, 4);
+  put(12, 3, 'kurve', 2);
+  put(6, 9, 'bahnhof', 0, {name: 'Süd'});
+  [7, 5].forEach((x) => H(x, 9));
+  put(8, 9, 'kurve', 3);
+  V(8, 7); V(8, 8);
+  put(4, 9, 'kurve', 0);
+  V(4, 8); V(4, 7);
+  put(4, 6, 'kurve', 1);
+  addTrain('regional', 6, 6, 3, 0.4, 1);
+  addTrain('freight', 10, 3, 1, 0.4, 1);
+  deco(6, 7, 'haus', 0);
+  deco(10, 4, 'haus', 1);
+  deco(1, 2, 'haus', 0);
+  deco(14, 8, 'haus', 2);
+  deco(7, 7, 'baum');
+  deco(9, 5, 'baum');
+  deco(11, 5, 'baum');
+  deco(2, 7, 'baum');
+  deco(13, 2, 'baum');
+  deco(5, 1, 'baum');
+  deco(6, 8, 'kuh');
+  deco(10, 5, 'kuh');
+  [[15, 10], [16, 10], [16, 11], [15, 11], [14, 11], [16, 9], [17, 10]].forEach(([x, y]) => water(x, y));
+}
+function buildBerg() {
+  for (let x = 3; x <= 14; x++) put(x, 2, 'tunnel', 0);
+  put(2, 2, 'kurve', 1);
+  for (let y = 3; y <= 9; y++) put(2, y, 'gerade', 1);
+  put(2, 6, 'bahnhof', 1, {name: 'Tal'});
+  put(2, 10, 'kurve', 0);
+  for (let x = 3; x <= 14; x++) {
+    if (x === 6) continue;
+    put(x, 10, 'bruecke', 0);
+    water(x, 10);
+  }
+  put(6, 10, 'weiche', 0, {hand: 1, sw: 0});
+  water(6, 10);
+  put(6, 11, 'gerade', 1);
+  put(6, 12, 'prell', 1);
+  put(15, 10, 'kurve', 3);
+  for (let y = 3; y <= 9; y++) put(15, y, 'gerade', 1);
+  put(15, 6, 'bahnhof', 1, {name: 'Alp'});
+  put(15, 2, 'kurve', 2);
+  for (let x = 3; x <= 14; x++) if (x < 5 || x > 7) water(x, 11);
+  for (let x = 3; x <= 14; x++) if (x < 5 || x > 7) water(x, 12);
+  addTrain('regional', 4, 10, 3, 0.35, 1);
+  addTrain('steam', 15, 8, 2, 0.4, 1);
+  addTrain('freight', 2, 8, 0, 0.4, 1);
+  deco(0, 4, 'haus', 0);
+  deco(0, 7, 'haus', 1);
+  deco(16, 4, 'haus', 2);
+  deco(16, 8, 'haus', 0);
+  deco(4, 1, 'baum');
+  deco(7, 1, 'baum');
+  deco(11, 1, 'baum');
+  deco(14, 1, 'baum');
+  deco(5, 4, 'baum');
+  deco(8, 5, 'baum');
+  deco(12, 6, 'baum');
+  deco(4, 8, 'baum');
+  deco(6, 6, 'kuh');
+  deco(10, 7, 'kuh');
+  deco(12, 8, 'kuh');
+}
+
+function exportState() {
+  const track = [], waterA = [], decoA = [];
+  for (const c of cells.values()) {
+    if (c.k) track.push([c.x, c.y, c.k, c.rot | 0, c.hand | 0, c.sw | 0, c.name || '']);
+    if (c.g === 'w') waterA.push([c.x, c.y]);
+    if (c.d) decoA.push([c.x, c.y, c.d, c.drot | 0]);
+  }
+  const tr = trains.filter((t) => !t.dead).map((t) => [
+    t.type, t.loc.tx, t.loc.ty, t.loc.entry, Math.round(t.loc.s * 1000) / 1000, t.dir,
+    t.pax | 0, t.state, Math.round(t.dwell * 100) / 100, t.served || '', Math.round(t.redTime * 10) / 10
+  ]);
+  return {
+    v: 1, track, water: waterA, deco: decoA, trains: tr,
+    pax: paxN | 0, on: onN | 0, late: lateN | 0,
+    day: dayMode, tod: Math.round(tod * 1000) / 1000, min: Math.round(modelMin)
+  };
+}
+function applyState(s) {
+  clearWorld();
+  if (!s || s.v !== 1) throw new Error('format');
+  for (const w of s.water || []) water(w[0], w[1]);
+  for (const d of s.deco || []) deco(d[0], d[1], d[2], d[3]);
+  for (const t of s.track || []) {
+    const c = put(t[0], t[1], t[2], t[3], {hand: t[4], sw: t[5], name: t[6] || ''});
+    c.hand = t[4] | 0;
+    c.sw = t[5] | 0;
+  }
+  for (const t of s.trains || []) {
+    const tr = addTrain(t[0], t[1], t[2], t[3], t[4], t[5]);
+    if (!tr) continue;
+    tr.pax = t[6] | 0;
+    tr.state = t[7] === 'dwell' || t[7] === 'buffer' ? t[7] : 'run';
+    tr.dwell = t[8] || 0;
+    tr.served = t[9] || null;
+    tr.redTime = t[10] || 0;
+  }
+  paxN = s.pax | 0;
+  onN = s.on | 0;
+  lateN = s.late | 0;
+  dayMode = s.day === 'nacht' || s.day === 'verlauf' ? s.day : 'tag';
+  tod = s.tod || 0;
+  modelMin = s.min || 6 * 60;
+  rebuildOcc();
+  syncTools();
+}
+function persist() {
+  try { localStorage.setItem(STORE, JSON.stringify(exportState())); } catch (e) { /* voll */ }
+}
+function persistSoon() {
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(persist, 250);
+}
+function enc(obj) {
+  const bytes = new TextEncoder().encode(JSON.stringify(obj));
+  let s = '';
+  for (let i = 0; i < bytes.length; i++) s += String.fromCharCode(bytes[i]);
+  return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
+}
+function dec(str) {
+  let s = str.replace(/-/g, '+').replace(/_/g, '/');
+  while (s.length % 4) s += '=';
+  const bin = atob(s);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return JSON.parse(new TextDecoder().decode(bytes));
+}
+function share() {
+  const h = enc(exportState());
+  const url = location.origin + location.pathname + location.search + '#' + h;
+  location.hash = h;
+  persist();
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(url).then(() => toast('Link kopiert'), () => toast('Link steht in der Adresszeile'));
+  } else toast('Link steht in der Adresszeile');
+}
+function boot() {
+  let loaded = false;
+  const raw = (location.hash || '').replace(/^#/, '');
+  if (raw.length > 8) {
+    try { applyState(dec(raw)); loaded = true; } catch (e) { loaded = false; }
+  }
+  if (!loaded) {
+    try {
+      const s = localStorage.getItem(STORE);
+      if (s) { applyState(JSON.parse(s)); loaded = true; }
+    } catch (e) { loaded = false; }
+  }
+  if (!loaded || trains.length === 0 && ![...cells.values()].some((c) => c.k)) loadExample('kreis');
+  syncTools();
+  requestAnimationFrame(fit);
+}
+
+function cssSize() {
+  return {w: canvas.clientWidth || 1, h: canvas.clientHeight || 1, dpr: Math.min(2, window.devicePixelRatio || 1)};
+}
+function applyWorld(S) {
+  const a = S.dpr * cam.z;
+  const c = -S.dpr * cam.z * SHEAR;
+  const d = S.dpr * cam.z * YSQ;
+  const e = S.dpr * (S.w / 2 - cam.z * cam.x + cam.z * SHEAR * cam.y);
+  const f = S.dpr * (S.h / 2 - cam.z * YSQ * cam.y);
+  ctx.setTransform(a, 0, c, d, e, f);
+}
+function screenToWorld(sx, sy) {
+  const S = cssSize();
+  const wy = cam.y + (sy - S.h / 2) / (cam.z * YSQ);
+  const wx = cam.x + (sx - S.w / 2) / cam.z + SHEAR * (wy - cam.y);
+  return {wx, wy};
+}
+function focusAt(wx, wy, sx, sy) {
+  const S = cssSize();
+  cam.y = wy - (sy - S.h / 2) / (cam.z * YSQ);
+  cam.x = wx - SHEAR * (wy - cam.y) - (sx - S.w / 2) / cam.z;
+}
+function fit() {
+  const S = cssSize();
+  if (S.w < 20 || S.h < 20) return;
+  const corners = [[-0.7, -0.7], [GW + 0.7, -0.7], [GW + 0.7, GH + 0.7], [-0.7, GH + 0.7]];
+  let minx = 1e9, maxx = -1e9, miny = 1e9, maxy = -1e9;
+  for (const [wx, wy] of corners) {
+    const ox = wx - SHEAR * wy, oy = wy * YSQ;
+    if (ox < minx) minx = ox;
+    if (ox > maxx) maxx = ox;
+    if (oy < miny) miny = oy;
+    if (oy > maxy) maxy = oy;
+  }
+  cam.z = clamp(Math.min((S.w - 12) / (maxx - minx), (S.h - 12) / (maxy - miny)), 16, 150);
+  cam.x = GW / 2;
+  cam.y = GH / 2;
+}
+function zoomBy(f, sx, sy) {
+  const S = cssSize();
+  const w = screenToWorld(sx == null ? S.w / 2 : sx, sy == null ? S.h / 2 : sy);
+  cam.z = clamp(cam.z * f, 16, 150);
+  focusAt(w.wx, w.wy, sx == null ? S.w / 2 : sx, sy == null ? S.h / 2 : sy);
+}
+
+function roundRect(x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+function samplesOf(a, b, arc, stub, n) {
+  const pts = [];
+  for (let i = 0; i <= n; i++) pts.push(pointOn(a, b, arc, stub, i / n));
+  return pts;
+}
+function strokePts(pts, width, color) {
+  if (pts.length < 2) return;
+  ctx.beginPath();
+  ctx.moveTo(pts[0].x, pts[0].y);
+  for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y);
+  ctx.strokeStyle = color;
+  ctx.lineWidth = width;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  ctx.stroke();
+}
+function offsetPts(pts, mag) {
+  const o = [];
+  for (let i = 0; i < pts.length; i++) {
+    const a = pts[Math.max(0, i - 1)], b = pts[Math.min(pts.length - 1, i + 1)];
+    const ang = Math.atan2(b.y - a.y, b.x - a.x);
+    o.push({x: pts[i].x + Math.sin(ang) * mag, y: pts[i].y - Math.cos(ang) * mag});
+  }
+  return o;
+}
+function drawRails(pts, strong) {
+  strokePts(pts, 0.30, '#a39888');
+  for (let i = 1; i < pts.length - 1; i += 1) {
+    const a = pts[i - 1], b = pts[Math.min(pts.length - 1, i + 1)];
+    const ang = Math.atan2(b.y - a.y, b.x - a.x);
+    ctx.save();
+    ctx.translate(pts[i].x, pts[i].y);
+    ctx.rotate(ang);
+    ctx.fillStyle = '#6e4630';
+    ctx.fillRect(-0.035, -0.13, 0.07, 0.26);
+    ctx.restore();
+  }
+  const c1 = strong ? '#f7f8f8' : '#c5c8cc';
+  const c2 = strong ? '#9aa1a8' : '#8d9298';
+  strokePts(offsetPts(pts, 0.055), 0.028, c2);
+  strokePts(offsetPts(pts, -0.055), 0.028, c1);
+}
+function cellPaths(cell) {
+  if (cell.k === 'weiche') return bothSwitch(cell);
+  return logicalPaths(cell).map((p) => ({a: p.a, b: p.b, arc: !!p.arc, stub: !!p.stub, active: true}));
+}
+function drawTrack(cell) {
+  const paths = cellPaths(cell);
+  for (const p of paths) {
+    let pts = samplesOf(p.a, p.b, !!p.arc, !!p.stub, p.arc ? 8 : 4).map((q) => ({x: cell.x + q.x, y: cell.y + q.y}));
+    if (p.active === false) pts = pts.slice(2);
+    if (cell.k === 'bruecke') {
+      const liftPts = pts.map((q, i) => {
+        const t = pts.length <= 1 ? 0 : i / (pts.length - 1);
+        const ends = cellPaths(cell)[0];
+        const prev = neighborBridge(cell.x, cell.y, ends.a);
+        const next = ends.b == null ? false : neighborBridge(cell.x, cell.y, ends.b);
+        const lift = -0.12 * Math.min(prev ? 1 : smooth01(t / 0.22), next ? 1 : smooth01((1 - t) / 0.22));
+        return {x: q.x, y: q.y + lift};
+      });
+      drawBridge(cell, liftPts);
+      drawRails(liftPts, true);
+    } else drawRails(pts, p.active !== false);
+  }
+}
+function drawBridge(cell, pts) {
+  if (pts.length < 2) return;
+  ctx.strokeStyle = '#7a5a3a';
+  ctx.lineWidth = 0.34;
+  ctx.lineCap = 'butt';
+  ctx.beginPath();
+  ctx.moveTo(pts[0].x, pts[0].y);
+  for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y);
+  ctx.stroke();
+  ctx.strokeStyle = '#c4a574';
+  ctx.lineWidth = 0.22;
+  ctx.stroke();
+  const a = pts[0], b = pts[pts.length - 1];
+  for (const t of [0.28, 0.72]) {
+    const x = a.x + (b.x - a.x) * t, y = a.y + (b.y - a.y) * t;
+    ctx.fillStyle = '#6b4e34';
+    ctx.fillRect(x - 0.05, y, 0.1, 0.28);
+  }
+}
+function drawPlatform(cell) {
+  ctx.fillStyle = '#ead7b0';
+  ctx.strokeStyle = '#c3ae86';
+  ctx.lineWidth = 0.03;
+  if ((cell.rot & 1) === 0) {
+    roundRect(cell.x + 0.12, cell.y + 0.66, 0.76, 0.24, 0.04);
+    ctx.fill(); ctx.stroke();
+    ctx.fillStyle = '#8d5a3c';
+    ctx.fillRect(cell.x + 0.28, cell.y + 0.62, 0.36, 0.06);
+    ctx.fillStyle = '#f3e6c8';
+    ctx.fillRect(cell.x + 0.32, cell.y + 0.70, 0.28, 0.12);
+  } else {
+    roundRect(cell.x + 0.08, cell.y + 0.12, 0.24, 0.76, 0.04);
+    ctx.fill(); ctx.stroke();
+    ctx.fillStyle = '#8d5a3c';
+    ctx.fillRect(cell.x + 0.30, cell.y + 0.28, 0.06, 0.36);
+    ctx.fillStyle = '#f3e6c8';
+    ctx.fillRect(cell.x + 0.12, cell.y + 0.32, 0.14, 0.28);
+  }
+}
+function drawBuffer(cell) {
+  const entry = rotDir(3, cell.rot | 0);
+  const p = pointOn(entry, null, false, true, 1);
+  const ang = p.ang + Math.PI / 2;
+  ctx.save();
+  ctx.translate(cell.x + p.x, cell.y + p.y);
+  ctx.rotate(ang);
+  ctx.fillStyle = '#444';
+  ctx.fillRect(-0.16, -0.05, 0.32, 0.1);
+  for (let i = -2; i <= 2; i++) {
+    ctx.fillStyle = i % 2 ? '#f4f4f4' : '#d23b3b';
+    ctx.fillRect(i * 0.06, -0.045, 0.06, 0.09);
+  }
+  ctx.restore();
+}
+function drawSignals(nightPass) {
+  const night = nightAmt();
+  for (const cell of cells.values()) {
+    if (!cell.k) continue;
+    const dirs = new Set();
+    const paths = cell.k === 'weiche' ? bothSwitch(cell) : logicalPaths(cell);
+    for (const p of paths) {
+      if (p.a != null) dirs.add(p.a);
+      if (p.b != null) dirs.add(p.b);
+    }
+    for (const dir of dirs) {
+      const nx = cell.x + DX[dir], ny = cell.y + DY[dir];
+      const nb = at(nx, ny);
+      if (!nb || !nb.k) continue;
+      const special = nb.k === 'bahnhof' || nb.k === 'weiche' || nb.k === 'kreuz' || nb.k === 'prell' || cell.k === 'weiche' || cell.k === 'kreuz';
+      if (!special && ((cell.x * 2 + cell.y + dir) % 3) !== 0) continue;
+      const red = trainOn(nx, ny);
+      const p = PORT[dir];
+      const vx = DX[dir], vy = DY[dir];
+      const rx = -vy, ry = vx;
+      const px = cell.x + p.x - vx * 0.22 + rx * 0.36;
+      const py = cell.y + p.y - vy * 0.22 + ry * 0.36;
+      if (!nightPass) {
+        ctx.fillStyle = '#3a332c';
+        ctx.fillRect(px - 0.018, py - 0.02, 0.036, 0.16);
+        ctx.fillStyle = '#222';
+        ctx.fillRect(px - 0.05, py - 0.07, 0.1, 0.11);
+      }
+      if (nightPass && night < 0.25 && !red) continue;
+      ctx.fillStyle = red ? '#ff3b30' : '#3dce62';
+      ctx.globalAlpha = nightPass ? 0.35 + night * 0.65 : 1;
+      ctx.beginPath();
+      ctx.arc(px, py - 0.02, nightPass ? 0.055 : 0.04, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.globalAlpha = 1;
+    }
+  }
+}
+function drawWater(c, time, pass) {
+  if (pass === 0) {
+    ctx.fillStyle = '#3f86b4';
+    ctx.fillRect(c.x - 0.1, c.y - 0.1, 1.2, 1.2);
+    return;
+  }
+  ctx.fillStyle = '#4e97c6';
+  ctx.fillRect(c.x - 0.02, c.y - 0.02, 1.04, 1.04);
+  const sh = 0.5 + 0.5 * Math.sin(time * 1.4 + c.x * 1.7 + c.y);
+  ctx.fillStyle = 'rgba(255,255,255,' + (0.08 + sh * 0.12) + ')';
+  ctx.beginPath();
+  ctx.ellipse(c.x + 0.38, c.y + 0.42, 0.14, 0.05, -0.4, 0, Math.PI * 2);
+  ctx.fill();
+  if (((c.x * 3 + c.y) % 5) === 0) {
+    ctx.fillStyle = '#3e8a55';
+    ctx.beginPath();
+    ctx.ellipse(c.x + 0.7, c.y + 0.68, 0.08, 0.05, 0.5, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+function drawHouse(c, lightsOnly) {
+  const night = nightAmt();
+  ctx.save();
+  ctx.translate(c.x + 0.5, c.y + 0.55);
+  ctx.rotate((c.drot || 0) * Math.PI / 2 * 0.15);
+  if (!lightsOnly) {
+    ctx.fillStyle = 'rgba(40,30,10,0.13)';
+    ctx.beginPath(); ctx.ellipse(0.06, 0.22, 0.36, 0.12, 0, 0, 7); ctx.fill();
+    ctx.fillStyle = ((c.x + c.y) & 1) ? '#f6ead8' : '#f3e2c4';
+    ctx.fillRect(-0.28, -0.12, 0.56, 0.34);
+    ctx.fillStyle = (c.x + c.y) % 3 === 0 ? '#a33b32' : (c.x + c.y) % 3 === 1 ? '#8a4e30' : '#6d5344';
+    ctx.beginPath();
+    ctx.moveTo(-0.36, -0.12); ctx.lineTo(0, -0.36); ctx.lineTo(0.36, -0.12); ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = '#6b3e2a';
+    ctx.fillRect(-0.06, 0.04, 0.12, 0.18);
+    ctx.fillStyle = '#7b4b3c';
+    ctx.fillRect(0.12, -0.34, 0.07, 0.14);
+  }
+  const glow = night > 0.12;
+  ctx.fillStyle = glow ? 'rgba(255, 210, 120, ' + (0.45 + 0.55 * night) + ')' : '#d5ebf7';
+  const wins = [[-0.18, -0.06], [0.08, -0.06], [-0.18, 0.08]];
+  for (let i = 0; i < wins.length; i++) {
+    const flick = glow ? 0.85 + 0.15 * Math.sin(tod * 8 + c.x + i) : 1;
+    ctx.globalAlpha = lightsOnly ? flick : 1;
+    ctx.fillRect(wins[i][0], wins[i][1], 0.09, 0.07);
+  }
+  ctx.globalAlpha = 1;
+  ctx.restore();
+}
+function drawTree(c) {
+  const x = c.x + 0.5, y = c.y + 0.62;
+  const v = (c.x * 5 + c.y) % 3;
+  ctx.fillStyle = 'rgba(40,30,10,0.12)';
+  ctx.beginPath(); ctx.ellipse(x + 0.05, y + 0.16, 0.18, 0.07, 0, 0, 7); ctx.fill();
+  ctx.fillStyle = '#6b472e';
+  ctx.fillRect(x - 0.03, y - 0.05, 0.06, 0.2);
+  ctx.fillStyle = ['#3d7a38', '#4c8c3c', '#2f6b34'][v];
+  ctx.beginPath(); ctx.arc(x, y - 0.1, 0.18 + v * 0.01, 0, 7); ctx.fill();
+  ctx.fillStyle = '#67a84c';
+  ctx.beginPath(); ctx.arc(x - 0.09, y - 0.16, 0.11, 0, 7); ctx.fill();
+  ctx.beginPath(); ctx.arc(x + 0.1, y - 0.14, 0.1, 0, 7); ctx.fill();
+}
+function drawCow(cow) {
+  const t = cow.walk ? cow.t : 1;
+  const x = cow.walk ? cow.fx + (cow.tx - cow.fx) * t : cow.x;
+  const y = cow.walk ? cow.fy + (cow.ty - cow.fy) * t : cow.y;
+  const ang = cow.walk ? Math.atan2(cow.ty - cow.fy, cow.tx - cow.fx) : 0.2;
+  const bob = Math.sin(cow.bob * 3) * 0.012;
+  ctx.save();
+  ctx.translate(x, y + bob);
+  ctx.rotate(ang);
+  ctx.scale(1.35, 1.35);
+  ctx.fillStyle = 'rgba(40,30,10,0.14)';
+  ctx.beginPath(); ctx.ellipse(0.04, 0.08, 0.18, 0.06, 0, 0, 7); ctx.fill();
+  ctx.fillStyle = '#f4f1ea';
+  ctx.beginPath(); ctx.ellipse(0, 0, 0.18, 0.1, 0, 0, 7); ctx.fill();
+  ctx.fillStyle = '#2a2a2a';
+  ctx.beginPath(); ctx.ellipse(-0.06, -0.02, 0.055, 0.04, 0.4, 0, 7); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(0.02, 0.03, 0.04, 0.03, -0.2, 0, 7); ctx.fill();
+  ctx.fillStyle = '#f4f1ea';
+  ctx.beginPath(); ctx.ellipse(0.18, -0.01, 0.07, 0.055, 0.2, 0, 7); ctx.fill();
+  ctx.fillStyle = '#e7a0a8';
+  ctx.beginPath(); ctx.ellipse(0.24, 0.01, 0.025, 0.018, 0, 0, 7); ctx.fill();
+  ctx.fillStyle = '#2a2a2a';
+  ctx.beginPath(); ctx.arc(0.2, -0.03, 0.012, 0, 7); ctx.fill();
+  ctx.fillStyle = '#3a3a3a';
+  ctx.fillRect(-0.1, 0.06, 0.03, 0.07);
+  ctx.fillRect(0.08, 0.06, 0.03, 0.07);
+  ctx.restore();
+}
+function drawHills() {
+  const seen = new Set();
+  for (const c of cells.values()) {
+    if (c.k !== 'tunnel' || seen.has(key(c.x, c.y))) continue;
+    const path = logicalPaths(c)[0];
+    const horiz = path && ((path.a === 1 && path.b === 3) || (path.a === 3 && path.b === 1));
+    const run = [c];
+    seen.add(key(c.x, c.y));
+    const dirs = horiz ? [1, 3] : [0, 2];
+    for (const d of dirs) {
+      let x = c.x + DX[d], y = c.y + DY[d];
+      while (true) {
+        const n = at(x, y);
+        if (!n || n.k !== 'tunnel' || seen.has(key(x, y))) break;
+        const np = logicalPaths(n)[0];
+        const nh = np && ((np.a === 1 && np.b === 3) || (np.a === 3 && np.b === 1));
+        if (nh !== horiz) break;
+        seen.add(key(x, y));
+        run.push(n);
+        x += DX[d]; y += DY[d];
+      }
+    }
+    let minx = 99, maxx = -99, miny = 99, maxy = -99;
+    for (const r of run) {
+      if (r.x < minx) minx = r.x;
+      if (r.x > maxx) maxx = r.x;
+      if (r.y < miny) miny = r.y;
+      if (r.y > maxy) maxy = r.y;
+    }
+    const cx = (minx + maxx + 1) / 2, cy = (miny + maxy + 1) / 2;
+    const rx = (maxx - minx + 1) / 2 + 0.15;
+    const ry = (maxy - miny + 1) / 2 + 0.35;
+    ctx.fillStyle = '#6e8f49';
+    ctx.beginPath(); ctx.ellipse(cx, cy - 0.05, rx, ry, 0, 0, 7); ctx.fill();
+    ctx.fillStyle = '#7ea456';
+    ctx.beginPath(); ctx.ellipse(cx - rx * 0.15, cy - 0.18, rx * 0.55, ry * 0.45, 0, 0, 7); ctx.fill();
+    for (const r of run) {
+      if ((r.x + r.y) % 2 === 0) {
+        ctx.fillStyle = '#3f6a34';
+        ctx.beginPath(); ctx.arc(r.x + 0.3, r.y + 0.22, 0.1, 0, 7); ctx.fill();
+      }
+    }
+  }
+}
+function drawPortals() {
+  const seen = new Set();
+  for (const c of cells.values()) {
+    if (c.k !== 'tunnel' || seen.has(key(c.x, c.y))) continue;
+    const path = logicalPaths(c)[0];
+    const horiz = path && (path.a === 1 || path.a === 3);
+    const run = [c];
+    seen.add(key(c.x, c.y));
+    const dirs = horiz ? [1, 3] : [0, 2];
+    for (const d of dirs) {
+      let x = c.x + DX[d], y = c.y + DY[d];
+      while (true) {
+        const n = at(x, y);
+        if (!n || n.k !== 'tunnel' || seen.has(key(x, y))) break;
+        seen.add(key(x, y));
+        run.push(n);
+        x += DX[d]; y += DY[d];
+      }
+    }
+    let minx = 99, maxx = -99, miny = 99, maxy = -99;
+    for (const r of run) {
+      if (r.x < minx) minx = r.x;
+      if (r.x > maxx) maxx = r.x;
+      if (r.y < miny) miny = r.y;
+      if (r.y > maxy) maxy = r.y;
+    }
+    ctx.fillStyle = '#6d8c48';
+    if (horiz) roundRect(minx + 0.62, miny + 0.08, (maxx - minx + 1) - 1.24, 0.84, 0.16);
+    else roundRect(minx + 0.08, miny + 0.62, 0.84, (maxy - miny + 1) - 1.24, 0.16);
+    ctx.fill();
+  }
+  for (const c of cells.values()) {
+    if (c.k !== 'tunnel') continue;
+    const path = logicalPaths(c)[0];
+    if (!path || path.b == null) continue;
+    for (const dir of [path.a, path.b]) {
+      const n = at(c.x + DX[dir], c.y + DY[dir]);
+      if (n && n.k === 'tunnel') continue;
+      const p = PORT[dir];
+      const ang = Math.atan2(DY[dir], DX[dir]);
+      ctx.save();
+      ctx.translate(c.x + p.x - DX[dir] * 0.02, c.y + p.y - DY[dir] * 0.02);
+      ctx.rotate(ang);
+      ctx.fillStyle = '#7d756c';
+      ctx.fillRect(-0.28, -0.28, 0.22, 0.56);
+      ctx.fillStyle = '#241f1c';
+      ctx.beginPath();
+      ctx.moveTo(-0.06, 0.16);
+      ctx.lineTo(-0.06, -0.02);
+      ctx.arc(-0.06, -0.02, 0.14, Math.PI / 2, -Math.PI / 2, true);
+      ctx.lineTo(-0.06, 0.16);
+      ctx.fill();
+      ctx.fillStyle = '#8a8178';
+      ctx.fillRect(-0.28, -0.3, 0.22, 0.06);
+      ctx.restore();
+    }
+  }
+}
+function drawUnit(pose, unit, train, alpha, lightsOnly) {
+  if (alpha < 0.02 && !lightsOnly) return;
+  ctx.save();
+  ctx.translate(pose.x, pose.y);
+  ctx.rotate(pose.ang);
+  ctx.globalAlpha = lightsOnly ? 1 : alpha;
+  const L = unit.len, h = 0.22;
+  const night = nightAmt();
+  if (!lightsOnly) {
+    ctx.fillStyle = 'rgba(40,30,10,0.16)';
+    ctx.beginPath(); ctx.ellipse(0.03, 0.1, L * 0.42, 0.07, 0, 0, 7); ctx.fill();
+  }
+  if (unit.role === 'regioLoco' || unit.role === 'regio') {
+    if (!lightsOnly) {
+      ctx.fillStyle = '#d0121c';
+      roundRect(-L / 2, -h / 2, L, h, 0.04); ctx.fill();
+      ctx.fillStyle = '#f4f6f7';
+      ctx.fillRect(-L / 2 + 0.06, -0.035, L - 0.12, 0.055);
+      ctx.fillStyle = '#9fd0ea';
+      const nwin = unit.role === 'regioLoco' ? 2 : 3;
+      for (let i = 0; i < nwin; i++) ctx.fillRect(-L / 2 + 0.1 + i * 0.14, -0.03, 0.08, 0.045);
+      ctx.fillStyle = '#7a0d12';
+      ctx.fillRect(-L / 2, -h / 2, L, 0.03);
+      if (unit.role === 'regioLoco') {
+        ctx.strokeStyle = '#333';
+        ctx.lineWidth = 0.015;
+        ctx.beginPath();
+        ctx.moveTo(-L / 2 + 0.12, -h / 2);
+        ctx.lineTo(-L / 2 + 0.2, -h / 2 - 0.06);
+        ctx.lineTo(-L / 2 + 0.3, -h / 2);
+        ctx.stroke();
+        ctx.fillStyle = '#f2d15a';
+        ctx.fillRect(-L / 2, -0.04, 0.035, 0.08);
+      }
+    } else if (night > 0.2) {
+      ctx.fillStyle = 'rgba(255, 226, 150, ' + (0.35 + night * 0.5) + ')';
+      const nwin = unit.role === 'regioLoco' ? 2 : 3;
+      for (let i = 0; i < nwin; i++) ctx.fillRect(-L / 2 + 0.1 + i * 0.14, -0.03, 0.08, 0.045);
+      if (unit.role === 'regioLoco') {
+        ctx.fillStyle = 'rgba(255,244,200,' + night + ')';
+        ctx.beginPath(); ctx.arc(-L / 2 - 0.01, 0, 0.03, 0, 7); ctx.fill();
+      }
+    }
+  } else if (unit.role === 'steam') {
+    if (!lightsOnly) {
+      ctx.fillStyle = '#2b2b2b';
+      roundRect(-L / 2, -0.09, L * 0.72, 0.16, 0.06); ctx.fill();
+      ctx.fillStyle = '#3a3a3a';
+      ctx.fillRect(L / 2 - 0.22, -0.12, 0.2, 0.22);
+      ctx.fillStyle = '#c4554a';
+      ctx.fillRect(-L / 2 + 0.08, -0.11, 0.05, 0.08);
+      ctx.fillStyle = '#222';
+      ctx.fillRect(-L / 2 + 0.1, -0.2, 0.04, 0.1);
+      ctx.fillStyle = '#b42323';
+      const spin = train.odo * 9;
+      for (const wx of [-0.16, 0.02, 0.18]) {
+        ctx.save(); ctx.translate(wx, 0.1); ctx.rotate(spin);
+        ctx.beginPath(); ctx.arc(0, 0, 0.045, 0, 7); ctx.fill();
+        ctx.strokeStyle = '#e8d2a0'; ctx.lineWidth = 0.012;
+        ctx.beginPath(); ctx.moveTo(-0.03, 0); ctx.lineTo(0.03, 0); ctx.stroke();
+        ctx.restore();
+      }
+      ctx.fillStyle = '#d4b15a';
+      ctx.fillRect(-0.02, -0.02, L * 0.3, 0.02);
+    } else if (night > 0.2) {
+      ctx.fillStyle = 'rgba(255, 236, 190, ' + night + ')';
+      ctx.beginPath(); ctx.arc(-L / 2 + 0.02, 0.02, 0.035, 0, 7); ctx.fill();
+    }
+  } else if (unit.role === 'tender') {
+    if (!lightsOnly) {
+      ctx.fillStyle = '#242424';
+      roundRect(-L / 2, -0.1, L, 0.2, 0.03); ctx.fill();
+      ctx.fillStyle = '#3d342c';
+      ctx.fillRect(-L / 2 + 0.04, -0.07, L - 0.08, 0.1);
+    }
+  } else if (unit.role === 'coach') {
+    if (!lightsOnly) {
+      ctx.fillStyle = '#1e6a42';
+      roundRect(-L / 2, -h / 2, L, h, 0.04); ctx.fill();
+      ctx.fillStyle = '#f3e2b8';
+      ctx.fillRect(-L / 2 + 0.05, -0.04, L - 0.1, 0.06);
+      ctx.fillStyle = '#8d6840';
+      ctx.fillRect(-L / 2, -h / 2, L, 0.025);
+    } else if (night > 0.2) {
+      ctx.fillStyle = 'rgba(255, 214, 140, ' + (0.4 + night * 0.45) + ')';
+      for (let i = 0; i < 3; i++) ctx.fillRect(-L / 2 + 0.08 + i * 0.15, -0.03, 0.08, 0.04);
+    }
+  } else if (unit.role === 'diesel') {
+    if (!lightsOnly) {
+      ctx.fillStyle = '#2c6b4a';
+      roundRect(-L / 2, -h / 2, L, h, 0.04); ctx.fill();
+      ctx.fillStyle = '#f2d15a';
+      ctx.fillRect(-L / 2, -0.02, 0.05, 0.08);
+      ctx.fillStyle = '#163c2a';
+      ctx.fillRect(L / 2 - 0.2, -h / 2, 0.16, 0.08);
+      ctx.fillStyle = '#d7eef8';
+      ctx.fillRect(-L / 2 + 0.1, -0.04, 0.16, 0.05);
+    } else if (night > 0.2) {
+      ctx.fillStyle = 'rgba(255,244,200,' + night + ')';
+      ctx.beginPath(); ctx.arc(-L / 2 - 0.01, 0.02, 0.03, 0, 7); ctx.fill();
+    }
+  } else if (unit.role === 'box') {
+    if (!lightsOnly) {
+      ctx.fillStyle = train.id % 2 ? '#a86b3c' : '#8d5a32';
+      roundRect(-L / 2, -0.11, L, 0.22, 0.02); ctx.fill();
+      ctx.strokeStyle = '#6b4228';
+      ctx.lineWidth = 0.015;
+      ctx.strokeRect(-L / 2 + 0.06, -0.07, L - 0.12, 0.14);
+    }
+  } else if (unit.role === 'tank') {
+    if (!lightsOnly) {
+      ctx.fillStyle = '#c5c8cc';
+      roundRect(-L / 2, -0.09, L, 0.18, 0.08); ctx.fill();
+      ctx.fillStyle = '#9aa0a6';
+      ctx.fillRect(-0.03, -0.09, 0.06, 0.18);
+    }
+  }
+  ctx.restore();
+}
+function trainPoses(train) {
+  const units = UNITS[train.type];
+  const out = [];
+  let d = 0;
+  for (let i = 0; i < units.length; i++) {
+    d += units[i].len / 2;
+    const locR = moveBy(train.loc, -train.dir, d, {soft: true});
+    const aheadR = moveBy(train.loc, -train.dir, Math.max(0, d - 0.07), {soft: true});
+    const here = worldOf(locR.loc);
+    const ahead = worldOf(aheadR.loc);
+    let ang = Math.atan2(ahead.y - here.y, ahead.x - here.x);
+    if (!isFinite(ang)) ang = here.ang;
+    out.push({x: here.x, y: here.y, ang, unit: units[i], loc: locR.loc, alpha: tunnelHide(locR.loc)});
+    d += units[i].len / 2 + 0.06;
+  }
+  return out;
+}
+function drawTrains(lightsOnly) {
+  for (const t of trains) {
+    const poses = trainPoses(t);
+    for (const p of poses) drawUnit(p, p.unit, t, p.alpha, lightsOnly);
+    if (!lightsOnly && t.type === 'steam' && t.speed > 0.05 && !fast) {
+      const nose = poses[0];
+      if (nose && Math.random() < 0.5) {
+        emitSmoke(nose.x - Math.cos(nose.ang) * 0.22, nose.y - Math.sin(nose.ang) * 0.22, 1);
+      }
+    }
+  }
+}
+function drawPeople() {
+  ctx.fillStyle = '#2c3f88';
+  for (const c of cells.values()) {
+    if (c.k !== 'bahnhof' || c.wait < 1) continue;
+    const n = Math.min(6, Math.floor(c.wait));
+    const horiz = (c.rot & 1) === 0;
+    for (let i = 0; i < n; i++) {
+      const u = (i + 0.5) / 6;
+      const x = horiz ? c.x + 0.2 + u * 0.6 : c.x + 0.16;
+      const y = horiz ? c.y + 0.78 : c.y + 0.2 + u * 0.6;
+      ctx.beginPath(); ctx.arc(x, y, 0.035, 0, 7); ctx.fill();
+    }
+  }
+}
+function drawName(c) {
+  if (!c.name) return;
+  const S = cssSize();
+  const horiz = (c.rot & 1) === 0;
+  const wx = c.x + (horiz ? 0.5 : -0.05);
+  const wy = c.y + (horiz ? 1.22 : 0.5);
+  const px = S.w / 2 + cam.z * ((wx - cam.x) - SHEAR * (wy - cam.y));
+  const py = S.h / 2 + cam.z * YSQ * (wy - cam.y);
+  ctx.save();
+  ctx.setTransform(S.dpr, 0, 0, S.dpr, 0, 0);
+  ctx.font = '600 12px Georgia, serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  const tw = ctx.measureText(c.name).width;
+  ctx.fillStyle = 'rgba(255, 250, 240, 0.94)';
+  roundRect(px - tw / 2 - 5, py - 9, tw + 10, 18, 6);
+  ctx.fill();
+  ctx.fillStyle = '#4a3424';
+  ctx.fillText(c.name, px, py);
+  ctx.restore();
+}
+function drawPreview() {
+  if (!hover || tool === 'zeiger' || tool === 'weg') return;
+  const x = hover.x, y = hover.y;
+  if (x < 0 || y < 0 || x >= GW || y >= GH) return;
+  ctx.save();
+  ctx.globalAlpha = 0.45;
+  if (TRACK[tool]) {
+    const ghost = {x, y, k: tool, rot, hand, sw: 0};
+    drawTrack(ghost);
+  } else if (tool === 'see') {
+    ctx.fillStyle = '#4e97c6';
+    ctx.fillRect(x, y, 1, 1);
+  } else if (DECOS[tool]) {
+    drawTree({x, y});
+  }
+  ctx.restore();
+}
+
+function draw() {
+  const t0 = performance.now();
+  const S = cssSize();
+  const bw = Math.floor(S.w * S.dpr), bh = Math.floor(S.h * S.dpr);
+  if (canvas.width !== bw || canvas.height !== bh) {
+    canvas.width = bw; canvas.height = bh;
+  }
+  const time = modelMin;
+  const night = nightAmt();
+  ctx.setTransform(S.dpr, 0, 0, S.dpr, 0, 0);
+  const sky = ctx.createLinearGradient(0, 0, 0, S.h);
+  if (night > 0.55) { sky.addColorStop(0, '#1c2748'); sky.addColorStop(1, '#3a2d22'); }
+  else { sky.addColorStop(0, '#f0d7a4'); sky.addColorStop(1, '#e4c48a'); }
+  ctx.fillStyle = sky;
+  ctx.fillRect(0, 0, S.w, S.h);
+  applyWorld(S);
+  roundRect(-0.7, -0.55, GW + 1.4, GH + 1.15, 0.35);
+  ctx.fillStyle = '#8b5a32';
+  ctx.fill();
+  ctx.fillStyle = '#a87445';
+  roundRect(-0.45, -0.35, GW + 0.9, GH + 0.75, 0.25);
+  ctx.fill();
+  const felt = ctx.createLinearGradient(0, 0, GW, GH);
+  felt.addColorStop(0, '#8fbf5c');
+  felt.addColorStop(1, '#6ea348');
+  ctx.fillStyle = felt;
+  roundRect(0, 0, GW, GH, 0.08);
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(60,40,20,0.18)';
+  ctx.lineWidth = 0.04;
+  ctx.stroke();
+  for (let y = 0; y < GH; y++) {
+    for (let x = 0; x < GW; x++) {
+      const h = ((x * 17 + y * 13) % 7);
+      if (h > 2) continue;
+      ctx.fillStyle = h === 0 ? 'rgba(255,255,255,0.05)' : 'rgba(40,80,20,0.05)';
+      ctx.beginPath();
+      ctx.ellipse(x + 0.3 + (h * 0.1), y + 0.4, 0.08, 0.035, 0.4, 0, 7);
+      ctx.fill();
+    }
+  }
+  for (const c of cells.values()) if (c.g === 'w') drawWater(c, time, 0);
+  for (const c of cells.values()) if (c.g === 'w') drawWater(c, time, 1);
+  drawHills();
+  for (const c of cells.values()) if (c.k) drawTrack(c);
+  for (const c of cells.values()) {
+    if (c.k === 'bahnhof') drawPlatform(c);
+    if (c.k === 'prell') drawBuffer(c);
+  }
+  for (const c of cells.values()) if (c.d === 'baum') drawTree(c);
+  for (const c of cells.values()) if (c.d === 'haus') drawHouse(c, false);
+  drawSignals(false);
+  drawPeople();
+  for (const cow of cows) drawCow(cow);
+  drawTrains(false);
+  drawPortals();
+  for (const p of parts) {
+    const u = p.age / p.life;
+    ctx.fillStyle = 'rgba(230,230,230,' + (0.35 * (1 - u)) + ')';
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.r * (1 + u), 0, 7);
+    ctx.fill();
+  }
+  drawPreview();
+  if (night > 0.02) {
+    ctx.setTransform(S.dpr, 0, 0, S.dpr, 0, 0);
+    ctx.fillStyle = 'rgba(10, 16, 46, ' + (night * 0.5) + ')';
+    ctx.fillRect(0, 0, S.w, S.h);
+    if (night > 0.35) {
+      ctx.fillStyle = '#f4f0d8';
+      ctx.beginPath(); ctx.arc(S.w * 0.8, S.h * 0.16, 14, 0, 7); ctx.fill();
+      ctx.fillStyle = '#1c2748';
+      ctx.beginPath(); ctx.arc(S.w * 0.8 + 6, S.h * 0.16 - 3, 12, 0, 7); ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,0.85)';
+      for (let i = 0; i < 28; i++) {
+        const sx = (i * 97) % S.w, sy = (i * 53) % (S.h * 0.45);
+        ctx.fillRect(sx, sy, 1.5, 1.5);
+      }
+    }
+    applyWorld(S);
+    for (const c of cells.values()) if (c.d === 'haus') drawHouse(c, true);
+    drawSignals(true);
+    drawTrains(true);
+  }
+  for (const c of cells.values()) if (c.name) drawName(c);
+  const ms = performance.now() - t0;
+  frameN++;
+  frameMs += ms;
+  if (ms > frameMax) frameMax = ms;
+}
+
+function syncHud() {
+  const m = ((modelMin % (24 * 60)) + 24 * 60) % (24 * 60);
+  const hh = String((m / 60) | 0).padStart(2, '0');
+  const mm = String(m % 60 | 0).padStart(2, '0');
+  const clk = hh + ':' + mm;
+  if (elClk.textContent !== clk) elClk.textContent = clk;
+  const ps = String(paxN | 0);
+  if (elPax.textContent !== ps) elPax.textContent = ps;
+  const n = onN + lateN;
+  const pun = (n ? Math.round(100 * onN / n) : 100) + '%';
+  if (elPun.textContent !== pun) elPun.textContent = pun;
+}
+function syncTools() {
+  document.querySelectorAll('#tools button[data-tool]').forEach((b) => {
+    b.classList.toggle('active', b.dataset.tool === tool);
+  });
+  const rotBtn = document.getElementById('btn-rot');
+  if (tool === 'weiche') rotBtn.textContent = 'Drehen ' + (hand ? 'R' : 'L') + (rot * 90);
+  else if (TRACK[tool] || tool === 'haus') rotBtn.textContent = 'Drehen ' + (rot * 90);
+  else rotBtn.textContent = 'Drehen';
+  document.getElementById('btn-pause').textContent = paused ? 'Fahrt' : 'Halt';
+  const sb = document.getElementById('btn-sound');
+  sb.setAttribute('aria-pressed', soundOn ? 'true' : 'false');
+  sb.classList.toggle('active', soundOn);
+  const db = document.getElementById('btn-day');
+  db.textContent = dayMode === 'tag' ? 'Tag' : dayMode === 'nacht' ? 'Nacht' : 'Verlauf';
+}
+function toast(msg) {
+  toastEl.textContent = msg;
+  toastEl.classList.add('on');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => toastEl.classList.remove('on'), 1600);
+}
+function setTool(name) {
+  tool = name;
+  if (name === 'weiche') { rot = weicheIx % 4; hand = weicheIx >= 4 ? 1 : 0; }
+  syncTools();
+}
+function rotateTool() {
+  if (tool === 'weiche') {
+    weicheIx = (weicheIx + 1) % 8;
+    rot = weicheIx % 4;
+    hand = weicheIx >= 4 ? 1 : 0;
+  } else if (tool === 'gerade' || tool === 'bahnhof' || tool === 'tunnel' || tool === 'bruecke') {
+    rot = (rot + 1) % 2;
+  } else if (tool === 'kreuz' || tool === 'see' || tool === 'baum' || tool === 'kuh') {
+    rot = 0;
+  } else rot = (rot + 1) % 4;
+  syncTools();
+}
+function place(x, y) {
+  if (x < 0 || y < 0 || x >= GW || y >= GH) return;
+  if (tool === 'zeiger') return;
+  rebuildOcc();
+  if (tool === 'weg') {
+    const k = key(x, y);
+    const hit = trains.some((t) => t.tiles && t.tiles.has(k));
+    if (hit) {
+      trains = trains.filter((t) => !(t.tiles && t.tiles.has(k)));
+      rebuildOcc();
+      persistSoon();
+      return;
+    }
+    const c = at(x, y);
+    if (c && c.k) { c.k = null; c.name = ''; persistSoon(); return; }
+    if (c && c.d) {
+      c.d = null;
+      if (cows.length) cows = cows.filter((cow) => !(cow.hx === x && cow.hy === y));
+      persistSoon();
+      return;
+    }
+    if (c && c.g) { c.g = null; persistSoon(); }
+    return;
+  }
+  if (tool === 'see') {
+    if (trainOn(x, y)) { toast('Zug auf dem Feld'); return; }
+    const c = ensure(x, y);
+    if (c.k) { toast('Gleis bleibt liegen'); return; }
+    c.g = 'w'; c.d = null;
+    cows = cows.filter((cow) => !(cow.hx === x && cow.hy === y));
+    persistSoon();
+    return;
+  }
+  if (DECOS[tool]) {
+    const c = ensure(x, y);
+    if (c.k || c.g === 'w') return;
+    c.d = tool;
+    c.drot = rot;
+    cows = cows.filter((cow) => !(cow.hx === x && cow.hy === y));
+    if (tool === 'kuh') spawnCow(x, y);
+    persistSoon();
+    return;
+  }
+  if (TRAINS[tool]) { spawnAt(tool, x, y); persistSoon(); return; }
+  if (TRACK[tool]) {
+    if (trainOn(x, y)) { toast('Zug auf dem Gleis'); return; }
+    const c = ensure(x, y);
+    c.d = null;
+    cows = cows.filter((cow) => !(cow.hx === x && cow.hy === y));
+    c.k = tool;
+    c.rot = (tool === 'gerade' || tool === 'bahnhof' || tool === 'tunnel' || tool === 'bruecke') ? (rot & 1)
+      : tool === 'kreuz' ? 0 : (rot & 3);
+    c.hand = tool === 'weiche' ? hand : 0;
+    c.sw = 0;
+    c.wait = tool === 'bahnhof' ? 4 : 0;
+    if (tool !== 'bahnhof') c.name = '';
+    persistSoon();
+  }
+}
+function flipAt(x, y) {
+  const c = at(x, y);
+  if (!c || c.k !== 'weiche') return false;
+  rebuildOcc();
+  if (trainOn(x, y)) { toast('Zug auf der Weiche'); return true; }
+  c.sw = c.sw ? 0 : 1;
+  clickSnd();
+  persistSoon();
+  return true;
+}
+
+function armAudio() {
+  if (!audio) {
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return;
+    audio = new AC();
+  }
+  if (audio.state === 'suspended') audio.resume();
+  if (!noiseBuf) {
+    const n = Math.floor(audio.sampleRate * 0.2);
+    noiseBuf = audio.createBuffer(1, n, audio.sampleRate);
+    const data = noiseBuf.getChannelData(0);
+    for (let i = 0; i < n; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / n);
+  }
+}
+function canHear() { return soundOn && audio && !fast; }
+function noise(dur, freq, gain) {
+  if (!canHear()) return;
+  const src = audio.createBufferSource();
+  src.buffer = noiseBuf;
+  const f = audio.createBiquadFilter();
+  f.type = 'bandpass';
+  f.frequency.value = freq;
+  const g = audio.createGain();
+  g.gain.value = gain;
+  src.connect(f); f.connect(g); g.connect(audio.destination);
+  const t = audio.currentTime;
+  src.start(t);
+  src.stop(t + dur);
+}
+function tone(freq, dur, gain, type) {
+  if (!canHear()) return;
+  const o = audio.createOscillator();
+  const g = audio.createGain();
+  o.type = type || 'sine';
+  o.frequency.value = freq;
+  g.gain.setValueAtTime(gain, audio.currentTime);
+  g.gain.exponentialRampToValueAtTime(0.0001, audio.currentTime + dur);
+  o.connect(g); g.connect(audio.destination);
+  o.start();
+  o.stop(audio.currentTime + dur);
+}
+function clack() { noise(0.045, 900, 0.03); }
+function chuff() { noise(0.09, 180, 0.05); }
+function clickSnd() { noise(0.03, 1400, 0.04); }
+function chime() { tone(660, 0.18, 0.03); setTimeout(() => tone(880, 0.22, 0.025), 140); }
+function whistle() { tone(540, 0.35, 0.03); tone(810, 0.35, 0.02); }
+function railSound(train, moved) {
+  if (!canHear() || moved < 0.0001) return;
+  train.snd += moved;
+  const step = train.type === 'steam' ? 0.46 : 0.3;
+  if (train.snd >= step) {
+    train.snd %= step;
+    if (train.type === 'steam') chuff(); else clack();
+  }
+}
+
+function pointerPos(e) {
+  const r = canvas.getBoundingClientRect();
+  return {x: e.clientX - r.left, y: e.clientY - r.top};
+}
+canvas.addEventListener('pointerdown', (e) => {
+  canvas.setPointerCapture(e.pointerId);
+  pointers.set(e.pointerId, {x: e.clientX, y: e.clientY});
+  if (pointers.size >= 2) {
+    const pts = [...pointers.values()];
+    gesture = {
+      mode: 'pinch',
+      dist: Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y) || 1,
+      z: cam.z,
+      world: screenToWorld((pointerPos({clientX: (pts[0].x + pts[1].x) / 2, clientY: (pts[0].y + pts[1].y) / 2})).x,
+        (pointerPos({clientX: (pts[0].x + pts[1].x) / 2, clientY: (pts[0].y + pts[1].y) / 2})).y)
+    };
+    return;
+  }
+  const p = pointerPos(e);
+  const w = screenToWorld(p.x, p.y);
+  const cell = {x: Math.floor(w.wx), y: Math.floor(w.wy)};
+  if (tool === 'zeiger') {
+    gesture = {mode: 'pan', x: e.clientX, y: e.clientY, cx: cam.x, cy: cam.y, cell, moved: false};
+  } else {
+    gesture = {mode: 'paint', cell, moved: false};
+    place(cell.x, cell.y);
+  }
+  e.preventDefault();
+});
+canvas.addEventListener('pointermove', (e) => {
+  if (pointers.has(e.pointerId)) pointers.set(e.pointerId, {x: e.clientX, y: e.clientY});
+  const p = pointerPos(e);
+  const w = screenToWorld(p.x, p.y);
+  hover = {x: Math.floor(w.wx), y: Math.floor(w.wy)};
+  if (pointers.size >= 2) {
+    const pts = [...pointers.values()];
+    const dist = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y) || 1;
+    const mid = pointerPos({clientX: (pts[0].x + pts[1].x) / 2, clientY: (pts[0].y + pts[1].y) / 2});
+    if (!gesture || gesture.mode !== 'pinch') {
+      gesture = {mode: 'pinch', dist, z: cam.z, world: screenToWorld(mid.x, mid.y)};
+    }
+    cam.z = clamp(gesture.z * dist / gesture.dist, 16, 150);
+    focusAt(gesture.world.wx, gesture.world.wy, mid.x, mid.y);
+    return;
+  }
+  if (!gesture) return;
+  if (gesture.mode === 'pan') {
+    const dx = e.clientX - gesture.x, dy = e.clientY - gesture.y;
+    if (dx * dx + dy * dy > 16) gesture.moved = true;
+    const dcy = -dy / (cam.z * YSQ);
+    const dcx = -dx / cam.z + SHEAR * dcy;
+    cam.x = gesture.cx + dcx;
+    cam.y = gesture.cy + dcy;
+  } else if (gesture.mode === 'paint') {
+    const cell = {x: Math.floor(w.wx), y: Math.floor(w.wy)};
+    if (cell.x !== gesture.cell.x || cell.y !== gesture.cell.y) {
+      gesture.cell = cell;
+      gesture.moved = true;
+      place(cell.x, cell.y);
+    }
+  }
+});
+function endPointer(e) {
+  pointers.delete(e.pointerId);
+  if (gesture && gesture.mode === 'pan' && !gesture.moved && pointers.size === 0) flipAt(gesture.cell.x, gesture.cell.y);
+  if (pointers.size < 2 && gesture && gesture.mode === 'pinch') gesture = null;
+  if (pointers.size === 0) gesture = null;
+}
+canvas.addEventListener('pointerup', endPointer);
+canvas.addEventListener('pointercancel', endPointer);
+canvas.addEventListener('wheel', (e) => {
+  e.preventDefault();
+  const p = pointerPos(e);
+  zoomBy(Math.exp(-e.deltaY * 0.0011), p.x, p.y);
+}, {passive: false});
+canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+
+document.getElementById('tools').addEventListener('click', (e) => {
+  const b = e.target.closest('button');
+  if (!b) return;
+  if (b.dataset.tool) { setTool(b.dataset.tool); return; }
+  if (b.dataset.ex) {
+    loadExample(b.dataset.ex);
+    document.getElementById('exbar').hidden = true;
+    clearHash();
+    toast(b.textContent);
+  }
+});
+document.getElementById('btn-rot').addEventListener('click', rotateTool);
+document.getElementById('btn-pause').addEventListener('click', () => { paused = !paused; syncTools(); });
+document.getElementById('btn-ex').addEventListener('click', () => {
+  const bar = document.getElementById('exbar');
+  bar.hidden = !bar.hidden;
+  document.getElementById('ask').hidden = true;
+});
+document.getElementById('ex-zu').addEventListener('click', () => { document.getElementById('exbar').hidden = true; });
+document.getElementById('btn-share').addEventListener('click', share);
+document.getElementById('btn-clear').addEventListener('click', () => {
+  document.getElementById('ask').hidden = false;
+  document.getElementById('exbar').hidden = true;
+});
+document.getElementById('ask-nein').addEventListener('click', () => { document.getElementById('ask').hidden = true; });
+document.getElementById('ask-ja').addEventListener('click', () => {
+  document.getElementById('ask').hidden = true;
+  clearWorld();
+  rebuildOcc();
+  clearHash();
+  persist();
+  fit();
+});
+document.getElementById('btn-sound').addEventListener('click', () => {
+  soundOn = !soundOn;
+  if (soundOn) armAudio();
+  syncTools();
+});
+document.getElementById('btn-day').addEventListener('click', () => {
+  dayMode = dayMode === 'tag' ? 'nacht' : dayMode === 'nacht' ? 'verlauf' : 'tag';
+  syncTools();
+  persistSoon();
+});
+document.getElementById('btn-in').addEventListener('click', () => zoomBy(1.2));
+document.getElementById('btn-out').addEventListener('click', () => zoomBy(1 / 1.2));
+document.getElementById('btn-fit').addEventListener('click', fit);
+window.addEventListener('keydown', (e) => {
+  if (e.key === ' ' ) { paused = !paused; syncTools(); e.preventDefault(); }
+  else if (e.key === 'm' || e.key === 'M') { soundOn = !soundOn; if (soundOn) armAudio(); syncTools(); }
+  else if (e.key === 'r' || e.key === 'R') rotateTool();
+  else if (e.key === 'f' || e.key === 'F') fit();
+  else if (e.key === 'Escape') { setTool('zeiger'); document.getElementById('exbar').hidden = true; document.getElementById('ask').hidden = true; }
+  else if (e.key >= '1' && e.key <= '9') {
+    const names = ['zeiger', 'gerade', 'kurve', 'weiche', 'kreuz', 'prell', 'bahnhof', 'tunnel', 'bruecke'];
+    setTool(names[e.key - 1]);
+  }
+});
+function clearHash() {
+  if (location.hash) history.replaceState(null, '', location.pathname + location.search);
+}
+window.addEventListener('resize', () => fit());
+window.addEventListener('hashchange', () => {
+  const raw = (location.hash || '').replace(/^#/, '');
+  if (raw.length < 8) return;
+  try { applyState(dec(raw)); fit(); } catch (e) { /* ignorieren */ }
+});
+
+let last = performance.now();
+function frame(now) {
+  const dt = Math.min(0.05, (now - last) / 1000);
+  last = now;
+  if (!fast) {
+    let acc = dt;
+    while (acc > 0) {
+      const h = Math.min(acc, 1 / 60);
+      step(h);
+      acc -= h;
+    }
+  }
+  draw();
+  syncHud();
+  requestAnimationFrame(frame);
+}
+
+window.__bahn = {
+  loadExample,
+  sim(sec) {
+    const n = Math.round(sec * 60);
+    const was = fast;
+    fast = true;
+    for (let i = 0; i < n; i++) step(1 / 60);
+    fast = was;
+    rebuildOcc();
+  },
+  stats() {
+    const n = onN + lateN;
+    return {
+      collisions, derailments, signalHolds, lastCol, passengers: paxN,
+      punctuality: n ? Math.round(100 * onN / n) : 100,
+      on: onN, late: lateN,
+      layoutError,
+      paused, day: dayMode, sound: soundOn,
+      trains: trains.map((t) => ({
+        id: t.id, type: t.type, tx: t.loc.tx, ty: t.loc.ty, s: Math.round(t.loc.s * 100) / 100,
+        entry: t.loc.entry, dir: t.dir, speed: Math.round(t.speed * 100) / 100,
+        state: t.state, dead: t.dead, odo: Math.round(t.odo), reason: t.reason, pax: t.pax
+      }))
+    };
+  },
+  fps() {
+    return {n: frameN, avg: frameN ? frameMs / frameN : 0, max: frameMax};
+  },
+  fit, setTool, exportState, flipCell(x, y) { return flipAt(x, y); }, proveAll() {
+    return trains.map((t) => prove(t));
+  }
+};
+
+boot();
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
