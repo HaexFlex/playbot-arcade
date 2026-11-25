@@ -1,0 +1,1438 @@
+<!doctype html>
+<html lang="de-CH">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#071820">
+<meta name="description" content="Vulkaninsel: tippe aufs Meer, Lava fliesst bergab und eine Insel wächst.">
+<title>Vulkaninsel</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect fill='%23071820' width='32' height='32' rx='7'/%3E%3Cpath fill='%23124a62' d='M0 20h32v12H0z'/%3E%3Cpath fill='%232a2623' d='M6 20c3-6 7-9 10-9s7 3 10 9'/%3E%3Cpath fill='%23ff7a18' d='M14 12c1-3 2-5 2-5s1 2 2 5c-1 1-3 1-4 0z'/%3E%3C/svg%3E">
+<style>
+  :root { color-scheme: dark; }
+  html, body { margin: 0; height: 100%; background: #071820; color: #f3ecdf; overflow: hidden;
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent;
+    overscroll-behavior: none; }
+  #app { display: flex; flex-direction: column; height: 100%; height: 100dvh; overflow: hidden; min-width: 0; }
+  #stage { position: relative; flex: 1 1 auto; min-width: 0; min-height: 120px; }
+  #c { display: block; width: 100%; height: 100%; touch-action: none; }
+  #top { position: absolute; z-index: 2; left: 0; right: 0; top: 0; pointer-events: none;
+    padding: max(8px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) 28px max(12px, env(safe-area-inset-left));
+    background: linear-gradient(to bottom, rgba(6, 16, 24, .72), rgba(6, 16, 24, 0)); }
+  h1 { margin: 0; font-family: Georgia, Palatino, "Iowan Old Style", serif; font-weight: 600;
+    font-size: 22px; letter-spacing: .01em; color: #f7f1e6; text-shadow: 0 2px 12px rgba(0,0,0,.45); }
+  #status { margin: 2px 0 0; font-size: 13.5px; line-height: 1.35; color: #e7dcc8;
+    text-shadow: 0 1px 8px rgba(0,0,0,.55); max-width: 62rem; }
+  #alter { opacity: .85; }
+  #hint { position: absolute; z-index: 2; left: 50%; bottom: 12px; transform: translateX(-50%);
+    width: min(440px, calc(100% - 20px)); margin: 0; text-align: center; pointer-events: none;
+    color: #f4efe4; text-shadow: 0 2px 10px #000; font-size: 15px; line-height: 1.4;
+    transition: opacity .5s; }
+  #hint.gone { opacity: 0; }
+  #foot { flex: 0 1 auto; min-width: 0; max-height: 46%; overflow-x: hidden; overflow-y: auto;
+    overscroll-behavior: contain; touch-action: pan-y; display: flex; flex-wrap: wrap; gap: 8px;
+    align-items: center; justify-content: center; box-sizing: border-box;
+    padding: 8px 10px calc(8px + env(safe-area-inset-bottom));
+    background: rgba(10, 16, 20, .92); border-top: 1px solid rgba(243, 220, 190, .16); }
+  .slider { flex: 1 1 220px; min-width: 0; display: flex; align-items: center; gap: 8px; min-height: 40px; }
+  .slider label { flex: 0 1 auto; min-width: 0; font-size: 14px; white-space: nowrap; }
+  .slider input { flex: 1 1 0; min-width: 0; width: 0; height: 36px; margin: 0; background: transparent;
+    -webkit-appearance: none; appearance: none; }
+  .slider output { flex: 0 0 40px; text-align: right; font-size: 14px; font-variant-numeric: tabular-nums; color: #f0e2cc; }
+  input[type=range]::-webkit-slider-runnable-track { height: 4px; background: rgba(243, 210, 170, .35); border-radius: 99px; }
+  input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 22px; height: 22px; margin-top: -9px;
+    border-radius: 50%; background: #f6efe4; box-shadow: 0 0 0 4px rgba(255, 140, 60, .28); }
+  input[type=range]::-moz-range-track { height: 4px; background: rgba(243, 210, 170, .35); border: none; border-radius: 99px; }
+  input[type=range]::-moz-range-thumb { width: 22px; height: 22px; border: none; border-radius: 50%; background: #f6efe4; }
+  #tools { flex: 1 1 280px; display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; min-width: 0; }
+  button { font: inherit; color: #f6efe4; background: rgba(246, 239, 228, .06);
+    border: 1px solid rgba(243, 210, 170, .32); border-radius: 12px; min-height: 40px; min-width: 44px;
+    padding: 8px 12px; cursor: pointer; touch-action: manipulation; }
+  button:focus-visible, input:focus-visible { outline: 2px solid #f0c48a; outline-offset: 2px; }
+  button[aria-pressed="true"] { background: rgba(255, 122, 40, .22); border-color: rgba(255, 186, 120, .85); }
+  #toast { position: absolute; z-index: 4; left: 50%; top: max(64px, calc(env(safe-area-inset-top) + 52px));
+    transform: translateX(-50%); background: rgba(12, 16, 18, .92); border: 1px solid rgba(243, 210, 170, .35);
+    border-radius: 999px; padding: 8px 14px; font-size: 14px; opacity: 0; pointer-events: none;
+    transition: opacity .35s; max-width: min(92vw, 420px); text-align: center; }
+  #toast.show { opacity: 1; }
+  #ask { position: absolute; z-index: 5; left: 50%; top: 46%; transform: translate(-50%, -50%);
+    width: min(400px, calc(100% - 24px)); box-sizing: border-box; background: rgba(12, 16, 18, .96);
+    border: 1px solid rgba(243, 210, 170, .4); border-radius: 16px; padding: 16px;
+    box-shadow: 0 16px 48px rgba(0,0,0,.45); }
+  #ask[hidden] { display: none; }
+  #ask p { margin: 0 0 8px; line-height: 1.4; }
+  #ask .row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+  #ask .row button { min-height: 40px; }
+  @media (max-height: 520px) {
+    #app { flex-direction: row; }
+    #foot { flex-direction: column; flex-wrap: nowrap; align-items: stretch; max-height: none;
+      height: 100%; width: min(280px, 46vw); border-top: none; border-left: 1px solid rgba(243, 210, 170, .16);
+      padding-top: max(8px, env(safe-area-inset-top)); }
+    #tools { flex-direction: column; align-items: stretch; }
+    #tools button { width: 100%; }
+    h1 { font-size: 18px; }
+    #hint { font-size: 13px; bottom: 6px; }
+  }
+  @media (max-width: 380px) {
+    h1 { font-size: 18px; }
+    #hint { font-size: 14px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    #hint, #toast { transition: none; }
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="stage">
+    <canvas id="c" aria-label="Vulkaninsel. Tippe aufs Meer, um einen Ausbruch zu starten. Lava fliesst bergab und baut eine Insel."></canvas>
+    <header id="top">
+      <h1>Vulkaninsel</h1>
+      <p id="status"><span id="phase" role="status"></span> <span id="alter"></span></p>
+    </header>
+    <p id="hint">Tippe aufs Meer. Lava fliesst bergab, kühlt zu Basalt und hebt eine Insel aus dem Wasser.</p>
+    <div id="toast" role="status" aria-live="polite"></div>
+    <div id="ask" hidden role="dialog" aria-labelledby="askTitle">
+      <p id="askTitle"><b>Neue Insel?</b></p>
+      <p>Die jetzige Insel geht verloren.</p>
+      <div class="row">
+        <button type="button" id="askYes">Ja, neu</button>
+        <button type="button" id="askNo">Abbrechen</button>
+      </div>
+    </div>
+  </div>
+  <section id="foot" aria-label="Steuerung">
+    <div class="slider">
+      <label for="rate">Zeitraffer</label>
+      <input id="rate" type="range" min="1" max="12" step="1" value="3" aria-label="Zeitraffer">
+      <output id="rateOut" for="rate">3×</output>
+    </div>
+    <div id="tools" role="toolbar" aria-label="Schalter">
+      <button type="button" id="bErosion" aria-pressed="true" title="Regen und Abtrag">Erosion</button>
+      <button type="button" id="bLeben" aria-pressed="true" title="Flechten, Gras, Palmen, Dorf">Leben</button>
+      <button type="button" id="bTon" aria-pressed="false" aria-label="Ton ist aus" title="Meeresrauschen und Grollen">Ton</button>
+      <button type="button" id="bNeu" title="Neue Insel">Neu</button>
+    </div>
+  </section>
+</div>
+<script>
+'use strict';
+(function () {
+  const N = 256;
+  const NN = N * N;
+  const PAD = 70;
+  const SCALE_H = 36;
+  const BUF_W = N;
+  const BUF_H = N + PAD;
+  const KEY = 'vulkaninsel-v1';
+  const BASALT = 1, BEACH = 2, LICHEN = 3, GRASS = 4, PALM = 5;
+  const AGE_LICHEN = 480;
+  const AGE_GRASS = 1300;
+  const AGE_PALM = 2100;
+  const AGE_VILLAGE = 3000;
+
+  const bed = new Float32Array(NN);
+  const lava = new Float32Array(NN);
+  const heat = new Float32Array(NN);
+  const age = new Uint16Array(NN);
+  const biome = new Uint8Array(NN);
+  const addL = new Float32Array(NN);
+  const addE = new Float32Array(NN);
+  const addB = new Float32Array(NN);
+  const palmOcc = new Uint8Array(NN);
+
+  const STEAM = 420;
+  const spx = new Float32Array(STEAM);
+  const spy = new Float32Array(STEAM);
+  const spvx = new Float32Array(STEAM);
+  const spvy = new Float32Array(STEAM);
+  const spl = new Float32Array(STEAM);
+  let steamCursor = 0;
+  let spawned = 0;
+
+  const palms = [];
+  let village = null;
+  const birds = [];
+  const vents = [];
+
+  let seed = (Math.random() * 1e9) | 0;
+  let rate = 3;
+  let erosionOn = true;
+  let lebenOn = true;
+  let soundOn = false;
+  let paused = false;
+  let ticks = 0;
+  let dirty = false;
+  let saveTimer = 0;
+  let toldSave = false;
+  let time = 0;
+  let fps = 60;
+  let fpsFrames = 0;
+  let fpsAcc = 0;
+  let lastNow = 0;
+  let islandCx = N / 2;
+  let islandCy = N / 2;
+  let landN = 0;
+  let lavaM = 0;
+  let vegN = 0;
+  let phaseId = '';
+  let dragFrom = null;
+
+  const canvas = document.getElementById('c');
+  const ctx = canvas.getContext('2d', { alpha: false });
+  const stage = document.getElementById('stage');
+  const phaseEl = document.getElementById('phase');
+  const alterEl = document.getElementById('alter');
+  const hintEl = document.getElementById('hint');
+  const toastEl = document.getElementById('toast');
+  const askEl = document.getElementById('ask');
+  const rateEl = document.getElementById('rate');
+  const rateOut = document.getElementById('rateOut');
+  const bErosion = document.getElementById('bErosion');
+  const bLeben = document.getElementById('bLeben');
+  const bTon = document.getElementById('bTon');
+
+  const off = document.createElement('canvas');
+  off.width = BUF_W;
+  off.height = BUF_H;
+  const offctx = off.getContext('2d', { alpha: false });
+  const img = offctx.createImageData(BUF_W, BUF_H);
+  const pix = img.data;
+
+  const view = { ox: 0, oy: 0, scale: 1, dpr: 1 };
+
+  function n2(x, y) {
+    let n = Math.imul((x + seed) | 0, 374761393) + Math.imul((y + (seed * 17)) | 0, 668265263);
+    n = Math.imul(n ^ (n >>> 13), 1274126177);
+    return ((n ^ (n >>> 16)) >>> 0) / 4294967296;
+  }
+
+  function vnoise(x, y) {
+    const x0 = Math.floor(x), y0 = Math.floor(y);
+    const fx = x - x0, fy = y - y0;
+    const sx = fx * fx * (3 - 2 * fx);
+    const sy = fy * fy * (3 - 2 * fy);
+    const a = n2(x0, y0), b = n2(x0 + 1, y0), c = n2(x0, y0 + 1), d = n2(x0 + 1, y0 + 1);
+    return a + (b - a) * sx + (c - a) * sy + (a - b - c + d) * sx * sy;
+  }
+
+  function H(i) { return bed[i] + lava[i]; }
+
+  function buildSea() {
+    bed.fill(0); lava.fill(0); heat.fill(0); age.fill(0); biome.fill(0); palmOcc.fill(0);
+    palms.length = 0;
+    village = null;
+    birds.length = 0;
+    vents.length = 0;
+    spl.fill(0);
+    ticks = 0;
+    const cx = (N - 1) * 0.5, cy = (N - 1) * 0.5;
+    for (let y = 0; y < N; y++) {
+      for (let x = 0; x < N; x++) {
+        const dx = (x - cx) / N;
+        const dy = (y - cy) / N;
+        const r2 = dx * dx + dy * dy;
+        let h = -0.78 + 0.62 * Math.exp(-r2 * 8.4);
+        h += (vnoise(x * 0.011, y * 0.011) - 0.5) * 0.1;
+        h += (vnoise(x * 0.028 + 4, y * 0.028) - 0.5) * 0.035;
+        const edge = x < y ? x : y;
+        const edge2 = (N - 1 - x) < (N - 1 - y) ? (N - 1 - x) : (N - 1 - y);
+        const e = edge < edge2 ? edge : edge2;
+        if (e < 7) h = h < -0.9 ? h : -0.9;
+        if (h > -0.02) h = -0.02;
+        bed[y * N + x] = h;
+      }
+    }
+    dirty = true;
+  }
+
+  function erupt(x, y, power) {
+    const R = 9;
+    const x0 = x - R < 1 ? 1 : x - R;
+    const y0 = y - R < 1 ? 1 : y - R;
+    const x1 = x + R > N - 2 ? N - 2 : x + R;
+    const y1 = y + R > N - 2 ? N - 2 : y + R;
+    for (let yy = y0; yy <= y1; yy++) {
+      for (let xx = x0; xx <= x1; xx++) {
+        const dx = xx - x, dy = yy - y;
+        const d = Math.hypot(dx, dy);
+        if (d > R) continue;
+        const cone = 1 - d / R;
+        const w = cone * cone * (0.62 + 0.38 * Math.min(1, d / 2.4));
+        const add = power * w;
+        if (add < 0.0004) continue;
+        const i = yy * N + xx;
+        const prev = lava[i];
+        let nl = prev + add;
+        const cap = 1.7 - bed[i];
+        if (nl > cap) nl = cap > 0 ? cap : 0;
+        if (nl <= 0) continue;
+        const t = 0.98;
+        heat[i] = prev > 0.001 ? Math.min(1, (heat[i] * prev + t * (nl - prev)) / nl) : t;
+        lava[i] = nl;
+        age[i] = 0;
+        if (biome[i] > BEACH) biome[i] = BASALT;
+        if (palmOcc[i]) removePalmAt(i);
+      }
+    }
+    dirty = true;
+  }
+
+  function removePalmAt(i) {
+    palmOcc[i] = 0;
+    for (let p = palms.length - 1; p >= 0; p--) {
+      if (palms[p].y * N + palms[p].x === i) palms.splice(p, 1);
+    }
+  }
+
+  function startVent(x, y, big) {
+    erupt(x, y, big ? 0.52 : 0.2);
+    if (!big) return;
+    if (vents.length > 4) vents.shift();
+    vents.push({ x: x, y: y, life: 42, acc: 0, power: 0.1 });
+    if (hintEl && !hintEl.classList.contains('gone')) hintEl.classList.add('gone');
+  }
+
+  function stepVents() {
+    for (let v = vents.length - 1; v >= 0; v--) {
+      const vent = vents[v];
+      vent.life--;
+      vent.acc++;
+      if (vent.acc >= 6) {
+        vent.acc = 0;
+        erupt(vent.x, vent.y, vent.power);
+      }
+      if (vent.life <= 0) vents.splice(v, 1);
+    }
+  }
+
+  function pour(n, f, hot) {
+    const nx = n % N;
+    const ny = (n / N) | 0;
+    if (nx < 1 || ny < 1 || nx >= N - 1 || ny >= N - 1) return;
+    addL[n] += f;
+    addE[n] += f * hot;
+  }
+
+  function flow() {
+    for (let y = 1; y < N - 1; y++) {
+      const row = y * N;
+      for (let x = 1; x < N - 1; x++) {
+        const i = row + x;
+        const lv = lava[i];
+        if (lv < 0.0008) continue;
+        const h0 = bed[i] + lv;
+        const hot = heat[i];
+        const slopeNeed = 0.004 + (1 - hot) * 0.03;
+        let sum = 0;
+        const w0 = h0 - (bed[i - 1] + lava[i - 1]);
+        const w1 = h0 - (bed[i + 1] + lava[i + 1]);
+        const w2 = h0 - (bed[i - N] + lava[i - N]);
+        const w3 = h0 - (bed[i + N] + lava[i + N]);
+        const a = w0 > slopeNeed ? w0 : 0;
+        const b = w1 > slopeNeed ? w1 : 0;
+        const c = w2 > slopeNeed ? w2 : 0;
+        const d = w3 > slopeNeed ? w3 : 0;
+        sum = a + b + c + d;
+        if (sum <= 0) continue;
+        const fluidity = 0.045 + 0.7 * hot * hot;
+        let give = sum * fluidity * 0.2;
+        const cap = lv * (0.42 + 0.28 * hot);
+        if (give > cap) give = cap;
+        const e = give * hot;
+        addL[i] -= give;
+        addE[i] -= e;
+        if (a) pour(i - 1, give * (a / sum), hot);
+        if (b) pour(i + 1, give * (b / sum), hot);
+        if (c) pour(i - N, give * (c / sum), hot);
+        if (d) pour(i + N, give * (d / sum), hot);
+      }
+    }
+    for (let i = 0; i < NN; i++) {
+      const dl = addL[i];
+      if (dl !== 0 || lava[i] > 0) {
+        const nl = lava[i] + dl;
+        if (nl < 0.0004) {
+          if (nl > 0) bed[i] += nl;
+          lava[i] = 0;
+          heat[i] = 0;
+        } else {
+          const energy = heat[i] * lava[i] + addE[i];
+          lava[i] = nl;
+          heat[i] = energy <= 0 ? 0 : (energy / nl > 1 ? 1 : energy / nl);
+        }
+      }
+      addL[i] = 0;
+      addE[i] = 0;
+    }
+  }
+
+  function cool() {
+    for (let y = 1; y < N - 1; y++) {
+      const row = y * N;
+      for (let x = 1; x < N - 1; x++) {
+        const i = row + x;
+        const lv = lava[i];
+        if (lv < 0.0004) { lava[i] = 0; continue; }
+        const h = bed[i] + lv;
+        let touch = 0;
+        if (bed[i - 1] + lava[i - 1] < 0) touch++;
+        if (bed[i + 1] + lava[i + 1] < 0) touch++;
+        if (bed[i - N] + lava[i - N] < 0) touch++;
+        if (bed[i + N] + lava[i + N] < 0) touch++;
+        let loss = h < 0.015 ? 0.016 : 0.0024 * (1.2 / (lv + 0.28));
+        loss += touch * 0.008;
+        if (erosionOn && heat[i] > 0.25) loss += 0.0015;
+        let nh = heat[i] - loss;
+        if (nh < 0) nh = 0;
+        heat[i] = nh;
+        if (nh < 0.075) {
+          bed[i] += lv;
+          if (touch > 0 && bed[i] < 0.04) bed[i] += 0.004;
+          lava[i] = 0;
+          heat[i] = 0;
+          age[i] = 0;
+          if (bed[i] > 0.012) biome[i] = BASALT;
+        } else if ((touch > 0 || h < 0.02) && nh > 0.18) {
+          trySteam(x, y);
+        } else if (erosionOn && nh > 0.35 && lv > 0.02 && n2(x + ticks, y) > 0.992) {
+          trySteam(x, y);
+        }
+      }
+    }
+  }
+
+  function trySteam(x, y) {
+    if (spawned > 26) return;
+    spawned++;
+    for (let k = 0; k < STEAM; k++) {
+      const j = (steamCursor + k) % STEAM;
+      if (spl[j] <= 0) {
+        spx[j] = x + (n2(x + k, y + ticks) - 0.5) * 1.4;
+        spy[j] = y + (n2(y + k, x) - 0.5) * 1.4;
+        spvx[j] = (n2(k, ticks) - 0.5) * 0.32;
+        spvy[j] = -0.28 - n2(ticks, k) * 0.4;
+        spl[j] = 1;
+        steamCursor = j + 1;
+        return;
+      }
+    }
+  }
+
+  function erode() {
+    for (let y = 1; y < N - 1; y++) {
+      const row = y * N;
+      for (let x = 1; x < N - 1; x++) {
+        const i = row + x;
+        if (lava[i] > 0.003) continue;
+        if (bed[i] < 0.01) continue;
+        let best = 0;
+        let nb = -1;
+        const h = bed[i];
+        const d0 = h - H(i - 1);
+        const d1 = h - H(i + 1);
+        const d2 = h - H(i - N);
+        const d3 = h - H(i + N);
+        if (d0 > best) { best = d0; nb = i - 1; }
+        if (d1 > best) { best = d1; nb = i + 1; }
+        if (d2 > best) { best = d2; nb = i - N; }
+        if (d3 > best) { best = d3; nb = i + N; }
+        if (best > 0.04 && nb >= 0) {
+          let mv = (best - 0.04) * 0.045;
+          if (mv > 0.006) mv = 0.006;
+          addB[i] -= mv;
+          addB[nb] += mv * 0.9;
+        }
+      }
+    }
+    for (let i = 0; i < NN; i++) {
+      if (addB[i] !== 0) {
+        bed[i] += addB[i];
+        addB[i] = 0;
+        dirty = true;
+      }
+    }
+  }
+
+  function slopeOf(i) {
+    const h = H(i);
+    const hx = Math.abs(H(i + 1) - H(i - 1)) * 0.5;
+    const hy = Math.abs(H(i + N) - H(i - N)) * 0.5;
+    return hx > hy ? hx : hy;
+  }
+
+  function seaTouch(i) {
+    return (bed[i - 1] + lava[i - 1] < 0) || (bed[i + 1] + lava[i + 1] < 0) ||
+      (bed[i - N] + lava[i - N] < 0) || (bed[i + N] + lava[i + N] < 0);
+  }
+
+  function grow() {
+    let palmTry = 0;
+    for (let y = 1; y < N - 1; y++) {
+      const row = y * N;
+      for (let x = 1; x < N - 1; x++) {
+        const i = row + x;
+        if (lava[i] > 0.003 || heat[i] > 0.06) {
+          age[i] = 0;
+          continue;
+        }
+        const h = bed[i];
+        if (h <= 0.01) {
+          biome[i] = 0;
+          age[i] = 0;
+          if (palmOcc[i]) removePalmAt(i);
+          continue;
+        }
+        if (age[i] < 65535) age[i]++;
+        const sl = slopeOf(i);
+        const wet = seaTouch(i);
+        if ((wet || nearSea(x, y)) && h < 0.09 && sl < 0.11 && biome[i] <= LICHEN) {
+          biome[i] = BEACH;
+          continue;
+        }
+        if (biome[i] === BEACH) {
+          if (h > 0.055 && age[i] > 2800 && sl < 0.06 && !wet) biome[i] = GRASS;
+          continue;
+        }
+        if (biome[i] < BASALT) biome[i] = BASALT;
+        if (h > 0.42) {
+          biome[i] = age[i] > AGE_LICHEN ? LICHEN : BASALT;
+          continue;
+        }
+        if (biome[i] === BASALT && age[i] > AGE_LICHEN) biome[i] = LICHEN;
+        if (biome[i] === LICHEN && age[i] > AGE_GRASS && sl < 0.16) biome[i] = GRASS;
+        if (biome[i] >= GRASS && age[i] > AGE_PALM && h > 0.03 && h < 0.4 && sl < 0.1 && !palmOcc[i]) {
+          if (palmTry < 1 && palms.length < 28 && n2(x, y + (ticks & 255)) > 0.93) {
+            if (palmFree(x, y)) {
+              palms.push({ x: x, y: y, ph: n2(x, y) * 6.28 });
+              palmOcc[i] = 1;
+              biome[i] = PALM;
+              palmTry++;
+            }
+          }
+        }
+      }
+    }
+  }
+
+  function nearSea(x, y) {
+    const i = y * N + x;
+    if (x + 2 < N && bed[i + 2] + lava[i + 2] < 0) return true;
+    if (x - 2 > 0 && bed[i - 2] + lava[i - 2] < 0) return true;
+    if (y + 2 < N && bed[i + N * 2] + lava[i + N * 2] < 0) return true;
+    if (y - 2 > 0 && bed[i - N * 2] + lava[i - N * 2] < 0) return true;
+    return false;
+  }
+
+  function palmFree(x, y) {
+    for (let i = 0; i < palms.length; i++) {
+      const dx = palms[i].x - x, dy = palms[i].y - y;
+      if (dx * dx + dy * dy < 28) return false;
+    }
+    return true;
+  }
+
+  function maybeVillage() {
+    if (village || vegN < 180) return;
+    let best = -1;
+    let bestScore = 0;
+    for (let y = 4; y < N - 4; y += 2) {
+      for (let x = 4; x < N - 4; x += 2) {
+        const i = y * N + x;
+        if (biome[i] < GRASS && biome[i] !== BEACH) continue;
+        if (age[i] < AGE_VILLAGE) continue;
+        const h = bed[i];
+        if (h < 0.03 || h > 0.7) continue;
+        const sl = slopeOf(i);
+        if (sl > 0.12) continue;
+        let coast = seaTouch(i) || nearSea(x, y) ? 1 : 0;
+        const score = age[i] + coast * 700 - sl * 1800 - Math.abs(h - 0.14) * 120;
+        if (score > bestScore) { bestScore = score; best = i; }
+      }
+    }
+    if (bestScore < 3000) return;
+    const x = best % N;
+    const y = (best / N) | 0;
+    const spots = [[0, 0], [4, 1], [-4, 1], [2, -4], [-2, 4], [7, -1], [-7, 3]];
+    const houses = [];
+    for (let s = 0; s < spots.length; s++) {
+      const xx = x + spots[s][0], yy = y + spots[s][1];
+      if (xx < 2 || yy < 2 || xx >= N - 2 || yy >= N - 2) continue;
+      const i = yy * N + xx;
+      if (bed[i] + lava[i] < 0.02 || lava[i] > 0.02) continue;
+      houses.push({ x: xx, y: yy, roof: s % 2, big: s === 0 });
+    }
+    if (houses.length < 3) return;
+    village = { x: x, y: y, houses: houses };
+    dirty = true;
+  }
+
+  function checkVillage() {
+    if (!village) return;
+    const i = village.y * N + village.x;
+    if (lava[i] > 0.05 || bed[i] + lava[i] < 0) {
+      village = null;
+      toast('Die Lava nimmt das Dorf.');
+    }
+  }
+
+  function ensureBirds() {
+    if (vegN < 70) {
+      if (birds.length) birds.length = 0;
+      return;
+    }
+    const want = vegN > 400 ? 7 : (vegN > 180 ? 5 : 3);
+    while (birds.length < want) {
+      const k = birds.length + 1;
+      birds.push({
+        ang: n2(k, ticks) * 6.28,
+        rad: 10 + n2(k, 3) * 16,
+        alt: 0.25 + n2(k, 9) * 0.35,
+        speed: 0.008 + n2(k, 4) * 0.01,
+        ph: n2(k, 5) * 6
+      });
+    }
+    if (birds.length > want) birds.length = want;
+  }
+
+  function simStep() {
+    stepVents();
+    flow();
+    cool();
+    if (erosionOn) erode();
+    if (lebenOn) grow();
+    else shoreOnly();
+    ticks++;
+  }
+
+  function shoreOnly() {
+    for (let y = 1; y < N - 1; y++) {
+      const row = y * N;
+      for (let x = 1; x < N - 1; x++) {
+        const i = row + x;
+        if (lava[i] > 0.003) { age[i] = 0; continue; }
+        if (bed[i] <= 0.01) {
+          biome[i] = 0;
+          if (palmOcc[i]) removePalmAt(i);
+          continue;
+        }
+        if (seaTouch(i) && bed[i] < 0.06 && slopeOf(i) < 0.08 && biome[i] <= BASALT) biome[i] = BEACH;
+        else if (biome[i] === 0) biome[i] = BASALT;
+      }
+    }
+  }
+
+  function stepSteam() {
+    for (let j = 0; j < STEAM; j++) {
+      if (spl[j] <= 0) continue;
+      spx[j] += spvx[j];
+      spy[j] += spvy[j] * 0.35;
+      spvy[j] -= 0.004;
+      spl[j] -= 0.01;
+    }
+  }
+
+  function shadowAt(x, y, h) {
+    if (h < -0.35 && lava[y * N + x] < 0.01) return 1;
+    for (let s = 2; s <= 5; s++) {
+      const sx = x - s;
+      const sy = y - ((s * 2) / 3 | 0);
+      if (sx < 1 || sy < 1) break;
+      const hh = bed[sy * N + sx] + lava[sy * N + sx];
+      if (hh > h + 0.025 + s * 0.04) return 0.52;
+    }
+    return 1;
+  }
+
+  function paint() {
+    const skyR = 126, skyG = 186, skyB = 214;
+    let sx = 0, sy = 0, sc = 0, lm = 0, ln = 0, vn = 0;
+    for (let y = 0; y < PAD; y++) {
+      const t = y / PAD;
+      const row = y * BUF_W * 4;
+      const r = (skyR + (12 - skyR) * t) | 0;
+      const g = (skyG + (50 - skyG) * t) | 0;
+      const b = (skyB + (78 - skyB) * t) | 0;
+      for (let x = 0; x < BUF_W; x++) {
+        const p = row + x * 4;
+        pix[p] = r; pix[p + 1] = g; pix[p + 2] = b; pix[p + 3] = 255;
+      }
+    }
+
+    for (let y = 0; y < N; y++) {
+      const row = y * N;
+      const yBase = y + PAD;
+      for (let x = 0; x < N; x++) {
+        const i = row + x;
+        const lv = lava[i];
+        const ht = heat[i];
+        const h = bed[i] + lv;
+        if (h < -0.2 && lv < 0.008) {
+          const depth = -h;
+          const shall = depth < 0.85 ? Math.exp(-depth * 4.2) : 0;
+          const light = 1.03;
+          let r = (6 + shall * 28) * (0.75 + 0.25 * light);
+          let g = (32 + shall * 120) * (0.75 + 0.25 * light);
+          let b = (58 + shall * 130) * (0.82 + 0.18 * light);
+          const vx = (x - 128) * 0.0039;
+          const vy = (y - 128) * 0.0039;
+          const edge = (vx * vx + vy * vy) * 0.55;
+          r *= 1 - edge; g *= 1 - edge; b *= 1 - edge * 0.7;
+          if (y < 48) {
+            const fog = (1 - y / 48) * 0.45;
+            r = r + (150 - r) * fog;
+            g = g + (196 - g) * fog;
+            b = b + (214 - b) * fog;
+          }
+          const p = (yBase * BUF_W + x) * 4;
+          pix[p] = r; pix[p + 1] = g; pix[p + 2] = b; pix[p + 3] = 255;
+          if (yBase + 1 < BUF_H) {
+            const q = p + BUF_W * 4;
+            pix[q] = r * 0.92; pix[q + 1] = g * 0.92; pix[q + 2] = b * 0.95; pix[q + 3] = 255;
+          }
+          continue;
+        }
+        const hx = x > 0 && x < N - 1 ? (H(i + 1) - H(i - 1)) * 0.5 : 0;
+        const hy = y > 0 && y < N - 1 ? (H(i + N) - H(i - N)) * 0.5 : 0;
+        const inv = 1 / Math.hypot(hx * 2.4, hy * 2.4, 1);
+        let ndl = (-0.62 * hx * 2.4 + -0.42 * hy * 2.4 + 0.78) * inv;
+        if (ndl < 0) ndl = 0;
+        let light = 0.42 + 0.78 * ndl;
+        light *= shadowAt(x, y, h);
+        const aoN = (x > 0 && y > 0 && x < N - 1 && y < N - 1)
+          ? ((H(i - 1) + H(i + 1) + H(i - N) + H(i + N)) * 0.25 - h) : 0;
+        let ao = 1 - aoN * 1.8;
+        if (ao < 0.58) ao = 0.58;
+        if (ao > 1.08) ao = 1.08;
+        light *= ao;
+        const grain = 0.92 + n2(x, y) * 0.1;
+
+        if (lv > 0.004 && ht > 0.08) {
+          const top = (yBase - Math.max(0, h) * SCALE_H) | 0;
+          const bot = yBase | 0;
+          let r, g, b;
+          if (ht > 0.82) {
+            const u = (ht - 0.82) / 0.18;
+            r = 255; g = (150 + 100 * u) | 0; b = (40 + 170 * u) | 0;
+          } else if (ht > 0.45) {
+            const u = (ht - 0.45) / 0.37;
+            r = (180 + 75 * u) | 0; g = (28 + 122 * u) | 0; b = (12 + 20 * u) | 0;
+          } else {
+            const u = ht / 0.45;
+            r = (48 + 132 * u) | 0; g = (16 + 14 * u) | 0; b = (12 + 4 * u) | 0;
+          }
+          if (ht > 0.18 && n2(x * 3 + 1, y * 3) > 0.78) {
+            r = r + 40 > 255 ? 255 : r + 40;
+            g = g + 24 > 255 ? 255 : g + 24;
+          }
+          const glow = 0.55 + 0.45 * ht;
+          stampColumn(x, top, bot, r, g, b, Math.max(light, glow), true);
+          lm += lv;
+        } else if (h > 0.012) {
+          ln++;
+          sx += x; sy += y; sc++;
+          let r = 42, g = 38, b = 36;
+          const bio = biome[i];
+          if (bio === BEACH) { r = 222; g = 196; b = 140; }
+          else if (bio === LICHEN) {
+            if (n2(x * 2, y * 2) > 0.4) { r = 118; g = 132; b = 62; }
+            else { r = 54; g = 56; b = 48; }
+            vn++;
+          } else if (bio === GRASS || bio === PALM) {
+            const m = n2(x, y + 4);
+            r = (46 + m * 40) | 0; g = (118 + m * 50) | 0; b = (42 + m * 16) | 0;
+            vn++;
+          } else {
+            r = 74; g = 68; b = 62;
+          }
+          r = (r * grain) | 0; g = (g * grain) | 0; b = (b * grain) | 0;
+          const lift = h * SCALE_H;
+          const top = (yBase - lift) | 0;
+          const bot = yBase | 0;
+          stampColumn(x, top, bot, r, g, b, light, false);
+        } else {
+          const depth = -h;
+          const shall = Math.exp(-depth * 4.2);
+          let r = (6 + shall * 28) | 0;
+          let g = (32 + shall * 120) | 0;
+          let b = (58 + shall * 130) | 0;
+          r = (r * (0.75 + 0.25 * light)) | 0;
+          g = (g * (0.75 + 0.25 * light)) | 0;
+          b = (b * (0.82 + 0.18 * light)) | 0;
+          if (lv > 0.01 && ht > 0.1) {
+            const glow = Math.min(1, ht * Math.exp(h * 3.2));
+            r = (r + 140 * glow) | 0;
+            g = (g + 40 * glow) | 0;
+            if (r > 255) r = 255;
+            if (g > 255) g = 255;
+          }
+          const shore = (x > 0 && H(i - 1) > 0.02) || (x < N - 1 && H(i + 1) > 0.02) ||
+            (y > 0 && H(i - N) > 0.02) || (y < N - 1 && H(i + N) > 0.02);
+          if (shore) {
+            const wave = Math.sin(x * 0.45 + y * 0.25 + time * 2.1);
+            if (wave > 0) {
+              const f = wave * 0.55;
+              r = (r + 180 * f) | 0; g = (g + 190 * f) | 0; b = (b + 180 * f) | 0;
+              if (r > 255) r = 255; if (g > 255) g = 255; if (b > 255) b = 255;
+            }
+          } else if (shall > 0.15) {
+            const f = shall * (n2(x + (time * 2 | 0), y) - 0.35) * 14;
+            r += f; g += f; b += f * 0.7;
+          }
+          const vx = (x - N * 0.5) / N;
+          const vy = (y - N * 0.5) / N;
+          const vig = vx * vx + vy * vy;
+          const edge = vig * 0.55;
+          r *= 1 - edge; g *= 1 - edge; b *= 1 - edge * 0.7;
+          const fog = y < 48 ? (1 - y / 48) * 0.45 : 0;
+          if (fog) {
+            r = (r + (150 - r) * fog) | 0;
+            g = (g + (196 - g) * fog) | 0;
+            b = (b + (214 - b) * fog) | 0;
+          }
+          const p = (yBase * BUF_W + x) * 4;
+          if (yBase >= 0 && yBase < BUF_H) {
+            pix[p] = r; pix[p + 1] = g; pix[p + 2] = b; pix[p + 3] = 255;
+          }
+          if (yBase + 1 < BUF_H) {
+            const q = p + BUF_W * 4;
+            pix[q] = (r * 0.92) | 0; pix[q + 1] = (g * 0.92) | 0; pix[q + 2] = (b * 0.95) | 0; pix[q + 3] = 255;
+          }
+        }
+      }
+    }
+    if (sc > 0) { islandCx = sx / sc; islandCy = sy / sc; }
+    landN = ln;
+    lavaM = lm;
+    vegN = vn;
+    offctx.putImageData(img, 0, 0);
+  }
+
+  function stampColumn(x, top, bot, r, g, b, light, emissive) {
+    if (top < 0) top = 0;
+    if (bot >= BUF_H) bot = BUF_H - 1;
+    if (bot < top) return;
+    const span = bot - top;
+    for (let yy = top; yy <= bot; yy++) {
+      const down = span ? (yy - top) / span : 0;
+      let L;
+      if (emissive) L = yy === top ? 1.2 : 1.02 - down * 0.38;
+      else L = light * (yy === top ? 1 : 0.78 - down * 0.12);
+      if (L < 0.2) L = 0.2;
+      const p = (yy * BUF_W + x) * 4;
+      let rr = r * L, gg = g * L, bb = b * L;
+      if (rr > 255) rr = 255; if (gg > 255) gg = 255; if (bb > 255) bb = 255;
+      pix[p] = rr; pix[p + 1] = gg; pix[p + 2] = bb; pix[p + 3] = 255;
+    }
+  }
+
+  function project(gx, gy, h) {
+    const bx = gx + 0.5;
+    const by = gy + PAD - Math.max(0, h) * SCALE_H;
+    return {
+      x: view.ox + bx * view.scale,
+      y: view.oy + by * view.scale
+    };
+  }
+
+  function drawSprites() {
+    const s = view.scale;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+
+    if (erosionOn) {
+      ctx.strokeStyle = 'rgba(214, 226, 232, .16)';
+      ctx.lineWidth = 1;
+      const drops = 22;
+      for (let i = 0; i < drops; i++) {
+        const u = n2(i, 2);
+        const v = (n2(i, 5) + time * 0.35) % 1;
+        const x = view.ox + u * BUF_W * s;
+        const y = view.oy + v * BUF_H * s;
+        ctx.beginPath();
+        ctx.moveTo(x, y);
+        ctx.lineTo(x - s * 0.4, y + s * 1.6);
+        ctx.stroke();
+      }
+    }
+
+    for (let j = 0; j < STEAM; j++) {
+      if (spl[j] <= 0) continue;
+      const h = 0.15;
+      const p = project(spx[j], spy[j], h + (1 - spl[j]) * 0.45);
+      const a = spl[j] * spl[j] * 0.45;
+      const rad = (1.1 + (1 - spl[j]) * 3.2) * s * 0.22;
+      ctx.fillStyle = 'rgba(236, 242, 244,' + a.toFixed(3) + ')';
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, rad, 0, 6.2832);
+      ctx.fill();
+    }
+
+    for (let i = 0; i < palms.length; i++) {
+      const palm = palms[i];
+      const gi = palm.y * N + palm.x;
+      if (lava[gi] > 0.02 || bed[gi] < 0.02) continue;
+      const p = project(palm.x, palm.y, bed[gi] + lava[gi]);
+      const sway = Math.sin(time * 1.25 + palm.ph) * 0.7 * s;
+      ctx.strokeStyle = '#6a4a30';
+      ctx.lineWidth = Math.max(1.25, s * 0.28);
+      ctx.beginPath();
+      ctx.moveTo(p.x, p.y);
+      const tx = p.x + sway;
+      const ty = p.y - 5.6 * s;
+      ctx.lineTo(tx, ty);
+      ctx.stroke();
+      ctx.fillStyle = '#1c6e36';
+      ctx.beginPath();
+      ctx.ellipse(tx, ty + 0.3 * s, 2.5 * s, 1.35 * s, sway * 0.01, 0, 6.2832);
+      ctx.fill();
+      ctx.fillStyle = '#134e28';
+      ctx.beginPath();
+      ctx.ellipse(tx - 1.1 * s, ty + 0.15 * s, 1.5 * s, 0.75 * s, -0.5, 0, 6.2832);
+      ctx.fill();
+      ctx.fillStyle = '#3d8f45';
+      ctx.beginPath();
+      ctx.ellipse(tx + 0.9 * s, ty - 0.2 * s, 1.2 * s, 0.6 * s, 0.4, 0, 6.2832);
+      ctx.fill();
+    }
+
+    if (village) {
+      ctx.strokeStyle = 'rgba(196, 164, 110, .8)';
+      ctx.lineWidth = Math.max(1, s * 0.35);
+      const c = project(village.x, village.y, bed[village.y * N + village.x]);
+      for (let i = 0; i < village.houses.length; i++) {
+        const hs = village.houses[i];
+        const hp = project(hs.x, hs.y, bed[hs.y * N + hs.x] + lava[hs.y * N + hs.x]);
+        ctx.beginPath();
+        ctx.moveTo(c.x, c.y);
+        ctx.lineTo(hp.x, hp.y);
+        ctx.stroke();
+      }
+      for (let i = 0; i < village.houses.length; i++) {
+        const hs = village.houses[i];
+        const gi = hs.y * N + hs.x;
+        const hp = project(hs.x, hs.y, bed[gi] + lava[gi]);
+        const w = (hs.big ? 8.4 : 6.2) * s * 0.28;
+        const hh = (hs.big ? 6.2 : 4.6) * s * 0.28;
+        ctx.fillStyle = '#efe6d4';
+        ctx.fillRect(hp.x - w * 0.5, hp.y - hh, w, hh);
+        ctx.fillStyle = hs.roof ? '#8d3a32' : '#3e5564';
+        ctx.beginPath();
+        ctx.moveTo(hp.x - w * 0.65, hp.y - hh);
+        ctx.lineTo(hp.x, hp.y - hh - w * 0.55);
+        ctx.lineTo(hp.x + w * 0.65, hp.y - hh);
+        ctx.fill();
+        const win = 0.45 + 0.55 * Math.max(0, Math.sin(time * 1.4 + i));
+        ctx.fillStyle = 'rgba(255, 214, 140,' + win.toFixed(2) + ')';
+        ctx.fillRect(hp.x - w * 0.15, hp.y - hh * 0.62, Math.max(1, w * 0.22), Math.max(1, hh * 0.28));
+      }
+      let boat = null;
+      for (let r = 2; r < 14 && !boat; r++) {
+        const xx = village.x + r;
+        if (xx < N - 1 && bed[village.y * N + xx] < 0) boat = { x: village.x + r - 1, y: village.y };
+      }
+      if (boat) {
+        const bp = project(boat.x, boat.y, 0.02);
+        ctx.fillStyle = '#6b4228';
+        ctx.beginPath();
+        ctx.ellipse(bp.x, bp.y, 3.2 * s * 0.22, 1.3 * s * 0.22, 0, 0, 6.28);
+        ctx.fill();
+      }
+    }
+
+    for (let i = 0; i < birds.length; i++) {
+      const b = birds[i];
+      b.ang += b.speed;
+      const gx = islandCx + Math.cos(b.ang) * b.rad;
+      const gy = islandCy + Math.sin(b.ang) * b.rad * 0.55;
+      const p = project(gx, gy, 0.2 + b.alt);
+      const flap = Math.sin(time * 9 + b.ph) * 1.6 * s * 0.25;
+      const ws = 3.1 * s * 0.28;
+      ctx.strokeStyle = 'rgba(28, 24, 22, .9)';
+      ctx.lineWidth = Math.max(1, s * 0.16);
+      ctx.beginPath();
+      ctx.moveTo(p.x - ws, p.y + flap);
+      ctx.lineTo(p.x, p.y);
+      ctx.lineTo(p.x + ws, p.y + flap);
+      ctx.stroke();
+    }
+  }
+
+  function render() {
+    paint();
+    const w = canvas.width, h = canvas.height;
+    const g = ctx.createLinearGradient(0, 0, 0, h);
+    g.addColorStop(0, '#7ebad6');
+    g.addColorStop(0.35, '#0e5168');
+    g.addColorStop(1, '#071c2c');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, w, h);
+    ctx.imageSmoothingEnabled = true;
+    ctx.drawImage(off, view.ox, view.oy, BUF_W * view.scale, BUF_H * view.scale);
+    drawSprites();
+  }
+
+  function layout() {
+    const rect = stage.getBoundingClientRect();
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    const cw = Math.max(1, Math.round(rect.width * dpr));
+    const ch = Math.max(1, Math.round(rect.height * dpr));
+    if (canvas.width !== cw || canvas.height !== ch) {
+      canvas.width = cw;
+      canvas.height = ch;
+    }
+    const scale = Math.max(cw / BUF_W, ch / BUF_H);
+    let ox = cw * 0.5 - (N * 0.5) * scale;
+    let oy = ch * 0.52 - (N * 0.48 + PAD) * scale;
+    if (ox > 0) ox = 0;
+    if (oy > 0) oy = 0;
+    if (ox + BUF_W * scale < cw) ox = cw - BUF_W * scale;
+    if (oy + BUF_H * scale < ch) oy = ch - BUF_H * scale;
+    view.ox = ox;
+    view.oy = oy;
+    view.scale = scale;
+    view.dpr = dpr;
+  }
+
+  function pick(clientX, clientY) {
+    const r = canvas.getBoundingClientRect();
+    const px = (clientX - r.left) * (canvas.width / r.width);
+    const py = (clientY - r.top) * (canvas.height / r.height);
+    const bx = (px - view.ox) / view.scale;
+    const by = (py - view.oy) / view.scale;
+    const x = Math.round(bx - 0.5);
+    if (x < 1 || x >= N - 1) return null;
+    for (let y = N - 2; y >= 1; y--) {
+      const i = y * N + x;
+      const hh = Math.max(0, bed[i] + lava[i]);
+      const yBase = y + PAD;
+      const top = yBase - hh * SCALE_H;
+      if (by >= top - 1 && by <= yBase + 1.4) return { x: x, y: y };
+    }
+    return null;
+  }
+
+  function screenOf(gx, gy) {
+    const i = gy * N + gx;
+    const p = project(gx, gy, Math.max(0, bed[i] + lava[i]));
+    const r = canvas.getBoundingClientRect();
+    return {
+      x: r.left + (p.x / canvas.width) * r.width,
+      y: r.top + (p.y / canvas.height) * r.height
+    };
+  }
+
+  let audio = null;
+  function startAudio() {
+    if (audio) {
+      if (audio.ctx.state === 'suspended') audio.ctx.resume();
+      return;
+    }
+    let actx;
+    try { actx = new (window.AudioContext || window.webkitAudioContext)(); }
+    catch (err) { return; }
+    const sr = actx.sampleRate;
+    const seaLen = sr * 2;
+    const seaBuf = actx.createBuffer(1, seaLen, sr);
+    const sd = seaBuf.getChannelData(0);
+    let b0 = 0, b1 = 0;
+    for (let i = 0; i < seaLen; i++) {
+      const white = Math.random() * 2 - 1;
+      b0 = b0 * 0.985 + white * 0.02;
+      b1 = b1 * 0.995 + white * 0.006;
+      sd[i] = b0 * 0.7 + b1;
+    }
+    const sea = actx.createBufferSource();
+    sea.buffer = seaBuf;
+    sea.loop = true;
+    const seaFilter = actx.createBiquadFilter();
+    seaFilter.type = 'lowpass';
+    seaFilter.frequency.value = 640;
+    const seaGain = actx.createGain();
+    seaGain.gain.value = 0;
+    sea.connect(seaFilter); seaFilter.connect(seaGain); seaGain.connect(actx.destination);
+    sea.start();
+
+    const oscA = actx.createOscillator();
+    oscA.type = 'sine';
+    oscA.frequency.value = 46;
+    const oscB = actx.createOscillator();
+    oscB.type = 'triangle';
+    oscB.frequency.value = 28;
+    const rumGain = actx.createGain();
+    rumGain.gain.value = 0;
+    const rumFilter = actx.createBiquadFilter();
+    rumFilter.type = 'lowpass';
+    rumFilter.frequency.value = 180;
+    oscA.connect(rumFilter);
+    oscB.connect(rumFilter);
+    rumFilter.connect(rumGain);
+    rumGain.connect(actx.destination);
+    oscA.start();
+    oscB.start();
+
+    const nLen = sr;
+    const nBuf = actx.createBuffer(1, nLen, sr);
+    const nd = nBuf.getChannelData(0);
+    for (let i = 0; i < nLen; i++) nd[i] = Math.random() * 2 - 1;
+    const hiss = actx.createBufferSource();
+    hiss.buffer = nBuf;
+    hiss.loop = true;
+    const hissFilter = actx.createBiquadFilter();
+    hissFilter.type = 'highpass';
+    hissFilter.frequency.value = 900;
+    const hissGain = actx.createGain();
+    hissGain.gain.value = 0;
+    hiss.connect(hissFilter); hissFilter.connect(hissGain); hissGain.connect(actx.destination);
+    hiss.start();
+
+    audio = { ctx: actx, seaGain: seaGain, rumGain: rumGain, hissGain: hissGain, oscA: oscA };
+  }
+
+  function applyAudio() {
+    if (!audio) return;
+    const t = audio.ctx.currentTime;
+    if (!soundOn) {
+      audio.seaGain.gain.setTargetAtTime(0, t, 0.08);
+      audio.rumGain.gain.setTargetAtTime(0, t, 0.08);
+      audio.hissGain.gain.setTargetAtTime(0, t, 0.08);
+      return;
+    }
+    const rum = lavaM > 0 ? Math.min(0.2, lavaM * 0.01) : 0;
+    audio.seaGain.gain.setTargetAtTime(rum > 0.05 ? 0.028 : 0.04, t, 0.4);
+    audio.rumGain.gain.setTargetAtTime(rum, t, 0.15);
+    audio.oscA.frequency.setTargetAtTime(38 + Math.min(24, lavaM * 0.35), t, 0.2);
+    const steamLevel = spawned > 0 ? Math.min(0.05, spawned * 0.0022) : 0;
+    audio.hissGain.gain.setTargetAtTime(steamLevel, t, 0.12);
+  }
+
+  function onGesture() {
+    startAudio();
+  }
+
+  function setTon(on) {
+    soundOn = on;
+    bTon.setAttribute('aria-pressed', on ? 'true' : 'false');
+    bTon.setAttribute('aria-label', on ? 'Ton ist an' : 'Ton ist aus');
+    if (on) startAudio();
+    applyAudio();
+  }
+
+  let toastTimer = 0;
+  function toast(msg) {
+    toastEl.textContent = msg;
+    toastEl.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { toastEl.classList.remove('show'); }, 1600);
+  }
+
+  function updateHud() {
+    let id = 'sea';
+    let text = 'Offenes Meer. Tippe, um einen Ausbruch zu starten.';
+    if (village) {
+      id = 'village';
+      text = 'Ein kleines Dorf auf festem Grund.';
+    } else if (palms.length > 0) {
+      id = 'palms';
+      text = 'Palmen stehen. Vögel kreisen über der Insel.';
+    } else if (vegN > 40 && biomeHas(GRASS)) {
+      id = 'grass';
+      text = erosionOn ? 'Gras deckt die Hänge. Der Regen formt Strände.' : 'Gras deckt die Hänge.';
+    } else if (vegN > 8) {
+      id = 'lichen';
+      text = 'Flechten besiedeln den abgekühlten Stein.';
+    } else if (lavaM > 0.4) {
+      id = 'lava';
+      text = 'Lava fliesst bergab und dampft auf dem Wasser.';
+    } else if (landN > 12) {
+      id = 'rock';
+      text = 'Basalt kühlt. Die Insel liegt noch kahl.';
+    }
+    if (id !== phaseId) {
+      phaseId = id;
+      phaseEl.textContent = text;
+    }
+    const sec = ticks / 60;
+    let label;
+    if (sec < 90) label = 'Alter ' + Math.floor(sec) + ' s';
+    else label = 'Alter ' + Math.floor(sec / 60) + ' min';
+    if (alterEl.textContent !== label) alterEl.textContent = '· ' + label;
+  }
+
+  function biomeHas(kind) {
+    for (let i = 0; i < NN; i += 7) if (biome[i] >= kind && bed[i] > 0.02 && lava[i] < 0.02) return true;
+    return false;
+  }
+
+  function u8ToB64(u8) {
+    const CHUNK = 4096;
+    const parts = new Array(Math.ceil(u8.length / CHUNK));
+    let n = 0;
+    for (let i = 0; i < u8.length; i += CHUNK) {
+      const sub = u8.subarray(i, Math.min(i + CHUNK, u8.length));
+      let piece = '';
+      for (let j = 0; j < sub.length; j++) piece += String.fromCharCode(sub[j]);
+      parts[n++] = piece;
+    }
+    return btoa(parts.join(''));
+  }
+
+  function b64ToU8(s) {
+    const bin = atob(s);
+    const u8 = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
+    return u8;
+  }
+
+  function qHeight(h) {
+    let t = (h + 1.6) / 4.2;
+    if (t < 0) t = 0;
+    if (t > 1) t = 1;
+    return (t * 65535) | 0;
+  }
+
+  function dHeight(q) {
+    return (q / 65535) * 4.2 - 1.6;
+  }
+
+  function save() {
+    try {
+      const hb = new Uint16Array(NN);
+      const lb = new Uint16Array(NN);
+      const tb = new Uint8Array(NN);
+      for (let i = 0; i < NN; i++) {
+        hb[i] = qHeight(bed[i]);
+        lb[i] = qHeight(lava[i]);
+        tb[i] = (Math.max(0, Math.min(1, heat[i])) * 255) | 0;
+      }
+      const pack = {
+        v: 1,
+        seed: seed,
+        rate: rate,
+        erosion: erosionOn,
+        leben: lebenOn,
+        ticks: ticks,
+        bed: u8ToB64(new Uint8Array(hb.buffer)),
+        lava: u8ToB64(new Uint8Array(lb.buffer)),
+        heat: u8ToB64(tb),
+        biome: u8ToB64(biome),
+        age: u8ToB64(new Uint8Array(age.buffer)),
+        palms: palms.map(function (p) { return [p.x, p.y, Math.round(p.ph * 1000) / 1000]; }),
+        village: village
+      };
+      localStorage.setItem(KEY, JSON.stringify(pack));
+      dirty = false;
+      if (!toldSave) { toldSave = true; toast('Insel gespeichert.'); }
+    } catch (err) {
+      if (!toldSave) { toldSave = true; toast('Speichern hat nicht geklappt.'); }
+    }
+  }
+
+  function load() {
+    let raw;
+    try { raw = localStorage.getItem(KEY); } catch (err) { return false; }
+    if (!raw) return false;
+    try {
+      const pack = JSON.parse(raw);
+      if (!pack || pack.v !== 1) return false;
+      const hb = new Uint16Array(b64ToU8(pack.bed).buffer);
+      const lb = new Uint16Array(b64ToU8(pack.lava).buffer);
+      const tb = b64ToU8(pack.heat);
+      const bb = b64ToU8(pack.biome);
+      const ab = new Uint16Array(b64ToU8(pack.age).buffer);
+      if (hb.length !== NN || lb.length !== NN || tb.length !== NN || bb.length !== NN || ab.length !== NN) return false;
+      seed = pack.seed | 0;
+      for (let i = 0; i < NN; i++) {
+        bed[i] = dHeight(hb[i]);
+        lava[i] = dHeight(lb[i]);
+        heat[i] = tb[i] / 255;
+        biome[i] = bb[i];
+        age[i] = ab[i];
+      }
+      palms.length = 0;
+      palmOcc.fill(0);
+      if (Array.isArray(pack.palms)) {
+        for (let i = 0; i < pack.palms.length && i < 48; i++) {
+          const p = pack.palms[i];
+          const x = p[0] | 0, y = p[1] | 0;
+          if (x > 0 && y > 0 && x < N - 1 && y < N - 1) {
+            palms.push({ x: x, y: y, ph: +p[2] || 0 });
+            palmOcc[y * N + x] = 1;
+          }
+        }
+      }
+      village = pack.village && pack.village.houses ? pack.village : null;
+      ticks = pack.ticks | 0;
+      if (pack.rate >= 1 && pack.rate <= 12) {
+        rate = pack.rate | 0;
+        rateEl.value = String(rate);
+        rateOut.textContent = rate + '×';
+      }
+      erosionOn = !!pack.erosion;
+      lebenOn = !!pack.leben;
+      bErosion.setAttribute('aria-pressed', erosionOn ? 'true' : 'false');
+      bLeben.setAttribute('aria-pressed', lebenOn ? 'true' : 'false');
+      if (landSoon()) hintEl.classList.add('gone');
+      dirty = false;
+      return true;
+    } catch (err) {
+      return false;
+    }
+  }
+
+  function landSoon() {
+    for (let i = 0; i < NN; i += 17) if (bed[i] + lava[i] > 0.02) return true;
+    return false;
+  }
+
+  function fresh() {
+    seed = (Math.random() * 1e9) | 0;
+    buildSea();
+    phaseId = '';
+    toldSave = false;
+    hintEl.classList.remove('gone');
+    try { localStorage.removeItem(KEY); } catch (err) { /* ignore */ }
+    toast('Neue Insel.');
+  }
+
+  function stats() {
+    let maxH = -9, land = 0, lavaC = 0, mass = 0;
+    const bio = [0, 0, 0, 0, 0, 0];
+    for (let i = 0; i < NN; i++) {
+      const h = bed[i] + lava[i];
+      if (h > maxH) maxH = h;
+      if (h > 0.02) land++;
+      if (lava[i] > 0.02) { lavaC++; mass += lava[i]; }
+      const b = biome[i];
+      if (b >= 0 && b <= 5) bio[b]++;
+    }
+    return {
+      land: land, maxH: maxH, lavaC: lavaC, lavaM: mass, bio: bio,
+      palms: palms.length, village: village ? 1 : 0, fps: fps, N: N, ticks: ticks,
+      veg: bio[LICHEN] + bio[GRASS] + bio[PALM]
+    };
+  }
+
+  canvas.addEventListener('pointerdown', function (e) {
+    if (askEl.hidden === false) return;
+    canvas.setPointerCapture(e.pointerId);
+    onGesture();
+    const p = pick(e.clientX, e.clientY);
+    dragFrom = p;
+    if (p) startVent(p.x, p.y, true);
+  });
+  canvas.addEventListener('pointermove', function (e) {
+    if (!dragFrom || (e.buttons & 1) === 0) return;
+    const p = pick(e.clientX, e.clientY);
+    if (!p) return;
+    if (Math.hypot(p.x - dragFrom.x, p.y - dragFrom.y) < 5) return;
+    dragFrom = p;
+    startVent(p.x, p.y, false);
+  });
+  canvas.addEventListener('pointerup', function () { dragFrom = null; });
+  canvas.addEventListener('pointercancel', function () { dragFrom = null; });
+
+  rateEl.addEventListener('input', function () {
+    rate = +rateEl.value;
+    rateOut.textContent = rate + '×';
+    dirty = true;
+  });
+  bErosion.addEventListener('click', function () {
+    erosionOn = !erosionOn;
+    bErosion.setAttribute('aria-pressed', erosionOn ? 'true' : 'false');
+    dirty = true;
+    phaseId = '';
+  });
+  bLeben.addEventListener('click', function () {
+    lebenOn = !lebenOn;
+    bLeben.setAttribute('aria-pressed', lebenOn ? 'true' : 'false');
+    dirty = true;
+    phaseId = '';
+  });
+  bTon.addEventListener('click', function () {
+    onGesture();
+    setTon(!soundOn);
+  });
+  document.getElementById('bNeu').addEventListener('click', function () {
+    askEl.hidden = false;
+    paused = true;
+  });
+  document.getElementById('askYes').addEventListener('click', function () {
+    askEl.hidden = true;
+    paused = false;
+    fresh();
+  });
+  document.getElementById('askNo').addEventListener('click', function () {
+    askEl.hidden = true;
+    paused = false;
+  });
+
+  window.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && !askEl.hidden) {
+      askEl.hidden = true;
+      paused = false;
+      return;
+    }
+    const tag = (e.target && e.target.tagName) || '';
+    if (tag === 'INPUT' || tag === 'BUTTON') return;
+    if (e.key === 'm' || e.key === 'M') { onGesture(); setTon(!soundOn); }
+    else if (e.key === 'e' || e.key === 'E') bErosion.click();
+    else if (e.key === 'l' || e.key === 'L') bLeben.click();
+    else if (e.key === 'n' || e.key === 'N') document.getElementById('bNeu').click();
+    else if (e.key === '[') { rateEl.value = String(Math.max(1, rate - 1)); rateEl.dispatchEvent(new Event('input')); }
+    else if (e.key === ']') { rateEl.value = String(Math.min(12, rate + 1)); rateEl.dispatchEvent(new Event('input')); }
+  });
+
+  document.addEventListener('visibilitychange', function () {
+    if (document.visibilityState === 'hidden' && dirty) save();
+  });
+  window.addEventListener('pagehide', function () { if (dirty) save(); });
+
+  window.addEventListener('resize', layout);
+  if (window.ResizeObserver) new ResizeObserver(layout).observe(stage);
+
+  if (!load()) buildSea();
+  layout();
+  updateHud();
+
+  window.__insel = {
+    stats: stats,
+    screenOf: screenOf,
+    N: N
+  };
+
+  function frame(now) {
+    if (!lastNow) lastNow = now;
+    const dt = Math.min(0.05, (now - lastNow) / 1000);
+    fpsAcc += now - lastNow;
+    fpsFrames++;
+    if (fpsAcc > 500) {
+      fps = fpsFrames * 1000 / fpsAcc;
+      fpsFrames = 0;
+      fpsAcc = 0;
+    }
+    lastNow = now;
+    time += dt;
+    if (!paused) {
+      spawned = 0;
+      const steps = rate;
+      for (let s = 0; s < steps; s++) simStep();
+      if ((ticks % 40) < steps) {
+        if (lebenOn) maybeVillage();
+        checkVillage();
+      }
+      ensureBirds();
+      stepSteam();
+      saveTimer += dt;
+      if (dirty && saveTimer > 2) { saveTimer = 0; save(); }
+    }
+    render();
+    updateHud();
+    applyAudio();
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
