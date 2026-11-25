@@ -134,6 +134,14 @@ brimstones, sky-blue common blues and orange tortoiseshells. They stay away in r
 night and in late autumn and winter, and where there are no flowers. The more meadow in bloom, the more butterflies.
 (`screenshot-butterflies.png`: butterflies over a summer meadow.)
 
+**Cranes**: on fair autumn days around midday, a loose flock of common cranes glides in high over the valley,
+long necks stretched forward and legs trailing behind. Over the valley they find a thermal and circle in it for a
+while, a slow turning wheel of birds that rises bit by bit, and then they stream off south in a ragged line. In
+early spring they pass the other way. They mostly glide and only beat their broad, dark-tipped wings now and then.
+Not in the morning or late afternoon (no thermals), in rain, storms or the map view, and never at the same time
+as a skein of geese. With the sound on you hear their far, rolling trumpet call.
+(`screenshot-cranes.png`: cranes circling in a thermal over the autumn valley.)
+
 **Snowmen**: when the snow reaches the village, little snowmen with red scarves and dark hats
 appear in the cottage gardens, and they melt with the snow in spring.
 

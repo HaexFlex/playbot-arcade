@@ -2532,6 +2532,7 @@ function drawSky(t, dt) {
     }
   }
   { const t0 = performance.now(); drawGeese(dt); st.geeseMs = (st.geeseMs || 0) * 0.9 + (performance.now() - t0) * 0.1; }
+  { const t0 = performance.now(); drawCranes(); st.cranesMs = (st.cranesMs || 0) * 0.9 + (performance.now() - t0) * 0.1; }
   { const t0 = performance.now(); drawMurm(); st.murmMs = (st.murmMs || 0) * 0.9 + (performance.now() - t0) * 0.1; }
 }
 // wild geese: in autumn (yearFrac ~0.55-0.74) skeins of wild geese fly south over the valley, high in the sky: a V of
@@ -2566,6 +2567,7 @@ function drawGeese(dtR) {
   if (!ok) { if (GS.sk && (st.view !== 'tilt' || dir === 0 || LT.storm >= 0.02 || LT.rain >= 0.45 || h < 7.5 || h >= 18.5)) GS.sk = null; if (!GS.sk) { GS.next = -1; return; } }
   if (GS.sk && GS.sk.dir !== dir) GS.sk = null; // the season turned (autumn passage to spring return)
   if (!GS.sk && ok) { if (GS.next < 0) GS.next = now + 3 + Math.random() * 7; if (st.geeseForce) { GS.next = now; st.geeseForce = 0; }
+    if (CR.fl && now >= GS.next) GS.next = now + 5; // the sky belongs to the cranes for now
     if (now >= GS.next) { const lo = GEESE_N[0], hi = GEESE_N[1], n = lo + ((Math.random() * (hi - lo + 1)) | 0), line = Math.random() < 0.2, sz = isPhone ? 11 : 15;
       GS.sk = { dir, n, line, x: dir < 0 ? vw + sz : -sz, y: vh * (0.08 + Math.random() * 0.12), sp: (isPhone ? 36 : 68) * (0.85 + Math.random() * 0.3), sz, ph: Math.random() * 6, arm: 0.45 + Math.random() * 0.25, bob: [...Array(n)].map(() => Math.random() * 6) };
       GS.total++; st.geeseTotal = GS.total; } }
@@ -2584,6 +2586,78 @@ function drawGeese(dtR) {
     cx.drawImage(spr[fr][k.dir < 0 ? 1 : 0], x - w / 2, y - hh / 2, w, hh); st.geeseDrawn++; st.geesePts.push([x, y, j]); if (j === 0) st.geeseAt = [x, y];
   }
   cx.restore(); st.geeseSkein = 1; st.geeseDir = k.dir; st.geeseLine = k.line; st.geeseX = k.x; st.geeseN = k.n;
+}
+// cranes: on fair autumn days (yearFrac ~0.6-0.74, 10:00-16:00, the thermal hours) a loose flock of common cranes
+// (9-16, 6-10 on a phone) glides in from one side high over the valley, stops to circle in a thermal (a slow rising
+// spiral, each bird on its own ring and pace, the flock turning as one loose wheel) for 12-18 s, then streams off south
+// (left) in a ragged line; in early spring (~0.05-0.15) they pass the other way. Long necks forward, legs trailing
+// behind, broad wings with dark fingertips; they mostly glide and flap only now and then. A flock comes about every
+// 45-100 s (the first 6-16 s into the window), never while a geese skein is up, and natural skeins wait while the
+// cranes are there. With sound on a far rolling trumpet call ('grru-grru') now and then, at most one per 2.2 s.
+// None outside the two passages, before 10 or after 16, in rain (>= 0.25) or a storm, without seasons or in the map
+// view. Hooks: st.cranesDrawn, st.cranesFlock (1 while up), st.cranesPhase ('in', 'circle', 'out'), st.cranesAt
+// (screen px of the flock's middle), st.cranesX (middle x, also off screen), st.cranesDir, st.cranesN, st.cranesPts
+// ([x, y, frame, bird]), st.cranesTotal, st.cranesSpin (ring turns while circling), st.cranesForce (test: next one now), st.cranesMs.
+const CRANES_N = isPhone ? [6, 10] : [9, 16];
+const CR = { fl: null, next: -1, spr: null, total: 0, last: -1 };
+function craneSprites() {
+  if (CR.spr) return CR.spr;
+  const mk = (fr, flip) => { const W = 40, Hh = 24, c = document.createElement('canvas'); c.width = W; c.height = Hh; const g = c.getContext('2d');
+    if (flip) { g.translate(W, 0); g.scale(-1, 1); } // drawn flying right: head on the right
+    g.strokeStyle = '#2c2b2a'; g.lineWidth = 1; g.beginPath(); g.moveTo(13, 12.4); g.lineTo(1.5, 13.4); g.stroke(); // long legs trailing behind
+    g.fillStyle = '#7f7f7c'; g.beginPath(); g.ellipse(18, 12, 6.5, 2.3, 0, 0, 6.283); g.fill(); // body
+    g.fillStyle = '#4a4a48'; g.beginPath(); g.ellipse(12.6, 12, 2.6, 2, 0, 0, 6.283); g.fill(); // bushy tail ('bustle')
+    g.strokeStyle = '#3a3a38'; g.lineWidth = 1.3; g.beginPath(); g.moveTo(23, 11.4); g.lineTo(33, 10.6); g.stroke(); // long straight neck
+    g.fillStyle = '#1c1c1c'; g.beginPath(); g.ellipse(34, 10.5, 1.6, 1.2, 0, 0, 6.283); g.fill(); g.fillRect(35, 10.2, 3.2, 0.8); // head and bill
+    g.fillStyle = '#b8342c'; g.fillRect(33.4, 9.4, 1, 0.7); // red crown
+    const wing = (pts, tip) => { g.fillStyle = '#6e6e6b'; g.beginPath(); g.moveTo(pts[0][0], pts[0][1]); for (const q of pts.slice(1)) g.lineTo(q[0], q[1]); g.fill();
+      g.fillStyle = '#262524'; g.beginPath(); g.moveTo(tip[0][0], tip[0][1]); for (const q of tip.slice(1)) g.lineTo(q[0], q[1]); g.fill(); };
+    if (fr === 0) wing([[14, 11], [16, 5.5], [24, 4.6], [22, 11]], [[16, 5.5], [15.4, 3.6], [24.6, 3], [24, 4.6]]); // gliding: wings spread, a little raised
+    else if (fr === 1) wing([[15, 10.5], [17, 1.6], [22, 1], [21.5, 10.5]], [[17, 1.6], [17.2, 0.2], [22.4, 0], [22, 1]]); // up stroke
+    else wing([[15, 13], [16.6, 21.4], [21.6, 22], [21.5, 13]], [[16.6, 21.4], [16.8, 23.4], [22, 23.8], [21.6, 22]]); // down stroke
+    return c; };
+  return CR.spr = [0, 1, 2].map(fr => [mk(fr, false), mk(fr, true)]);
+}
+function craneSeason() { const S = st.S; if (!S.P.seasons) return 0; const y = LV.yearFrac(S); return y >= 0.6 && y < 0.74 ? -1 : y >= 0.05 && y < 0.15 ? 1 : 0; }
+function drawCranes() {
+  st.cranesDrawn = 0; st.cranesAt = null; st.cranesFlock = 0; st.cranesPts = []; st.cranesPhase = '';
+  const now = performance.now() / 1000, dt = Math.max(0, Math.min(0.1, CR.last < 0 ? 0 : now - CR.last)); CR.last = now;
+  const dir = craneSeason(), h = LT.h, ok = dir !== 0 && h >= 10 && h < 16 && LT.rain < 0.25 && LT.storm < 0.02 && st.view === 'tilt';
+  if (!ok) { if (CR.fl && (st.view !== 'tilt' || dir === 0 || LT.storm >= 0.02 || LT.rain >= 0.25 || h < 9.5 || h >= 16.5)) CR.fl = null; if (!CR.fl) { CR.next = -1; return; } }
+  if (CR.fl && CR.fl.dir !== dir) CR.fl = null;
+  if (!CR.fl && ok) { if (CR.next < 0) CR.next = now + 6 + Math.random() * 10;
+    if (st.cranesForce) { CR.next = now; st.cranesForce = 0; } else if (GS.sk && now >= CR.next) CR.next = now + 5; // wait for the geese to pass
+    if (now >= CR.next) { const lo = CRANES_N[0], hi = CRANES_N[1], n = lo + ((Math.random() * (hi - lo + 1)) | 0), sz = isPhone ? 13 : 19;
+      const cxT = vw * (0.32 + Math.random() * 0.36), cyT = vh * (0.12 + Math.random() * 0.08), sx = dir < 0 ? vw + sz * 3 : -sz * 3;
+      const sp = (isPhone ? 42 : 78) * (0.9 + Math.random() * 0.2), rx = Math.min(vw * 0.2, (isPhone ? 70 : 150)), birds = [];
+      for (let j = 0; j < n; j++) { const ox = j * sz * 1.05 + Math.random() * sz * 0.6, oy = (Math.random() - 0.5) * sz * 2.2;
+        birds.push({ x: sx - dir * ox, y: cyT + oy, ox, oy, r: 0.45 + 0.55 * Math.random(), ph: Math.random() * 6.283, w: 0.85 + Math.random() * 0.3, fl: dir, flap: 0, fp: Math.random() * 6, prevX: sx - dir * ox }); }
+      CR.fl = { dir, n, sz, sp, rx, cx: cxT, cy: cyT, birds, phase: 'in', t: 0, lead: sx, dur: 12 + Math.random() * 6, spin: 0, wdir: Math.random() < 0.5 ? 1 : -1 };
+      CR.total++; st.cranesTotal = CR.total; } }
+  const F = CR.fl; if (!F) return;
+  F.t += dt; const sz = F.sz, om = 0.42 * F.wdir; // ring speed (rad/s): a slow wheel
+  if (F.phase === 'in') { F.lead += F.dir * F.sp * dt; if ((F.dir < 0 && F.lead <= F.cx + F.rx * 0.5) || (F.dir > 0 && F.lead >= F.cx - F.rx * 0.5)) { F.phase = 'circle'; F.t = 0; } }
+  else if (F.phase === 'circle') { F.spin += Math.abs(om) * dt / 6.283; F.cy -= dt * sz * 0.05; if (F.t > F.dur) { F.phase = 'out'; F.t = 0; F.lead = F.cx; } }
+  else F.lead += F.dir * F.sp * 1.1 * dt;
+  let gone = F.phase === 'out', mx = 0, my = 0, nOn = 0;
+  const spr = craneSprites(), a = (1 - LT.night) * (1 - 0.4 * LT.rain); cx.save(); cx.globalAlpha = Math.max(0, Math.min(0.9, a));
+  for (let j = 0; j < F.n; j++) { const b = F.birds[j]; let tx, ty;
+    if (F.phase === 'circle') { const an = b.ph + om * F.t * b.w; tx = F.cx + Math.cos(an) * F.rx * b.r; ty = F.cy + Math.sin(an) * F.rx * b.r * 0.32 - b.r * sz * 0.4; }
+    else { tx = F.lead - F.dir * b.ox * (F.phase === 'out' ? 1.25 : 1); ty = F.cy + b.oy + Math.sin(now * 0.7 + b.ph) * sz * 0.15; }
+    const k = Math.min(1, dt * (F.phase === 'circle' ? 1.6 : 2.4)), dx = (tx - b.x) * k, dy = (ty - b.y) * k, cap = F.sp * 1.8 * dt, dd = Math.hypot(dx, dy), sc = dd > cap ? cap / dd : 1;
+    b.x += dx * sc; b.y += dy * sc;
+    const vx = b.x - b.prevX; b.prevX = b.x; if (Math.abs(vx) > 0.02) b.fl = vx > 0 ? 1 : -1; // face the way it flies
+    if (b.flap <= 0 && Math.random() < dt * (F.phase === 'circle' ? 0.08 : 0.25)) b.flap = 1.2 + Math.random() * 1.2; // mostly gliding, a few beats now and then
+    let fr = 0; if (b.flap > 0) { b.flap -= dt; fr = Math.sin(now * 5 + b.fp) > 0 ? 1 : 2; }
+    const w = sz * 1.9, hh = w * 24 / 40;
+    if (b.x > -w * 2 && b.x < vw + w * 2) gone = false;
+    mx += b.x; my += b.y;
+    if (b.x < -w || b.x > vw + w) continue;
+    cx.drawImage(spr[fr][b.fl < 0 ? 1 : 0], b.x - w / 2, b.y - hh / 2, w, hh); st.cranesDrawn++; nOn++; st.cranesPts.push([b.x, b.y, fr, j]);
+  }
+  cx.restore();
+  if (gone && F.t > 1) { CR.fl = null; CR.next = now + 45 + Math.random() * 55; return; }
+  mx /= F.n; my /= F.n; st.cranesFlock = 1; st.cranesPhase = F.phase; st.cranesX = mx; st.cranesDir = F.dir; st.cranesN = F.n; st.cranesSpin = F.spin; if (nOn) st.cranesAt = [mx, my];
 }
 // starling murmuration: in autumn (the geese's window, yearFrac ~0.55-0.74), on about 2 evenings in 3 around sunset
 // (it gathers 17:00-18:40), a big flock of starlings (380-460 on a desk, 170-230 on a phone) swirls in the sky above the
@@ -4033,7 +4107,7 @@ function adapt(dt) {
 // and thunder after lightning, wind (stronger in winter and storms), birds by day in the forest, crickets on
 // summer evenings, an owl at night, the creak and clack of turning mill wheels, cowbells near the village.
 // window.LV_AUDIO holds the levels (0..1) and gains so tests can check them without listening.
-const AU = { want: false, on: false, started: false, state: 'none', nodes: 0, live: 0, L: {}, G: {}, ev: { chirp: 0, cricket: 0, owl: 0, clack: 0, creak: 0, bell: 0, thunder: 0, plop: 0, slurp: 0, splash: 0, knock: 0, well: 0, rustle: 0, rumble: 0, drip: 0, squeak: 0, thump: 0, crunch: 0, skate: 0, icicle: 0, puddle: 0, peep: 0, twit: 0, bat: 0, pipe: 0, whirr: 0, honk: 0, murmur: 0, spade: 0 }, flow: 0, riverPan: 0, veg: 0, ticks: 0, vol: 1, snowCover: 0, rainMuffle: 0, rainCut: 9000, masterT: 0, melt: 0, meltPan: 0 };
+const AU = { want: false, on: false, started: false, state: 'none', nodes: 0, live: 0, L: {}, G: {}, ev: { chirp: 0, cricket: 0, owl: 0, clack: 0, creak: 0, bell: 0, thunder: 0, plop: 0, slurp: 0, splash: 0, knock: 0, well: 0, rustle: 0, rumble: 0, drip: 0, squeak: 0, thump: 0, crunch: 0, skate: 0, icicle: 0, puddle: 0, peep: 0, twit: 0, bat: 0, pipe: 0, whirr: 0, honk: 0, crane: 0, murmur: 0, spade: 0 }, flow: 0, riverPan: 0, veg: 0, ticks: 0, vol: 1, snowCover: 0, rainMuffle: 0, rainCut: 9000, masterT: 0, melt: 0, meltPan: 0 };
 window.LV_AUDIO = AU;
 const AU_KEY = 'lv-sound', AU_MASTER = 0.45, AU_DT = 0.25;
 const AU_MAX = { river: 0.55, rain: 0.42, wind: 0.2, birds: 0.42, crickets: 0.13, owl: 0.38, mill: 0.42, cows: 0.26, thunder: 0.85, melt: 0.3 }; // full-level gain per layer
@@ -4282,6 +4356,16 @@ function sndWhirr(pan, k) { // the flock flies up: a quick soft whirr of small w
   for (let q = 0; q < n; q++) { const a = t + q * (0.035 + Math.random() * 0.02); noiseHit('fx', AG.pink, a, 0.06, 'bandpass', 900 + Math.random() * 700, 1.1, (0.09 - q * 0.007) * k, pan, 0.012); }
   AU.ev.whirr++;
 }
+function sndCrane(pan, k) { // common cranes far overhead: a rolling, bugling 'grru-grru' (a trumpet tone with a fast flutter), fx bus
+  if (!fxOn()) return; const ac = AG.ac, t0 = ac.currentTime + 0.02 + Math.random() * 0.3, n = 2 + (Math.random() < 0.4 ? 1 : 0), f0 = 470 + Math.random() * 110;
+  for (let j = 0; j < n; j++) { const t = t0 + j * (0.34 + Math.random() * 0.08), d = 0.24 + Math.random() * 0.06, g = auVoice('fx', t, d + 0.1, pan), fl = ac.createBiquadFilter(); fl.type = 'bandpass'; fl.frequency.value = 1100; fl.Q.value = 1.4;
+    const am = ac.createGain(); am.gain.value = 0.55; am.connect(fl); fl.connect(g);
+    const lf = ac.createGain(); lf.gain.value = 0.45; lf.connect(am.gain); osc('square', 24 + Math.random() * 6, t, d + 0.05, lf); // the roll
+    const o = osc('sawtooth', f0 * (j % 2 ? 0.92 : 1), t, d + 0.05, am); o.frequency.linearRampToValueAtTime(f0 * (j % 2 ? 0.86 : 1.06), t + d * 0.4); o.frequency.linearRampToValueAtTime(f0 * (j % 2 ? 0.8 : 0.96), t + d);
+    g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.014 * k, t + 0.03); g.gain.linearRampToValueAtTime(0.01 * k, t + d * 0.7); g.gain.linearRampToValueAtTime(0, t + d);
+    setTimeout(() => { fl.disconnect(); am.disconnect(); lf.disconnect(); }, (t - ac.currentTime + d) * 1000 + 400); }
+  AU.ev.crane++;
+}
 function sndHonk(pan, k) { // wild geese high overhead: a faint, nasal double honk ('ahng-ahng'), far away (lowpassed), fx bus
   if (!fxOn()) return; const ac = AG.ac, t0 = ac.currentTime + 0.02 + Math.random() * 0.25, n = Math.random() < 0.35 ? 3 : 2, f0 = 380 + Math.random() * 90;
   for (let j = 0; j < n; j++) { const t = t0 + j * (0.2 + Math.random() * 0.06), d = 0.13 + Math.random() * 0.04, g = auVoice('fx', t, d + 0.05, pan), fl = ac.createBiquadFilter(); fl.type = 'lowpass'; fl.frequency.value = 1300; fl.Q.value = 2.2; fl.connect(g);
@@ -4392,6 +4476,8 @@ function auTick(dt) {
   AU.fled = st.bfFled || 0;
   // wild geese overhead (while a skein is drawn): a faint honk now and then, at most one per 1.6 s, panned to the lead goose
   if (st.geeseDrawn > 0 && t - (AU.honkT || -9) > 1.6 && R() < 0.35) { sndHonk(fxPan(st.geeseAt ? st.geeseAt[0] : st.geeseX), 0.7 + 0.3 * R()); AU.honkT = t; }
+  // cranes (while drawn): a far rolling trumpet call now and then, at most one per 2.2 s, panned to the flock
+  if (st.cranesDrawn > 0 && t - (AU.craneT || -9) > 2.2 && R() < 0.3) { sndCrane(fxPan(st.cranesAt ? st.cranesAt[0] : st.cranesX), 0.7 + 0.3 * R()); AU.craneT = t; }
   // a starling murmuration (while drawn): a soft whoosh of wings, more often and louder when the flock turns tight, at most one per 1.1 s
   if (st.murmDrawn > 20 && t - (AU.murmT || -9) > 1.1 && R() < 0.3 + 0.6 * (st.murmTight || 0)) { sndMurmur(fxPan(st.murmAt ? st.murmAt[0] : null), Math.min(1, 0.35 + 0.8 * (st.murmTight || 0)) * Math.min(1, st.murmDrawn / 150)); AU.murmT = t; }
   if (st.ducklingsDrawn > 0 && st.duckPx && t - (AU.peepT || -9) > 1.4 && R() < 0.3) { sndPeep(fxPan(st.duckPx[0]), 0.7 + 0.3 * R()); AU.peepT = t; }
@@ -4669,7 +4755,7 @@ addEventListener('pagehide', () => autoSave('pagehide'));
 window.LV_AUTO = { AS, save: autoSave, get: asGet, put: asPut, clear: asClear, restore: autoRestore };
 
 
-window.__lv = { st, FR, FOX, foxEvening, BF, GS, MU, murmEvening, AU, SW, updSound, LV, LT, leaf: LS, clockText, wheelAng, get col() { return [colR, colG, colB]; }, get tilt() { return tilt; }, get area() { return area; }, setTool, newWorld, unproj, proj, get S() { return st.S; }, floes, breakup: sndBreakup, yearTurn, flourT, SACK_T, carts, CART_LOAD, cartTarget, bakeT, FLOUR, smokeRGB, HAY, HAY_T, PUD, KID, DUCK };
+window.__lv = { st, FR, FOX, foxEvening, BF, GS, CR, MU, murmEvening, AU, SW, updSound, LV, LT, leaf: LS, clockText, wheelAng, get col() { return [colR, colG, colB]; }, get tilt() { return tilt; }, get area() { return area; }, setTool, newWorld, unproj, proj, get S() { return st.S; }, floes, breakup: sndBreakup, yearTurn, flourT, SACK_T, carts, CART_LOAD, cartTarget, bakeT, FLOUR, smokeRGB, HAY, HAY_T, PUD, KID, DUCK };
 updUI(); updSound();
 const rawHash = (location.hash || '').slice(1);
 let fromHash = ''; try { fromHash = decodeURIComponent(rawHash); } catch (e) { fromHash = ''; }
