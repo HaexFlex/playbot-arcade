@@ -1,0 +1,1539 @@
+<!DOCTYPE html>
+<html lang="de-CH">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#12182a">
+<title>Eisbahn</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect fill='%2312182a' width='32' height='32'/%3E%3Ccircle fill='%23d5ebf6' cx='16' cy='18' r='9'/%3E%3C/svg%3E">
+<style>
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0;
+    height: 100%;
+    max-width: 100%;
+    overflow: hidden;
+    background: #12182a;
+    color: #f6f1e8;
+  }
+  body {
+    font-family: system-ui, "Segoe UI", Helvetica, Arial, sans-serif;
+    user-select: none;
+    -webkit-user-select: none;
+    overscroll-behavior: none;
+  }
+  #app {
+    height: 100%;
+    height: 100dvh;
+    max-width: 100%;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+  header {
+    flex: 0 0 auto;
+    min-width: 0;
+    max-width: 100%;
+    padding: 8px 12px 4px;
+    padding-top: calc(8px + env(safe-area-inset-top));
+  }
+  h1 {
+    margin: 0;
+    font-family: Palatino, "Palatino Linotype", "Iowan Old Style", Georgia, serif;
+    font-weight: 500;
+    font-size: clamp(1.25rem, 2.6vw, 1.75rem);
+    letter-spacing: 0.02em;
+    line-height: 1.1;
+  }
+  #hint {
+    margin: 3px 0 0;
+    color: #d9cbb8;
+    font-size: 0.92rem;
+    line-height: 1.35;
+    max-width: 40rem;
+    overflow-wrap: break-word;
+  }
+  main {
+    flex: 1 1 auto;
+    min-width: 0;
+    min-height: 0;
+    max-width: 100%;
+    display: flex;
+  }
+  canvas {
+    width: 100%;
+    height: 100%;
+    min-width: 0;
+    min-height: 0;
+    display: block;
+    touch-action: none;
+    cursor: crosshair;
+    background: #12182a;
+  }
+  footer {
+    flex: 0 1 auto;
+    min-width: 0;
+    max-width: 100%;
+    max-height: 46%;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 10px calc(8px + env(safe-area-inset-bottom));
+    background: rgba(16, 22, 40, 0.96);
+    border-top: 1px solid rgba(232, 206, 170, 0.22);
+  }
+  button {
+    flex: 0 0 auto;
+    font: inherit;
+    font-size: 0.95rem;
+    line-height: 1.2;
+    color: #f6f1e8;
+    background: rgba(246, 241, 232, 0.06);
+    border: 1px solid rgba(232, 206, 170, 0.42);
+    border-radius: 999px;
+    min-height: 40px;
+    min-width: 44px;
+    max-width: 100%;
+    padding: 8px 14px;
+    white-space: nowrap;
+    cursor: pointer;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+  }
+  button:hover { background: rgba(246, 241, 232, 0.12); }
+  button:focus-visible {
+    outline: 2px solid #f0d7a4;
+    outline-offset: 2px;
+  }
+  button[aria-pressed="true"] {
+    background: #f0d7a4;
+    color: #241c14;
+    border-color: #f0d7a4;
+  }
+  button:disabled {
+    opacity: 0.42;
+    cursor: default;
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <h1>Eisbahn</h1>
+    <p id="hint" aria-live="polite">Zieh eine Bahn aufs Eis.</p>
+  </header>
+  <main>
+    <canvas id="c" role="application" aria-label="Gefrorener Dorfteich von oben. Zeichne eine Bahn, der vordere Läufer folgt ihr."></canvas>
+  </main>
+  <footer aria-label="Werkzeuge">
+    <button id="bPiro" type="button" title="Der vordere Läufer dreht eine Pirouette.">Pirouette</button>
+    <button id="bAcht" type="button" title="Der vordere Läufer fährt einen Achter.">Achter</button>
+    <button id="bMore" type="button" title="Weiteren Läufer aufs Eis lassen.">Läufer</button>
+    <button id="bLess" type="button" title="Einen Läufer vom Eis nehmen.">Weniger</button>
+    <button id="bZam" type="button" aria-pressed="false" title="Eismaschine über das Eis schicken.">Eismaschine</button>
+    <button id="bTon" type="button" aria-pressed="false" title="Ton">Ton</button>
+  </footer>
+</div>
+<script>
+(function () {
+  'use strict';
+
+  var canvas = document.getElementById('c');
+  var hint = document.getElementById('hint');
+  var bPiro = document.getElementById('bPiro');
+  var bAcht = document.getElementById('bAcht');
+  var bMore = document.getElementById('bMore');
+  var bLess = document.getElementById('bLess');
+  var bZam = document.getElementById('bZam');
+  var bTon = document.getElementById('bTon');
+  var ctx = canvas.getContext('2d');
+  var trail = document.createElement('canvas');
+  var tctx = trail.getContext('2d');
+
+  var dpr = 1;
+  var cssW = 1;
+  var cssH = 1;
+  var cx = 0, cy = 0, rx = 1, ry = 1;
+  var time = 0;
+  var drawnOnce = false;
+  var tonOn = false;
+  var reduce = false;
+  try {
+    reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  } catch (e) { reduce = false; }
+
+  var LOOKS = [
+    { coat: '#8f2d3c', hat: '#2a1c22', scarf: '#f0d28a', skin: '#f3d2b6' },
+    { coat: '#1e4d45', hat: '#142420', scarf: '#e7e2d4', skin: '#f0c8aa' },
+    { coat: '#243e6b', hat: '#161e2e', scarf: '#d4654a', skin: '#f2d0b0' },
+    { coat: '#6b4528', hat: '#2a1c14', scarf: '#efe6d2', skin: '#e8c4a4' },
+    { coat: '#4a3358', hat: '#221628', scarf: '#e6b15a', skin: '#f0ccb0' },
+    { coat: '#2c3f38', hat: '#17211e', scarf: '#c5d5e0', skin: '#f1d3b8' }
+  ];
+  var SPECS = [
+    { sx: 0.33, sy: 0.21, rot: 0.85, u: 0.22, speed: 82 },
+    { sx: 0.20, sy: 0.32, rot: 1.7, u: 0.58, speed: 104 },
+    { sx: 0.40, sy: 0.15, rot: 2.45, u: 0.37, speed: 74 },
+    { sx: 0.17, sy: 0.26, rot: 0.35, u: 0.71, speed: 112 },
+    { sx: 0.28, sy: 0.19, rot: 2.9, u: 0.14, speed: 90 }
+  ];
+  var LANTERNS = [
+    { nx: -1.08, ny: -0.82 },
+    { nx: 1.12, ny: -0.68 },
+    { nx: -1.14, ny: 0.58 },
+    { nx: 1.08, ny: 0.76 },
+    { nx: -0.28, ny: -1.08 },
+    { nx: -0.22, ny: 1.18 }
+  ];
+  var PINES = [
+    { nx: -1.35, ny: -1.16, h: 62 },
+    { nx: -0.95, ny: -1.22, h: 78 },
+    { nx: -0.55, ny: -1.14, h: 46 },
+    { nx: 0.85, ny: -1.2, h: 70 },
+    { nx: 1.32, ny: -1.12, h: 54 },
+    { nx: 1.48, ny: -0.05, h: 76 },
+    { nx: -1.5, ny: 0.08, h: 84 },
+    { nx: -1.28, ny: 1.02, h: 58 },
+    { nx: 1.32, ny: 1.05, h: 64 },
+    { nx: 0.15, ny: 1.16, h: 34 }
+  ];
+
+  function mulberry32(a) {
+    return function () {
+      a |= 0;
+      a = a + 0x6D2B79F5 | 0;
+      var t = Math.imul(a ^ a >>> 15, 1 | a);
+      t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+      return ((t ^ t >>> 14) >>> 0) / 4294967296;
+    };
+  }
+  var starRnd = mulberry32(20261125);
+  var stars = [];
+  for (var si = 0; si < 50; si++) {
+    stars.push({
+      x: starRnd(),
+      y: starRnd() * 0.62,
+      r: starRnd() * 1.15 + 0.25,
+      p: starRnd() * Math.PI * 2
+    });
+  }
+  var speckRnd = mulberry32(42);
+  var specks = [];
+  for (var spi = 0; spi < 36; spi++) {
+    specks.push({
+      nx: speckRnd() * 2.6 - 1.3,
+      ny: speckRnd() * 2.5 - 1.2,
+      r: speckRnd() * 1.3 + 0.3
+    });
+  }
+
+  var skaters = [];
+  var flakes = [];
+  var puffs = [];
+  var drawPts = [];
+  var drawId = null;
+  var machine = { on: false, path: null, u: 0, x: 0, y: 0, angle: 0, hasPrev: false, speed: 340 };
+
+  function pondR(th) {
+    return 1
+      + 0.034 * Math.sin(3 * th + 0.4)
+      + 0.02 * Math.sin(5 * th + 1.7)
+      + 0.012 * Math.sin(7 * th + 0.2);
+  }
+
+  function pondPath(c, scale) {
+    var sc = scale || 1;
+    c.beginPath();
+    var N = 80;
+    for (var i = 0; i <= N; i++) {
+      var th = (i / N) * Math.PI * 2;
+      var rr = pondR(th) * sc;
+      var x = cx + Math.cos(th) * rx * rr;
+      var y = cy + Math.sin(th) * ry * rr;
+      if (i === 0) c.moveTo(x, y);
+      else c.lineTo(x, y);
+    }
+    c.closePath();
+  }
+
+  function insidePond(nx, ny, pad) {
+    var r = Math.hypot(nx, ny);
+    if (r < 1e-6) return true;
+    var th = Math.atan2(ny, nx);
+    return r <= pondR(th) * (pad == null ? 1 : pad);
+  }
+
+  function projectIn(nx, ny, pad) {
+    var limPad = pad == null ? 0.9 : pad;
+    var th = Math.atan2(ny, nx);
+    var lim = pondR(th) * limPad;
+    var r = Math.hypot(nx, ny);
+    if (r <= lim || r < 1e-8) return { nx: nx, ny: ny };
+    return { nx: nx / r * lim, ny: ny / r * lim };
+  }
+
+  function n2s(nx, ny) {
+    return { x: cx + nx * rx, y: cy + ny * ry };
+  }
+
+  function layout() {
+    var rect = canvas.getBoundingClientRect();
+    var w = Math.max(1, Math.round(rect.width));
+    var h = Math.max(1, Math.round(rect.height));
+    dpr = Math.min(2, window.devicePixelRatio || 1);
+    var bw = Math.max(1, Math.round(w * dpr));
+    var bh = Math.max(1, Math.round(h * dpr));
+    if (canvas.width !== bw || canvas.height !== bh) {
+      var prev = null;
+      if (trail.width > 0 && trail.height > 0) {
+        prev = document.createElement('canvas');
+        prev.width = trail.width;
+        prev.height = trail.height;
+        prev.getContext('2d').drawImage(trail, 0, 0);
+      }
+      canvas.width = bw;
+      canvas.height = bh;
+      trail.width = bw;
+      trail.height = bh;
+      if (prev) trail.getContext('2d').drawImage(prev, 0, 0, bw, bh);
+    }
+    cssW = w;
+    cssH = h;
+    cx = cssW * 0.5;
+    rx = Math.max(64, cssW * 0.4);
+    var sky = Math.max(36, cssH * 0.2);
+    var bank = Math.max(12, cssH * 0.04);
+    ry = Math.min(cssH * 0.3, (cssH - sky - bank) / 2, rx * 1.02);
+    ry = Math.max(46, ry);
+    cy = sky + ry;
+    var slack = cssH - bank - (cy + ry);
+    if (slack > 0) cy += slack * 0.42;
+    for (var i = 0; i < skaters.length; i++) skaters[i].hasPrev = false;
+    machine.hasPrev = false;
+    ensureSnow();
+    placeAll();
+  }
+
+  function ensureSnow() {
+    var want = reduce ? 18 : Math.max(20, Math.min(70, Math.round(cssW * cssH / 15000)));
+    while (flakes.length < want) {
+      flakes.push({
+        x: Math.random() * cssW,
+        y: Math.random() * cssH,
+        r: 0.6 + Math.random() * 1.9,
+        sp: 14 + Math.random() * 26,
+        drift: 8 + Math.random() * 18,
+        phase: Math.random() * Math.PI * 2,
+        a: 0.28 + Math.random() * 0.55
+      });
+    }
+    while (flakes.length > want) flakes.pop();
+  }
+
+  function makeSkater(i, lead) {
+    var look = LOOKS[i % LOOKS.length];
+    return {
+      lead: lead,
+      coat: look.coat,
+      hat: look.hat,
+      scarf: look.scarf,
+      skin: look.skin,
+      path: null,
+      loop: true,
+      u: 0,
+      speed: 90,
+      mode: 'glide',
+      figT: 0,
+      figDur: 1,
+      fig: null,
+      x: 0,
+      y: 0,
+      angle: 0,
+      hasPrev: false,
+      px: 0,
+      py: 0,
+      pox: 0,
+      poy: 0,
+      phase: i * 1.7,
+      done: false
+    };
+  }
+
+  function ovalPath(sx, sy, rot) {
+    var pts = [];
+    var n = 56;
+    var c = Math.cos(rot);
+    var s = Math.sin(rot);
+    for (var i = 0; i <= n; i++) {
+      var t = (i / n) * Math.PI * 2;
+      var x = Math.cos(t) * sx;
+      var y = Math.sin(t) * sy;
+      pts.push({ nx: x * c - y * s, ny: x * s + y * c });
+    }
+    return pts;
+  }
+
+  function toScreenPath(norm) {
+    var out = new Array(norm.length);
+    for (var i = 0; i < norm.length; i++) {
+      out[i] = { x: cx + norm[i].nx * rx, y: cy + norm[i].ny * ry };
+    }
+    return out;
+  }
+
+  function polyLen(pts) {
+    var L = 0;
+    for (var i = 1; i < pts.length; i++) {
+      L += Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y);
+    }
+    return L;
+  }
+
+  function pointAt(pts, u) {
+    if (!pts.length) return { x: cx, y: cy };
+    if (u <= 0) return { x: pts[0].x, y: pts[0].y };
+    if (u >= 1) return { x: pts[pts.length - 1].x, y: pts[pts.length - 1].y };
+    var total = 0;
+    var seg = [0];
+    for (var i = 1; i < pts.length; i++) {
+      total += Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y);
+      seg.push(total);
+    }
+    if (total < 0.001) return { x: pts[0].x, y: pts[0].y };
+    var d = u * total;
+    var k = 1;
+    while (k < pts.length - 1 && seg[k] < d) k++;
+    var span = seg[k] - seg[k - 1] || 1;
+    var t = (d - seg[k - 1]) / span;
+    if (t < 0) t = 0;
+    if (t > 1) t = 1;
+    return {
+      x: pts[k - 1].x + (pts[k].x - pts[k - 1].x) * t,
+      y: pts[k - 1].y + (pts[k].y - pts[k - 1].y) * t
+    };
+  }
+
+  function placeOnPath(s) {
+    if (!s.path || s.path.length < 2 || cssW < 2) return;
+    var pts = toScreenPath(s.path);
+    var p = pointAt(pts, s.loop ? s.u % 1 : Math.min(1, s.u));
+    s.x = p.x;
+    s.y = p.y;
+  }
+
+  function placeAll() {
+    for (var i = 0; i < skaters.length; i++) {
+      if (skaters[i].mode === 'glide') placeOnPath(skaters[i]);
+    }
+    if (machine.on && machine.path && machine.path.length) {
+      var mp = toScreenPath(machine.path);
+      var q = pointAt(mp, Math.min(1, machine.u));
+      machine.x = q.x;
+      machine.y = q.y;
+    }
+  }
+
+  function spawnExtra() {
+    if (skaters.length >= 6) return;
+    var spec = SPECS[(skaters.length - 1) % SPECS.length];
+    var s = makeSkater(skaters.length, false);
+    s.path = ovalPath(spec.sx, spec.sy, spec.rot);
+    s.loop = true;
+    s.u = spec.u;
+    s.speed = spec.speed;
+    skaters.push(s);
+    placeOnPath(s);
+    syncUi();
+  }
+
+  function skaterScale() {
+    return Math.max(0.85, Math.min(1.7, Math.min(rx, ry) / 175));
+  }
+
+  function fadeTrails(dt) {
+    var a = Math.min(0.04, dt * (reduce ? 0.1 : 0.05));
+    tctx.save();
+    tctx.setTransform(1, 0, 0, 1, 0, 0);
+    tctx.globalCompositeOperation = 'destination-out';
+    tctx.fillStyle = 'rgba(0,0,0,' + a + ')';
+    tctx.fillRect(0, 0, trail.width, trail.height);
+    tctx.restore();
+  }
+
+  function carveSegment(s, x, y, ang, sc) {
+    var reach = 4.6 * sc;
+    var ox = Math.cos(ang + Math.PI / 2) * reach;
+    var oy = Math.sin(ang + Math.PI / 2) * reach;
+    var moved = 0;
+    if (s.hasPrev) {
+      var d1 = Math.hypot((x - ox) - (s.px - s.pox), (y - oy) - (s.py - s.poy));
+      var d2 = Math.hypot(x - s.px, y - s.py);
+      moved = d1 > d2 ? d1 : d2;
+      if (moved > 0.25 && moved < 42 * sc) {
+        tctx.lineCap = 'round';
+        tctx.lineJoin = 'round';
+        tctx.strokeStyle = 'rgba(70, 112, 140, 0.55)';
+        tctx.lineWidth = 1.7 * sc;
+        tctx.beginPath();
+        tctx.moveTo(s.px, s.py);
+        tctx.lineTo(x, y);
+        tctx.stroke();
+        tctx.strokeStyle = 'rgba(255, 255, 255, 0.95)';
+        tctx.lineWidth = Math.max(1.2, 1.7 * sc);
+        tctx.beginPath();
+        tctx.moveTo(s.px - s.pox, s.py - s.poy);
+        tctx.lineTo(x - ox, y - oy);
+        tctx.moveTo(s.px + s.pox, s.py + s.poy);
+        tctx.lineTo(x + ox, y + oy);
+        tctx.stroke();
+      }
+    }
+    s.px = x;
+    s.py = y;
+    s.pox = ox;
+    s.poy = oy;
+    s.hasPrev = true;
+    s.x = x;
+    s.y = y;
+    s.angle = ang;
+    return moved;
+  }
+
+  function glideStep(s, dt, sc) {
+    if (!s.path || s.path.length < 2 || s.done) return 0;
+    var pts = toScreenPath(s.path);
+    var total = polyLen(pts);
+    if (total < 6) {
+      s.done = true;
+      return 0;
+    }
+    var spd = s.speed * (0.93 + 0.07 * Math.sin(time * 1.45 + s.phase));
+    s.u += (spd * dt) / total;
+    if (s.loop) s.u = s.u % 1;
+    else if (s.u >= 1) {
+      s.u = 1;
+      s.done = true;
+    }
+    var u = s.loop ? s.u % 1 : s.u;
+    var p = pointAt(pts, u);
+    var lookU = s.loop ? (u + 0.012) % 1 : Math.min(1, u + 0.016);
+    var look = pointAt(pts, lookU);
+    var ang = s.angle;
+    var dx = look.x - p.x;
+    var dy = look.y - p.y;
+    if (dx * dx + dy * dy > 0.16) ang = Math.atan2(dy, dx);
+    var pr = projectIn((p.x - cx) / rx, (p.y - cy) / ry, 0.92);
+    var sp = n2s(pr.nx, pr.ny);
+    return carveSegment(s, sp.x, sp.y, ang, sc);
+  }
+
+  function startSpin() {
+    var s = skaters[0];
+    if (!s) return;
+    var pr = projectIn((s.x - cx) / rx, (s.y - cy) / ry, 0.88);
+    s.mode = 'spin';
+    s.figT = 0;
+    s.figDur = reduce ? 2.8 : 2.35;
+    s.fig = { cx: pr.nx, cy: pr.ny, from: s.angle };
+    s.done = false;
+    chime([784, 1175], 0.035, 0.55);
+    syncUi();
+  }
+
+  function fitEight(nx, ny, rot) {
+    var sx = 0.34;
+    var sy = 0.46;
+    var cx0 = nx;
+    var cy0 = ny;
+    var c = Math.cos(rot);
+    var sn = Math.sin(rot);
+    for (var k = 0; k < 12; k++) {
+      var ok = true;
+      for (var i = 0; i < 20; i++) {
+        var t = (i / 20) * Math.PI * 2;
+        var st = Math.sin(t);
+        var ct = Math.cos(t);
+        var lx = st * sx;
+        var ly = st * ct * sy;
+        var x = cx0 + lx * c - ly * sn;
+        var y = cy0 + lx * sn + ly * c;
+        if (!insidePond(x, y, 0.86)) ok = false;
+      }
+      if (ok) break;
+      sx *= 0.86;
+      sy *= 0.86;
+      cx0 *= 0.84;
+      cy0 *= 0.84;
+    }
+    return { cx: cx0, cy: cy0, sx: sx, sy: sy, rot: rot };
+  }
+
+  function startEight() {
+    var s = skaters[0];
+    if (!s) return;
+    var pr = projectIn((s.x - cx) / rx, (s.y - cy) / ry, 0.8);
+    s.mode = 'eight';
+    s.figT = 0;
+    s.figDur = reduce ? 7.4 : 6.1;
+    s.fig = fitEight(pr.nx, pr.ny, s.angle);
+    s.done = false;
+    s.hasPrev = false;
+    chime([659, 988], 0.032, 0.7);
+    syncUi();
+  }
+
+  function stepFigure(s, dt, sc) {
+    s.figT += dt;
+    var u = s.figT / s.figDur;
+    if (u >= 1) {
+      var wasEight = s.mode === 'eight';
+      s.mode = 'glide';
+      s.hasPrev = false;
+      if (wasEight) {
+        s.path = null;
+        s.done = true;
+      } else if (s.path) {
+        placeOnPath(s);
+      }
+      syncUi();
+      return 0;
+    }
+    if (s.mode === 'spin') {
+      var ang = s.fig.from + u * Math.PI * 2 * 2.25;
+      var wob = Math.sin(u * Math.PI) * 0.022;
+      var nx = s.fig.cx + Math.cos(ang) * wob;
+      var ny = s.fig.cy + Math.sin(ang) * wob * 0.82;
+      var pr = projectIn(nx, ny, 0.92);
+      var sp = n2s(pr.nx, pr.ny);
+      return carveSegment(s, sp.x, sp.y, ang, sc);
+    }
+    var t = u * Math.PI * 2;
+    var st = Math.sin(t);
+    var ct = Math.cos(t);
+    var lx = st * s.fig.sx;
+    var ly = st * ct * s.fig.sy;
+    var c = Math.cos(s.fig.rot);
+    var sn = Math.sin(s.fig.rot);
+    var nx2 = s.fig.cx + lx * c - ly * sn;
+    var ny2 = s.fig.cy + lx * sn + ly * c;
+    var pr2 = projectIn(nx2, ny2, 0.92);
+    var sp2 = n2s(pr2.nx, pr2.ny);
+    var lookT = t + 0.08;
+    var st2 = Math.sin(lookT);
+    var ct2 = Math.cos(lookT);
+    var lx2 = st2 * s.fig.sx;
+    var ly2 = st2 * ct2 * s.fig.sy;
+    var lookNx = s.fig.cx + lx2 * c - ly2 * sn;
+    var lookNy = s.fig.cy + lx2 * sn + ly2 * c;
+    var ang2 = Math.atan2((lookNy - ny2) * ry, (lookNx - nx2) * rx);
+    if (!isFinite(ang2)) ang2 = s.angle;
+    return carveSegment(s, sp2.x, sp2.y, ang2, sc);
+  }
+
+  function buildMachinePath() {
+    var pts = [];
+    var rows = 10;
+    for (var r = 0; r < rows; r++) {
+      var ny = -0.78 + (r / (rows - 1)) * 1.56;
+      var room = 0.81 - ny * ny;
+      if (room <= 0.01) continue;
+      var hw = Math.sqrt(room) * 0.94;
+      var dir = (r % 2 === 0) ? 1 : -1;
+      var steps = 18;
+      for (var i = 0; i <= steps; i++) {
+        var u = i / steps;
+        var nx = dir === 1 ? -hw + u * 2 * hw : hw - u * 2 * hw;
+        pts.push({ nx: nx, ny: ny });
+      }
+    }
+    return pts;
+  }
+
+  function startMachine() {
+    if (machine.on) return;
+    machine.path = buildMachinePath();
+    if (!machine.path.length) return;
+    machine.u = 0;
+    machine.on = true;
+    machine.hasPrev = false;
+    var p = pointAt(toScreenPath(machine.path), 0);
+    machine.x = p.x;
+    machine.y = p.y;
+    machine.angle = 0;
+    syncUi();
+  }
+
+  function eraseBrush(x, y, ang) {
+    var bx = Math.max(16, rx * 0.145);
+    var by = Math.max(12, ry * 0.105);
+    tctx.save();
+    tctx.translate(x, y);
+    tctx.rotate(ang);
+    tctx.globalCompositeOperation = 'destination-out';
+    tctx.fillStyle = 'rgba(0,0,0,0.78)';
+    tctx.beginPath();
+    tctx.ellipse(-bx * 0.15, 0, bx, by, 0, 0, Math.PI * 2);
+    tctx.fill();
+    tctx.globalCompositeOperation = 'source-over';
+    tctx.fillStyle = 'rgba(214, 238, 248, 0.16)';
+    tctx.beginPath();
+    tctx.ellipse(-bx * 0.15, 0, bx * 0.9, by * 0.88, 0, 0, Math.PI * 2);
+    tctx.fill();
+    tctx.restore();
+  }
+
+  function stepMachine(dt) {
+    if (!machine.on || !machine.path || machine.path.length < 2) return;
+    var pts = toScreenPath(machine.path);
+    var total = polyLen(pts);
+    if (total < 4) {
+      machine.on = false;
+      syncUi();
+      return;
+    }
+    machine.u += (machine.speed * dt) / total;
+    if (machine.u >= 1) {
+      machine.u = 1;
+      machine.on = false;
+      machine.hasPrev = false;
+      syncUi();
+    }
+    var p = pointAt(pts, machine.u);
+    var look = pointAt(pts, Math.min(1, machine.u + 0.01));
+    var ang = machine.angle;
+    var dx = look.x - p.x;
+    var dy = look.y - p.y;
+    if (dx * dx + dy * dy > 0.2) ang = Math.atan2(dy, dx);
+    var jump = machine.hasPrev ? Math.hypot(p.x - machine.x, p.y - machine.y) : 0;
+    if (!machine.hasPrev || jump < 80) eraseBrush(p.x, p.y, ang);
+    if (machine.on && Math.random() < dt * 8) {
+      puffs.push({
+        x: p.x - Math.cos(ang) * 16,
+        y: p.y - Math.sin(ang) * 16,
+        life: 1,
+        r: 2 + Math.random() * 3
+      });
+    }
+    machine.x = p.x;
+    machine.y = p.y;
+    machine.angle = ang;
+    machine.hasPrev = machine.on;
+  }
+
+  var actx = null;
+  var master = null;
+  var scratchGain = null;
+  var scratchFilter = null;
+  var engineGain = null;
+
+  function gesture() {
+    if (actx) {
+      if (actx.state === 'suspended') {
+        var resumed = actx.resume();
+        if (resumed && resumed.catch) resumed.catch(function () {});
+      }
+      return;
+    }
+    var AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return;
+    try {
+      actx = new AC();
+      master = actx.createGain();
+      master.gain.value = 0;
+      master.connect(actx.destination);
+
+      var dur = 2;
+      var buffer = actx.createBuffer(1, Math.floor(actx.sampleRate * dur), actx.sampleRate);
+      var data = buffer.getChannelData(0);
+      var last = 0;
+      for (var i = 0; i < data.length; i++) {
+        var white = Math.random() * 2 - 1;
+        last = last * 0.97 + white * 0.03;
+        data[i] = last * 3.4;
+      }
+      var noise = actx.createBufferSource();
+      noise.buffer = buffer;
+      noise.loop = true;
+
+      scratchFilter = actx.createBiquadFilter();
+      scratchFilter.type = 'bandpass';
+      scratchFilter.frequency.value = 1200;
+      scratchFilter.Q.value = 0.7;
+      scratchGain = actx.createGain();
+      scratchGain.gain.value = 0;
+      noise.connect(scratchFilter);
+      scratchFilter.connect(scratchGain);
+      scratchGain.connect(master);
+
+      var low = actx.createBiquadFilter();
+      low.type = 'lowpass';
+      low.frequency.value = 220;
+      engineGain = actx.createGain();
+      engineGain.gain.value = 0;
+      noise.connect(low);
+      low.connect(engineGain);
+
+      var osc = actx.createOscillator();
+      osc.type = 'sine';
+      osc.frequency.value = 49;
+      var oscGain = actx.createGain();
+      oscGain.gain.value = 0.6;
+      osc.connect(oscGain);
+      oscGain.connect(engineGain);
+      engineGain.connect(master);
+
+      noise.start();
+      osc.start();
+      if (actx.state === 'suspended') {
+        var again = actx.resume();
+        if (again && again.catch) again.catch(function () {});
+      }
+    } catch (err) {
+      actx = null;
+    }
+  }
+
+  function applyMaster() {
+    if (!master || !actx) return;
+    master.gain.value = tonOn ? 0.8 : 0;
+  }
+
+  function chime(freqs, gain, dur) {
+    if (!tonOn || !actx || !master) return;
+    var t0 = actx.currentTime + 0.01;
+    for (var i = 0; i < freqs.length; i++) {
+      var t = t0 + i * 0.07;
+      var o = actx.createOscillator();
+      var g = actx.createGain();
+      o.type = 'sine';
+      o.frequency.value = freqs[i];
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.exponentialRampToValueAtTime(gain, t + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+      o.connect(g);
+      g.connect(master);
+      o.start(t);
+      o.stop(t + dur + 0.03);
+    }
+  }
+
+  function updateSound(speed) {
+    if (!actx || !scratchGain || !engineGain) return;
+    if (!tonOn) {
+      scratchGain.gain.value = 0;
+      engineGain.gain.value = 0;
+      return;
+    }
+    var target = 0;
+    if (speed > 16) target = Math.max(0, Math.min(0.11, (speed - 16) / 780));
+    var g = scratchGain.gain.value;
+    scratchGain.gain.value = g + (target - g) * 0.2;
+    var freq = 680 + Math.min(1600, speed * 3.2);
+    scratchFilter.frequency.value += (freq - scratchFilter.frequency.value) * 0.12;
+    var eg = machine.on ? 0.05 : 0;
+    engineGain.gain.value += (eg - engineGain.gain.value) * 0.08;
+  }
+
+  function syncUi() {
+    var n = skaters.length;
+    var lead = skaters[0];
+    bMore.disabled = n >= 6;
+    bLess.disabled = n <= 1;
+    bMore.title = n >= 6 ? 'Das Eis ist voll.' : (n + ' Läufer auf dem Eis. Weiteren lassen.');
+    bMore.setAttribute('aria-label', bMore.title);
+    bLess.setAttribute('aria-label', n <= 1 ? 'Nur noch ein Läufer.' : 'Einen Läufer vom Eis nehmen.');
+    var spinning = lead && lead.mode === 'spin';
+    var eighing = lead && lead.mode === 'eight';
+    bPiro.setAttribute('aria-pressed', spinning ? 'true' : 'false');
+    bAcht.setAttribute('aria-pressed', eighing ? 'true' : 'false');
+    bZam.setAttribute('aria-pressed', machine.on ? 'true' : 'false');
+    bZam.setAttribute('aria-label', machine.on ? 'Eismaschine ist unterwegs.' : 'Eismaschine über das Eis schicken.');
+    bTon.setAttribute('aria-pressed', tonOn ? 'true' : 'false');
+    bTon.setAttribute('aria-label', tonOn ? 'Ton ist an. Tippen zum Ausschalten.' : 'Ton ist aus. Tippen zum Einschalten.');
+    var text = 'Zieh eine Bahn aufs Eis.';
+    if (machine.on) text = 'Die Eismaschine glättet das Eis.';
+    else if (spinning) text = 'Pirouette auf dem Eis.';
+    else if (eighing) text = 'Ein Achter auf dem Eis.';
+    else if (drawnOnce) text = 'Die Spur verblasst langsam.';
+    if (hint.textContent !== text) hint.textContent = text;
+  }
+
+  function normLen(pts) {
+    var L = 0;
+    for (var i = 1; i < pts.length; i++) {
+      L += Math.hypot(pts[i].nx - pts[i - 1].nx, pts[i].ny - pts[i - 1].ny);
+    }
+    return L;
+  }
+
+  function smoothPath(pts) {
+    var cur = pts.slice();
+    if (cur.length < 3) return cur;
+    for (var pass = 0; pass < 2; pass++) {
+      var next = [cur[0]];
+      for (var i = 0; i < cur.length - 1; i++) {
+        var a = cur[i];
+        var b = cur[i + 1];
+        next.push({
+          nx: a.nx * 0.75 + b.nx * 0.25,
+          ny: a.ny * 0.75 + b.ny * 0.25
+        });
+        next.push({
+          nx: a.nx * 0.25 + b.nx * 0.75,
+          ny: a.ny * 0.25 + b.ny * 0.75
+        });
+      }
+      next.push(cur[cur.length - 1]);
+      cur = next;
+    }
+    var step = 0.02;
+    var out = [projectIn(cur[0].nx, cur[0].ny, 0.9)];
+    var acc = 0;
+    for (var j = 1; j < cur.length; j++) {
+      var ax = cur[j - 1].nx;
+      var ay = cur[j - 1].ny;
+      var bx = cur[j].nx;
+      var by = cur[j].ny;
+      var dx = bx - ax;
+      var dy = by - ay;
+      var dist = Math.hypot(dx, dy);
+      if (dist < 1e-6) continue;
+      while (acc + dist >= step) {
+        var t = (step - acc) / dist;
+        ax += dx * t;
+        ay += dy * t;
+        out.push(projectIn(ax, ay, 0.9));
+        dx = bx - ax;
+        dy = by - ay;
+        dist = Math.hypot(dx, dy);
+        acc = 0;
+        if (out.length > 600) return out;
+      }
+      acc += dist;
+    }
+    var last = projectIn(cur[cur.length - 1].nx, cur[cur.length - 1].ny, 0.9);
+    var prev = out[out.length - 1];
+    if (Math.hypot(last.nx - prev.nx, last.ny - prev.ny) > step * 0.4) out.push(last);
+    return out;
+  }
+
+  function commitDraw() {
+    if (drawPts.length < 2) {
+      drawPts = [];
+      return;
+    }
+    var path = smoothPath(drawPts);
+    drawPts = [];
+    if (normLen(path) < 0.05 || path.length < 2) return;
+    var a = path[0];
+    var b = path[path.length - 1];
+    var loop = normLen(path) > 0.28 && Math.hypot(a.nx - b.nx, a.ny - b.ny) < 0.07;
+    if (loop) path.push({ nx: a.nx, ny: a.ny });
+    var s = skaters[0];
+    s.path = path;
+    s.loop = loop;
+    s.u = 0;
+    s.done = false;
+    s.mode = 'glide';
+    s.hasPrev = false;
+    s.speed = 100;
+    drawnOnce = true;
+    placeOnPath(s);
+    syncUi();
+  }
+
+  function localNorm(e) {
+    var r = canvas.getBoundingClientRect();
+    var x = e.clientX - r.left;
+    var y = e.clientY - r.top;
+    return { x: x, y: y, nx: (x - cx) / rx, ny: (y - cy) / ry };
+  }
+
+  function onDown(e) {
+    if (e.button > 0 || drawId !== null) return;
+    if (e.cancelable) e.preventDefault();
+    var p = localNorm(e);
+    if (!insidePond(p.nx, p.ny, 1.02)) return;
+    drawId = e.pointerId;
+    try { canvas.setPointerCapture(e.pointerId); } catch (err) {}
+    var q = projectIn(p.nx, p.ny, 0.9);
+    drawPts = [q];
+  }
+
+  function onMove(e) {
+    if (e.pointerId !== drawId) return;
+    var p = localNorm(e);
+    var q = projectIn(p.nx, p.ny, 0.9);
+    var last = drawPts[drawPts.length - 1];
+    if (Math.hypot(q.nx - last.nx, q.ny - last.ny) >= 0.01) {
+      drawPts.push(q);
+      if (drawPts.length > 800) drawPts.shift();
+    }
+  }
+
+  function onUp(e) {
+    if (e.pointerId !== drawId) return;
+    drawId = null;
+    commitDraw();
+  }
+
+  function toggleTon() {
+    gesture();
+    tonOn = !tonOn;
+    applyMaster();
+    if (tonOn) chime([880], 0.03, 0.35);
+    syncUi();
+  }
+
+  bPiro.addEventListener('click', function () { startSpin(); });
+  bAcht.addEventListener('click', function () { startEight(); });
+  bMore.addEventListener('click', function () { spawnExtra(); });
+  bLess.addEventListener('click', function () {
+    if (skaters.length > 1) {
+      skaters.pop();
+      syncUi();
+    }
+  });
+  bZam.addEventListener('click', function () { startMachine(); });
+  bTon.addEventListener('click', function () { toggleTon(); });
+
+  canvas.addEventListener('pointerdown', onDown, { passive: false });
+  canvas.addEventListener('pointermove', onMove, { passive: true });
+  canvas.addEventListener('pointerup', onUp);
+  canvas.addEventListener('pointercancel', onUp);
+  canvas.addEventListener('contextmenu', function (e) { e.preventDefault(); });
+
+  window.addEventListener('keydown', function (e) {
+    if (e.repeat) return;
+    var tag = e.target && e.target.tagName;
+    if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+    var k = e.key.toLowerCase();
+    if (k === 'p') startSpin();
+    else if (k === 'a') startEight();
+    else if (k === 'l') spawnExtra();
+    else if (k === 'w') {
+      if (skaters.length > 1) { skaters.pop(); syncUi(); }
+    } else if (k === 'e') startMachine();
+    else if (k === 'm') toggleTon();
+  });
+
+  function roundRect(c, x, y, w, h, r) {
+    var rr = Math.max(0, Math.min(r, w / 2, h / 2));
+    c.beginPath();
+    c.moveTo(x + rr, y);
+    c.arcTo(x + w, y, x + w, y + h, rr);
+    c.arcTo(x + w, y + h, x, y + h, rr);
+    c.arcTo(x, y + h, x, y, rr);
+    c.arcTo(x, y, x + w, y, rr);
+    c.closePath();
+  }
+
+  function drawPine(x, y, h) {
+    ctx.fillStyle = '#1a2c2a';
+    ctx.beginPath();
+    ctx.moveTo(x, y - h);
+    ctx.lineTo(x + h * 0.4, y);
+    ctx.lineTo(x - h * 0.4, y);
+    ctx.fill();
+    ctx.fillStyle = '#243833';
+    ctx.beginPath();
+    ctx.moveTo(x, y - h * 0.7);
+    ctx.lineTo(x + h * 0.28, y - h * 0.22);
+    ctx.lineTo(x - h * 0.28, y - h * 0.22);
+    ctx.fill();
+    ctx.fillStyle = 'rgba(238, 246, 250, 0.88)';
+    ctx.beginPath();
+    ctx.moveTo(x, y - h);
+    ctx.lineTo(x + h * 0.09, y - h * 0.8);
+    ctx.lineTo(x - h * 0.09, y - h * 0.8);
+    ctx.fill();
+  }
+
+  function drawHouse(x, y, sc) {
+    ctx.fillStyle = '#2c2428';
+    ctx.fillRect(x - 18 * sc, y - 16 * sc, 36 * sc, 18 * sc);
+    ctx.fillStyle = '#efe8dc';
+    ctx.beginPath();
+    ctx.moveTo(x - 22 * sc, y - 14 * sc);
+    ctx.lineTo(x, y - 34 * sc);
+    ctx.lineTo(x + 22 * sc, y - 14 * sc);
+    ctx.fill();
+    ctx.fillStyle = '#3a3034';
+    ctx.beginPath();
+    ctx.moveTo(x - 16 * sc, y - 16 * sc);
+    ctx.lineTo(x, y - 30 * sc);
+    ctx.lineTo(x + 16 * sc, y - 16 * sc);
+    ctx.fill();
+    var glow = 0.75 + 0.25 * Math.sin(time * 2.2 + x * 0.02);
+    ctx.fillStyle = 'rgba(240, 176, 90,' + glow + ')';
+    ctx.fillRect(x - 10 * sc, y - 10 * sc, 6 * sc, 7 * sc);
+    ctx.fillRect(x + 4 * sc, y - 10 * sc, 6 * sc, 7 * sc);
+  }
+
+  function drawChapel(x, y, sc) {
+    ctx.fillStyle = '#32282c';
+    ctx.fillRect(x - 14 * sc, y - 20 * sc, 28 * sc, 22 * sc);
+    ctx.fillStyle = '#f3eee4';
+    ctx.beginPath();
+    ctx.moveTo(x - 18 * sc, y - 18 * sc);
+    ctx.lineTo(x, y - 36 * sc);
+    ctx.lineTo(x + 18 * sc, y - 18 * sc);
+    ctx.fill();
+    ctx.fillStyle = '#3d3336';
+    ctx.fillRect(x - 3 * sc, y - 48 * sc, 6 * sc, 16 * sc);
+    ctx.fillStyle = 'rgba(240, 180, 96, 0.9)';
+    ctx.fillRect(x - 4 * sc, y - 8 * sc, 8 * sc, 10 * sc);
+  }
+
+  function drawBench(x, y, sc) {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.fillStyle = '#5a3e2e';
+    ctx.fillRect(-12 * sc, -3 * sc, 24 * sc, 3.5 * sc);
+    ctx.fillRect(-10 * sc, 2 * sc, 3 * sc, 5 * sc);
+    ctx.fillRect(7 * sc, 2 * sc, 3 * sc, 5 * sc);
+    ctx.restore();
+  }
+
+  function drawLantern(x, y, flick, sc) {
+    var glow = ctx.createRadialGradient(x, y - 8, 2, x, y, 54 * sc);
+    glow.addColorStop(0, 'rgba(255, 178, 86,' + (0.34 * flick) + ')');
+    glow.addColorStop(1, 'rgba(255, 178, 86, 0)');
+    ctx.fillStyle = glow;
+    ctx.beginPath();
+    ctx.arc(x, y, 54 * sc, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = '#2a241c';
+    ctx.lineWidth = 2.4 * sc;
+    ctx.beginPath();
+    ctx.moveTo(x, y + 2);
+    ctx.lineTo(x, y - 26 * sc);
+    ctx.stroke();
+    ctx.fillStyle = '#2a241c';
+    ctx.fillRect(x - 6 * sc, y - 36 * sc, 12 * sc, 3.5 * sc);
+    ctx.fillStyle = 'rgba(255, 206, 130,' + (0.75 + 0.25 * flick) + ')';
+    roundRect(ctx, x - 4.5 * sc, y - 33 * sc, 9 * sc, 10 * sc, 1.5 * sc);
+    ctx.fill();
+    ctx.strokeStyle = '#3a3124';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+  }
+
+  function drawSkater(s, sc) {
+    ctx.save();
+    ctx.translate(s.x, s.y);
+    if (s.lead) {
+      ctx.strokeStyle = 'rgba(240, 208, 146, 0.8)';
+      ctx.lineWidth = 1.2;
+      ctx.beginPath();
+      ctx.ellipse(0, 8 * sc, 12 * sc, 5 * sc, 0, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    ctx.rotate(s.angle);
+    ctx.scale(sc, sc);
+    ctx.fillStyle = 'rgba(16, 32, 48, 0.28)';
+    ctx.beginPath();
+    ctx.ellipse(0, 3, 9, 4.2, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = '#eef6fa';
+    ctx.lineWidth = 1.45;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(-7.2, -3.15);
+    ctx.lineTo(8.2, -3.15);
+    ctx.moveTo(-7.2, 3.15);
+    ctx.lineTo(8.2, 3.15);
+    ctx.stroke();
+    ctx.fillStyle = s.coat;
+    ctx.beginPath();
+    ctx.ellipse(-1.1, 0, 6.3, 4.7, 0, 0, Math.PI * 2);
+    ctx.fill();
+    var sway = Math.sin(time * 3.1 + s.phase) * 1.6;
+    ctx.strokeStyle = s.scarf;
+    ctx.lineWidth = 2.15;
+    ctx.beginPath();
+    ctx.moveTo(-1.5, 0.2);
+    ctx.quadraticCurveTo(-8, 3.2 + sway, -13.5, sway * 0.8);
+    ctx.stroke();
+    ctx.fillStyle = s.skin;
+    ctx.beginPath();
+    ctx.arc(5.3, 0, 3.15, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = s.hat;
+    ctx.beginPath();
+    ctx.arc(5.3, -0.5, 3.25, Math.PI, 0);
+    ctx.fill();
+    ctx.fillRect(2.15, -1.05, 6.3, 1.7);
+    ctx.beginPath();
+    ctx.arc(5.3, -3.6, 1.25, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  function drawMachine() {
+    var sc = skaterScale();
+    ctx.save();
+    ctx.translate(machine.x, machine.y);
+    ctx.rotate(machine.angle);
+    var L = 22 * sc;
+    var W = 12 * sc;
+    ctx.fillStyle = 'rgba(255, 214, 150, 0.1)';
+    ctx.beginPath();
+    ctx.moveTo(L, -3 * sc);
+    ctx.lineTo(L + 30 * sc, -12 * sc);
+    ctx.lineTo(L + 30 * sc, 12 * sc);
+    ctx.lineTo(L, 3 * sc);
+    ctx.fill();
+    ctx.fillStyle = 'rgba(70, 96, 110, 0.55)';
+    ctx.fillRect(-L - 5 * sc, -W * 1.25, 6 * sc, W * 2.5);
+    ctx.fillStyle = '#f4f0e6';
+    roundRect(ctx, -L, -W, L * 2, W * 2, 3.5 * sc);
+    ctx.fill();
+    ctx.fillStyle = '#b6403a';
+    ctx.fillRect(-L, -2.2 * sc, L * 2, 4.2 * sc);
+    ctx.fillStyle = '#24323c';
+    roundRect(ctx, -1 * sc, -W * 0.78, L * 0.9, W * 1.56, 2 * sc);
+    ctx.fill();
+    ctx.fillStyle = 'rgba(186, 226, 236, 0.35)';
+    ctx.fillRect(2 * sc, -W * 0.48, L * 0.42, W * 0.96);
+    ctx.fillStyle = '#ffe3a6';
+    ctx.beginPath();
+    ctx.arc(L - 1.5 * sc, -W * 0.48, 1.7 * sc, 0, Math.PI * 2);
+    ctx.arc(L - 1.5 * sc, W * 0.48, 1.7 * sc, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  function drawPathPreview(path, fromU, color) {
+    if (!path || path.length < 2) return;
+    ctx.save();
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 1.6;
+    ctx.setLineDash([5, 7]);
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    var started = false;
+    for (var i = 0; i <= 28; i++) {
+      var u = fromU + (1 - fromU) * (i / 28);
+      var p = pointAt(toScreenPath(path), u);
+      if (!started) { ctx.moveTo(p.x, p.y); started = true; }
+      else ctx.lineTo(p.x, p.y);
+    }
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function render() {
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    tctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    var sc = skaterScale();
+    var tree = Math.max(0.5, Math.min(1.3, Math.min(cssW, cssH) / 480));
+
+    var snowLine = Math.max(28, cy - ry * 1.2);
+    var sky = ctx.createLinearGradient(0, 0, 0, snowLine);
+    sky.addColorStop(0, '#1c2148');
+    sky.addColorStop(0.34, '#5a4d78');
+    sky.addColorStop(0.58, '#c46a62');
+    sky.addColorStop(0.8, '#f0b184');
+    sky.addColorStop(1, '#f6d2b4');
+    ctx.fillStyle = sky;
+    ctx.fillRect(0, 0, cssW, cssH);
+
+    for (var i = 0; i < stars.length; i++) {
+      var st = stars[i];
+      var sy = st.y * snowLine * 0.92;
+      var tw = 0.35 + 0.65 * (0.5 + 0.5 * Math.sin(time * 1.4 + st.p));
+      ctx.fillStyle = 'rgba(255, 246, 230,' + tw + ')';
+      ctx.beginPath();
+      ctx.arc(st.x * cssW, sy, st.r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    var moonX = cssW * 0.8;
+    var moonY = Math.max(22, snowLine * 0.34);
+    var moonR = 15 * Math.max(0.85, tree);
+    var halo = ctx.createRadialGradient(moonX, moonY, moonR * 0.4, moonX, moonY, moonR * 3.4);
+    halo.addColorStop(0, 'rgba(255, 230, 196, 0.55)');
+    halo.addColorStop(1, 'rgba(255, 230, 196, 0)');
+    ctx.fillStyle = halo;
+    ctx.beginPath();
+    ctx.arc(moonX, moonY, moonR * 3.4, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#f8e7c4';
+    ctx.beginPath();
+    ctx.arc(moonX, moonY, moonR, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = 'rgba(232, 206, 164, 0.5)';
+    ctx.beginPath();
+    ctx.arc(moonX - moonR * 0.28, moonY - moonR * 0.12, moonR * 0.22, 0, Math.PI * 2);
+    ctx.fill();
+
+    var baseY = snowLine + 6;
+    ctx.fillStyle = '#3a4068';
+    ctx.beginPath();
+    ctx.moveTo(0, baseY + 18);
+    ctx.lineTo(cssW * 0.16, baseY - 34);
+    ctx.lineTo(cssW * 0.3, baseY + 4);
+    ctx.lineTo(cssW * 0.48, baseY - 58);
+    ctx.lineTo(cssW * 0.64, baseY + 2);
+    ctx.lineTo(cssW * 0.82, baseY - 26);
+    ctx.lineTo(cssW, baseY + 14);
+    ctx.lineTo(cssW, baseY + 48);
+    ctx.lineTo(0, baseY + 48);
+    ctx.fill();
+    ctx.fillStyle = 'rgba(244, 248, 252, 0.82)';
+    ctx.beginPath();
+    ctx.moveTo(cssW * 0.48, baseY - 58);
+    ctx.lineTo(cssW * 0.445, baseY - 30);
+    ctx.lineTo(cssW * 0.518, baseY - 28);
+    ctx.fill();
+
+    var snowG = ctx.createLinearGradient(0, snowLine - 8, 0, cssH);
+    snowG.addColorStop(0, '#f8e4d4');
+    snowG.addColorStop(0.14, '#f3f6fb');
+    snowG.addColorStop(1, '#d7e4ef');
+    ctx.fillStyle = snowG;
+    ctx.fillRect(0, snowLine, cssW, cssH - snowLine + 2);
+
+    var chapel = n2s(0.02, -1.22);
+    drawChapel(chapel.x, chapel.y, tree);
+    var h1 = n2s(-0.55, -1.16);
+    var h2 = n2s(0.58, -1.14);
+    drawHouse(h1.x, h1.y, tree * 1.05);
+    drawHouse(h2.x, h2.y, tree * 0.92);
+
+    for (var pi = 0; pi < PINES.length; pi++) {
+      if (PINES[pi].ny > -0.2) continue;
+      var pp = n2s(PINES[pi].nx, PINES[pi].ny);
+      if (pp.y > cssH - 4) continue;
+      drawPine(pp.x, pp.y, PINES[pi].h * tree);
+    }
+
+    for (var spk = 0; spk < specks.length; spk++) {
+      if (insidePond(specks[spk].nx, specks[spk].ny, 1.05)) continue;
+      var xy = n2s(specks[spk].nx, specks[spk].ny);
+      if (xy.y < cy - ry * 0.2) continue;
+      ctx.fillStyle = 'rgba(255,255,255,0.55)';
+      ctx.beginPath();
+      ctx.arc(xy.x, xy.y, specks[spk].r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    ctx.save();
+    ctx.shadowColor = 'rgba(18, 28, 44, 0.35)';
+    ctx.shadowBlur = 22;
+    ctx.shadowOffsetY = 8;
+    ctx.fillStyle = '#8eabbf';
+    pondPath(ctx, 1);
+    ctx.fill();
+    ctx.restore();
+
+    ctx.save();
+    pondPath(ctx, 1);
+    ctx.clip();
+    var ice = ctx.createRadialGradient(cx - rx * 0.18, cy - ry * 0.22, rx * 0.08, cx, cy, Math.max(rx, ry));
+    ice.addColorStop(0, '#f7fcff');
+    ice.addColorStop(0.4, '#d4eef8');
+    ice.addColorStop(1, '#8eb8cc');
+    ctx.fillStyle = ice;
+    ctx.fillRect(cx - rx * 1.4, cy - ry * 1.4, rx * 2.8, ry * 2.8);
+
+    ctx.strokeStyle = 'rgba(255, 248, 240, 0.16)';
+    ctx.lineWidth = 1;
+    var cracks = [
+      [[-0.22, 0.04], [-0.02, 0.12], [0.24, 0.02], [0.4, -0.08]],
+      [[0.1, -0.2], [0.18, -0.02], [0.08, 0.16]],
+      [[-0.4, -0.12], [-0.22, -0.02], [-0.3, 0.14]]
+    ];
+    for (var ci = 0; ci < cracks.length; ci++) {
+      ctx.beginPath();
+      for (var cj = 0; cj < cracks[ci].length; cj++) {
+        var cp = n2s(cracks[ci][cj][0], cracks[ci][cj][1]);
+        if (cj === 0) ctx.moveTo(cp.x, cp.y);
+        else ctx.lineTo(cp.x, cp.y);
+      }
+      ctx.stroke();
+    }
+
+    var sheenX = cx + Math.sin(time * 0.18) * rx * 0.15;
+    var sheenY = cy - ry * 0.28;
+    var sheen = ctx.createRadialGradient(sheenX, sheenY, 8, sheenX, sheenY, rx * 0.62);
+    sheen.addColorStop(0, 'rgba(255,255,255,0.2)');
+    sheen.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = sheen;
+    ctx.fillRect(cx - rx, cy - ry, rx * 2, ry * 2);
+
+    ctx.drawImage(trail, 0, 0, cssW, cssH);
+
+    ctx.fillStyle = 'rgba(246, 232, 204, 0.07)';
+    ctx.beginPath();
+    ctx.ellipse(moonX, cy - ry * 0.05, 14, ry * 0.42, 0.1, 0, Math.PI * 2);
+    ctx.fill();
+
+    for (var li = 0; li < LANTERNS.length; li++) {
+      var lp = n2s(LANTERNS[li].nx, LANTERNS[li].ny);
+      var reflex = n2s(LANTERNS[li].nx * 0.72, LANTERNS[li].ny * 0.72);
+      ctx.fillStyle = 'rgba(255, 186, 96, 0.06)';
+      ctx.beginPath();
+      ctx.ellipse(reflex.x, reflex.y, 8, 18, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    ctx.strokeStyle = 'rgba(36, 64, 84, 0.28)';
+    ctx.lineWidth = 18;
+    pondPath(ctx, 0.98);
+    ctx.stroke();
+    ctx.restore();
+
+    for (var si2 = 0; si2 < skaters.length; si2++) drawSkater(skaters[si2], sc);
+    if (machine.on) drawMachine();
+
+    ctx.save();
+    ctx.strokeStyle = 'rgba(255,255,255,0.92)';
+    ctx.lineWidth = 5;
+    pondPath(ctx, 1);
+    ctx.stroke();
+    ctx.strokeStyle = 'rgba(40, 62, 78, 0.28)';
+    ctx.lineWidth = 1.4;
+    pondPath(ctx, 0.985);
+    ctx.stroke();
+    ctx.restore();
+
+    drawBench(n2s(-1.05, 0.12).x, n2s(-1.05, 0.12).y, tree);
+    drawBench(n2s(1.02, -0.18).x, n2s(1.02, -0.18).y, tree);
+
+    for (var pi2 = 0; pi2 < PINES.length; pi2++) {
+      if (PINES[pi2].ny <= -0.2) continue;
+      var pp2 = n2s(PINES[pi2].nx, PINES[pi2].ny);
+      if (pp2.y > cssH - 28 || pp2.y < 8) continue;
+      drawPine(pp2.x, pp2.y, PINES[pi2].h * tree);
+    }
+
+    for (var li2 = 0; li2 < LANTERNS.length; li2++) {
+      var lp2 = n2s(LANTERNS[li2].nx, LANTERNS[li2].ny);
+      if (lp2.x < -30 || lp2.x > cssW + 30 || lp2.y < -30 || lp2.y > cssH + 30) continue;
+      var flick = 0.82 + 0.18 * Math.sin(time * 7 + li2 * 1.7) * Math.sin(time * 2.4 + li2);
+      drawLantern(lp2.x, lp2.y, flick, Math.max(0.75, tree));
+    }
+
+    var lead = skaters[0];
+    if (lead && lead.path && !lead.loop && lead.mode === 'glide' && !lead.done) {
+      drawPathPreview(lead.path, lead.u, 'rgba(240, 206, 150, 0.55)');
+    }
+    if (drawPts.length > 1) {
+      ctx.save();
+      ctx.strokeStyle = 'rgba(255, 214, 140, 0.9)';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([4, 6]);
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      for (var di = 0; di < drawPts.length; di++) {
+        var dp = n2s(drawPts[di].nx, drawPts[di].ny);
+        if (di === 0) ctx.moveTo(dp.x, dp.y);
+        else ctx.lineTo(dp.x, dp.y);
+      }
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    var vg = ctx.createRadialGradient(cx, cy, Math.min(rx, ry) * 0.4, cx, cy, Math.max(cssW, cssH) * 0.68);
+    vg.addColorStop(0, 'rgba(0,0,0,0)');
+    vg.addColorStop(1, 'rgba(10, 14, 28, 0.16)');
+    ctx.fillStyle = vg;
+    ctx.fillRect(0, 0, cssW, cssH);
+
+    for (var fi = 0; fi < flakes.length; fi++) {
+      var f = flakes[fi];
+      ctx.fillStyle = 'rgba(255,255,255,' + f.a + ')';
+      ctx.beginPath();
+      ctx.arc(f.x, f.y, f.r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    for (var pu = puffs.length - 1; pu >= 0; pu--) {
+      var puff = puffs[pu];
+      ctx.fillStyle = 'rgba(210, 220, 228,' + (0.25 * puff.life) + ')';
+      ctx.beginPath();
+      ctx.arc(puff.x, puff.y, puff.r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  function tick(dt) {
+    time += dt;
+    var sc = skaterScale();
+    tctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    fadeTrails(dt);
+    var speed = 0;
+    for (var i = 0; i < skaters.length; i++) {
+      var s = skaters[i];
+      var moved = 0;
+      if (i === 0 && (s.mode === 'spin' || s.mode === 'eight')) moved = stepFigure(s, dt, sc);
+      else moved = glideStep(s, dt, sc);
+      var v = moved / Math.max(0.008, dt);
+      if (v > speed) speed = v;
+    }
+    stepMachine(dt);
+    var wind = Math.sin(time * 0.17) * 16;
+    for (var f = 0; f < flakes.length; f++) {
+      var flake = flakes[f];
+      var fall = reduce ? 0.4 : 1;
+      flake.y += flake.sp * dt * fall;
+      flake.x += (Math.sin(time * 0.55 + flake.phase) * flake.drift + wind) * dt;
+      if (flake.y > cssH + 8) {
+        flake.y = -8;
+        flake.x = Math.random() * cssW;
+      }
+      if (flake.x < -10) flake.x = cssW + 10;
+      if (flake.x > cssW + 10) flake.x = -10;
+    }
+    for (var p = puffs.length - 1; p >= 0; p--) {
+      puffs[p].life -= dt * 0.7;
+      puffs[p].y -= 8 * dt;
+      puffs[p].r += 4 * dt;
+      if (puffs[p].life <= 0) puffs.splice(p, 1);
+    }
+    updateSound(speed);
+    render();
+  }
+
+  var last = 0;
+  function frame(now) {
+    if (!last) last = now;
+    if (document.hidden) {
+      last = now;
+      requestAnimationFrame(frame);
+      return;
+    }
+    if (cssW < 2 || cssH < 2) layout();
+    var dt = Math.min(0.034, (now - last) / 1000);
+    last = now;
+    if (dt < 0) dt = 0;
+    tick(dt);
+    requestAnimationFrame(frame);
+  }
+
+  var lead = makeSkater(0, true);
+  lead.path = ovalPath(0.48, 0.3, 0.22);
+  lead.loop = true;
+  lead.u = 0.08;
+  lead.speed = 96;
+  skaters.push(lead);
+  spawnExtra();
+
+  layout();
+  syncUi();
+  if (window.ResizeObserver) new ResizeObserver(layout).observe(canvas);
+  window.addEventListener('resize', layout);
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
