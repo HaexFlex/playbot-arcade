@@ -1,0 +1,1674 @@
+<!doctype html>
+<html lang="de-CH">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Leuchtturm</title>
+<link rel="icon" href="../favicon.svg" type="image/svg+xml">
+<meta name="description" content="Nachtwache am Leuchtturm. Richte den Strahl, damit die Schiffe den Hafen finden.">
+<meta name="theme-color" content="#070b14">
+<style>
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;height:100dvh;width:100%;background:#070b14;color:#f6efe4;
+  overflow:hidden;position:fixed;inset:0;font-family:"Segoe UI",system-ui,sans-serif;
+  -webkit-user-select:none;user-select:none;touch-action:none}
+canvas{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:none}
+#hud{position:fixed;inset:0;z-index:2;display:flex;flex-direction:column;justify-content:space-between;
+  padding:max(8px,env(safe-area-inset-top)) max(8px,env(safe-area-inset-right)) max(8px,env(safe-area-inset-bottom)) max(8px,env(safe-area-inset-left));
+  pointer-events:none;max-width:100%}
+#hud[hidden]{display:none}
+#top{display:flex;flex-wrap:wrap;gap:8px;align-items:flex-start;max-width:100%}
+.panel{max-width:100%;background:rgba(8,12,18,.66);border:1px solid rgba(246,239,228,.18);
+  border-radius:14px;padding:8px 10px;line-height:1.35}
+.row{display:flex;flex-wrap:wrap;gap:4px 10px;align-items:center;font-size:15px}
+.row b{font-variant-numeric:tabular-nums;font-weight:650}
+#hint{font-size:14px;opacity:.92;max-width:100%}
+#hint:empty{display:none}
+.meter{width:84px;height:12px;border-radius:99px;background:#1a140f;overflow:hidden;display:inline-block;vertical-align:middle}
+#oilfill{display:block;height:100%;width:100%;background:linear-gradient(90deg,#8a3a18,#f0c14a);transform-origin:left center}
+.nightbar{height:4px;border-radius:99px;background:rgba(246,239,228,.16);width:min(160px,100%);overflow:hidden}
+#nightfill{display:block;height:100%;width:0;background:#f0c14a}
+#stormFlag{color:#f0d7a2;font-weight:650}
+#bottom{display:flex;flex-wrap:wrap;gap:8px;align-items:center;max-width:100%;pointer-events:none}
+button{pointer-events:auto;font:600 16px/1.2 "Segoe UI",system-ui,sans-serif;min-height:40px;min-width:44px;
+  padding:8px 14px;border-radius:999px;border:1px solid rgba(246,239,228,.3);
+  background:rgba(20,18,16,.82);color:#f6efe4;cursor:pointer;flex:0 0 auto}
+button.primary{background:#d0893a;color:#1c1208;border-color:transparent}
+button.ready{background:#e0a04a;color:#1c1208;border-color:transparent}
+button.on{background:#1f5c56}
+button:disabled{opacity:.42;cursor:default}
+button:focus-visible{outline:2px solid #f0c14a;outline-offset:2px}
+#toast{position:fixed;z-index:4;left:10px;right:10px;bottom:calc(72px + env(safe-area-inset-bottom));
+  margin-inline:auto;width:fit-content;max-width:calc(100% - 20px);text-align:center;
+  background:rgba(8,12,18,.88);border:1px solid rgba(240,193,74,.45);border-radius:12px;
+  padding:8px 12px;opacity:0;pointer-events:none;transition:opacity .3s}
+#toast.show{opacity:1}
+#overlay{position:fixed;inset:0;z-index:5;display:flex;align-items:center;justify-content:center;
+  padding:max(10px,env(safe-area-inset-top)) 10px max(10px,env(safe-area-inset-bottom));
+  background:rgba(4,8,14,.28);pointer-events:auto}
+#overlay[hidden]{display:none}
+#card{width:min(440px,100%);max-height:100%;overflow-x:hidden;overflow-y:auto;
+  background:rgba(10,14,22,.9);border:1px solid rgba(240,200,140,.28);border-radius:18px;
+  padding:16px 16px 14px;box-shadow:0 12px 40px rgba(0,0,0,.35)}
+#card h1{font-family:Palatino,"Palatino Linotype",Georgia,serif;font-size:34px;line-height:1.05;
+  margin:0 0 4px;font-weight:600}
+#card .sub{margin:0 0 8px;color:#f0d7a2;font-size:15px}
+#card p{margin:0 0 8px;font-size:15px;line-height:1.35}
+.actions{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0}
+.actions button{flex:1 1 120px}
+.tally{display:flex;justify-content:space-between;gap:12px;font-size:18px}
+.tally b{font-variant-numeric:tabular-nums}
+#recLine,#tRec{color:#f0d7a2}
+.sr{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);border:0}
+@media (max-height:420px){
+  #card{padding:8px 12px}
+  #card h1{font-size:24px}
+  #card p,#card .sub{font-size:13px;margin-bottom:4px}
+  .row{font-size:13px}
+  #hint{font-size:12px}
+  .panel{padding:4px 8px}
+}
+@media (max-width:380px){
+  button{padding:8px 12px}
+}
+@media (prefers-reduced-motion:reduce){
+  #toast{transition:none}
+}
+</style>
+</head>
+<body data-phase="menu">
+<canvas id="c" aria-label="Leuchtturm. Ziehe über die See, um den Strahl zu richten."></canvas>
+<div id="hud" hidden>
+  <div id="top">
+    <div class="panel">
+      <div class="row"><b id="clock">21:00</b><span id="modeLabel">Nacht</span><span id="stormFlag" hidden>Sturm</span></div>
+      <div class="row"><span>Öl</span><span class="meter" aria-hidden="true"><span id="oilfill"></span></span><span id="oilNum">100</span></div>
+      <div class="nightbar" id="nightbar" aria-hidden="true"><span id="nightfill"></span></div>
+      <div class="row"><span id="saved">Gerettet 0</span><span id="lost">Gestrandet 0</span><span id="best">Rekord 0</span></div>
+      <div id="hint"></div>
+    </div>
+  </div>
+  <div id="bottom">
+    <button type="button" id="horn" aria-label="Nebelhorn. Bremst Schiffe in der Nähe.">Nebelhorn</button>
+    <button type="button" id="barrel" aria-label="Fass. Öl nachfüllen, wenn die Welle weg ist.">Fass</button>
+    <button type="button" id="ton" aria-pressed="false" aria-label="Ton aus">Ton aus</button>
+    <button type="button" id="menuBtn">Menü</button>
+  </div>
+</div>
+<div id="toast" role="status"></div>
+<div id="live" class="sr" aria-live="polite"></div>
+<div id="overlay">
+  <div id="card">
+    <section id="viewMenu">
+      <h1>Leuchtturm</h1>
+      <p class="sub">Nachtwache an der Felsenküste</p>
+      <p>Richte den Strahl auf die Schiffe. Im Licht sehen sie die Riffe und steuern in den Hafen. Im Dunkeln treiben sie auf die Felsen.</p>
+      <p>Das Öl brennt herunter. Tippe das Fass, wenn die Welle weg ist. Das Nebelhorn bremst Schiffe in der Nähe.</p>
+      <div class="actions">
+        <button type="button" class="primary" id="btnNacht">Nacht</button>
+        <button type="button" class="primary" id="btnEndlos">Endlos</button>
+      </div>
+      <p id="recLine">Rekord Nacht 0 · Endlos 0</p>
+      <p class="sub">Tasten: Pfeile, N, F, M</p>
+    </section>
+    <section id="viewPause" hidden>
+      <h1>Pause</h1>
+      <p id="pStats">Gerettet 0 · Gestrandet 0</p>
+      <div class="actions">
+        <button type="button" class="primary" id="btnWeiter">Weiter</button>
+        <button type="button" id="btnBeenden">Beenden</button>
+      </div>
+    </section>
+    <section id="viewTally" hidden>
+      <h1 id="tTitle">Morgengrauen</h1>
+      <p id="tLede">Die See wird ruhig.</p>
+      <p class="tally"><span>Gerettet</span><b id="tSaved">0</b></p>
+      <p class="tally"><span>Gestrandet</span><b id="tLost">0</b></p>
+      <p id="tRec">Rekord 0</p>
+      <div class="actions">
+        <button type="button" class="primary" id="btnNochmal">Nochmal</button>
+        <button type="button" id="btnMenu2">Menü</button>
+      </div>
+    </section>
+  </div>
+</div>
+<script>
+'use strict';
+(function () {
+  const TAU = Math.PI * 2;
+  const STORE = 'playbot-leuchtturm';
+  const NACHT = 300;
+  const LX = -0.2;
+  const LZ = 1.06;
+  const MOUTH_Z = 0.74;
+  const MOUTH_X = 0.155;
+  const HALF = 0.30;
+  const BEAM_MIN = -0.98;
+  const BEAM_MAX = 1.18;
+  const TIDE_P = 9.6;
+
+  const REEFS = [
+    { x: -0.46, z: 0.28, r: 0.05 },
+    { x: -0.64, z: 0.38, r: 0.055 },
+    { x: -0.42, z: 0.48, r: 0.05 },
+    { x: -0.60, z: 0.58, r: 0.055 },
+    { x: -0.36, z: 0.66, r: 0.045 },
+    { x: 0.46, z: 0.30, r: 0.05 },
+    { x: 0.64, z: 0.40, r: 0.055 },
+    { x: 0.42, z: 0.50, r: 0.048 },
+    { x: 0.58, z: 0.60, r: 0.052 },
+    { x: 0.34, z: 0.68, r: 0.042 }
+  ];
+  const MARKS = [
+    { x: -0.12, z: 0.48, c: '#3dce7a' },
+    { x: 0.12, z: 0.48, c: '#e24b4b' },
+    { x: -0.16, z: 0.70, c: '#3dce7a' },
+    { x: 0.16, z: 0.70, c: '#e24b4b' }
+  ];
+  const TYPES = {
+    fischer: { spd: 0.046, turn: 1.45, rad: 0.028 },
+    segel: { spd: 0.055, turn: 1.6, rad: 0.024 },
+    faehre: { spd: 0.038, turn: 0.95, rad: 0.04 }
+  };
+  const WAVE = [
+    { a: 0.028, k: 5.2, sp: 0.68, dx: 0.96, dz: 0.28 },
+    { a: 0.016, k: 10.4, sp: 1.1, dx: 0.74, dz: -0.67 },
+    { a: 0.009, k: 18.0, sp: 1.65, dx: 0.48, dz: 0.88 },
+    { a: 0.0045, k: 31.0, sp: 2.15, dx: 0.9, dz: 0.35 }
+  ];
+  const NIGHT = {
+    skyTop: [6, 9, 18], skyMid: [16, 30, 56], skyHor: [40, 62, 88],
+    seaDeep: [4, 14, 26], seaShallow: [14, 62, 74], foam: [220, 232, 234],
+    beam: [255, 196, 120], rock: [16, 14, 13], rockHi: [70, 62, 54],
+    land: [8, 12, 20], fog: [186, 204, 214]
+  };
+  const DAWN = {
+    skyTop: [92, 132, 186], skyMid: [246, 150, 112], skyHor: [255, 214, 170],
+    seaDeep: [22, 58, 86], seaShallow: [78, 128, 132], foam: [255, 240, 226],
+    beam: [255, 230, 196], rock: [62, 50, 46], rockHi: [150, 118, 102],
+    land: [72, 52, 62], fog: [255, 220, 200]
+  };
+  const PAL_KEYS = Object.keys(NIGHT);
+
+  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const $ = id => document.getElementById(id);
+  const canvas = $('c');
+  const ctx = canvas.getContext('2d', { alpha: false });
+  const hud = $('hud');
+  const overlay = $('overlay');
+  const viewMenu = $('viewMenu');
+  const viewPause = $('viewPause');
+  const viewTally = $('viewTally');
+  const clockEl = $('clock');
+  const modeLabel = $('modeLabel');
+  const stormFlag = $('stormFlag');
+  const oilfill = $('oilfill');
+  const oilNum = $('oilNum');
+  const nightbar = $('nightbar');
+  const nightfill = $('nightfill');
+  const savedEl = $('saved');
+  const lostEl = $('lost');
+  const bestEl = $('best');
+  const hintEl = $('hint');
+  const hornBtn = $('horn');
+  const barrelBtn = $('barrel');
+  const tonBtn = $('ton');
+  const toastEl = $('toast');
+  const liveEl = $('live');
+  const recLine = $('recLine');
+  const pStats = $('pStats');
+  const tTitle = $('tTitle');
+  const tLede = $('tLede');
+  const tSaved = $('tSaved');
+  const tLost = $('tLost');
+  const tRec = $('tRec');
+
+  const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
+  const lerp = (a, b, t) => a + (b - a) * t;
+  function angDiff(a, b) {
+    let d = a - b;
+    while (d > Math.PI) d -= TAU;
+    while (d < -Math.PI) d += TAU;
+    return d;
+  }
+  function turnTo(cur, target, max) {
+    const d = angDiff(target, cur);
+    if (d > max) return cur + max;
+    if (d < -max) return cur - max;
+    return target;
+  }
+  function mix(a, b, t) {
+    return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
+  }
+  function rgb(c) {
+    return 'rgb(' + (c[0] | 0) + ',' + (c[1] | 0) + ',' + (c[2] | 0) + ')';
+  }
+  function hash(i) {
+    let x = Math.imul(i | 0, 374761393) + 668265263 | 0;
+    x = Math.imul(x ^ (x >>> 13), 1274126177);
+    return ((x ^ (x >>> 16)) >>> 0) / 4294967296;
+  }
+
+  const stars = [];
+  for (let i = 0; i < 80; i++) {
+    stars.push({
+      x: hash(i * 3 + 1),
+      y: hash(i * 3 + 2) * 0.92,
+      r: hash(i * 3 + 4) > 0.85 ? 2 : 1.2,
+      a: 0.35 + hash(i * 3 + 5) * 0.65,
+      tw: 0.6 + hash(i * 7) * 1.6,
+      ph: hash(i * 9) * TAU
+    });
+  }
+
+  let W = 1, H = 1;
+  const viewM = { horizonY: 100, rockY: 400, exp: 0.64 };
+  const lantern = { x: 0, y: 0 };
+  const barrelBox = { x: 0, y: 0, w: 44, h: 44 };
+  let gx = new Float32Array(0), gy = new Float32Array(0), gh = new Float32Array(0), gl = new Float32Array(0);
+
+  let phase = 'menu';
+  let mode = 'nacht';
+  let pausedFrom = 'play';
+  let time = 0;
+  let clock = 0;
+  let sunT = 0;
+  let timeScale = 1;
+  let simAcc = 0;
+  let oil = 100;
+  let gerettet = 0;
+  let gestrandet = 0;
+  let beam = 0.37;
+  let targetBeam = 0.37;
+  let storm = 0;
+  let stormUntil = 0;
+  let nextStorm = 72;
+  let bolt = 0;
+  let boltCd = 3;
+  let hornT = 0;
+  let hornCd = 0;
+  let spawnCd = 3;
+  let intro = 0;
+  let tookOil = false;
+  let toldBarrel = false;
+  let toldStorm = false;
+  let toldEmpty = false;
+  let beat = false;
+  let fresh = false;
+  let hintUntil = 0;
+  let hintPri = 0;
+  let toastUntil = 0;
+  let boatSeq = 1;
+  let fps = 60;
+  let frameN = 0;
+  const boats = [];
+  const rings = [];
+  const drops = [];
+  for (let i = 0; i < 80; i++) drops.push({ x: 0, y: 0, v: 1, len: 12, on: 0 });
+  const keys = { left: false, right: false };
+  let pointing = false;
+  const records = { nacht: 0, endlos: 0 };
+
+  try {
+    const saved = JSON.parse(localStorage.getItem(STORE) || 'null');
+    if (saved && Number.isFinite(+saved.nacht)) records.nacht = Math.max(0, +saved.nacht | 0);
+    if (saved && Number.isFinite(+saved.endlos)) records.endlos = Math.max(0, +saved.endlos | 0);
+  } catch (err) { /* ignore */ }
+
+  let ac = null, master = null, seaGain = null, windGain = null;
+  let soundOn = false;
+
+  function persist() {
+    try {
+      localStorage.setItem(STORE, JSON.stringify({ nacht: records.nacht | 0, endlos: records.endlos | 0 }));
+    } catch (err) { /* ignore */ }
+  }
+  function ensureAudio() {
+    if (ac) {
+      if (ac.state === 'suspended') ac.resume();
+      return;
+    }
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return;
+    try {
+      ac = new AC();
+      master = ac.createGain();
+      master.gain.value = 0.85;
+      master.connect(ac.destination);
+      const buffer = ac.createBuffer(1, ac.sampleRate * 2, ac.sampleRate);
+      const data = buffer.getChannelData(0);
+      for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
+      function loop(type, freq, q) {
+        const src = ac.createBufferSource();
+        src.buffer = buffer;
+        src.loop = true;
+        const f = ac.createBiquadFilter();
+        f.type = type;
+        f.frequency.value = freq;
+        f.Q.value = q;
+        const g = ac.createGain();
+        g.gain.value = 0;
+        src.connect(f);
+        f.connect(g);
+        g.connect(master);
+        src.start();
+        return g;
+      }
+      seaGain = loop('lowpass', 380, 0.65);
+      windGain = loop('bandpass', 880, 0.55);
+    } catch (err) {
+      ac = null;
+    }
+  }
+  function applySound() {
+    if (!ac || !seaGain) return;
+    const t = ac.currentTime;
+    const on = soundOn ? 1 : 0;
+    seaGain.gain.setTargetAtTime(on * (0.13 + storm * 0.08), t, 0.28);
+    windGain.gain.setTargetAtTime(on * (0.02 + storm * 0.12), t, 0.32);
+  }
+  function blip(freq, dur, type, gain) {
+    if (!soundOn || !ac) return;
+    const t = ac.currentTime;
+    const o = ac.createOscillator();
+    const g = ac.createGain();
+    o.type = type;
+    o.frequency.setValueAtTime(freq, t);
+    g.gain.setValueAtTime(gain, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+    o.connect(g);
+    g.connect(master);
+    o.start(t);
+    o.stop(t + dur + 0.02);
+  }
+  function hornSound() {
+    if (!soundOn || !ac) return;
+    const t = ac.currentTime;
+    const o = ac.createOscillator();
+    const o2 = ac.createOscillator();
+    const g = ac.createGain();
+    const f = ac.createBiquadFilter();
+    o.type = 'sawtooth';
+    o2.type = 'sine';
+    o.frequency.setValueAtTime(128, t);
+    o.frequency.exponentialRampToValueAtTime(74, t + 1.05);
+    o2.frequency.setValueAtTime(190, t);
+    o2.frequency.exponentialRampToValueAtTime(104, t + 1.05);
+    f.type = 'lowpass';
+    f.frequency.value = 640;
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(0.16, t + 0.06);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 1.3);
+    o.connect(f);
+    o2.connect(f);
+    f.connect(g);
+    g.connect(master);
+    o.start(t);
+    o2.start(t);
+    o.stop(t + 1.35);
+    o2.stop(t + 1.35);
+  }
+  function thunder() {
+    if (!soundOn || !ac) return;
+    const t = ac.currentTime;
+    const len = (ac.sampleRate * 0.7) | 0;
+    const buf = ac.createBuffer(1, len, ac.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / len);
+    const src = ac.createBufferSource();
+    src.buffer = buf;
+    const f = ac.createBiquadFilter();
+    f.type = 'lowpass';
+    f.frequency.setValueAtTime(200, t);
+    f.frequency.exponentialRampToValueAtTime(50, t + 0.6);
+    const g = ac.createGain();
+    g.gain.setValueAtTime(0.28, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.65);
+    src.connect(f);
+    f.connect(g);
+    g.connect(master);
+    src.start(t);
+  }
+
+  function updateView() {
+    const short = H < 460;
+    viewM.horizonY = H * (short ? 0.15 : (H > W ? 0.21 : 0.25));
+    viewM.rockY = H * (short ? 0.78 : 0.83);
+    viewM.exp = short ? 0.8 : 0.66;
+  }
+  function project(x, z) {
+    const zt = z < 0 ? 0 : z > 1 ? 1 : z;
+    const y = viewM.horizonY + (viewM.rockY - viewM.horizonY) * Math.pow(zt, viewM.exp);
+    const spread = 0.34 + zt * 0.8;
+    return { x: W * 0.5 + x * W * 0.47 * spread, y: y, s: 0.48 + zt };
+  }
+  function unproject(sx, sy) {
+    const span = viewM.rockY - viewM.horizonY || 1;
+    let t = (sy - viewM.horizonY) / span;
+    t = clamp(t, 0.02, 1);
+    const z = Math.pow(t, 1 / viewM.exp);
+    const spread = 0.34 + z * 0.8;
+    const x = (sx - W * 0.5) / (W * 0.47 * spread);
+    return { x: clamp(x, -1.4, 1.4), z: clamp(z, 0.02, 1) };
+  }
+  function tide() { return Math.sin(time * TAU / TIDE_P); }
+  function barrelOpen() {
+    if (phase !== 'play' && phase !== 'sunrise') return false;
+    return tide() < (storm > 0.55 ? -0.68 : -0.42);
+  }
+  function channelAim() {
+    return Math.atan2(-LX, LZ - 0.55);
+  }
+  function beamPower() {
+    if (oil <= 0) return 0;
+    let f = 1;
+    if (oil < 14) f = 0.4 + 0.6 * Math.abs(Math.sin(time * 10));
+    if (phase === 'sunrise') f *= Math.max(0.4, 1 - sunT / 12);
+    return f;
+  }
+  function beamAt(x, z) {
+    const power = beamPower();
+    if (power <= 0) return 0;
+    const ang = Math.atan2(x - LX, LZ - z);
+    const d = Math.abs(angDiff(ang, beam));
+    if (d > HALF) return 0;
+    const dist = Math.hypot(x - LX, z - LZ);
+    if (dist > 1.4) return 0;
+    const across = 1 - d / HALF;
+    const along = clamp(1 - dist / 1.4, 0, 1);
+    return across * across * (0.4 + 0.6 * along) * power;
+  }
+  function difficulty() {
+    const t = clock / NACHT;
+    return mode === 'endlos' ? Math.min(1.2, t) : Math.min(1, t);
+  }
+  function current() {
+    const d = Math.min(1.15, clock / NACHT);
+    const mag = (0.014 + d * 0.034) * (1 + storm * 1.7);
+    return Math.sin(clock * 0.08) * mag;
+  }
+  function dawnK() {
+    if (phase === 'sunrise' || phase === 'tally') return clamp(sunT / 11, 0, 1);
+    return 0;
+  }
+
+  function hint(text, dur, pri) {
+    if (pri < hintPri && time < hintUntil) return;
+    hintEl.textContent = text;
+    hintUntil = time + dur;
+    hintPri = pri;
+  }
+  function toast(msg) {
+    toastEl.textContent = msg;
+    toastEl.classList.add('show');
+    toastUntil = performance.now() + 2400;
+  }
+  function sayLive(text) { liveEl.textContent = text; }
+
+  function addRing(x, z, kind) {
+    rings.push({ x: x, z: z, r: 0.015, life: 1, kind: kind });
+    if (rings.length > 18) rings.shift();
+  }
+  function wreckBoat(b) {
+    if (b.state !== 'sail') return;
+    b.state = 'wreck';
+    b.fade = 2.6;
+    gestrandet += 1;
+    addRing(b.x, b.z, 'wreck');
+    blip(92, 0.28, 'sine', 0.07);
+    sayLive('Gestrandet ' + gestrandet);
+  }
+  function saveBoat(b) {
+    if (b.state !== 'sail') return;
+    b.state = 'saved';
+    b.fade = 1.8;
+    gerettet += 1;
+    addRing(b.x, b.z, 'save');
+    blip(720, 0.14, 'sine', 0.045);
+    if (mode === 'endlos' && gerettet > records.endlos) {
+      records.endlos = gerettet;
+      persist();
+      if (!beat) { toast('Neuer Rekord'); beat = true; }
+    }
+    sayLive('Gerettet ' + gerettet);
+  }
+  function addBoat(x, z, type) {
+    const st = TYPES[type];
+    boats.push({
+      id: boatSeq++,
+      type: type,
+      x: x,
+      z: z,
+      heading: 0,
+      see: 0,
+      state: 'sail',
+      fade: 1,
+      spd: st.spd * (0.94 + Math.random() * 0.1),
+      turn: st.turn,
+      rad: st.rad,
+      wob: Math.random() * TAU
+    });
+  }
+  function sailingCount() {
+    let n = 0;
+    for (let i = 0; i < boats.length; i++) if (boats[i].state === 'sail') n++;
+    return n;
+  }
+  function desiredHeading(b) {
+    let ax = clamp(-b.x, -0.85, 0.85) * 2.4;
+    let az = 1;
+    for (let r = 0; r < REEFS.length; r++) {
+      const rf = REEFS[r];
+      const dx = b.x - rf.x;
+      const dz = b.z - rf.z;
+      const dist = Math.hypot(dx, dz);
+      const danger = rf.r + b.rad + 0.06;
+      if (dist < danger) {
+        const push = (danger - dist) / danger;
+        ax += (dx / (dist || 1)) * push * 3.2;
+        az += (dz / (dist || 1)) * push;
+      }
+    }
+    if (b.z > 0.55) ax += clamp(-b.x, -0.4, 0.4) * 2;
+    return Math.atan2(ax, Math.max(0.35, az));
+  }
+  function hitReef(b) {
+    for (let i = 0; i < REEFS.length; i++) {
+      const rf = REEFS[i];
+      const dx = b.x - rf.x;
+      const dz = b.z - rf.z;
+      const reach = rf.r + b.rad;
+      if (dx * dx + dz * dz < reach * reach) return true;
+    }
+    return false;
+  }
+  function separate() {
+    for (let i = 0; i < boats.length; i++) {
+      const a = boats[i];
+      if (a.state !== 'sail') continue;
+      for (let j = i + 1; j < boats.length; j++) {
+        const b = boats[j];
+        if (b.state !== 'sail') continue;
+        const dx = a.x - b.x;
+        const dz = a.z - b.z;
+        const d = Math.hypot(dx, dz) || 0.0001;
+        const min = a.rad + b.rad + 0.012;
+        if (d < min) {
+          const push = (min - d) * 0.5 / d;
+          a.x += dx * push;
+          b.x -= dx * push;
+        }
+      }
+    }
+  }
+  function spawnX(d) {
+    if (Math.random() < 0.2 - d * 0.08) return (Math.random() - 0.5) * 0.1;
+    const side = Math.random() < 0.5 ? -1 : 1;
+    const inner = 0.24 + Math.min(d, 1) * 0.08;
+    const outer = 0.42 + Math.min(d, 1) * 0.28;
+    return side * (inner + Math.random() * (outer - inner));
+  }
+  function rollType(d) {
+    const r = Math.random();
+    if (d < 0.22 || r < 0.6) return 'fischer';
+    if (r < 0.84) return 'segel';
+    return 'faehre';
+  }
+
+  function resetRun(nextMode) {
+    mode = nextMode;
+    boats.length = 0;
+    rings.length = 0;
+    oil = 100;
+    gerettet = 0;
+    gestrandet = 0;
+    clock = 0;
+    sunT = 0;
+    storm = 0;
+    stormUntil = 0;
+    nextStorm = 70;
+    bolt = 0;
+    boltCd = 4;
+    hornT = 0;
+    hornCd = 0;
+    spawnCd = 4;
+    intro = 0;
+    tookOil = false;
+    toldBarrel = false;
+    toldStorm = false;
+    toldEmpty = false;
+    beat = false;
+    fresh = false;
+    hintPri = 0;
+    hintUntil = 0;
+    hintEl.textContent = '';
+    const aim = channelAim();
+    beam = aim;
+    targetBeam = aim;
+    simAcc = 0;
+  }
+  function applyPhase() {
+    document.body.dataset.phase = phase;
+    const card = phase === 'menu' || phase === 'pause' || phase === 'tally';
+    overlay.hidden = !card;
+    hud.hidden = card;
+    viewMenu.hidden = phase !== 'menu';
+    viewPause.hidden = phase !== 'pause';
+    viewTally.hidden = phase !== 'tally';
+    if (phase === 'pause') pStats.textContent = 'Gerettet ' + gerettet + ' · Gestrandet ' + gestrandet;
+    if (phase === 'menu') {
+      recLine.textContent = 'Rekord Nacht ' + records.nacht + ' · Endlos ' + records.endlos;
+    }
+  }
+  function enterTally(title, lede) {
+    if (mode === 'nacht' && title === 'Morgengrauen' && gerettet > records.nacht) {
+      records.nacht = gerettet;
+      fresh = true;
+      persist();
+    }
+    if (mode === 'endlos' && gerettet > records.endlos) {
+      records.endlos = gerettet;
+      fresh = true;
+      persist();
+    }
+    phase = 'tally';
+    tTitle.textContent = title;
+    tLede.textContent = lede;
+    tSaved.textContent = String(gerettet);
+    tLost.textContent = String(gestrandet);
+    const rec = mode === 'nacht' ? records.nacht : records.endlos;
+    tRec.textContent = 'Rekord ' + rec + (fresh ? ' · Neuer Rekord' : '');
+    applyPhase();
+  }
+  function start(nextMode) {
+    resetRun(nextMode === 'endlos' ? 'endlos' : 'nacht');
+    phase = 'play';
+    applyPhase();
+    hint('Ziehen oder tippen, um den Strahl zu richten.', 7, 1);
+  }
+  function pause() {
+    if (phase !== 'play' && phase !== 'sunrise') return;
+    pausedFrom = phase;
+    phase = 'pause';
+    applyPhase();
+  }
+  function resume() {
+    if (phase !== 'pause') return;
+    phase = pausedFrom;
+    applyPhase();
+  }
+  function finishEarly() {
+    if (phase === 'play' || phase === 'sunrise' || phase === 'pause') {
+      enterTally('Wache beendet', 'Die Lampe ist still.');
+      return;
+    }
+    phase = 'menu';
+    applyPhase();
+  }
+  function doHorn() {
+    if (phase !== 'play' && phase !== 'sunrise') return;
+    if (hornCd > 0) return;
+    hornT = 3.5;
+    hornCd = 12.5;
+    addRing(0, 0.62, 'horn');
+    hornSound();
+  }
+  function refill() {
+    if (!barrelOpen() || tookOil) return false;
+    tookOil = true;
+    oil = Math.min(100, oil + 32);
+    blip(210, 0.1, 'triangle', 0.05);
+    sayLive('Öl nachgefüllt');
+    return true;
+  }
+  function toggleSound() {
+    soundOn = !soundOn;
+    ensureAudio();
+    applySound();
+    tonBtn.setAttribute('aria-pressed', soundOn ? 'true' : 'false');
+    tonBtn.setAttribute('aria-label', soundOn ? 'Ton an' : 'Ton aus');
+    tonBtn.textContent = soundOn ? 'Ton an' : 'Ton aus';
+    tonBtn.classList.toggle('on', soundOn);
+  }
+  function aimAt(x, z) {
+    targetBeam = clamp(Math.atan2(x - LX, LZ - z), BEAM_MIN, BEAM_MAX);
+  }
+  function hitBarrel(px, py) {
+    return px >= barrelBox.x && px <= barrelBox.x + barrelBox.w && py >= barrelBox.y && py <= barrelBox.y + barrelBox.h;
+  }
+
+  function tick(dt) {
+    time += dt;
+    if (!barrelOpen()) tookOil = false;
+    if (phase === 'menu') {
+      targetBeam = Math.sin(time * 0.22) * 0.85;
+      beam = turnTo(beam, targetBeam, 0.45 * dt);
+      tickRings(dt);
+      return;
+    }
+    if (phase === 'pause' || phase === 'tally') return;
+
+    if (phase === 'sunrise') {
+      sunT += dt;
+      storm = Math.max(0, storm - dt * 0.45);
+      if (sunT >= 11) {
+        enterTally('Morgengrauen', 'Die See wird ruhig.');
+        return;
+      }
+    } else {
+      clock += dt;
+      if (mode === 'nacht' && clock >= NACHT) {
+        phase = 'sunrise';
+        sunT = 0;
+        hint('Morgengrauen. Die See wird ruhig.', 8, 2);
+      }
+    }
+
+    if (phase === 'play') {
+      const burn = (2.2 + Math.min(1, clock / NACHT) * 1.05) * (1 + storm * 0.38);
+      if (oil > 0) oil = Math.max(0, oil - burn * dt);
+      if (oil <= 0 && !toldEmpty) {
+        hint('Öl leer. Warte auf die nächste Welle.', 5, 3);
+        toldEmpty = true;
+      }
+      if (oil > 10) toldEmpty = false;
+      tickStorm(dt);
+      tickSpawn(dt);
+    } else {
+      bolt = Math.max(0, bolt - dt * 2.2);
+    }
+
+    if (hornT > 0) hornT -= dt;
+    if (hornCd > 0) hornCd = Math.max(0, hornCd - dt);
+    if (phase !== 'menu') {
+      if (keys.left) targetBeam -= 0.9 * dt;
+      if (keys.right) targetBeam += 0.9 * dt;
+      targetBeam = clamp(targetBeam, BEAM_MIN, BEAM_MAX);
+      beam = turnTo(beam, targetBeam, 1.65 * dt);
+    }
+
+    const cur = current();
+    for (let i = 0; i < boats.length; i++) {
+      const b = boats[i];
+      if (b.state !== 'sail') {
+        b.fade -= dt * 0.42;
+        if (b.state === 'saved') b.z += dt * 0.03;
+        continue;
+      }
+      if (beamAt(b.x, b.z) > 0.33) b.see = 0.85;
+      else if (b.see > 0) b.see = Math.max(0, b.see - dt);
+      const see = b.see > 0;
+      const slow = hornT > 0 && b.z > 0.4;
+      const spd = b.spd * (slow ? 0.34 : 1);
+      if (see) {
+        b.heading = turnTo(b.heading, desiredHeading(b), b.turn * dt);
+        b.x += clamp(-b.x, -0.05, 0.05) * dt * 0.9;
+      } else {
+        b.heading += Math.sin(time * 0.35 + b.wob) * 0.09 * dt;
+        b.heading = turnTo(b.heading, Math.atan2(cur * 2.4, 1), 0.2 * dt);
+      }
+      b.x += Math.sin(b.heading) * spd * dt + cur * (see ? 0.1 : 1) * dt;
+      b.z += Math.cos(b.heading) * spd * dt;
+    }
+    separate();
+    for (let i = 0; i < boats.length; i++) {
+      const b = boats[i];
+      if (b.state !== 'sail') continue;
+      if (b.x < -1.1 || b.x > 1.1 || hitReef(b)) wreckBoat(b);
+      else if (b.z >= MOUTH_Z) {
+        if (Math.abs(b.x) <= MOUTH_X) saveBoat(b);
+        else wreckBoat(b);
+      }
+    }
+    let w = 0;
+    for (let i = 0; i < boats.length; i++) if (boats[i].fade > 0) boats[w++] = boats[i];
+    boats.length = w;
+
+    tickRain(dt);
+    tickRings(dt);
+    if (time >= hintUntil && hintEl.textContent) {
+      hintEl.textContent = '';
+      hintPri = 0;
+    }
+    if (barrelOpen() && !toldBarrel && clock > 6) {
+      hint('Das Fass ist frei. Tippe es an.', 5, 2);
+      toldBarrel = true;
+    }
+  }
+  function tickStorm(dt) {
+    if (clock > nextStorm && storm < 0.15) {
+      stormUntil = clock + 15 + Math.random() * 6;
+      nextStorm = stormUntil + 40 + Math.random() * 20;
+      if (!toldStorm) {
+        hint('Sturm. Blitze zeigen die Riffe, die Strömung zieht stärker.', 6, 2);
+        toldStorm = true;
+      }
+    }
+    const want = clock < stormUntil ? 1 : 0;
+    storm += (want - storm) * Math.min(1, dt * 0.5);
+    bolt = Math.max(0, bolt - dt * 3.1);
+    if (storm > 0.62) {
+      boltCd -= dt;
+      if (boltCd <= 0) {
+        bolt = 1;
+        for (let i = 0; i < boats.length; i++) {
+          if (boats[i].state === 'sail') boats[i].see = Math.max(boats[i].see, 0.9);
+        }
+        boltCd = 3.3 + Math.random() * 2.6;
+        thunder();
+      }
+    }
+  }
+  function tickSpawn(dt) {
+    if (intro === 0 && clock >= 1.8) {
+      addBoat(0.01, 0.04, 'fischer');
+      intro = 1;
+    } else if (intro === 1 && clock >= 14) {
+      addBoat(-0.4, 0.035, 'fischer');
+      intro = 2;
+      hint('Halte den Strahl auf das seitliche Schiff.', 7, 2);
+    } else if (intro === 2 && clock >= 20) intro = 3;
+    if (intro < 2) return;
+    spawnCd -= dt;
+    if (spawnCd > 0) return;
+    const d = difficulty();
+    if (sailingCount() >= (d > 0.85 ? 5 : 4)) {
+      spawnCd = 0.7;
+      return;
+    }
+    addBoat(spawnX(d), 0.03 + Math.random() * 0.02, rollType(d));
+    spawnCd = lerp(9.2, 5.0, Math.min(1, d)) * (0.86 + Math.random() * 0.28);
+  }
+  function tickRain(dt) {
+    const amt = storm;
+    for (let i = 0; i < drops.length; i++) {
+      const d = drops[i];
+      if (!d.on) {
+        if (amt > 0.2 && Math.random() < amt * dt * 1.4) {
+          d.on = 1;
+          d.x = Math.random();
+          d.y = -0.05;
+          d.v = 0.55 + Math.random() * 0.7;
+          d.len = 10 + Math.random() * 14;
+        }
+        continue;
+      }
+      d.y += d.v * dt * 1.6;
+      d.x += dt * 0.08;
+      if (d.y > 1.05) d.on = 0;
+    }
+  }
+  function tickRings(dt) {
+    for (let i = rings.length - 1; i >= 0; i--) {
+      const r = rings[i];
+      r.life -= dt * (r.kind === 'horn' ? 0.4 : 0.65);
+      r.r += dt * (r.kind === 'horn' ? 0.2 : 0.07);
+      if (r.life <= 0) rings.splice(i, 1);
+    }
+  }
+
+  let lut = new Array(16 * 5 * 5);
+  let lutStamp = '';
+  function palette() {
+    const k = dawnK();
+    const ease = k * k * (3 - 2 * k);
+    const p = {};
+    for (let i = 0; i < PAL_KEYS.length; i++) {
+      const key = PAL_KEYS[i];
+      p[key] = mix(NIGHT[key], DAWN[key], ease);
+    }
+    if (storm > 0.04 && ease < 0.6) {
+      const s = storm * (1 - ease);
+      p.skyTop = mix(p.skyTop, [3, 5, 12], s * 0.75);
+      p.skyMid = mix(p.skyMid, [8, 14, 26], s * 0.55);
+      p.skyHor = mix(p.skyHor, [14, 22, 36], s * 0.4);
+      p.seaDeep = mix(p.seaDeep, [3, 8, 16], s * 0.35);
+    }
+    return { p: p, k: ease, stamp: (ease * 24 | 0) + ':' + (storm * 8 | 0) };
+  }
+  function ensureLut(pal) {
+    if (pal.stamp === lutStamp) return;
+    lutStamp = pal.stamp;
+    const foam = pal.p.foam;
+    const beamC = pal.p.beam;
+    for (let iz = 0; iz < 16; iz++) {
+      const base = mix(pal.p.seaDeep, pal.p.seaShallow, Math.pow(iz / 15, 0.8));
+      for (let ic = 0; ic < 5; ic++) {
+        const c = ic / 4;
+        for (let il = 0; il < 5; il++) {
+          const L = il / 4;
+          const r = base[0] + (foam[0] - base[0]) * c * 0.75 + (beamC[0] - base[0]) * L * 0.38;
+          const g = base[1] + (foam[1] - base[1]) * c * 0.75 + (beamC[1] - base[1]) * L * 0.26;
+          const b = base[2] + (foam[2] - base[2]) * c * 0.75 + (beamC[2] - base[2]) * L * 0.14;
+          lut[(iz * 5 + ic) * 5 + il] = 'rgb(' + (r | 0) + ',' + (g | 0) + ',' + (b | 0) + ')';
+        }
+      }
+    }
+  }
+  function seaColor(z, h, lit) {
+    const iz = clamp(z * 15 | 0, 0, 15);
+    const crest = clamp((h - 0.0035) / 0.018, 0, 1);
+    const ic = clamp(crest * 5 | 0, 0, 4);
+    const il = clamp(clamp(lit, 0, 1) * 5 | 0, 0, 4);
+    return lut[(iz * 5 + ic) * 5 + il];
+  }
+  function gerstner(x, z) {
+    let h = 0;
+    let chop = 0;
+    const calm = (phase === 'sunrise' || phase === 'tally') ? clamp(sunT / 11, 0, 1) : 0;
+    const amp = (reduce ? 0.32 : 1) * (1 + storm * 0.6) * (1 - calm * 0.55);
+    for (let i = 0; i < WAVE.length; i++) {
+      const w = WAVE[i];
+      const ph = (x * w.dx + z * w.dz) * w.k + time * w.sp;
+      h += w.a * Math.sin(ph);
+      chop += w.a * w.dx * Math.cos(ph);
+    }
+    const shore = 0.55 + z * 1.25;
+    return { h: h * amp * shore, chop: chop * amp };
+  }
+
+  function drawSky(pal) {
+    const g = ctx.createLinearGradient(0, 0, 0, viewM.horizonY + 24);
+    g.addColorStop(0, rgb(pal.p.skyTop));
+    g.addColorStop(0.62, rgb(pal.p.skyMid));
+    g.addColorStop(1, rgb(pal.p.skyHor));
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, W, H);
+    if (pal.k < 0.98) {
+      for (let i = 0; i < stars.length; i++) {
+        const s = stars[i];
+        const tw = reduce ? 0.8 : 0.45 + 0.55 * (0.5 + 0.5 * Math.sin(time * s.tw + s.ph));
+        ctx.globalAlpha = (1 - pal.k) * tw * s.a;
+        ctx.fillStyle = '#f4f0e4';
+        ctx.fillRect(s.x * W, s.y * viewM.horizonY, s.r, s.r);
+      }
+      ctx.globalAlpha = 1;
+    }
+    const moonA = clamp(1 - pal.k * 1.7, 0, 1);
+    if (moonA > 0.02) {
+      const mx = W * 0.78;
+      const my = viewM.horizonY * 0.48 + pal.k * 30;
+      ctx.fillStyle = 'rgba(244,240,226,' + (0.9 * moonA) + ')';
+      ctx.beginPath();
+      ctx.arc(mx, my, Math.max(8, Math.min(W, H) * 0.018), 0, TAU);
+      ctx.fill();
+    }
+    if (pal.k > 0.08) {
+      const sy = viewM.horizonY + 16 - pal.k * viewM.horizonY * 0.72;
+      const rad = 18 + pal.k * 16;
+      const sg = ctx.createRadialGradient(W * 0.62, sy, 4, W * 0.62, sy, rad * 3);
+      sg.addColorStop(0, 'rgba(255,236,200,' + pal.k + ')');
+      sg.addColorStop(0.35, 'rgba(255,186,120,' + (pal.k * 0.45) + ')');
+      sg.addColorStop(1, 'rgba(255,170,100,0)');
+      ctx.fillStyle = sg;
+      ctx.beginPath();
+      ctx.arc(W * 0.62, sy, rad * 3, 0, TAU);
+      ctx.fill();
+      ctx.fillStyle = 'rgba(255,244,220,' + pal.k + ')';
+      ctx.beginPath();
+      ctx.arc(W * 0.62, sy, rad, 0, TAU);
+      ctx.fill();
+    }
+    ctx.fillStyle = rgb(pal.p.land);
+    ctx.beginPath();
+    ctx.moveTo(0, viewM.horizonY + 8);
+    for (let i = 0; i <= 16; i++) {
+      const x = (i / 16) * W * 0.24;
+      const y = viewM.horizonY - 8 - Math.sin(i * 0.9) * 16 - Math.sin(i * 0.37) * 10;
+      ctx.lineTo(x, y);
+    }
+    ctx.lineTo(W * 0.24, viewM.horizonY + 12);
+    ctx.closePath();
+    ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(W, viewM.horizonY + 8);
+    for (let i = 0; i <= 16; i++) {
+      const x = W - (i / 16) * W * 0.22;
+      const y = viewM.horizonY - 6 - Math.sin(i * 0.8 + 1) * 14 - Math.sin(i * 0.3) * 8;
+      ctx.lineTo(x, y);
+    }
+    ctx.lineTo(W * 0.78, viewM.horizonY + 12);
+    ctx.closePath();
+    ctx.fill();
+    const haze = ctx.createLinearGradient(0, viewM.horizonY - 8, 0, viewM.horizonY + H * 0.16);
+    const fog = pal.p.fog;
+    const ha = (0.22 + storm * 0.1) * (1 - pal.k * 0.75);
+    haze.addColorStop(0, 'rgba(' + (fog[0] | 0) + ',' + (fog[1] | 0) + ',' + (fog[2] | 0) + ',' + ha + ')');
+    haze.addColorStop(1, 'rgba(' + (fog[0] | 0) + ',' + (fog[1] | 0) + ',' + (fog[2] | 0) + ',0)');
+    ctx.fillStyle = haze;
+    ctx.fillRect(0, viewM.horizonY - 8, W, H * 0.2);
+  }
+  function waveLift(z) {
+    return (70 + z * 210) * (reduce ? 0.35 : 1);
+  }
+  function drawSea(pal) {
+    const cols = W < 700 ? 18 : 26;
+    const rows = H < 520 ? 8 : 11;
+    const cw = cols + 1;
+    const need = cw * (rows + 1);
+    if (gx.length < need) {
+      gx = new Float32Array(need);
+      gy = new Float32Array(need);
+      gh = new Float32Array(need);
+      gl = new Float32Array(need);
+    }
+    ensureLut(pal);
+    for (let j = 0; j <= rows; j++) {
+      const z = 0.02 + Math.pow(j / rows, 1.08) * 0.98;
+      const lift = waveLift(z);
+      for (let i = 0; i <= cols; i++) {
+        const x = -1.35 + (i / cols) * 2.7;
+        const wave = gerstner(x, z);
+        const pr = project(x + wave.chop * 0.15, z);
+        const idx = j * cw + i;
+        gx[idx] = pr.x;
+        gy[idx] = pr.y - wave.h * lift;
+        gh[idx] = wave.h;
+      }
+    }
+    for (let j = 0; j < rows; j++) {
+      const z = 0.02 + Math.pow((j + 0.5) / rows, 1.08) * 0.98;
+      let h = 0;
+      const n = cw;
+      for (let i = 0; i < n; i++) h += gh[j * cw + i];
+      h /= n;
+      ctx.fillStyle = seaColor(z, h, bolt * 0.4);
+      ctx.beginPath();
+      ctx.moveTo(gx[j * cw], gy[j * cw] - 1);
+      for (let i = 1; i <= cols; i++) ctx.lineTo(gx[j * cw + i], gy[j * cw + i] - 1);
+      const b = (j + 1) * cw;
+      for (let i = cols; i >= 0; i--) ctx.lineTo(gx[b + i], gy[b + i] + 1);
+      ctx.closePath();
+      ctx.fill();
+    }
+    ctx.lineWidth = 1.4;
+    for (let j = 1; j <= rows; j++) {
+      let h = 0;
+      for (let i = 0; i <= cols; i++) h += gh[j * cw + i];
+      h /= cw;
+      if (h < 0.006) continue;
+      const a = clamp((h - 0.006) / 0.018, 0, 1) * (0.34 + (1 - pal.k) * 0.2);
+      ctx.strokeStyle = 'rgba(226,238,240,' + a + ')';
+      ctx.beginPath();
+      ctx.moveTo(gx[j * cw], gy[j * cw]);
+      for (let i = 1; i <= cols; i++) ctx.lineTo(gx[j * cw + i], gy[j * cw + i]);
+      ctx.stroke();
+    }
+  }
+  function drawReefs(pal) {
+    for (let i = 0; i < REEFS.length; i++) {
+      const rf = REEFS[i];
+      const wave = gerstner(rf.x, rf.z);
+      const pr = project(rf.x, rf.z);
+      const y = pr.y - wave.h * waveLift(rf.z);
+      const rad = rf.r * W * 0.47 * (0.34 + rf.z * 0.8);
+      const lit = Math.max(beamAt(rf.x, rf.z), bolt);
+      const foamA = 0.22 + Math.sin(time * 2.1 + i) * 0.06;
+      ctx.fillStyle = 'rgba(214,230,232,' + foamA + ')';
+      ctx.beginPath();
+      ctx.ellipse(pr.x, y + rad * 0.22, rad * 1.15, rad * 0.42, 0, 0, TAU);
+      ctx.fill();
+      const stone = lit > 0.2 ? mix(pal.p.rockHi, [220, 196, 160], Math.min(1, lit) * 0.65) : [22, 26, 32];
+      ctx.fillStyle = rgb(stone);
+      ctx.beginPath();
+      const bumps = 6;
+      for (let k = 0; k <= bumps; k++) {
+        const a = -Math.PI * 0.15 + (k / bumps) * Math.PI * 1.3;
+        const jag = 0.72 + hash(i * 17 + k) * 0.38;
+        const px = pr.x + Math.cos(a) * rad * jag;
+        const py = y + Math.sin(a) * rad * 0.48 * jag - rad * 0.15;
+        if (k === 0) ctx.moveTo(px, py);
+        else ctx.lineTo(px, py);
+      }
+      ctx.closePath();
+      ctx.fill();
+      if (lit > 0.18) {
+        ctx.fillStyle = 'rgba(255,224,176,' + (lit * 0.4) + ')';
+        ctx.beginPath();
+        ctx.ellipse(pr.x - rad * 0.15, y - rad * 0.18, rad * 0.28, rad * 0.12, 0, 0, TAU);
+        ctx.fill();
+      }
+    }
+  }
+  function drawMarks() {
+    for (let i = 0; i < MARKS.length; i++) {
+      const m = MARKS[i];
+      const pr = project(m.x, m.z);
+      const bob = Math.sin(time * 2 + i) * 1.5;
+      ctx.fillStyle = m.c;
+      ctx.beginPath();
+      ctx.arc(pr.x, pr.y + bob, Math.max(2.5, 3.5 * pr.s), 0, TAU);
+      ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,0.65)';
+      ctx.beginPath();
+      ctx.arc(pr.x - 1, pr.y + bob - 1, Math.max(1, 1.4 * pr.s), 0, TAU);
+      ctx.fill();
+    }
+  }
+  function drawRings() {
+    for (let i = 0; i < rings.length; i++) {
+      const r = rings[i];
+      const pr = project(r.x, r.z);
+      const rad = r.r * W * 0.47 * (0.34 + Math.min(1, r.z) * 0.8);
+      ctx.strokeStyle = r.kind === 'save'
+        ? 'rgba(240,193,74,' + (r.life * 0.7) + ')'
+        : 'rgba(220,232,236,' + (r.life * 0.45) + ')';
+      ctx.lineWidth = r.kind === 'horn' ? 2 : 1.5;
+      ctx.beginPath();
+      ctx.ellipse(pr.x, pr.y, Math.max(2, rad), Math.max(1.2, rad * 0.42), 0, 0, TAU);
+      ctx.stroke();
+    }
+  }
+  function drawBoatShape(type, len, lit) {
+    if (type === 'faehre') {
+      ctx.fillStyle = lit ? '#d8d2c6' : '#243038';
+      ctx.beginPath();
+      ctx.moveTo(len, 0);
+      ctx.lineTo(len * 0.72, len * 0.22);
+      ctx.lineTo(-len * 0.92, len * 0.2);
+      ctx.lineTo(-len, 0);
+      ctx.lineTo(-len * 0.92, -len * 0.2);
+      ctx.lineTo(len * 0.72, -len * 0.22);
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = lit ? '#f4efe4' : '#1a242c';
+      ctx.fillRect(-len * 0.55, -len * 0.16, len * 1.15, len * 0.32);
+      ctx.fillStyle = lit ? '#ffd48a' : '#3a2a22';
+      const windows = 5;
+      for (let i = 0; i < windows; i++) {
+        ctx.fillRect(-len * 0.4 + i * len * 0.2, -len * 0.06, len * 0.08, len * 0.08);
+      }
+    } else if (type === 'segel') {
+      ctx.fillStyle = lit ? '#f2efe6' : '#2a3842';
+      ctx.beginPath();
+      ctx.moveTo(len, 0);
+      ctx.lineTo(-len * 0.75, len * 0.16);
+      ctx.lineTo(-len * 0.9, 0);
+      ctx.lineTo(-len * 0.75, -len * 0.16);
+      ctx.closePath();
+      ctx.fill();
+      ctx.strokeStyle = lit ? '#f7f1e2' : '#8ea0aa';
+      ctx.lineWidth = Math.max(1, len * 0.06);
+      ctx.beginPath();
+      ctx.moveTo(-len * 0.05, 0);
+      ctx.lineTo(-len * 0.05, -len * 0.95);
+      ctx.stroke();
+      ctx.fillStyle = lit ? 'rgba(255,248,236,0.92)' : 'rgba(170,186,196,0.35)';
+      ctx.beginPath();
+      ctx.moveTo(-len * 0.02, -len * 0.9);
+      ctx.lineTo(len * 0.55, -len * 0.15);
+      ctx.lineTo(-len * 0.02, -len * 0.12);
+      ctx.closePath();
+      ctx.fill();
+    } else {
+      ctx.fillStyle = lit ? '#d15a3e' : '#3a2826';
+      ctx.beginPath();
+      ctx.moveTo(len, 0);
+      ctx.lineTo(-len * 0.62, len * 0.24);
+      ctx.lineTo(-len * 0.82, 0);
+      ctx.lineTo(-len * 0.62, -len * 0.24);
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = lit ? '#f0e2cc' : '#243036';
+      ctx.fillRect(-len * 0.2, -len * 0.16, len * 0.42, len * 0.32);
+      const prevA = ctx.globalAlpha;
+      ctx.fillStyle = '#ffcc80';
+      ctx.globalAlpha = prevA * (lit ? 0.95 : 0.55);
+      ctx.fillRect(-len * 0.02, -len * 0.06, len * 0.12, len * 0.1);
+      ctx.globalAlpha = prevA;
+    }
+  }
+  function drawBoats() {
+    const list = boats.slice().sort((a, b) => a.z - b.z);
+    for (let i = 0; i < list.length; i++) {
+      const b = list[i];
+      const pr = project(b.x, b.z);
+      const wave = gerstner(b.x, b.z);
+      const y = pr.y - wave.h * waveLift(b.z) + (reduce ? 0 : Math.sin(time * 2.2 + b.wob) * 2.4 * pr.s);
+      const ahead = project(b.x + Math.sin(b.heading) * 0.05, b.z + Math.cos(b.heading) * 0.05);
+      const ang = Math.atan2(ahead.y - pr.y, ahead.x - pr.x);
+      const lit = beamAt(b.x, b.z) > 0.28 || bolt > 0.4 || b.see > 0.2;
+      const base = b.type === 'faehre' ? 34 : b.type === 'segel' ? 28 : 26;
+      const len = Math.max(15, base * pr.s * 1.35);
+      if (Math.abs(pr.x - lantern.x) < 20 * (lantern.s || 1) + len * 0.4 && y > lantern.y - 6) continue;
+      ctx.save();
+      ctx.translate(pr.x, y);
+      ctx.globalAlpha = clamp(b.fade, 0, 1) * (b.state === 'wreck' ? 0.85 : 1);
+      ctx.rotate(ang + (b.state === 'wreck' ? (1 - clamp(b.fade, 0, 1)) * 0.6 : 0));
+      ctx.fillStyle = 'rgba(0,0,0,0.28)';
+      ctx.beginPath();
+      ctx.ellipse(0, 3, len * 0.7, len * 0.22, 0, 0, TAU);
+      ctx.fill();
+      drawBoatShape(b.type, len, lit && b.state !== 'wreck');
+      ctx.restore();
+    }
+  }
+  function drawShaft() {
+    const power = beamPower();
+    if (power <= 0) return;
+    ctx.save();
+    const farL = project(LX + Math.sin(beam - HALF) * 1.02, Math.max(0.02, LZ - Math.cos(beam - HALF) * 1.02));
+    const farR = project(LX + Math.sin(beam + HALF) * 1.02, Math.max(0.02, LZ - Math.cos(beam + HALF) * 1.02));
+    const far = project(LX + Math.sin(beam) * 1.0, Math.max(0.02, LZ - Math.cos(beam) * 1.0));
+    ctx.beginPath();
+    ctx.moveTo(lantern.x, lantern.y);
+    ctx.lineTo(farL.x, farL.y);
+    ctx.lineTo(farR.x, farR.y);
+    ctx.closePath();
+    ctx.fillStyle = 'rgba(255,196,130,' + (0.16 * power) + ')';
+    ctx.fill();
+    for (let i = 1; i <= 8; i++) {
+      const dist = 0.1 + (i / 8) * 0.95;
+      const wx = LX + Math.sin(beam) * dist;
+      const wz = LZ - Math.cos(beam) * dist;
+      if (wz < 0.015) break;
+      const pr = project(wx, wz);
+      const rx = (12 + i * 11) * (0.4 + pr.s * 0.35);
+      const a = 0.09 * power * (1 - i / 9);
+      ctx.fillStyle = 'rgba(255,214,150,' + a + ')';
+      ctx.beginPath();
+      ctx.ellipse(pr.x, pr.y, rx, rx * 0.42, 0, 0, TAU);
+      ctx.fill();
+    }
+    const grad = ctx.createLinearGradient(lantern.x, lantern.y, far.x, far.y);
+    grad.addColorStop(0, 'rgba(255,236,206,' + (0.42 * power) + ')');
+    grad.addColorStop(0.35, 'rgba(255,196,120,' + (0.08 * power) + ')');
+    grad.addColorStop(1, 'rgba(255,196,120,0)');
+    ctx.strokeStyle = grad;
+    ctx.lineWidth = 5;
+    ctx.beginPath();
+    ctx.moveTo(lantern.x, lantern.y);
+    ctx.lineTo(far.x, far.y);
+    ctx.stroke();
+    ctx.restore();
+  }
+  function drawFog(pal) {
+    const fog = pal.p.fog;
+    const a = (0.05 + storm * 0.05) * (1 - pal.k * 0.8);
+    if (a < 0.01) return;
+    ctx.fillStyle = 'rgba(' + (fog[0] | 0) + ',' + (fog[1] | 0) + ',' + (fog[2] | 0) + ',' + a + ')';
+    for (let i = 0; i < 3; i++) {
+      const x = ((time * (12 + i * 7) + i * 280) % (W + 360)) - 180;
+      const y = viewM.horizonY + 16 + i * H * 0.1;
+      ctx.beginPath();
+      ctx.ellipse(x, y, W * 0.42, Math.max(16, H * 0.055), 0, 0, TAU);
+      ctx.fill();
+    }
+  }
+  function drawRocks(pal) {
+    const wash = tide();
+    ctx.beginPath();
+    ctx.moveTo(0, H);
+    ctx.lineTo(0, viewM.rockY);
+    const steps = 26;
+    for (let i = 0; i <= steps; i++) {
+      const x = (i / steps) * W;
+      const n = Math.sin(i * 0.85) * 7 + Math.sin(i * 1.9 + 1.4) * 4 + Math.sin(i * 0.4) * 9;
+      ctx.lineTo(x, viewM.rockY - 6 + n + wash * 5);
+    }
+    ctx.lineTo(W, H);
+    ctx.closePath();
+    ctx.fillStyle = rgb(pal.p.rock);
+    ctx.fill();
+    ctx.beginPath();
+    for (let i = 0; i <= steps; i++) {
+      const x = (i / steps) * W;
+      const n = Math.sin(i * 0.85) * 7 + Math.sin(i * 1.9 + 1.4) * 4;
+      const y = viewM.rockY - 4 + n + wash * 7;
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    }
+    ctx.strokeStyle = 'rgba(214,228,230,' + (0.28 + (wash < -0.2 ? 0.2 : 0)) + ')';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+  }
+  function layoutStation() {
+    const anchor = project(LX, 0.98);
+    const s = clamp(Math.min(W, H) / 440, 0.7, 1.45);
+    const baseX = clamp(anchor.x, 64 * s, W - 90 * s);
+    const baseY = viewM.rockY + 4;
+    lantern.x = baseX;
+    lantern.y = baseY - 126 * s;
+    lantern.s = s;
+    const bw = Math.max(44, 34 * s);
+    const bh = Math.max(44, 30 * s);
+    barrelBox.x = baseX + 24 * s;
+    barrelBox.y = baseY - bh - 2;
+    barrelBox.w = bw;
+    barrelBox.h = bh;
+    return { s: s, baseX: baseX, baseY: baseY };
+  }
+  function drawStation(pal) {
+    const lay = layoutStation();
+    const s = lay.s;
+    const baseX = lay.baseX;
+    const baseY = lay.baseY;
+
+    ctx.fillStyle = rgb(mix(pal.p.rock, pal.p.rockHi, 0.35));
+    ctx.fillRect(baseX - 46 * s, baseY - 28 * s, 34 * s, 28 * s);
+    ctx.fillStyle = pal.k > 0.4 ? '#ffd7a8' : '#ffb15a';
+    ctx.globalAlpha = 0.85;
+    ctx.fillRect(baseX - 36 * s, baseY - 18 * s, 7 * s, 8 * s);
+    ctx.globalAlpha = 1;
+
+    ctx.fillStyle = '#e7e1d6';
+    ctx.beginPath();
+    ctx.moveTo(baseX - 16 * s, baseY);
+    ctx.lineTo(baseX - 11 * s, baseY - 108 * s);
+    ctx.lineTo(baseX + 11 * s, baseY - 108 * s);
+    ctx.lineTo(baseX + 16 * s, baseY);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = '#b84338';
+    ctx.fillRect(baseX - 14 * s, baseY - 46 * s, 28 * s, 9 * s);
+    ctx.fillStyle = '#2c2826';
+    ctx.fillRect(baseX - 18 * s, baseY - 114 * s, 36 * s, 6 * s);
+    ctx.fillStyle = '#7a2430';
+    ctx.fillRect(baseX - 10 * s, baseY - 136 * s, 20 * s, 22 * s);
+    const glow = beamPower();
+    ctx.fillStyle = glow > 0 ? 'rgba(255,220,160,' + (0.45 + glow * 0.5) + ')' : '#1a1614';
+    ctx.fillRect(baseX - 6 * s, baseY - 132 * s, 12 * s, 14 * s);
+    ctx.fillStyle = '#2c2826';
+    ctx.beginPath();
+    ctx.arc(baseX, baseY - 136 * s, 10 * s, Math.PI, 0);
+    ctx.fill();
+    ctx.fillRect(baseX - 1 * s, baseY - 150 * s, 2 * s, 8 * s);
+    if (glow > 0) {
+      const lg = ctx.createRadialGradient(baseX, lantern.y, 2, baseX, lantern.y, 36 * s);
+      lg.addColorStop(0, 'rgba(255,220,160,' + (0.85 * glow) + ')');
+      lg.addColorStop(1, 'rgba(255,180,80,0)');
+      ctx.fillStyle = lg;
+      ctx.beginPath();
+      ctx.arc(baseX, lantern.y, 36 * s, 0, TAU);
+      ctx.fill();
+    }
+    ctx.fillStyle = '#1c1816';
+    ctx.fillRect(baseX - 5 * s, baseY - 22 * s, 10 * s, 18 * s);
+
+    const open = barrelOpen();
+    const water = clamp((tide() + 1) / 2, 0, 1);
+    const bx = barrelBox.x + barrelBox.w * 0.5;
+    const by = baseY - 4;
+    ctx.fillStyle = open ? '#c9852a' : '#6a4a28';
+    ctx.beginPath();
+    ctx.ellipse(bx, by - 16 * s, 12 * s, 5 * s, 0, 0, TAU);
+    ctx.fill();
+    ctx.fillRect(bx - 12 * s, by - 16 * s, 24 * s, 16 * s);
+    ctx.fillStyle = '#3a2a18';
+    ctx.fillRect(bx - 12 * s, by - 12 * s, 24 * s, 2 * s);
+    ctx.fillRect(bx - 12 * s, by - 6 * s, 24 * s, 2 * s);
+    if (!open) {
+      ctx.fillStyle = 'rgba(12,40,48,0.55)';
+      const wh = (0.35 + water * 0.4) * 18 * s;
+      ctx.fillRect(bx - 13 * s, by - wh, 26 * s, wh);
+    }
+  }
+  function drawRain() {
+    if (storm < 0.08) return;
+    if (reduce) {
+      ctx.fillStyle = 'rgba(180,200,210,' + (storm * 0.08) + ')';
+      ctx.fillRect(0, 0, W, H);
+      return;
+    }
+    ctx.strokeStyle = 'rgba(200,216,224,' + (0.25 + storm * 0.3) + ')';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    for (let i = 0; i < drops.length; i++) {
+      const d = drops[i];
+      if (!d.on) continue;
+      const x = d.x * W;
+      const y = d.y * H;
+      ctx.moveTo(x, y);
+      ctx.lineTo(x + 3, y + d.len);
+    }
+    ctx.stroke();
+  }
+  function drawGulls(k) {
+    if (k < 0.2) return;
+    ctx.strokeStyle = 'rgba(50,36,32,' + Math.min(1, k) + ')';
+    ctx.lineWidth = 1.6;
+    for (let i = 0; i < 3; i++) {
+      const x = ((time * (16 + i * 9) + i * 180) % (W + 30)) - 15;
+      const y = viewM.horizonY * (0.35 + i * 0.14);
+      ctx.beginPath();
+      ctx.moveTo(x - 7, y);
+      ctx.quadraticCurveTo(x - 2, y + 4, x, y + 1);
+      ctx.quadraticCurveTo(x + 2, y + 4, x + 7, y);
+      ctx.stroke();
+    }
+  }
+  function drawFlash() {
+    if (bolt <= 0.02) return;
+    ctx.fillStyle = 'rgba(226,234,244,' + (bolt * 0.28) + ')';
+    ctx.fillRect(0, 0, W, H);
+  }
+
+  function draw() {
+    if (W < 2 || H < 2) return;
+    const pal = palette();
+    layoutStation();
+    drawSky(pal);
+    drawSea(pal);
+    drawReefs(pal);
+    drawMarks();
+    drawRings();
+    drawBoats();
+    drawFog(pal);
+    drawShaft();
+    drawRocks(pal);
+    drawStation(pal);
+    drawRain();
+    drawGulls(pal.k);
+    drawFlash();
+  }
+
+  function nightClockLabel(t) {
+    const mins = (21 * 60 + clamp(t, 0, NACHT) / NACHT * 8 * 60) | 0;
+    const m = mins % (24 * 60);
+    const hh = (m / 60) | 0;
+    const mm = m % 60;
+    return (hh < 10 ? '0' : '') + hh + ':' + (mm < 10 ? '0' : '') + mm;
+  }
+  function elapsedLabel(t) {
+    const s = t | 0;
+    const m = (s / 60) | 0;
+    const r = s % 60;
+    return m + ':' + (r < 10 ? '0' : '') + r;
+  }
+  let domSaved = -1, domLost = -1, domOil = -1, domClock = '', domBest = -1;
+  function syncDom() {
+    if (phase === 'menu' || phase === 'tally' || phase === 'pause') return;
+    const open = barrelOpen();
+    barrelBtn.disabled = !open;
+    barrelBtn.classList.toggle('ready', open);
+    hornBtn.disabled = hornCd > 0;
+    stormFlag.hidden = storm < 0.45;
+    const o = oil | 0;
+    if (o !== domOil) {
+      domOil = o;
+      oilfill.style.transform = 'scaleX(' + (oil / 100) + ')';
+      oilNum.textContent = String(o);
+    }
+    if (gerettet !== domSaved) {
+      domSaved = gerettet;
+      savedEl.textContent = 'Gerettet ' + gerettet;
+    }
+    if (gestrandet !== domLost) {
+      domLost = gestrandet;
+      lostEl.textContent = 'Gestrandet ' + gestrandet;
+    }
+    const best = mode === 'nacht' ? records.nacht : records.endlos;
+    if (best !== domBest) {
+      domBest = best;
+      bestEl.textContent = 'Rekord ' + best;
+    }
+    const label = mode === 'nacht' ? nightClockLabel(clock) : elapsedLabel(clock);
+    if (label !== domClock) {
+      domClock = label;
+      clockEl.textContent = label;
+    }
+    modeLabel.textContent = mode === 'nacht' ? 'Nacht' : 'Endlos';
+    if (mode === 'nacht') {
+      nightbar.hidden = false;
+      nightfill.style.width = (clamp(clock / NACHT, 0, 1) * 100) + '%';
+    } else nightbar.hidden = true;
+    if (soundOn) applySound();
+  }
+
+  function resize() {
+    const rect = canvas.getBoundingClientRect();
+    const w = rect.width | 0;
+    const h = rect.height | 0;
+    if (w < 2 || h < 2) return;
+    const dpr = Math.min(1.5, window.devicePixelRatio || 1);
+    const bw = Math.round(w * dpr);
+    const bh = Math.round(h * dpr);
+    if (w === W && h === H && canvas.width === bw && canvas.height === bh) return;
+    W = w;
+    H = h;
+    canvas.width = bw;
+    canvas.height = bh;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    updateView();
+    lutStamp = '';
+  }
+
+  function aimFromEvent(e) {
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    if (hitBarrel(x, y)) {
+      refill();
+      return;
+    }
+    const w = unproject(x, y);
+    aimAt(w.x, w.z);
+  }
+  canvas.addEventListener('pointerdown', function (e) {
+    if (phase !== 'play' && phase !== 'sunrise') return;
+    pointing = true;
+    try { canvas.setPointerCapture(e.pointerId); } catch (err) { /* ignore */ }
+    aimFromEvent(e);
+    e.preventDefault();
+  });
+  canvas.addEventListener('pointermove', function (e) {
+    if (!pointing) return;
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    if (hitBarrel(x, y)) return;
+    const w = unproject(x, y);
+    aimAt(w.x, w.z);
+  });
+  function endPoint() { pointing = false; }
+  canvas.addEventListener('pointerup', endPoint);
+  canvas.addEventListener('pointercancel', endPoint);
+
+  addEventListener('keydown', function (e) {
+    const k = e.key;
+    if (k === 'ArrowLeft' || k === 'a' || k === 'A') { keys.left = true; e.preventDefault(); }
+    else if (k === 'ArrowRight' || k === 'd' || k === 'D') { keys.right = true; e.preventDefault(); }
+    else if ((k === 'n' || k === 'N') && !e.repeat) doHorn();
+    else if ((k === 'f' || k === 'F') && !e.repeat) refill();
+    else if ((k === 'm' || k === 'M') && !e.repeat) toggleSound();
+    else if (k === 'Escape') {
+      if (phase === 'play' || phase === 'sunrise') pause();
+      else if (phase === 'pause') resume();
+      else if (phase === 'tally') { phase = 'menu'; applyPhase(); }
+    }
+  });
+  addEventListener('keyup', function (e) {
+    if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') keys.left = false;
+    if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') keys.right = false;
+  });
+
+  $('btnNacht').addEventListener('click', function () { start('nacht'); });
+  $('btnEndlos').addEventListener('click', function () { start('endlos'); });
+  $('btnWeiter').addEventListener('click', resume);
+  $('btnBeenden').addEventListener('click', finishEarly);
+  $('btnNochmal').addEventListener('click', function () { start(mode); });
+  $('btnMenu2').addEventListener('click', function () { phase = 'menu'; applyPhase(); });
+  $('menuBtn').addEventListener('click', function () {
+    if (phase === 'play' || phase === 'sunrise') pause();
+  });
+  hornBtn.addEventListener('click', doHorn);
+  barrelBtn.addEventListener('click', refill);
+  tonBtn.addEventListener('click', toggleSound);
+
+  applyPhase();
+  recLine.textContent = 'Rekord Nacht ' + records.nacht + ' · Endlos ' + records.endlos;
+
+  let last = performance.now();
+  function frame(now) {
+    const raw = (now - last) / 1000;
+    last = now;
+    let real = raw;
+    if (real < 0) real = 0;
+    if (real > 0.05) real = 0.05;
+    if (!document.hidden) {
+      const scale = (phase === 'play' || phase === 'sunrise') ? timeScale : 1;
+      simAcc += real * scale;
+      const step = 1 / 60;
+      const maxSteps = scale <= 1 ? 5 : Math.min(90, Math.ceil(scale) + 8);
+      let n = 0;
+      while (simAcc >= step && n < maxSteps) {
+        tick(step);
+        simAcc -= step;
+        n++;
+      }
+      if (n >= maxSteps) simAcc = 0;
+    }
+    const inst = raw > 0 ? 1 / Math.min(0.25, raw) : 60;
+    fps += (Math.min(120, inst) - fps) * 0.08;
+    frameN++;
+    draw();
+    syncDom();
+    if (toastUntil && now > toastUntil) {
+      toastEl.classList.remove('show');
+      toastUntil = 0;
+    }
+    requestAnimationFrame(frame);
+  }
+  addEventListener('resize', resize);
+  if (window.visualViewport) visualViewport.addEventListener('resize', resize);
+  resize();
+  requestAnimationFrame(frame);
+
+  window.Leuchtturm = {
+    start: start,
+    scale: function (n) { timeScale = clamp(+n || 1, 0.05, 80); },
+    aimAt: aimAt,
+    horn: doHorn,
+    refill: refill,
+    get: function () {
+      const live = [];
+      for (let i = 0; i < boats.length; i++) {
+        const b = boats[i];
+        if (b.state !== 'sail') continue;
+        live.push({ x: b.x, z: b.z, type: b.type, see: b.see });
+      }
+      return {
+        phase: phase,
+        mode: mode,
+        clock: clock,
+        sunT: sunT,
+        oil: oil,
+        gerettet: gerettet,
+        gestrandet: gestrandet,
+        barrelOpen: barrelOpen(),
+        storm: storm,
+        beam: beam,
+        hornCd: hornCd,
+        records: { nacht: records.nacht, endlos: records.endlos },
+        boats: live,
+        w: W,
+        h: H,
+        fps: fps,
+        frames: frameN
+      };
+    }
+  };
+})();
+</script>
+</body>
+</html>
