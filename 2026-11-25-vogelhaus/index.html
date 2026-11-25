@@ -1,0 +1,2102 @@
+<!doctype html>
+<html lang="de-CH">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Vogelhaus</title>
+<meta name="description" content="Ein winterliches Gartenfenster. Fülle Samen, Knödel, Apfel und Wasser und schau, welche Gäste kommen.">
+<meta name="theme-color" content="#2a1c16">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%232a1c16'/%3E%3Cpath d='M6 16 L16 7 L26 16 V26 H6Z' fill='%23d7a15a'/%3E%3Crect x='13' y='18' width='6' height='8' fill='%232a1c16'/%3E%3C/svg%3E">
+<style>
+html{color-scheme:light;height:100%;height:100dvh}
+html,body{margin:0;height:100%;overflow:hidden;overscroll-behavior:none;background:#241612;font-family:system-ui,-apple-system,"Segoe UI",sans-serif;color:#2c2118;-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent;-webkit-touch-callout:none}
+*,*::before,*::after{box-sizing:border-box}
+#c{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:none;cursor:pointer}
+button{font:inherit;cursor:pointer;touch-action:manipulation}
+button:focus-visible{outline:2px solid #f0d7a2;outline-offset:2px}
+#top{position:fixed;z-index:4;left:max(8px,env(safe-area-inset-left));top:max(8px,env(safe-area-inset-top));width:max-content;max-width:min(460px,calc(100% - 16px - env(safe-area-inset-left) - env(safe-area-inset-right)));pointer-events:none;color:#f6efe6;background:rgba(24,14,10,.78);border:1px solid rgba(255,236,210,.16);border-radius:14px;padding:8px 12px 9px;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+#top h1{margin:0;font-family:Georgia,Palatino,"Iowan Old Style",serif;font-size:20px;font-weight:650;letter-spacing:.01em}
+#status{margin:2px 0 0;font-size:14px;line-height:1.35;overflow-wrap:break-word}
+#bar{position:fixed;z-index:4;left:0;right:0;bottom:0;width:100%;max-width:100%;display:flex;flex-wrap:wrap;justify-content:center;align-items:center;gap:6px;box-sizing:border-box;padding:8px 8px calc(8px + env(safe-area-inset-bottom));background:linear-gradient(to top,rgba(22,12,8,.92),rgba(22,12,8,.55) 72%,rgba(22,12,8,0));pointer-events:none}
+#bar button{pointer-events:auto;flex:0 0 auto;max-width:100%;min-width:36px;min-height:40px;padding:6px 10px;font-size:15px;line-height:1.1;white-space:nowrap;color:#2c2118;background:#f3eadc;border:1px solid rgba(70,42,24,.35);border-radius:12px;box-shadow:0 1px 2px rgba(20,10,6,.25)}
+#bar button.on{background:#e2b15a;border-color:#a87420;color:#2a1c08}
+#bar button:active{transform:translateY(1px)}
+.meter{display:block;height:3px;margin-top:4px;border-radius:2px;background:rgba(40,24,12,.16);overflow:hidden}
+.meter i{display:block;height:100%;width:0;border-radius:2px}
+#bSamen i{background:#c4a15a}
+#bKnoedel i{background:#a67c45}
+#bApfel i{background:#c4473a}
+#bWasser i{background:#3d8eb8}
+#hint{position:fixed;z-index:3;left:max(8px,env(safe-area-inset-left));right:max(8px,env(safe-area-inset-right));bottom:calc(var(--bar, 64px) + 8px);margin:0;text-align:center;pointer-events:none;color:#f7f1e6;background:rgba(28,16,12,.78);border-radius:12px;padding:8px 10px;font-size:14px;line-height:1.35;overflow-wrap:break-word;transition:opacity .6s ease}
+#hint.gone{opacity:0}
+#hint[hidden]{display:none}
+#toast{position:fixed;z-index:5;left:max(8px,env(safe-area-inset-left));top:calc(var(--top, 64px) + 8px);max-width:min(420px,calc(100% - 16px));background:rgba(28,16,12,.92);color:#f7f1e6;border:1px solid rgba(226,177,90,.45);border-radius:12px;padding:8px 12px;font-size:14px;line-height:1.35;overflow-wrap:break-word}
+#toast[hidden]{display:none}
+#book{position:fixed;inset:0;z-index:8;display:flex;align-items:flex-start;justify-content:center;padding:max(10px,env(safe-area-inset-top)) 10px calc(10px + env(safe-area-inset-bottom));background:rgba(20,12,8,.46);overflow:auto;overscroll-behavior:contain}
+#book[hidden]{display:none !important}
+.sheet{width:min(440px,100%);max-height:none;background:#f6f0e4;color:#2c2118;border-radius:16px;padding:14px 14px 12px 16px;box-shadow:0 16px 40px rgba(0,0,0,.32),inset 28px 0 0 #f6f0e4,inset 31px 0 0 #e15b4c}
+.sheet h2{margin:0 0 6px;font-family:Georgia,Palatino,"Iowan Old Style",serif;font-size:22px;font-weight:650}
+#bookLead,#bookHelp{margin:0 0 8px;font-size:14px;line-height:1.4;overflow-wrap:break-word}
+#bookHelp{color:#5c4a38}
+#bookList{list-style:none;margin:0;padding:0}
+#bookList li{display:flex;gap:8px;min-width:0;padding:8px 0;border-top:1px solid rgba(60,40,20,.12)}
+#bookList li div{min-width:0;flex:1}
+#bookList strong{display:block;font-size:15px}
+.meta{display:block;font-size:13px;color:#6a543c;margin-top:1px}
+.note{display:block;font-size:13px;line-height:1.35;color:#5c4a38;margin-top:2px;overflow-wrap:break-word}
+.dot{flex:none;width:14px;height:14px;margin-top:3px;border-radius:50%;box-shadow:inset 0 0 0 1px rgba(0,0,0,.25)}
+#bClose{display:block;width:100%;min-height:40px;margin-top:8px;padding:8px 12px;font-size:16px;color:#2c2118;background:#f3eadc;border:1px solid rgba(70,42,24,.35);border-radius:12px}
+@media (max-height:430px){
+  #hint{display:none}
+  #top{padding:4px 8px}
+  #top h1{font-size:16px}
+  #status{font-size:12px}
+  #bar{gap:4px;padding:4px 4px calc(4px + env(safe-area-inset-bottom))}
+  #bar button{min-width:36px;min-height:36px;padding:4px 8px;font-size:14px}
+  .meter{display:none}
+}
+@media (prefers-reduced-motion:reduce){
+  #hint{transition:none}
+  #bar button:active{transform:none}
+}
+</style>
+</head>
+<body>
+<canvas id="c" aria-label="Winterfenster mit Futterhäuschen. Tippe ans Glas, damit die Gäste auffliegen."></canvas>
+<header id="top">
+  <h1>Vogelhaus</h1>
+  <p id="status" role="status" aria-live="polite">Still. Fülle Samen, Knödel, Apfel oder Wasser.</p>
+</header>
+<p id="hint">Fülle das Häuschen. Nicht jeder Gast mag dasselbe. Tippe ans Glas, dann fliegen sie auf.</p>
+<div id="bar" role="toolbar" aria-label="Vogelhaus">
+  <button id="bTon" type="button" aria-pressed="false" aria-label="Ton ist aus. Tippen zum Einschalten." title="Ton (M)">Ton</button>
+  <button id="bHeft" type="button" aria-expanded="false" aria-controls="book" aria-label="Vogelheft öffnen" title="Heft (H)">Heft</button>
+  <button id="bSamen" type="button" data-food="samen" aria-label="Samen nachfüllen" title="Samen (1)">Samen<span class="meter" aria-hidden="true"><i></i></span></button>
+  <button id="bKnoedel" type="button" data-food="knoedel" aria-label="Meisenknödel nachfüllen" title="Knödel (2)">Knödel<span class="meter" aria-hidden="true"><i></i></span></button>
+  <button id="bApfel" type="button" data-food="apfel" aria-label="Apfel hinlegen" title="Apfel (3)">Apfel<span class="meter" aria-hidden="true"><i></i></span></button>
+  <button id="bWasser" type="button" data-food="wasser" aria-label="Wasser nachfüllen" title="Wasser (4)">Wasser<span class="meter" aria-hidden="true"><i></i></span></button>
+</div>
+<div id="toast" hidden role="status"></div>
+<div id="book" hidden role="dialog" aria-modal="true" aria-labelledby="bookTitle">
+  <div class="sheet">
+    <h2 id="bookTitle">Vogelheft</h2>
+    <p id="bookLead">Noch niemand. Fülle das Häuschen und warte am Fenster.</p>
+    <p id="bookHelp">Samen lockt Meisen, Gimpel und Buchfink. Knödel lockt Meisen und den Specht. Apfel lockt Amsel, Gimpel und Rotkehlchen. Wasser lockt Rotkehlchen, Amsel und Buchfink. Das Eichhörnchen nascht fast überall.</p>
+    <ul id="bookList"></ul>
+    <button id="bClose" type="button">Schliessen</button>
+  </div>
+</div>
+<script>
+'use strict';
+(function () {
+  const TAU = Math.PI * 2;
+  const KEY = 'playbot-vogelhaus';
+  const FOODS = ['samen', 'knoedel', 'apfel', 'wasser'];
+  const FILL_TOAST = {
+    samen: 'Samen nachgefüllt.',
+    knoedel: 'Knödel aufgehängt.',
+    apfel: 'Apfel hingelegt.',
+    wasser: 'Wasser nachgegossen.'
+  };
+  const EMPTY_TOAST = {
+    samen: 'Die Samen sind alle.',
+    knoedel: 'Der Knödel ist weg.',
+    apfel: 'Der Apfel ist aufgegessen.',
+    wasser: 'Das Wasser ist aus.'
+  };
+  const PLACE = {
+    feeder: 'am Futterbrett',
+    suet: 'am Knödel',
+    apple: 'am Apfel',
+    water: 'am Wasser',
+    ground: 'am Boden'
+  };
+  const SPECIES = [
+    { id: 'kohl', name: 'Kohlmeise', scale: 1, max: 2, bold: 0.62, hang: 0, swatch: '#f0c93a',
+      like: { samen: 1, knoedel: 0.9, apfel: 0, wasser: 0 },
+      where: { samen: 'feeder', knoedel: 'suet' },
+      song: [[1175, 0.12], [880, 0.16]],
+      note: 'Gelber Bauch, schwarze Kappe, weisse Wange. Kommt für Samen und Knödel.',
+      belly: '#f0c93a', back: '#6e9a46', tail: '#3e5360', wing: '#4d6574', wingBar: '#e7eef2',
+      head: '#f4f1e6', cap: '#1c1c1c', cheek: '#f7f4ea', bib: '#1c1c1c', stripe: '#1c1c1c', beak: '#2a2a2a' },
+    { id: 'blau', name: 'Blaumeise', scale: 0.82, max: 2, bold: 0.46, hang: 0.7, swatch: '#3a7ec4',
+      like: { samen: 0.8, knoedel: 1, apfel: 0, wasser: 0.2 },
+      where: { samen: 'feeder', knoedel: 'suet', wasser: 'water' },
+      song: [[1568, 0.07], [1397, 0.07], [1245, 0.1]],
+      note: 'Blaue Kappe, klein und wendig. Hängt gern kopfüber am Knödel.',
+      belly: '#f2d34a', back: '#7aaa48', tail: '#2f5f8a', wing: '#3d78b8', wingBar: '#d5e6f5',
+      head: '#f7f7f2', cap: '#3a7ec4', bib: '#1c1c1c', mask: '#1a1a1a', beak: '#2a2a2a' },
+    { id: 'rot', name: 'Rotkehlchen', scale: 0.9, max: 2, bold: 0.32, hang: 0, swatch: '#e36a32',
+      like: { samen: 0.4, knoedel: 0, apfel: 0.72, wasser: 0.95 },
+      where: { samen: 'ground', apfel: 'apple', wasser: 'water' },
+      song: [[988, 0.1], [1175, 0.12], [784, 0.1], [1046, 0.16]],
+      note: 'Orangerote Brust. Mag Apfel, Wasser und Samen am Boden.',
+      belly: '#e36a32', lower: '#efe6d8', back: '#8a6238', tail: '#6a4630', wing: '#6e4a30',
+      head: '#e36a32', beak: '#3a2a22', beakLen: -2 },
+    { id: 'gimpel', name: 'Gimpel', scale: 1.06, max: 2, bold: 0.4, hang: 0, swatch: '#e48b98',
+      like: { samen: 0.9, knoedel: 0, apfel: 0.8, wasser: 0 },
+      where: { samen: 'feeder', apfel: 'apple' },
+      song: [[698, 0.22]],
+      note: 'Rund, rosa Brust, schwarze Kappe. Samen und Apfel.',
+      belly: '#e48b98', lower: '#f6f3ee', back: '#8d97a3', tail: '#2a2a2a', wing: '#2a2a2a', wingBar: '#f4f4f4',
+      head: '#e48b98', cap: '#1a1a1a', faceMask: '#1a1a1a', rump: '#f4f4f4', beak: '#333', beakLen: 1 },
+    { id: 'buch', name: 'Buchfink', scale: 0.96, max: 2, bold: 0.36, hang: 0, swatch: '#d98a7a',
+      like: { samen: 1, knoedel: 0, apfel: 0, wasser: 0.62 },
+      where: { samen: 'ground', wasser: 'water' },
+      song: [[1318, 0.08], [1175, 0.08], [988, 0.09], [784, 0.14]],
+      note: 'Graublaue Kappe und weisse Flügelbinden. Samen am Boden, dazu Wasser.',
+      belly: '#e09a8c', back: '#a56b45', tail: '#2c2c2c', wing: '#2c2c2c', wingBar: '#f3f3f3', wingBar2: '#d7de6a',
+      head: '#e7b3a4', cap: '#6a7e96', beak: '#c4a090' },
+    { id: 'amsel', name: 'Amsel', scale: 1.28, max: 2, bold: 0.78, hang: 0, swatch: '#1c1e22',
+      like: { samen: 0, knoedel: 0, apfel: 1, wasser: 0.75 },
+      where: { apfel: 'apple', wasser: 'water' },
+      song: [[659, 0.14], [784, 0.12], [880, 0.16], [698, 0.18]],
+      note: 'Das Männchen ist schwarz mit gelbem Schnabel, das Weibchen braun. Apfel und Wasser.',
+      belly: '#1c1e22', back: '#16181b', tail: '#101114', wing: '#2a2e32',
+      head: '#1c1e22', beak: '#f0a020', beakLen: 2, ring: '#f0a020' },
+    { id: 'specht', name: 'Specht', scale: 1.16, max: 1, bold: 0.95, hang: 0, swatch: '#c43737',
+      like: { samen: 0, knoedel: 1, apfel: 0, wasser: 0 },
+      where: { knoedel: 'suet' },
+      song: null,
+      note: 'Buntspecht, schwarz-weiss mit rotem Nackenfleck. Hängt am Knödel.' },
+    { id: 'eich', name: 'Eichhörnchen', scale: 1.32, max: 1, bold: 1, hang: 0, swatch: '#c4622d',
+      like: { samen: 0.75, knoedel: 0.5, apfel: 0.7, wasser: 0 },
+      where: { samen: 'feeder', knoedel: 'suet', apfel: 'apple' },
+      song: null,
+      note: 'Rotbraun mit buschigem Schwanz. Nascht Samen, Apfel und Knödel.' }
+  ];
+
+  const canvas = document.getElementById('c');
+  const ctx = canvas.getContext('2d', { alpha: false });
+  const statusEl = document.getElementById('status');
+  const barEl = document.getElementById('bar');
+  const topEl = document.getElementById('top');
+  const hintEl = document.getElementById('hint');
+  const toastEl = document.getElementById('toast');
+  const bookEl = document.getElementById('book');
+  const bookLead = document.getElementById('bookLead');
+  const bookList = document.getElementById('bookList');
+  const bTon = document.getElementById('bTon');
+  const bHeft = document.getElementById('bHeft');
+  const bClose = document.getElementById('bClose');
+  const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  const food = { samen: 0, knoedel: 0, apfel: 0, wasser: 0 };
+  const book = {};
+  const emptySaid = { samen: false, knoedel: false, apfel: false, wasser: false };
+  const guests = [];
+  const flakes = [];
+  const particles = [];
+  const ripples = [];
+  const knocks = [];
+  const prints = [];
+  const L = {};
+
+  let W = 0, H = 0, dpr = 1, barH = -1, topH = -1;
+  let time = 0, last = 0, spawnIn = 8, squabAcc = 1.2, singLock = 0, windAt = 4;
+  let soundOn = false, userMuted = false, announced = false;
+  let actx = null, master = null, noiseBuf = null;
+  let bookOpen = false, hintGone = false, dirty = false, saveTimer = 0, toastTimer = 0;
+  let statusNow = '';
+  let frost = document.createElement('canvas');
+
+  function clamp(v, a, b) { return v < a ? a : (v > b ? b : v); }
+  function mulberry32(seed) {
+    let a = seed >>> 0;
+    return function () {
+      a |= 0;
+      a = (a + 0x6D2B79F5) | 0;
+      let t = Math.imul(a ^ (a >>> 15), 1 | a);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+  function amountWord(v) {
+    if (v < 0.08) return 'leer';
+    if (v < 0.4) return 'wenig';
+    if (v < 0.78) return 'halb';
+    return 'voll';
+  }
+  function fmtDate(ts) {
+    const d = new Date(ts);
+    if (isNaN(d.getTime())) return '';
+    const p = function (n) { return String(n).padStart(2, '0'); };
+    return p(d.getDate()) + '.' + p(d.getMonth() + 1) + '.' + d.getFullYear();
+  }
+  function roundRect(x, y, w, h, r) {
+    const rr = Math.min(r, w * 0.5, h * 0.5);
+    ctx.beginPath();
+    ctx.moveTo(x + rr, y);
+    ctx.arcTo(x + w, y, x + w, y + h, rr);
+    ctx.arcTo(x + w, y + h, x, y + h, rr);
+    ctx.arcTo(x, y + h, x, y, rr);
+    ctx.arcTo(x, y, x + w, y, rr);
+    ctx.closePath();
+  }
+  function suetR() {
+    if (food.knoedel < 0.04) return L.U * 0.16;
+    return L.U * (0.32 + 0.26 * food.knoedel);
+  }
+  function roofY(x) {
+    const x0 = L.feederX;
+    const x1 = L.feederX + L.feederHW + L.U * 0.45;
+    const t = clamp((x - x0) / (x1 - x0 || 1), 0, 1);
+    return L.peakY + (L.eaveY - L.peakY) * t;
+  }
+
+  function load() {
+    try {
+      const raw = localStorage.getItem(KEY);
+      if (!raw) return;
+      const data = JSON.parse(raw);
+      if (data && data.food) {
+        FOODS.forEach(function (k) {
+          const v = Number(data.food[k]);
+          if (v >= 0 && v <= 1) food[k] = v;
+        });
+      }
+      if (data && data.book && typeof data.book === 'object') {
+        SPECIES.forEach(function (sp) {
+          const b = data.book[sp.id];
+          if (!b) return;
+          const n = Number(b.n);
+          if (n > 0) book[sp.id] = { n: Math.min(9999, n | 0), t: Number(b.t) || Date.now() };
+        });
+      }
+    } catch (e) { /* storage off */ }
+  }
+  function save() {
+    try {
+      localStorage.setItem(KEY, JSON.stringify({ food: food, book: book }));
+    } catch (e) { /* storage full */ }
+  }
+  function markDirty() {
+    dirty = true;
+    if (saveTimer) return;
+    saveTimer = setTimeout(function () {
+      saveTimer = 0;
+      if (!dirty) return;
+      dirty = false;
+      save();
+    }, 350);
+  }
+
+  function syncTon() {
+    bTon.classList.toggle('on', soundOn);
+    bTon.setAttribute('aria-pressed', soundOn ? 'true' : 'false');
+    bTon.setAttribute('aria-label', soundOn ? 'Ton ist an. Tippen zum Ausschalten.' : 'Ton ist aus. Tippen zum Einschalten.');
+  }
+  function ensureAudio() {
+    if (actx) {
+      if (actx.state === 'suspended') actx.resume().then(function () {}, function () {});
+      return true;
+    }
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return false;
+    try {
+      actx = new AC();
+      master = actx.createGain();
+      master.gain.value = 0.0001;
+      master.connect(actx.destination);
+      const n = Math.max(1, Math.floor(actx.sampleRate * 0.5));
+      noiseBuf = actx.createBuffer(1, n, actx.sampleRate);
+      const d = noiseBuf.getChannelData(0);
+      for (let i = 0; i < n; i++) d[i] = Math.random() * 2 - 1;
+      if (actx.state === 'suspended') actx.resume().then(function () {}, function () {});
+    } catch (e) {
+      actx = null;
+      return false;
+    }
+    return true;
+  }
+  function setSound(on) {
+    const was = soundOn;
+    soundOn = !!on;
+    if (soundOn && !ensureAudio()) soundOn = false;
+    if (actx && master) {
+      const t = actx.currentTime;
+      master.gain.cancelScheduledValues(t);
+      master.gain.setValueAtTime(soundOn ? 0.9 : 0.0001, t);
+    }
+    syncTon();
+    if (soundOn && !was && !announced) {
+      announced = true;
+      burst(523, 0.02, 0.16, 0.04, 'sine');
+      burst(784, 0.14, 0.26, 0.032, 'sine');
+    }
+  }
+  function arm() {
+    if (!userMuted && !soundOn) setSound(true);
+  }
+  function burst(freq, delay, dur, gain, type) {
+    if (!soundOn || !actx || !master) return;
+    const t = actx.currentTime + Math.max(0, delay);
+    const o = actx.createOscillator();
+    const g = actx.createGain();
+    o.type = type || 'sine';
+    o.frequency.setValueAtTime(freq, t);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(Math.max(0.0002, gain), t + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + Math.max(0.05, dur));
+    o.connect(g);
+    g.connect(master);
+    o.start(t);
+    o.stop(t + dur + 0.04);
+  }
+  function noiseBurst(dur, freq, gain, delay) {
+    if (!soundOn || !actx || !master || !noiseBuf) return;
+    const t = actx.currentTime + (delay || 0);
+    const src = actx.createBufferSource();
+    src.buffer = noiseBuf;
+    const f = actx.createBiquadFilter();
+    f.type = 'bandpass';
+    f.frequency.setValueAtTime(freq, t);
+    f.Q.setValueAtTime(0.7, t);
+    const g = actx.createGain();
+    g.gain.setValueAtTime(Math.max(0.0002, gain), t);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + Math.max(0.04, dur));
+    src.connect(f);
+    f.connect(g);
+    g.connect(master);
+    src.start(t);
+    src.stop(t + dur + 0.02);
+  }
+  function playFill(fk) {
+    if (!soundOn) return;
+    if (fk === 'samen') noiseBurst(0.16, 1400, 0.03);
+    else if (fk === 'knoedel') burst(220, 0.01, 0.12, 0.04, 'triangle');
+    else if (fk === 'apfel') { burst(440, 0.01, 0.08, 0.03, 'sine'); burst(330, 0.07, 0.1, 0.025, 'sine'); }
+    else { burst(660, 0.01, 0.08, 0.03, 'sine'); burst(880, 0.08, 0.12, 0.025, 'sine'); }
+  }
+  function playKnock() {
+    if (!soundOn) return;
+    burst(150, 0.01, 0.12, 0.05, 'sine');
+    noiseBurst(0.08, 500, 0.03);
+  }
+  function trySing(g) {
+    if (!soundOn || time < singLock) return;
+    const spec = SPECIES[g.i];
+    if (spec.id === 'specht') {
+      singLock = time + 2.4;
+      for (let i = 0; i < 4; i++) noiseBurst(0.03, 680, 0.028, i * 0.07);
+      return;
+    }
+    if (!spec.song) return;
+    singLock = time + 2.6;
+    let at = 0;
+    spec.song.forEach(function (n) {
+      burst(n[0], at, n[1], 0.028, 'sine');
+      at += n[1] + 0.045;
+    });
+  }
+
+  function toast(msg) {
+    toastEl.hidden = false;
+    toastEl.textContent = msg;
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { toastEl.hidden = true; }, 2400);
+  }
+  function dismissHint() {
+    if (hintGone) return;
+    hintGone = true;
+    hintEl.classList.add('gone');
+    setTimeout(function () { hintEl.hidden = true; }, reduce ? 0 : 650);
+  }
+  function updateMeters() {
+    FOODS.forEach(function (k) {
+      const btn = document.querySelector('[data-food="' + k + '"] i');
+      if (btn) btn.style.width = Math.round(food[k] * 100) + '%';
+      const b = document.querySelector('[data-food="' + k + '"]');
+      if (b) b.setAttribute('aria-label', b.title.replace(/ \(.\)$/, '') + ', ' + amountWord(food[k]));
+    });
+  }
+  function seenLine(b) {
+    if (!b || !b.n) return 'noch nicht gesehen';
+    const mal = b.n === 1 ? 'einmal gesehen' : (b.n + ' mal gesehen');
+    return mal + ' · zuerst ' + fmtDate(b.t);
+  }
+  function bookSummary() {
+    let n = 0, k = 0;
+    SPECIES.forEach(function (sp) {
+      const b = book[sp.id];
+      if (b && b.n) { n += b.n; k++; }
+    });
+    if (!n) return 'Noch niemand. Fülle das Häuschen und warte am Fenster.';
+    return n + (n === 1 ? ' Sichtung' : ' Sichtungen') + ', ' + k + ' von 8 Gästen.';
+  }
+  function renderBook() {
+    bookLead.textContent = bookSummary();
+    bookList.replaceChildren();
+    SPECIES.forEach(function (sp) {
+      const li = document.createElement('li');
+      const dot = document.createElement('span');
+      dot.className = 'dot';
+      dot.style.background = sp.swatch;
+      const div = document.createElement('div');
+      const strong = document.createElement('strong');
+      strong.textContent = sp.name;
+      const meta = document.createElement('span');
+      meta.className = 'meta';
+      meta.textContent = seenLine(book[sp.id]);
+      const note = document.createElement('span');
+      note.className = 'note';
+      note.textContent = sp.note;
+      div.append(strong, meta, note);
+      li.append(dot, div);
+      bookList.append(li);
+    });
+  }
+  function openBook() {
+    bookOpen = true;
+    bookEl.hidden = false;
+    bHeft.setAttribute('aria-expanded', 'true');
+    bHeft.classList.add('on');
+    renderBook();
+    bClose.focus();
+  }
+  function closeBook() {
+    bookOpen = false;
+    bookEl.hidden = true;
+    bHeft.setAttribute('aria-expanded', 'false');
+    bHeft.classList.remove('on');
+    bHeft.focus();
+  }
+  function sight(i) {
+    const id = SPECIES[i].id;
+    const was = book[id];
+    if (!was) book[id] = { n: 1, t: Date.now() };
+    else was.n = Math.min(9999, was.n + 1);
+    markDirty();
+    if (bookOpen) renderBook();
+    return !was;
+  }
+
+  function guestSentence() {
+    let g = null;
+    for (let i = 0; i < guests.length; i++) {
+      if (guests[i].mode === 'forage' || guests[i].mode === 'squabble') { g = guests[i]; break; }
+    }
+    if (!g) g = guests[0];
+    const spec = SPECIES[g.i];
+    if (g.mode === 'squabble') return spec.name + ' zankt sich.';
+    if (g.mode !== 'forage') return spec.name + ' ist unterwegs.';
+    let verb = 'pickt';
+    if (g.station === 'water') verb = 'trinkt';
+    else if (spec.id === 'eich') verb = 'nascht';
+    else if (spec.id === 'specht') verb = 'hackt';
+    let s = spec.name + ' ' + verb + ' ' + PLACE[g.station] + '.';
+    if (guests.length > 1) s += ' ' + guests.length + ' Gäste am Fenster.';
+    return s;
+  }
+  function buildStatus() {
+    const line = 'Samen ' + amountWord(food.samen) + ', Knödel ' + amountWord(food.knoedel) + ', Apfel ' + amountWord(food.apfel) + ', Wasser ' + amountWord(food.wasser) + '.';
+    if (!guests.length) {
+      const any = food.samen + food.knoedel + food.apfel + food.wasser > 0.05;
+      return any ? ('Das Futter steht bereit. ' + line) : 'Still. Fülle Samen, Knödel, Apfel oder Wasser.';
+    }
+    if (guests.every(function (g) { return g.mode === 'flee' || g.mode === 'drop' || g.mode === 'away' || g.mode === 'out'; })) {
+      return 'Alle fliegen auf. ' + line;
+    }
+    return guestSentence() + ' ' + line;
+  }
+  function updateStatus() {
+    const s = buildStatus();
+    if (s === statusNow) return;
+    statusNow = s;
+    statusEl.textContent = s;
+  }
+
+  function layout() {
+    const w = Math.max(1, window.innerWidth);
+    const h = Math.max(1, window.innerHeight);
+    const bh = barEl.offsetHeight;
+    const th = topEl.offsetHeight;
+    const nextDpr = Math.min(2, window.devicePixelRatio || 1);
+    if (w === W && h === H && bh === barH && th === topH && nextDpr === dpr && L.glass) return;
+    W = w; H = h; barH = bh; topH = th; dpr = nextDpr;
+    canvas.width = Math.max(1, Math.round(W * dpr));
+    canvas.height = Math.max(1, Math.round(H * dpr));
+    document.documentElement.style.setProperty('--bar', bh + 'px');
+    document.documentElement.style.setProperty('--top', th + 'px');
+    const frameT = clamp(Math.min(W, H) * 0.028, 12, 30);
+    const x0 = clamp(W * 0.018, 8, 20);
+    const y0 = th + 6;
+    const y1 = H - bh - 4;
+    L.frame = { x: x0, y: y0, w: Math.max(80, W - x0 * 2), h: Math.max(88, y1 - y0) };
+    let sillH = Math.max(frameT * 1.35, 26);
+    const topRail = frameT * 0.72;
+    let gh = L.frame.h - topRail - sillH;
+    if (gh < 78) {
+      sillH = Math.max(16, L.frame.h - topRail - 78);
+      gh = L.frame.h - topRail - sillH;
+    }
+    L.t = frameT;
+    L.sillH = sillH;
+    L.glass = {
+      x: L.frame.x + frameT,
+      y: L.frame.y + topRail,
+      w: Math.max(40, L.frame.w - frameT * 2),
+      h: Math.max(40, gh)
+    };
+    const g = L.glass;
+    L.U = clamp(Math.min(g.w, g.h) / 18, 13, 28);
+    L.groundY = g.y + g.h * 0.74;
+    // Mullions sit off the feeder so the house is not sliced in half.
+    L.muntinX = g.x + g.w * 0.36;
+    L.muntinY = g.y + g.h * 0.6;
+    L.feederX = g.x + g.w * 0.64;
+    L.feederHW = clamp(L.U * 2.05, 32, 78);
+    L.trayY = L.muntinY - L.U * 1.15;
+    L.eaveY = L.trayY - L.U * 2.05;
+    L.peakY = L.trayY - L.U * 3.05;
+    if (L.peakY < g.y + 10) {
+      const shift = g.y + 10 - L.peakY;
+      L.peakY += shift;
+      L.eaveY += shift;
+      L.trayY += shift;
+    }
+    if (L.trayY > L.groundY - L.U) {
+      const shift = L.trayY - (L.groundY - L.U);
+      L.trayY -= shift;
+      L.eaveY -= shift;
+      L.peakY -= shift;
+    }
+    L.suet = {
+      x: Math.max(g.x + L.U, L.feederX - L.feederHW - L.U * 1.15),
+      y: L.eaveY + L.U * 1.45
+    };
+    L.hook = { x: L.feederX - L.feederHW + 2, y: L.eaveY };
+    L.birchX = g.x + g.w - L.U * 0.85;
+    L.appleR = L.U * 0.46;
+    L.apple = {
+      x: clamp(L.feederX + L.feederHW + L.U * 2.3, L.feederX + L.feederHW + L.U * 1.15, L.birchX - L.U * 1.5),
+      y: L.trayY - L.U * 0.15
+    };
+    L.water = {
+      x: clamp(g.x + g.w * 0.28, g.x + L.U * 1.6, g.x + g.w * 0.4),
+      y: L.groundY - 1,
+      rx: L.U * 1.02,
+      ry: L.U * 0.36
+    };
+    const rng = mulberry32(11);
+    L.trees = [];
+    for (let i = 0; i < 8; i++) {
+      L.trees.push({
+        x: g.x + g.w * (0.04 + rng() * 0.92),
+        h: L.U * (0.8 + rng() * 1.4)
+      });
+    }
+    buildFrost();
+    if (flakes.length !== snowWant()) seedSnow();
+    retarget();
+  }
+  function snowWant() {
+    return Math.round(clamp((W * H) / 11000, 36, 120));
+  }
+  function seedSnow() {
+    flakes.length = 0;
+    const n = snowWant();
+    for (let i = 0; i < n; i++) {
+      flakes.push({
+        x: Math.random() * W,
+        y: Math.random() * H,
+        z: Math.random(),
+        drift: Math.random() * 8 - 4
+      });
+    }
+  }
+  function buildFrost() {
+    const g = L.glass;
+    frost.width = Math.max(1, Math.round(g.w));
+    frost.height = Math.max(1, Math.round(g.h));
+    const f = frost.getContext('2d');
+    f.clearRect(0, 0, frost.width, frost.height);
+    f.strokeStyle = 'rgba(255,255,255,.7)';
+    f.lineWidth = 1;
+    f.lineCap = 'round';
+    const rng = mulberry32(42);
+    function fern(x, y, ang, len, dep) {
+      if (dep <= 0 || len < 3) return;
+      const x2 = x + Math.cos(ang) * len;
+      const y2 = y + Math.sin(ang) * len;
+      f.beginPath();
+      f.moveTo(x, y);
+      f.lineTo(x2, y2);
+      f.stroke();
+      fern(x2, y2, ang + 0.55 + rng() * 0.2, len * 0.66, dep - 1);
+      if (dep > 2 && rng() > 0.35) fern(x2, y2, ang - 0.6, len * 0.55, dep - 1);
+    }
+    const reach = Math.min(g.w, g.h) * 0.11;
+    f.strokeStyle = 'rgba(255,255,255,.55)';
+    fern(1, 1, 0.55, reach, 4);
+    fern(g.w - 1, 1, 2.55, reach, 4);
+    fern(1, g.h - 1, -0.45, reach * 0.65, 3);
+    fern(g.w - 1, g.h - 1, Math.PI + 0.45, reach * 0.6, 3);
+  }
+  function retarget() {
+    guests.forEach(function (g) {
+      if (!L.glass) return;
+      if (g.mode === 'flee' || g.mode === 'out' || g.mode === 'away' || g.mode === 'drop') return;
+      const p = perchFor(g);
+      g.tx = p.x;
+      g.ty = p.y;
+      g.px = SPECIES[g.i].id === 'eich' ? (g.station === 'apple' ? L.birchX : L.feederX) : g.px;
+    });
+  }
+  function perchFor(g) {
+    const U = L.U;
+    const slot = g.slot || 0;
+    const spec = SPECIES[g.i];
+    if (g.station === 'feeder') {
+      if (spec.id === 'eich') {
+        const x = L.feederX + L.feederHW * 0.42;
+        return { x: x, y: roofY(x), face: 1 };
+      }
+      const side = slot % 2 === 0 ? -1 : 1;
+      const inset = slot > 1 ? 0.32 : 0.62;
+      return { x: L.feederX + side * L.feederHW * inset, y: L.trayY, face: -side };
+    }
+    if (g.station === 'suet') {
+      const r = suetR();
+      if (g.hang) return { x: L.suet.x, y: L.suet.y + r - 1, face: 1 };
+      const side = slot % 2 === 0 ? -1 : 1;
+      if (spec.id === 'specht') return { x: L.suet.x + side * (r + 2), y: L.suet.y + U * 0.72, face: -side };
+      return { x: L.suet.x + side * (r + 2), y: L.suet.y + r * 0.2, face: -side };
+    }
+    if (g.station === 'apple') {
+      if (spec.id === 'eich') return { x: L.apple.x - L.appleR - U * 0.15, y: L.apple.y + L.appleR * 0.35, face: 1 };
+      const side = slot % 2 === 0 ? -1 : 1;
+      return { x: L.apple.x + side * (L.appleR + U * 0.2), y: L.apple.y + L.appleR * 0.42, face: -side };
+    }
+    if (g.station === 'water') {
+      const offs = [-0.62, 0.58, -0.12, 0.22];
+      const o = offs[slot % offs.length];
+      return { x: L.water.x + L.water.rx * o, y: L.water.y, face: o > 0 ? -1 : 1 };
+    }
+    const spots = [0.15, 0.43, 0.63, 0.86];
+    const x = L.glass.x + L.glass.w * spots[slot % spots.length];
+    return { x: x, y: L.groundY, face: x < L.feederX ? 1 : -1 };
+  }
+
+  function countOf(i) {
+    let n = 0;
+    for (let k = 0; k < guests.length; k++) {
+      if (guests[k].i === i && guests[k].mode !== 'flee' && guests[k].mode !== 'out' && guests[k].mode !== 'away') n++;
+    }
+    return n;
+  }
+  function maxGuests() { return W < 560 ? 3 : 4; }
+  function pickVisit() {
+    const bag = [];
+    SPECIES.forEach(function (sp, i) {
+      if (countOf(i) >= sp.max) return;
+      FOODS.forEach(function (fk) {
+        if (food[fk] < 0.08 || !sp.where[fk] || sp.like[fk] <= 0.15) return;
+        const station = sp.where[fk];
+        const occupied = guests.some(function (g) {
+          return g.station === station && g.mode !== 'flee' && g.mode !== 'out' && g.mode !== 'away';
+        });
+        bag.push({ i: i, fk: fk, w: sp.like[fk] * food[fk] * (occupied ? 0.4 : 1) });
+      });
+    });
+    if (!bag.length) return null;
+    let sum = 0;
+    bag.forEach(function (b) { sum += b.w; });
+    let r = Math.random() * sum;
+    for (let i = 0; i < bag.length; i++) {
+      r -= bag[i].w;
+      if (r <= 0) return bag[i];
+    }
+    return bag[bag.length - 1];
+  }
+  function spawn(choice) {
+    const spec = SPECIES[choice.i];
+    const station = spec.where[choice.fk];
+    const g = {
+      i: choice.i,
+      fk: choice.fk,
+      station: station,
+      slot: guests.filter(function (o) { return o.station === station; }).length,
+      hang: spec.hang > 0 && station === 'suet' && Math.random() < spec.hang,
+      mode: 'in',
+      action: 'idle',
+      x: 0, y: 0, tx: 0, ty: 0, px: 0,
+      face: 1,
+      t: 0,
+      life: 9 + Math.random() * 10,
+      flap: Math.random() * 6,
+      peck: 0,
+      peckPhase: 0,
+      hopY: 0,
+      hopDur: 0.32,
+      x0: 0, x1: 0,
+      run: 0,
+      vy: 0,
+      vx: 0,
+      noted: false,
+      sing: 2 + Math.random() * 5,
+      fast: false,
+      foe: null,
+      dead: false
+    };
+    const p = perchFor(g);
+    g.tx = p.x;
+    g.ty = p.y;
+    g.face = p.face;
+    if (spec.id === 'eich') {
+      g.mode = 'runin';
+      g.px = station === 'apple' ? L.birchX : L.feederX;
+      g.x = Math.random() < 0.5 ? L.glass.x - 24 : L.glass.x + L.glass.w + 24;
+      g.y = L.groundY;
+      g.face = g.tx >= g.x ? 1 : -1;
+    } else {
+      g.x = Math.random() < 0.5 ? L.glass.x - 20 : L.glass.x + L.glass.w + 20;
+      g.y = p.y - L.U * (1.1 + Math.random() * 0.8);
+      g.face = g.tx >= g.x ? 1 : -1;
+    }
+    guests.push(g);
+  }
+  function fleeOne(g, fromX) {
+    if (!g || g.dead) return;
+    if (g.mode === 'flee' || g.mode === 'away' || g.mode === 'drop') return;
+    g.foe = null;
+    g.hopY = 0;
+    if (SPECIES[g.i].id === 'eich') {
+      g.fast = true;
+      if (g.y < L.groundY - 6) { g.mode = 'drop'; g.vy = -10; }
+      else {
+        g.mode = 'away';
+        g.face = g.x < (fromX == null ? L.feederX : fromX) ? -1 : 1;
+      }
+      return;
+    }
+    g.mode = 'flee';
+    const sx = fromX == null ? g.x - g.face * 8 : fromX;
+    const dir = g.x >= sx ? 1 : -1;
+    g.face = dir;
+    g.vx = dir * (200 + Math.random() * 80);
+    g.vy = -130 - Math.random() * 80;
+  }
+  function scareAll(x, y) {
+    knocks.push({ x: x, y: y, r: 6, a: 0.72 });
+    let n = 0;
+    guests.forEach(function (g) {
+      const before = g.mode;
+      fleeOne(g, x);
+      if (g.mode !== before) n++;
+    });
+    toast(n ? 'Alle fliegen auf.' : 'Das Glas klopft. Niemand da.');
+    playKnock();
+  }
+  function scareIfBully(g) {
+    const id = SPECIES[g.i].id;
+    if (id !== 'eich' && id !== 'specht') {
+      for (let i = 0; i < guests.length; i++) {
+        const o = guests[i];
+        if (o === g) continue;
+        const oid = SPECIES[o.i].id;
+        if ((oid === 'eich' || oid === 'specht') && (o.mode === 'forage' || o.mode === 'squabble') && Math.hypot(o.x - g.x, o.y - g.y) < L.U * 3.6) {
+          fleeOne(g, o.x);
+          return false;
+        }
+      }
+      return false;
+    }
+    let n = 0;
+    guests.forEach(function (o) {
+      if (o === g || SPECIES[o.i].id === 'eich') return;
+      if (o.mode === 'flee' || o.mode === 'out' || o.mode === 'away' || o.mode === 'drop') return;
+      if (Math.hypot(o.x - g.x, o.y - g.y) < L.U * 3.8) { fleeOne(o, g.x); n++; }
+    });
+    return n > 0;
+  }
+  function land(g) {
+    const p = perchFor(g);
+    g.mode = 'forage';
+    g.action = 'idle';
+    g.t = 0.3 + Math.random() * 0.45;
+    g.x = p.x;
+    g.y = p.y;
+    g.tx = p.x;
+    g.ty = p.y;
+    g.face = p.face;
+    g.hopY = 0;
+    g.peck = 0;
+    if (!g.noted) {
+      g.noted = true;
+      const isNew = sight(g.i);
+      const scared = scareIfBully(g);
+      if (isNew) toast(SPECIES[g.i].name + ', neu im Heft.');
+      else if (scared && SPECIES[g.i].id === 'eich') toast('Das Eichhörnchen scheucht die Vögel auf.');
+    }
+  }
+  function startLeave(g) {
+    if (g.mode === 'flee' || g.mode === 'out' || g.mode === 'away' || g.mode === 'drop') return;
+    g.foe = null;
+    g.hopY = 0;
+    if (SPECIES[g.i].id === 'eich') { g.mode = 'drop'; g.vy = -20; return; }
+    g.mode = 'out';
+    g.face = g.x < L.feederX ? -1 : 1;
+    g.tx = g.face > 0 ? L.glass.x + L.glass.w + 40 : L.glass.x - 40;
+    g.ty = Math.max(L.glass.y + 16, g.y - L.U * 1.5);
+  }
+  function nibble(g, dt) {
+    const fk = g.fk;
+    if (food[fk] <= 0) return;
+    const before = food[fk];
+    const rate = SPECIES[g.i].id === 'eich' ? 0.02 : 0.011;
+    food[fk] = Math.max(0, food[fk] - rate * dt);
+    if (before >= 0.08 && food[fk] < 0.08 && !emptySaid[fk]) {
+      emptySaid[fk] = true;
+      toast(EMPTY_TOAST[fk]);
+    }
+    markDirty();
+    updateMeters();
+  }
+  function crumb(g) {
+    if (particles.length > 36) return;
+    particles.push({
+      x: g.x + (g.face || 1) * 6,
+      y: g.y - 2,
+      vx: (Math.random() - 0.5) * 16,
+      vy: -18 - Math.random() * 16,
+      life: 0.55,
+      kind: g.station === 'water' ? 'drop' : 'seed'
+    });
+  }
+  function fill(fk) {
+    dismissHint();
+    food[fk] = Math.min(1, food[fk] + 0.34);
+    if (food[fk] > 0.12) emptySaid[fk] = false;
+    spawnIn = Math.min(spawnIn, 0.45);
+    updateMeters();
+    markDirty();
+    toast(FILL_TOAST[fk]);
+    playFill(fk);
+    const origin = foodPoint(fk);
+    for (let i = 0; i < 7; i++) {
+      particles.push({
+        x: origin.x,
+        y: origin.y,
+        vx: (Math.random() - 0.5) * 40,
+        vy: -20 - Math.random() * 30,
+        life: 0.5,
+        kind: fk === 'wasser' ? 'drop' : 'seed'
+      });
+    }
+  }
+  function foodPoint(fk) {
+    if (fk === 'samen') return { x: L.feederX, y: L.trayY };
+    if (fk === 'knoedel') return { x: L.suet.x, y: L.suet.y };
+    if (fk === 'apfel') return { x: L.apple.x, y: L.apple.y };
+    return { x: L.water.x, y: L.water.y };
+  }
+  function offscreen(g) {
+    const m = 48;
+    const gl = L.glass;
+    return g.x < gl.x - m || g.x > gl.x + gl.w + m || g.y < gl.y - m || g.y > gl.y + gl.h + m;
+  }
+  function syncPerch(g, dt) {
+    const p = perchFor(g);
+    g.tx = p.x;
+    g.ty = p.y;
+    if (g.action !== 'hop') {
+      g.x += (p.x - g.x) * Math.min(1, dt * 4);
+      g.y += (p.y - g.y) * Math.min(1, dt * 4);
+      if (g.action === 'idle') g.face = p.face;
+    }
+  }
+  function startPeck(g) {
+    g.action = g.station === 'water' ? 'drink' : 'peck';
+    g.t = 1.05 + Math.random() * 0.7;
+    g.peckPhase = 0;
+  }
+  function startHop(g) {
+    if (g.hang || SPECIES[g.i].id === 'specht') { startPeck(g); return; }
+    g.action = 'hop';
+    g.t = 0;
+    g.hopDur = 0.32;
+    g.x0 = g.x;
+    const dir = Math.random() < 0.5 ? -1 : 1;
+    let x1 = g.x + dir * L.U * (0.35 + Math.random() * 0.5);
+    x1 = clamp(x1, g.tx - L.U * 1.25, g.tx + L.U * 1.25);
+    x1 = clamp(x1, L.glass.x + 12, L.glass.x + L.glass.w - 12);
+    g.x1 = x1;
+  }
+  function finishSquabble(g) {
+    if (g.mode !== 'squabble') return;
+    const foe = g.foe;
+    g.mode = 'forage';
+    g.action = 'idle';
+    g.t = 0.45;
+    g.foe = null;
+    g.hopY = 0;
+    if (!foe || foe.mode !== 'squabble') return;
+    foe.mode = 'forage';
+    foe.action = 'idle';
+    foe.t = 0.45;
+    foe.foe = null;
+    foe.hopY = 0;
+    const lb = SPECIES[g.i].bold;
+    const fb = SPECIES[foe.i].bold;
+    const loser = lb === fb ? (g.slot <= foe.slot ? g : foe) : (lb < fb ? g : foe);
+    fleeOne(loser, loser === g ? foe.x : g.x);
+  }
+  function stepForage(g, dt) {
+    syncPerch(g, dt);
+    g.life -= dt;
+    g.sing -= dt;
+    g.flap += dt * (g.mode === 'squabble' ? 18 : 2.4);
+    if (g.sing <= 0 && g.mode === 'forage') {
+      trySing(g);
+      g.sing = 7 + Math.random() * 8;
+    }
+    if (g.life <= 0 || food[g.fk] < 0.05) { startLeave(g); return; }
+    if (g.action === 'hop') {
+      g.t += dt;
+      const u = clamp(g.t / g.hopDur, 0, 1);
+      g.x = g.x0 + (g.x1 - g.x0) * u;
+      g.hopY = Math.sin(u * Math.PI) * L.U * 0.42;
+      g.face = g.x1 >= g.x0 ? 1 : -1;
+      if (u >= 1) {
+        g.action = 'idle';
+        g.t = 0.25 + Math.random() * 0.3;
+        g.hopY = 0;
+        g.x = g.x1;
+        if (g.station === 'ground' || g.station === 'water') {
+          prints.push({ x: g.x, y: L.groundY + 1, a: 0.32 });
+          if (prints.length > 14) prints.shift();
+        }
+      }
+      return;
+    }
+    if (g.action === 'peck' || g.action === 'drink') {
+      g.t -= dt;
+      g.peckPhase += dt * 9;
+      g.peck = Math.abs(Math.sin(g.peckPhase));
+      nibble(g, dt * (0.35 + g.peck));
+      if (g.action === 'drink' && Math.random() < dt * 3.5) {
+        ripples.push({ x: g.x, y: L.water.y + 1, r: 1.5, a: 0.4 });
+      }
+      if (Math.random() < dt * 4) crumb(g);
+      if (g.t <= 0) {
+        g.action = 'idle';
+        g.peck = 0;
+        g.t = 0.28 + Math.random() * 0.55;
+      }
+      return;
+    }
+    g.t -= dt;
+    g.peck = 0;
+    g.hopY *= 0.8;
+    if (g.t > 0) return;
+    const roll = Math.random();
+    if (roll < 0.6) startPeck(g);
+    else if (roll < 0.86) startHop(g);
+    else g.t = 0.6 + Math.random() * 0.6;
+  }
+  function stepFly(g, dt, speed) {
+    const dx = g.tx - g.x;
+    const dy = g.ty - g.y;
+    const dist = Math.hypot(dx, dy) || 0.0001;
+    if (g.mode === 'in' && dist < 5) { land(g); return; }
+    if ((g.mode === 'out' || g.mode === 'flee') && offscreen(g)) { g.dead = true; return; }
+    g.x += (dx / dist) * speed * dt;
+    g.y += (dy / dist) * speed * dt;
+    g.face = dx >= 0 ? 1 : -1;
+    g.flap += dt * 16;
+  }
+  function stepSquirrel(g, dt) {
+    const spd = g.fast ? 150 : 76;
+    if (g.mode === 'runin') {
+      g.y = L.groundY;
+      g.run += dt * 12;
+      g.hopY = Math.abs(Math.sin(g.run)) * 3.2;
+      const dx = g.px - g.x;
+      if (Math.abs(dx) < 4) {
+        g.x = g.px;
+        g.hopY = 0;
+        g.mode = Math.abs(g.ty - L.groundY) < 10 ? 'walk' : 'climb';
+        return;
+      }
+      g.face = dx > 0 ? 1 : -1;
+      g.x += Math.sign(dx) * spd * dt;
+      return;
+    }
+    if (g.mode === 'climb') {
+      g.hopY = 0;
+      const dy = g.ty - g.y;
+      if (Math.abs(dy) < 3) {
+        g.y = g.ty;
+        g.mode = Math.abs(g.tx - g.x) > 6 ? 'walk' : 'forage';
+        if (g.mode === 'forage') land(g);
+        return;
+      }
+      g.y += Math.sign(dy) * 50 * dt;
+      return;
+    }
+    if (g.mode === 'walk') {
+      g.y = g.ty;
+      g.run += dt * 10;
+      const dx = g.tx - g.x;
+      if (Math.abs(dx) < 3) { land(g); return; }
+      g.face = dx > 0 ? 1 : -1;
+      g.x += Math.sign(dx) * 48 * dt;
+      return;
+    }
+    if (g.mode === 'drop' || (g.mode === 'flee' && g.y < L.groundY)) {
+      g.vy += 520 * dt;
+      g.y += g.vy * dt;
+      g.hopY = 0;
+      if (g.y >= L.groundY) {
+        g.y = L.groundY;
+        g.vy = 0;
+        g.mode = 'away';
+        g.face = g.x < (L.glass.x + L.glass.w * 0.5) ? -1 : 1;
+      }
+      return;
+    }
+    if (g.mode === 'away' || g.mode === 'flee') {
+      g.y = L.groundY;
+      g.run += dt * 14;
+      g.hopY = Math.abs(Math.sin(g.run)) * 3.4;
+      g.x += g.face * spd * dt;
+      if (offscreen(g)) g.dead = true;
+      return;
+    }
+    if (g.mode === 'forage') stepForage(g, dt);
+  }
+  function stepGuest(g, dt) {
+    if (SPECIES[g.i].id === 'eich') { stepSquirrel(g, dt); return; }
+    if (g.mode === 'flee') {
+      g.vy += 70 * dt;
+      g.x += g.vx * dt;
+      g.y += g.vy * dt;
+      g.face = g.vx >= 0 ? 1 : -1;
+      g.flap += dt * 22;
+      if (offscreen(g)) g.dead = true;
+      return;
+    }
+    if (g.mode === 'in') { stepFly(g, dt, 100); return; }
+    if (g.mode === 'out') { stepFly(g, dt, 120); return; }
+    if (g.mode === 'squabble') {
+      g.t -= dt;
+      g.flap += dt * 20;
+      const foe = g.foe;
+      if (foe && !foe.dead) {
+        g.face = foe.x >= g.x ? 1 : -1;
+        g.hopY = Math.abs(Math.sin(time * 16 + g.slot)) * 3;
+        g.x += Math.sin(time * 14 + g.slot) * 16 * dt;
+      }
+      if (g.t <= 0) finishSquabble(g);
+      return;
+    }
+    if (g.mode === 'forage') stepForage(g, dt);
+  }
+  function considerSquabble() {
+    for (let a = 0; a < guests.length; a++) {
+      for (let b = a + 1; b < guests.length; b++) {
+        const A = guests[a], B = guests[b];
+        if (A.mode !== 'forage' || B.mode !== 'forage') continue;
+        if (A.station !== B.station) continue;
+        if (SPECIES[A.i].id === 'eich' || SPECIES[B.i].id === 'eich') continue;
+        if (SPECIES[A.i].id === 'specht' || SPECIES[B.i].id === 'specht') continue;
+        if (Math.hypot(A.x - B.x, A.y - B.y) > L.U * 2.3) continue;
+        if (Math.random() > 0.55) continue;
+        A.mode = 'squabble';
+        B.mode = 'squabble';
+        A.t = 1.2;
+        B.t = 1.2;
+        A.foe = B;
+        B.foe = A;
+        toast('Die Gäste zanken sich.');
+        noiseBurst(0.1, 1600, 0.025);
+        return;
+      }
+    }
+  }
+  function stepSnow(dt) {
+    const wind = Math.sin(time * 0.18) * 16;
+    const sp = reduce ? 0.35 : 1;
+    for (let i = 0; i < flakes.length; i++) {
+      const f = flakes[i];
+      f.y += (16 + f.z * 42) * sp * dt;
+      f.x += (wind * (0.25 + f.z) + f.drift) * sp * dt;
+      if (f.y > H + 6) { f.y = -6; f.x = Math.random() * W; }
+      if (f.x > W + 10) f.x = -10;
+      if (f.x < -10) f.x = W + 10;
+    }
+  }
+  function stepRings(arr, dt, grow, fade) {
+    for (let i = arr.length - 1; i >= 0; i--) {
+      arr[i].r += grow * dt;
+      arr[i].a -= fade * dt;
+      if (arr[i].a <= 0) arr.splice(i, 1);
+    }
+  }
+  function step(dt) {
+    if (!L.glass) return;
+    time += dt;
+    stepSnow(dt);
+    stepRings(ripples, dt, 28, 0.7);
+    stepRings(knocks, dt, 90, 0.85);
+    for (let i = particles.length - 1; i >= 0; i--) {
+      const p = particles[i];
+      p.life -= dt;
+      p.vy += 90 * dt;
+      p.x += p.vx * dt;
+      p.y += p.vy * dt;
+      if (p.life <= 0) particles.splice(i, 1);
+    }
+    for (let i = prints.length - 1; i >= 0; i--) {
+      prints[i].a -= dt * 0.05;
+      if (prints[i].a <= 0) prints.splice(i, 1);
+    }
+    for (let i = 0; i < guests.length; i++) stepGuest(guests[i], dt);
+    for (let i = guests.length - 1; i >= 0; i--) if (guests[i].dead) guests.splice(i, 1);
+    squabAcc -= dt;
+    if (squabAcc <= 0) { squabAcc = 0.85; considerSquabble(); }
+    spawnIn -= dt;
+    if (spawnIn <= 0) {
+      spawnIn = 2.3 + Math.random() * 2.8;
+      if (guests.length < maxGuests()) {
+        const choice = pickVisit();
+        if (choice) spawn(choice);
+      }
+    }
+    if (soundOn && actx) {
+      windAt -= dt;
+      if (windAt <= 0) {
+        windAt = 8 + Math.random() * 7;
+        noiseBurst(1.4, 380, 0.012);
+      }
+    }
+    updateStatus();
+  }
+
+  function drawSnow(nearOnly) {
+    for (let i = 0; i < flakes.length; i++) {
+      const f = flakes[i];
+      const near = f.z > 0.84;
+      if (nearOnly !== near) continue;
+      if (!near) {
+        const g = L.glass;
+        if (f.x < g.x || f.x > g.x + g.w || f.y < g.y || f.y > g.y + g.h) continue;
+      }
+      ctx.globalAlpha = 0.28 + f.z * 0.6;
+      ctx.fillStyle = '#fff';
+      ctx.beginPath();
+      ctx.arc(f.x, f.y, 0.7 + f.z * 2.1, 0, TAU);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+  }
+  function drawBackground() {
+    const g = L.glass;
+    const sky = ctx.createLinearGradient(0, g.y, 0, L.groundY);
+    sky.addColorStop(0, '#7ea4c9');
+    sky.addColorStop(0.5, '#c9d9e8');
+    sky.addColorStop(1, '#f4e6dc');
+    ctx.fillStyle = sky;
+    ctx.fillRect(g.x, g.y, g.w, g.h);
+    ctx.fillStyle = '#d7e4f0';
+    ctx.beginPath();
+    ctx.moveTo(g.x, L.groundY);
+    ctx.quadraticCurveTo(g.x + g.w * 0.22, L.groundY - g.h * 0.18, g.x + g.w * 0.48, L.groundY - g.h * 0.05);
+    ctx.quadraticCurveTo(g.x + g.w * 0.72, L.groundY - g.h * 0.16, g.x + g.w, L.groundY - g.h * 0.04);
+    ctx.lineTo(g.x + g.w, L.groundY);
+    ctx.fill();
+    const hx = g.x + g.w * 0.16;
+    const hy = L.groundY - g.h * 0.1;
+    const hs = L.U * 1.15;
+    ctx.fillStyle = '#7f93a4';
+    ctx.fillRect(hx, hy - hs, hs * 1.5, hs);
+    ctx.fillStyle = '#f4f8fb';
+    ctx.beginPath();
+    ctx.moveTo(hx - hs * 0.15, hy - hs);
+    ctx.lineTo(hx + hs * 0.75, hy - hs * 1.65);
+    ctx.lineTo(hx + hs * 1.65, hy - hs);
+    ctx.fill();
+    ctx.fillStyle = '#f0c56a';
+    ctx.fillRect(hx + hs * 0.55, hy - hs * 0.58, hs * 0.28, hs * 0.32);
+    L.trees.forEach(function (t) {
+      const base = L.groundY - g.h * 0.035;
+      ctx.fillStyle = '#8ea3b6';
+      ctx.beginPath();
+      ctx.moveTo(t.x, base - t.h);
+      ctx.lineTo(t.x + t.h * 0.22, base);
+      ctx.lineTo(t.x - t.h * 0.22, base);
+      ctx.fill();
+      ctx.fillStyle = '#f7fbff';
+      ctx.beginPath();
+      ctx.moveTo(t.x, base - t.h);
+      ctx.lineTo(t.x + t.h * 0.08, base - t.h * 0.62);
+      ctx.lineTo(t.x - t.h * 0.06, base - t.h * 0.7);
+      ctx.fill();
+    });
+    ctx.fillStyle = '#f5f9fc';
+    ctx.fillRect(g.x, L.groundY, g.w, g.y + g.h - L.groundY);
+    ctx.fillStyle = '#e4eef6';
+    ctx.beginPath();
+    ctx.moveTo(g.x, L.groundY + 8);
+    ctx.quadraticCurveTo(g.x + g.w * 0.3, L.groundY + 18, g.x + g.w * 0.55, L.groundY + 6);
+    ctx.quadraticCurveTo(g.x + g.w * 0.8, L.groundY - 2, g.x + g.w, L.groundY + 10);
+    ctx.lineTo(g.x + g.w, L.groundY + 28);
+    ctx.lineTo(g.x, L.groundY + 28);
+    ctx.fill();
+  }
+  function drawSpruce() {
+    const g = L.glass;
+    const x = g.x + g.w * 0.1;
+    const base = L.groundY + 2;
+    const h = Math.min(g.h * 0.42, L.U * 7);
+    ctx.fillStyle = '#5c4030';
+    ctx.fillRect(x - L.U * 0.08, base - h * 0.28, L.U * 0.16, h * 0.28);
+    for (let i = 0; i < 5; i++) {
+      const yy = base - h * 0.22 - i * h * 0.13;
+      const w = h * 0.34 * (1 - i * 0.14);
+      ctx.fillStyle = i % 2 ? '#1d433b' : '#16362f';
+      ctx.beginPath();
+      ctx.moveTo(x, yy - h * 0.16);
+      ctx.lineTo(x + w, yy);
+      ctx.lineTo(x - w, yy);
+      ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,.8)';
+      ctx.beginPath();
+      ctx.moveTo(x, yy - h * 0.16);
+      ctx.lineTo(x + w * 0.42, yy - h * 0.05);
+      ctx.lineTo(x - w * 0.28, yy - h * 0.06);
+      ctx.fill();
+    }
+  }
+  function drawBirch() {
+    const x = L.birchX;
+    const base = L.groundY;
+    const top = L.glass.y + L.glass.h * 0.12;
+    ctx.fillStyle = '#f4efe4';
+    ctx.fillRect(x - L.U * 0.16, top, L.U * 0.32, base - top);
+    ctx.fillStyle = '#2c241c';
+    for (let i = 0; i < 7; i++) {
+      const y = top + (base - top) * (0.12 + i * 0.11);
+      ctx.fillRect(x - L.U * 0.16, y, L.U * (i % 2 ? 0.2 : 0.32), 2.5);
+    }
+    ctx.strokeStyle = '#6a5344';
+    ctx.lineWidth = Math.max(1.4, L.U * 0.06);
+    ctx.beginPath();
+    ctx.moveTo(x, top + L.U * 1.2);
+    ctx.quadraticCurveTo(x - L.U * 1.4, top + L.U * 0.4, x - L.U * 2.1, top + L.U * 0.9);
+    ctx.moveTo(x, top + L.U * 2.1);
+    ctx.quadraticCurveTo(x + L.U * 0.8, top + L.U * 1.4, x + L.U * 1.3, top + L.U * 1.7);
+    ctx.stroke();
+    ctx.strokeStyle = '#5c4636';
+    ctx.lineWidth = Math.max(1.5, L.U * 0.07);
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(x, L.apple.y - L.U * 0.2);
+    ctx.quadraticCurveTo((x + L.apple.x) * 0.5, L.apple.y - L.U * 0.8, L.apple.x + 4, L.apple.y - 2);
+    ctx.stroke();
+    ctx.fillStyle = 'rgba(255,255,255,.85)';
+    ctx.beginPath();
+    ctx.ellipse((x + L.apple.x) * 0.55, L.apple.y - L.U * 0.55, L.U * 0.28, L.U * 0.1, -0.4, 0, TAU);
+    ctx.fill();
+  }
+function drawFence() {
+  const g = L.glass;
+  const y = L.groundY - L.U * 1.85;
+    const x0 = g.x + g.w * 0.05;
+    const x1 = g.x + g.w * 0.95;
+    ctx.strokeStyle = '#93a0aa';
+    ctx.lineWidth = Math.max(1.5, L.U * 0.06);
+    ctx.beginPath();
+    ctx.moveTo(x0, y - L.U * 0.42);
+    ctx.lineTo(x1, y - L.U * 0.42);
+    ctx.moveTo(x0, y - L.U * 0.18);
+    ctx.lineTo(x1, y - L.U * 0.18);
+    ctx.stroke();
+    for (let i = 0; i < 6; i++) {
+      const x = x0 + (x1 - x0) * (i / 5);
+      ctx.fillStyle = '#8b98a2';
+      ctx.fillRect(x - 1.5, y - L.U * 0.72, 3, L.U * 0.72);
+      ctx.fillStyle = '#fff';
+      ctx.fillRect(x - 3.5, y - L.U * 0.78, 7, 3);
+    }
+  }
+  function drawSeeds() {
+    if (food.samen < 0.05) return;
+    const n = 3 + Math.floor(food.samen * 8);
+    for (let i = 0; i < n; i++) {
+      const x = L.feederX - L.feederHW * 0.4 + (i * 37 % (L.feederHW * 0.9));
+      const y = L.groundY + 6 + (i % 3) * 3;
+      ctx.fillStyle = i % 2 ? '#2a241c' : '#e6d8c0';
+      ctx.beginPath();
+      ctx.ellipse(x, y, L.U * 0.07, L.U * 0.04, i, 0, TAU);
+      ctx.fill();
+    }
+  }
+  function drawFeeder() {
+    const U = L.U;
+    const x = L.feederX;
+    const y = L.trayY;
+    const hw = L.feederHW;
+    ctx.fillStyle = '#6b442c';
+    ctx.fillRect(x - U * 0.11, y + U * 0.2, U * 0.22, L.groundY - y);
+    ctx.fillStyle = '#8d5a34';
+    roundRect(x - hw, y, hw * 2, U * 0.34, 4);
+    ctx.fill();
+    ctx.fillStyle = '#c4895c';
+    ctx.fillRect(x - hw, y, hw * 2, U * 0.07);
+    if (food.samen > 0.04) {
+      const n = 5 + Math.floor(food.samen * 16);
+      for (let i = 0; i < n; i++) {
+        const sx = x - hw + 8 + (i * 19 % (hw * 2 - 16));
+        const row = i % 3;
+        const sy = y + U * 0.16 - row * U * 0.05 * food.samen;
+        ctx.fillStyle = i % 3 === 0 ? '#2c261e' : '#eadcc4';
+        ctx.beginPath();
+        ctx.ellipse(sx, sy, U * 0.09, U * 0.045, (i % 5) * 0.4, 0, TAU);
+        ctx.fill();
+        if (i % 3 !== 0) {
+          ctx.strokeStyle = 'rgba(40,30,20,.45)';
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          ctx.moveTo(sx - U * 0.05, sy);
+          ctx.lineTo(sx + U * 0.05, sy);
+          ctx.stroke();
+        }
+      }
+    }
+    ctx.fillStyle = '#7a4e30';
+    ctx.fillRect(x - hw + 4, L.eaveY, U * 0.1, y - L.eaveY);
+    ctx.fillRect(x + hw - 4 - U * 0.1, L.eaveY, U * 0.1, y - L.eaveY);
+    ctx.fillStyle = '#5c3a24';
+    ctx.beginPath();
+    ctx.moveTo(x, L.peakY);
+    ctx.lineTo(x + hw + U * 0.45, L.eaveY);
+    ctx.lineTo(x - hw - U * 0.45, L.eaveY);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = '#f7fbff';
+    ctx.beginPath();
+    ctx.moveTo(x, L.peakY + 1);
+    ctx.lineTo(x + hw + U * 0.28, L.eaveY - 1);
+    ctx.lineTo(x + hw * 0.15, L.eaveY - 1);
+    ctx.lineTo(x, L.peakY + U * 0.45);
+    ctx.lineTo(x - hw * 0.15, L.eaveY - 1);
+    ctx.lineTo(x - hw - U * 0.28, L.eaveY - 1);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = '#3a2418';
+    ctx.beginPath();
+    ctx.arc(x, L.peakY + U * 0.85, U * 0.13, 0, TAU);
+    ctx.fill();
+    ctx.fillStyle = 'rgba(226,238,246,.9)';
+    const ices = [-hw * 0.45, hw * 0.15, hw * 0.55];
+    ices.forEach(function (dx, i) {
+      const ix = x + dx;
+      const iy = L.eaveY;
+      ctx.beginPath();
+      ctx.moveTo(ix - 2, iy);
+      ctx.lineTo(ix + 2, iy);
+      ctx.lineTo(ix, iy + U * (0.28 + (i % 2) * 0.16));
+      ctx.fill();
+    });
+  }
+  function drawSuetBall() {
+    const r = suetR();
+    ctx.strokeStyle = '#d2c0a4';
+    ctx.lineWidth = 1.6;
+    ctx.beginPath();
+    ctx.moveTo(L.hook.x, L.hook.y);
+    ctx.quadraticCurveTo(L.suet.x + r * 0.8, (L.hook.y + L.suet.y) * 0.5, L.suet.x, L.suet.y - r);
+    ctx.stroke();
+    if (food.knoedel < 0.04) return;
+    ctx.fillStyle = '#c4a36a';
+    ctx.beginPath();
+    ctx.arc(L.suet.x, L.suet.y, r, 0, TAU);
+    ctx.fill();
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(L.suet.x, L.suet.y, r, 0, TAU);
+    ctx.clip();
+    ctx.strokeStyle = 'rgba(90,60,24,.4)';
+    ctx.lineWidth = 1;
+    for (let i = -2; i <= 2; i++) {
+      ctx.beginPath();
+      ctx.moveTo(L.suet.x - r, L.suet.y + i * r * 0.45);
+      ctx.lineTo(L.suet.x + r, L.suet.y + i * r * 0.45);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(L.suet.x + i * r * 0.45, L.suet.y - r);
+      ctx.lineTo(L.suet.x + i * r * 0.45, L.suet.y + r);
+      ctx.stroke();
+    }
+    ctx.restore();
+    ctx.fillStyle = 'rgba(255,255,255,.75)';
+    ctx.beginPath();
+    ctx.ellipse(L.suet.x, L.suet.y - r * 0.55, r * 0.45, r * 0.18, 0, 0, TAU);
+    ctx.fill();
+  }
+  function drawApple() {
+    if (food.apfel < 0.04) return;
+    const x = L.apple.x;
+    const y = L.apple.y;
+    const r = L.appleR * (0.55 + 0.45 * food.apfel);
+    ctx.fillStyle = '#6b3a28';
+    ctx.fillRect(x - 1, y - r - L.U * 0.22, 2, L.U * 0.24);
+    ctx.fillStyle = '#3f8a3a';
+    ctx.beginPath();
+    ctx.ellipse(x + r * 0.35, y - r - 1, r * 0.38, r * 0.16, 0.6, 0, TAU);
+    ctx.fill();
+    const grd = ctx.createRadialGradient(x - r * 0.3, y - r * 0.3, r * 0.2, x, y, r);
+    grd.addColorStop(0, '#e15a4a');
+    grd.addColorStop(0.55, '#c83b3b');
+    grd.addColorStop(1, '#8e2428');
+    ctx.fillStyle = grd;
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, TAU);
+    ctx.fill();
+    if (food.apfel < 0.45) {
+      ctx.fillStyle = '#f3e2b0';
+      ctx.beginPath();
+      ctx.arc(x + r * 0.2, y + r * 0.05, r * 0.28, 0, TAU);
+      ctx.fill();
+    }
+    ctx.fillStyle = 'rgba(255,255,255,.35)';
+    ctx.beginPath();
+    ctx.ellipse(x - r * 0.28, y - r * 0.32, r * 0.16, r * 0.1, -0.6, 0, TAU);
+    ctx.fill();
+  }
+  function drawWater() {
+    const w = L.water;
+    ctx.fillStyle = '#b7b1a8';
+    ctx.beginPath();
+    ctx.ellipse(w.x, w.y + w.ry * 0.45, w.rx * 1.2, w.ry * 0.62, 0, 0, TAU);
+    ctx.fill();
+    ctx.fillStyle = '#8a8178';
+    ctx.beginPath();
+    ctx.ellipse(w.x, w.y, w.rx, w.ry, 0, 0, TAU);
+    ctx.fill();
+    ctx.fillStyle = '#f4efe6';
+    ctx.beginPath();
+    ctx.ellipse(w.x, w.y - w.ry * 0.08, w.rx * 0.86, w.ry * 0.7, 0, 0, TAU);
+    ctx.fill();
+    ctx.fillStyle = '#5c6a72';
+    ctx.beginPath();
+    ctx.ellipse(w.x, w.y, w.rx * 0.72, w.ry * 0.55, 0, 0, TAU);
+    ctx.fill();
+    if (food.wasser > 0.04) {
+      const level = 0.35 + food.wasser * 0.6;
+      ctx.save();
+      ctx.beginPath();
+      ctx.ellipse(w.x, w.y, w.rx * 0.78, w.ry * 0.68, 0, 0, TAU);
+      ctx.clip();
+      ctx.fillStyle = '#7eb4d4';
+      ctx.fillRect(w.x - w.rx, w.y + w.ry * (1 - level), w.rx * 2, w.ry * 2);
+      ctx.fillStyle = 'rgba(255,255,255,.45)';
+      const wave = Math.sin(time * 2) * 1.5;
+      ctx.fillRect(w.x - w.rx, w.y + w.ry * (1 - level) + wave, w.rx * 2, 2);
+      ctx.restore();
+    }
+    ctx.strokeStyle = 'rgba(255,255,255,.35)';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.ellipse(w.x, w.y - 1, w.rx * 0.7, w.ry * 0.4, 0, Math.PI, TAU);
+    ctx.stroke();
+  }
+  function drawMuntins() {
+    const g = L.glass;
+    const t = Math.max(5, L.t * 0.28);
+    ctx.fillStyle = '#6e4630';
+    ctx.fillRect(L.muntinX - t * 0.5, g.y, t, g.h);
+    ctx.fillRect(g.x, L.muntinY - t * 0.5, g.w, t);
+  }
+  function drawFrame() {
+    const f = L.frame;
+    const g = L.glass;
+    ctx.fillStyle = '#7a4e32';
+    ctx.fillRect(f.x, f.y, f.w, g.y - f.y);
+    ctx.fillRect(f.x, g.y + g.h, f.w, f.y + f.h - (g.y + g.h));
+    ctx.fillRect(f.x, g.y, g.x - f.x, g.h);
+    ctx.fillRect(g.x + g.w, g.y, f.x + f.w - (g.x + g.w), g.h);
+    ctx.strokeStyle = 'rgba(214,164,110,.55)';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(g.x + 1.5, g.y + 1.5, g.w - 3, g.h - 3);
+    ctx.strokeStyle = 'rgba(0,0,0,.35)';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(f.x + 1, f.y + 1, f.w - 2, f.h - 2);
+    ctx.fillStyle = '#f7fbff';
+    ctx.beginPath();
+    ctx.moveTo(g.x, g.y + g.h);
+    ctx.quadraticCurveTo(g.x + g.w * 0.5, g.y + g.h - 10, g.x + g.w, g.y + g.h);
+    ctx.lineTo(g.x + g.w, g.y + g.h + 5);
+    ctx.lineTo(g.x, g.y + g.h + 5);
+    ctx.fill();
+  }
+  function drawMug() {
+    if (L.sillH < 22) return;
+    const f = L.frame;
+    const g = L.glass;
+    const r = Math.min(15, L.sillH * 0.42);
+    const x = f.x + f.w - L.t - r - 8;
+    const y = g.y + g.h + L.sillH * 0.62;
+    ctx.fillStyle = '#f4efe6';
+    roundRect(x - r, y - r * 1.35, r * 2, r * 1.45, 4);
+    ctx.fill();
+    ctx.strokeStyle = '#f4efe6';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(x + r + 1, y - r * 0.55, r * 0.38, -1.2, 1.2);
+    ctx.stroke();
+    ctx.fillStyle = '#6b3e2e';
+    ctx.fillRect(x - r + 2, y - r * 1.35, r * 2 - 4, r * 0.38);
+    if (!reduce) {
+      ctx.fillStyle = 'rgba(255,255,255,.55)';
+      for (let i = 0; i < 2; i++) {
+        const s = (time * 0.35 + i * 0.5) % 1;
+        ctx.globalAlpha = (1 - s) * 0.45;
+        ctx.beginPath();
+        ctx.arc(x + Math.sin(time + i) * 2, y - r * 1.5 - s * 16, 1.6 + s * 2, 0, TAU);
+        ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+    }
+  }
+  function eye(ctx2, x, y, U) {
+    ctx2.fillStyle = '#fff';
+    ctx2.beginPath();
+    ctx2.arc(x, y, U * 0.07, 0, TAU);
+    ctx2.fill();
+    ctx2.fillStyle = '#1a1a1a';
+    ctx2.beginPath();
+    ctx2.arc(x + U * 0.015, y, U * 0.038, 0, TAU);
+    ctx2.fill();
+  }
+  function drawSongbird(spec, U, pose) {
+    const flap = pose.flap;
+    const peck = pose.peck || 0;
+    ctx.strokeStyle = '#3d2c22';
+    ctx.lineWidth = Math.max(1, U * 0.055);
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(-0.12 * U, -0.48 * U);
+    ctx.lineTo(-0.16 * U, -0.2 * U);
+    ctx.lineTo(-0.18 * U, 0);
+    ctx.moveTo(0.16 * U, -0.48 * U);
+    ctx.lineTo(0.2 * U, -0.2 * U);
+    ctx.lineTo(0.14 * U, 0);
+    ctx.stroke();
+    ctx.fillStyle = spec.tail;
+    ctx.beginPath();
+    ctx.moveTo(-0.15 * U, -0.9 * U);
+    ctx.lineTo(-1.15 * U, -0.55 * U + flap * 0.08 * U);
+    ctx.lineTo(-1.02 * U, -1.0 * U);
+    ctx.lineTo(-0.2 * U, -1.12 * U);
+    ctx.fill();
+    if (spec.rump) {
+      ctx.fillStyle = spec.rump;
+      ctx.beginPath();
+      ctx.ellipse(-0.35 * U, -0.95 * U, 0.16 * U, 0.12 * U, 0, 0, TAU);
+      ctx.fill();
+    }
+    ctx.save();
+    ctx.translate(-0.02 * U, -1.0 * U);
+    ctx.rotate(-0.45 + flap * 1.05);
+    ctx.fillStyle = spec.wing;
+    ctx.beginPath();
+    ctx.ellipse(0, 0, 0.52 * U, 0.24 * U, -0.2, 0, TAU);
+    ctx.fill();
+    if (spec.wingBar) {
+      ctx.fillStyle = spec.wingBar;
+      ctx.fillRect(-0.28 * U, -0.05 * U, 0.36 * U, 0.07 * U);
+    }
+    if (spec.wingBar2) {
+      ctx.fillStyle = spec.wingBar2;
+      ctx.fillRect(-0.34 * U, 0.06 * U, 0.22 * U, 0.06 * U);
+    }
+    ctx.restore();
+    ctx.fillStyle = spec.belly;
+    ctx.beginPath();
+    ctx.ellipse(0.05 * U, -0.9 * U, 0.58 * U, 0.46 * U, 0, 0, TAU);
+    ctx.fill();
+    ctx.fillStyle = spec.back;
+    ctx.beginPath();
+    ctx.ellipse(-0.02 * U, -1.08 * U, 0.56 * U, 0.3 * U, -0.2, Math.PI, 0);
+    ctx.fill();
+    if (spec.lower) {
+      ctx.fillStyle = spec.lower;
+      ctx.beginPath();
+      ctx.ellipse(0.12 * U, -0.62 * U, 0.28 * U, 0.16 * U, 0, 0, TAU);
+      ctx.fill();
+    }
+    if (spec.stripe) {
+      ctx.fillStyle = spec.stripe;
+      ctx.beginPath();
+      ctx.ellipse(0.22 * U, -0.82 * U, 0.06 * U, 0.28 * U, 0.15, 0, TAU);
+      ctx.fill();
+    }
+    ctx.save();
+    ctx.translate(0.4 * U, -1.28 * U);
+    ctx.rotate(peck * 0.85);
+    ctx.fillStyle = spec.head || spec.belly;
+    ctx.beginPath();
+    ctx.arc(0, 0, 0.3 * U, 0, TAU);
+    ctx.fill();
+    if (spec.cap) {
+      ctx.fillStyle = spec.cap;
+      ctx.beginPath();
+      ctx.arc(0, -0.02 * U, 0.3 * U, Math.PI, 0);
+      ctx.fill();
+    }
+    if (spec.cheek) {
+      ctx.fillStyle = spec.cheek;
+      ctx.beginPath();
+      ctx.ellipse(-0.02 * U, 0.05 * U, 0.16 * U, 0.12 * U, 0, 0, TAU);
+      ctx.fill();
+    }
+    if (spec.faceMask) {
+      ctx.fillStyle = spec.faceMask;
+      ctx.beginPath();
+      ctx.arc(0.12 * U, 0.04 * U, 0.14 * U, 0, TAU);
+      ctx.fill();
+    }
+    if (spec.mask) {
+      ctx.fillStyle = spec.mask;
+      ctx.fillRect(-0.02 * U, -0.03 * U, 0.28 * U, 0.055 * U);
+    }
+    if (spec.bib) {
+      ctx.fillStyle = spec.bib;
+      ctx.beginPath();
+      ctx.ellipse(0.02 * U, 0.24 * U, 0.1 * U, 0.1 * U, 0, 0, TAU);
+      ctx.fill();
+    }
+    ctx.fillStyle = spec.beak;
+    const bl = spec.beakLen || 0;
+    ctx.beginPath();
+    ctx.moveTo(0.18 * U, -0.02 * U);
+    ctx.lineTo(0.48 * U + bl, 0.03 * U);
+    ctx.lineTo(0.16 * U, 0.1 * U);
+    ctx.fill();
+    if (spec.ring) {
+      ctx.strokeStyle = spec.ring;
+      ctx.lineWidth = Math.max(1, U * 0.045);
+      ctx.beginPath();
+      ctx.arc(0.08 * U, -0.02 * U, 0.09 * U, 0, TAU);
+      ctx.stroke();
+    }
+    eye(ctx, 0.08 * U, -0.03 * U, U);
+    ctx.restore();
+  }
+  function drawHangingTit(U, pose) {
+    const peck = pose.peck || 0;
+    ctx.strokeStyle = '#3d2c22';
+    ctx.lineWidth = Math.max(1, U * 0.06);
+    ctx.beginPath();
+    ctx.moveTo(-0.08 * U, 0);
+    ctx.lineTo(-0.12 * U, -0.12 * U);
+    ctx.moveTo(0.1 * U, 0);
+    ctx.lineTo(0.14 * U, -0.12 * U);
+    ctx.stroke();
+    ctx.fillStyle = '#f2d34a';
+    ctx.beginPath();
+    ctx.ellipse(0, 0.62 * U, 0.36 * U, 0.4 * U, 0, 0, TAU);
+    ctx.fill();
+    ctx.fillStyle = '#7aaa48';
+    ctx.beginPath();
+    ctx.ellipse(-0.05 * U, 0.5 * U, 0.3 * U, 0.16 * U, 0.5, 0, TAU);
+    ctx.fill();
+    ctx.fillStyle = '#3d78b8';
+    ctx.beginPath();
+    ctx.ellipse(0.12 * U, 0.58 * U, 0.22 * U, 0.12 * U, 0.4, 0, TAU);
+    ctx.fill();
+    ctx.save();
+    ctx.translate(0, 1.12 * U);
+    ctx.rotate(-peck * 0.5);
+    ctx.fillStyle = '#f7f7f2';
+    ctx.beginPath();
+    ctx.arc(0, 0, 0.26 * U, 0, TAU);
+    ctx.fill();
+    ctx.fillStyle = '#3a7ec4';
+    ctx.beginPath();
+    ctx.arc(0, 0.04 * U, 0.26 * U, 0, Math.PI);
+    ctx.fill();
+    ctx.fillStyle = '#1a1a1a';
+    ctx.fillRect(-0.12 * U, -0.08 * U, 0.22 * U, 0.05 * U);
+    ctx.fillStyle = '#2a2a2a';
+    ctx.beginPath();
+    ctx.moveTo(-0.07 * U, -0.16 * U);
+    ctx.lineTo(0, -0.4 * U - peck * 0.08 * U);
+    ctx.lineTo(0.07 * U, -0.16 * U);
+    ctx.fill();
+    eye(ctx, 0.1 * U, -0.02 * U, U);
+    ctx.restore();
+  }
+  function drawSpecht(U, pose) {
+    const peck = pose.peck || 0;
+    ctx.fillStyle = '#1c1c1c';
+    ctx.beginPath();
+    ctx.moveTo(-0.05 * U, 0.05 * U);
+    ctx.lineTo(-0.22 * U, 0.85 * U);
+    ctx.lineTo(0.28 * U, 0.78 * U);
+    ctx.fill();
+    ctx.fillStyle = '#f3ead8';
+    ctx.beginPath();
+    ctx.ellipse(0.08 * U, -0.62 * U, 0.36 * U, 0.62 * U, 0, 0, TAU);
+    ctx.fill();
+    ctx.fillStyle = '#1a1a1a';
+    ctx.beginPath();
+    ctx.ellipse(-0.08 * U, -0.68 * U, 0.26 * U, 0.58 * U, 0, Math.PI * 0.55, Math.PI * 1.45);
+    ctx.fill();
+    ctx.fillStyle = '#f7f4ee';
+    ctx.beginPath();
+    ctx.ellipse(0.12 * U, -0.78 * U, 0.14 * U, 0.26 * U, -0.5, 0, TAU);
+    ctx.fill();
+    ctx.fillStyle = '#f7f4ee';
+    for (let i = 0; i < 3; i++) {
+      ctx.fillRect(0.02 * U, -0.35 * U + i * 0.16 * U, 0.1 * U, 0.05 * U);
+    }
+    ctx.fillStyle = '#c43737';
+    ctx.beginPath();
+    ctx.ellipse(0.06 * U, -0.12 * U, 0.14 * U, 0.16 * U, 0, 0, TAU);
+    ctx.fill();
+    ctx.strokeStyle = '#5c534c';
+    ctx.lineWidth = Math.max(1, U * 0.05);
+    ctx.beginPath();
+    ctx.moveTo(0.02 * U, -0.15 * U);
+    ctx.lineTo(-0.02 * U, 0);
+    ctx.moveTo(0.16 * U, -0.12 * U);
+    ctx.lineTo(0.2 * U, 0);
+    ctx.stroke();
+    ctx.save();
+    ctx.translate(0.12 * U, -1.28 * U);
+    ctx.rotate(peck * 0.45);
+    ctx.fillStyle = '#1a1a1a';
+    ctx.beginPath();
+    ctx.arc(0, 0, 0.28 * U, 0, TAU);
+    ctx.fill();
+    ctx.fillStyle = '#c43737';
+    ctx.beginPath();
+    ctx.arc(-0.08 * U, -0.12 * U, 0.11 * U, Math.PI * 1.05, Math.PI * 1.9);
+    ctx.fill();
+    ctx.fillStyle = '#f7f4ee';
+    ctx.beginPath();
+    ctx.ellipse(0.08 * U, 0.04 * U, 0.12 * U, 0.09 * U, 0, 0, TAU);
+    ctx.fill();
+    ctx.fillStyle = '#6d6d6d';
+    ctx.beginPath();
+    ctx.moveTo(0.16 * U, -0.02 * U);
+    ctx.lineTo(0.78 * U, 0.04 * U);
+    ctx.lineTo(0.14 * U, 0.1 * U);
+    ctx.fill();
+    eye(ctx, 0.1 * U, -0.02 * U, U);
+    ctx.restore();
+  }
+  function drawSquirrel(U, pose) {
+    const nibble = pose.peck || 0;
+    const step = Math.sin(pose.run || 0) * 0.18 * U;
+    ctx.fillStyle = '#a84e28';
+    ctx.beginPath();
+    ctx.moveTo(-0.2 * U, -0.45 * U);
+    ctx.quadraticCurveTo(-1.35 * U, -0.15 * U, -1.05 * U, -1.45 * U);
+    ctx.quadraticCurveTo(-0.55 * U, -1.85 * U, -0.25 * U, -1.25 * U);
+    ctx.quadraticCurveTo(-0.85 * U, -1.15 * U, -0.15 * U, -0.7 * U);
+    ctx.fill();
+    ctx.fillStyle = '#e7c2a4';
+    ctx.beginPath();
+    ctx.moveTo(-0.85 * U, -1.35 * U);
+    ctx.quadraticCurveTo(-0.45 * U, -1.55 * U, -0.35 * U, -1.15 * U);
+    ctx.quadraticCurveTo(-0.7 * U, -1.2 * U, -0.85 * U, -1.35 * U);
+    ctx.fill();
+    ctx.fillStyle = '#c4622d';
+    ctx.beginPath();
+    ctx.ellipse(0.02 * U, -0.55 * U, 0.52 * U, 0.38 * U, -0.15, 0, TAU);
+    ctx.fill();
+    ctx.fillStyle = '#f0d2b0';
+    ctx.beginPath();
+    ctx.ellipse(0.12 * U, -0.48 * U, 0.26 * U, 0.18 * U, -0.2, 0, TAU);
+    ctx.fill();
+    ctx.fillStyle = '#a84e28';
+    ctx.beginPath();
+    ctx.ellipse(-0.18 * U + step, -0.16 * U, 0.12 * U, 0.05 * U, 0, 0, TAU);
+    ctx.ellipse(0.22 * U - step, -0.14 * U, 0.12 * U, 0.05 * U, 0, 0, TAU);
+    ctx.fill();
+    ctx.fillStyle = '#c4622d';
+    ctx.beginPath();
+    ctx.ellipse(0.46 * U, -0.92 * U, 0.28 * U, 0.24 * U, 0.1, 0, TAU);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(0.32 * U, -1.08 * U);
+    ctx.lineTo(0.26 * U, -1.42 * U);
+    ctx.lineTo(0.46 * U, -1.08 * U);
+    ctx.moveTo(0.5 * U, -1.12 * U);
+    ctx.lineTo(0.58 * U, -1.46 * U);
+    ctx.lineTo(0.68 * U, -1.08 * U);
+    ctx.fill();
+    ctx.fillStyle = '#1a120e';
+    ctx.beginPath();
+    ctx.arc(0.58 * U, -0.94 * U, Math.max(1.2, U * 0.045), 0, TAU);
+    ctx.fill();
+    ctx.fillStyle = '#f3f6f8';
+    ctx.beginPath();
+    ctx.arc(0.6 * U, -0.96 * U, U * 0.015, 0, TAU);
+    ctx.fill();
+    ctx.fillStyle = '#a84e28';
+    if (nibble > 0.35) {
+      ctx.beginPath();
+      ctx.ellipse(0.7 * U, -0.78 * U, 0.07 * U, 0.05 * U, 0.4, 0, TAU);
+      ctx.fill();
+      ctx.fillStyle = '#e6d7b8';
+      ctx.beginPath();
+      ctx.ellipse(0.78 * U, -0.8 * U, 0.05 * U, 0.03 * U, 0.2, 0, TAU);
+      ctx.fill();
+    }
+  }
+  function drawSquirrelClimb(U) {
+    ctx.fillStyle = '#a84e28';
+    ctx.beginPath();
+    ctx.moveTo(0, 0.2 * U);
+    ctx.quadraticCurveTo(-0.7 * U, 0.55 * U, -0.35 * U, 1.15 * U);
+    ctx.quadraticCurveTo(0.15 * U, 0.7 * U, 0.1 * U, 0.25 * U);
+    ctx.fill();
+    ctx.fillStyle = '#c4622d';
+    ctx.beginPath();
+    ctx.ellipse(0, -0.45 * U, 0.28 * U, 0.55 * U, 0, 0, TAU);
+    ctx.fill();
+    ctx.fillStyle = '#f0d2b0';
+    ctx.beginPath();
+    ctx.ellipse(0.08 * U, -0.35 * U, 0.12 * U, 0.28 * U, 0, 0, TAU);
+    ctx.fill();
+    ctx.fillStyle = '#c4622d';
+    ctx.beginPath();
+    ctx.arc(0, -1.05 * U, 0.24 * U, 0, TAU);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(-0.08 * U, -1.22 * U);
+    ctx.lineTo(-0.16 * U, -1.52 * U);
+    ctx.lineTo(0.02 * U, -1.2 * U);
+    ctx.moveTo(0.08 * U, -1.24 * U);
+    ctx.lineTo(0.16 * U, -1.55 * U);
+    ctx.lineTo(0.2 * U, -1.18 * U);
+    ctx.fill();
+    ctx.fillStyle = '#1a120e';
+    ctx.beginPath();
+    ctx.arc(0.08 * U, -1.08 * U, Math.max(1.2, U * 0.04), 0, TAU);
+    ctx.fill();
+    ctx.fillStyle = '#a84e28';
+    ctx.fillRect(-0.22 * U, -0.7 * U, 0.12 * U, 0.08 * U);
+    ctx.fillRect(0.12 * U, -0.2 * U, 0.12 * U, 0.08 * U);
+  }
+  function drawGuest(g) {
+    const spec = SPECIES[g.i];
+    const U = L.U * spec.scale;
+    const flying = g.mode === 'in' || g.mode === 'out' || g.mode === 'flee';
+    const amp = flying ? 1 : (g.mode === 'squabble' ? 0.7 : 0.16);
+    const pose = { peck: g.peck || 0, flap: Math.sin(g.flap) * amp, run: g.run || 0 };
+    if (!flying && !(spec.id === 'eich' && g.mode === 'climb') && !g.hang) {
+      ctx.fillStyle = 'rgba(40,55,70,.18)';
+      ctx.beginPath();
+      ctx.ellipse(g.x, g.y + 2, U * 0.42, U * 0.12, 0, 0, TAU);
+      ctx.fill();
+    }
+    ctx.save();
+    ctx.translate(g.x, g.y - (g.hopY || 0));
+    if (flying) ctx.translate(0, Math.sin(g.flap * 0.65) * 2.2);
+    if (spec.id === 'eich' && (g.mode === 'climb' || (g.mode === 'drop' && g.y < L.groundY - 8))) {
+      drawSquirrelClimb(U);
+    } else if (spec.id === 'eich') {
+      if ((g.face || 1) < 0) ctx.scale(-1, 1);
+      if (g.station === 'feeder' && (g.mode === 'forage' || g.mode === 'walk')) ctx.rotate(0.42);
+      drawSquirrel(U, pose);
+    } else if (spec.id === 'specht') {
+      if ((g.face || 1) < 0) ctx.scale(-1, 1);
+      drawSpecht(U, pose);
+    } else if (g.hang && !flying) {
+      drawHangingTit(U, pose);
+    } else {
+      if ((g.face || 1) < 0) ctx.scale(-1, 1);
+      drawSongbird(spec, U, pose);
+    }
+    ctx.restore();
+  }
+  function drawParticles() {
+    for (let i = 0; i < particles.length; i++) {
+      const p = particles[i];
+      ctx.globalAlpha = Math.max(0, p.life * 1.6);
+      ctx.fillStyle = p.kind === 'drop' ? '#8ec4de' : '#e6d7b8';
+      ctx.beginPath();
+      ctx.ellipse(p.x, p.y, 1.6, 2.2, 0, 0, TAU);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+  }
+  function drawRings(arr, color) {
+    ctx.strokeStyle = color;
+    for (let i = 0; i < arr.length; i++) {
+      ctx.globalAlpha = Math.max(0, arr[i].a);
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.arc(arr[i].x, arr[i].y, arr[i].r, 0, TAU);
+      ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+  }
+  function draw() {
+    if (!L.glass) return;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const wall = ctx.createLinearGradient(0, 0, 0, H);
+    wall.addColorStop(0, '#3a2923');
+    wall.addColorStop(1, '#1a100e');
+    ctx.fillStyle = wall;
+    ctx.fillRect(0, 0, W, H);
+    const g = L.glass;
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(g.x, g.y, g.w, g.h);
+    ctx.clip();
+    drawBackground();
+    drawSpruce();
+    drawFence();
+    drawBirch();
+    drawSeeds();
+    drawFeeder();
+    drawSuetBall();
+    drawApple();
+    drawWater();
+    prints.forEach(function (p) {
+      ctx.globalAlpha = p.a;
+      ctx.fillStyle = '#c5d2de';
+      ctx.beginPath();
+      ctx.ellipse(p.x - 3, p.y, 2.2, 1.2, -0.4, 0, TAU);
+      ctx.ellipse(p.x + 3, p.y, 2.2, 1.2, 0.4, 0, TAU);
+      ctx.fill();
+      ctx.globalAlpha = 1;
+    });
+    drawMuntins();
+    drawParticles();
+    const sorted = guests.slice().sort(function (a, b) { return a.y - b.y; });
+    for (let i = 0; i < sorted.length; i++) drawGuest(sorted[i]);
+    drawSnow(false);
+    ctx.save();
+    ctx.globalAlpha = 0.55;
+    ctx.drawImage(frost, g.x, g.y, g.w, g.h);
+    ctx.restore();
+    const sheen = ctx.createLinearGradient(g.x, g.y, g.x + g.w, g.y + g.h);
+    sheen.addColorStop(0, 'rgba(255,255,255,.16)');
+    sheen.addColorStop(0.35, 'rgba(255,255,255,0)');
+    sheen.addColorStop(1, 'rgba(255,255,255,.05)');
+    ctx.fillStyle = sheen;
+    ctx.fillRect(g.x, g.y, g.w, g.h);
+    drawRings(ripples, 'rgba(190,220,235,.9)');
+    drawRings(knocks, 'rgba(255,255,255,.75)');
+    ctx.restore();
+    drawFrame();
+    drawMug();
+    drawSnow(true);
+    const vig = ctx.createRadialGradient(W * 0.5, H * 0.45, Math.min(W, H) * 0.35, W * 0.5, H * 0.5, Math.max(W, H) * 0.72);
+    vig.addColorStop(0, 'rgba(0,0,0,0)');
+    vig.addColorStop(1, 'rgba(0,0,0,.28)');
+    ctx.fillStyle = vig;
+    ctx.fillRect(0, 0, W, H);
+  }
+
+  function insideGlass(x, y) {
+    const g = L.glass;
+    return g && x >= g.x && x <= g.x + g.w && y >= g.y && y <= g.y + g.h;
+  }
+  function toggleSound() {
+    if (soundOn) { userMuted = true; setSound(false); }
+    else { userMuted = false; setSound(true); }
+  }
+
+  bTon.addEventListener('pointerdown', function (e) { e.stopPropagation(); });
+  bTon.addEventListener('click', function (e) {
+    e.stopPropagation();
+    toggleSound();
+  });
+  document.addEventListener('pointerdown', function (e) {
+    const t = e.target;
+    if (t && t.closest && t.closest('#bTon')) return;
+    arm();
+    dismissHint();
+  });
+  barEl.addEventListener('click', function (e) {
+    const btn = e.target.closest ? e.target.closest('[data-food]') : null;
+    if (!btn) return;
+    fill(btn.getAttribute('data-food'));
+  });
+  bHeft.addEventListener('click', function () {
+    if (bookOpen) closeBook();
+    else openBook();
+  });
+  bClose.addEventListener('click', function () { closeBook(); });
+  bookEl.addEventListener('pointerdown', function (e) {
+    if (e.target === bookEl) closeBook();
+  });
+  canvas.addEventListener('pointerdown', function (e) {
+    if (e.button != null && e.button > 0) return;
+    if (e.cancelable) e.preventDefault();
+    arm();
+    if (bookOpen || !L.glass) return;
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    if (insideGlass(x, y)) scareAll(x, y);
+  }, { passive: false });
+  window.addEventListener('keydown', function (e) {
+    if (e.repeat) return;
+    const tag = e.target && e.target.tagName;
+    if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+    const k = e.key.toLowerCase();
+    if (k === 'escape') { if (bookOpen) closeBook(); return; }
+    if (k === 'h') { if (bookOpen) closeBook(); else openBook(); return; }
+    if (k === 'm') { toggleSound(); return; }
+    arm();
+    dismissHint();
+    if (k === '1') fill('samen');
+    else if (k === '2') fill('knoedel');
+    else if (k === '3') fill('apfel');
+    else if (k === '4') fill('wasser');
+  });
+  window.addEventListener('resize', function () { layout(); });
+  if (window.visualViewport) window.visualViewport.addEventListener('resize', function () { layout(); });
+  if (window.ResizeObserver) {
+    const ro = new ResizeObserver(function () { layout(); });
+    ro.observe(barEl);
+    ro.observe(topEl);
+  }
+  document.addEventListener('visibilitychange', function () {
+    last = 0;
+    if (document.hidden && dirty) { dirty = false; save(); }
+  });
+  window.addEventListener('pagehide', function () { if (dirty) save(); });
+
+  load();
+  const anyFood = FOODS.some(function (k) { return food[k] > 0.08; });
+  if (anyFood) {
+    hintGone = true;
+    hintEl.hidden = true;
+    spawnIn = 0.6;
+  }
+  updateMeters();
+  renderBook();
+  syncTon();
+  layout();
+  updateStatus();
+
+  function loop(now) {
+    if (!last) last = now;
+    let dt = (now - last) / 1000;
+    last = now;
+    if (dt < 0) dt = 0;
+    if (dt > 0.05) dt = 0.05;
+    if (!document.hidden) {
+      layout();
+      step(dt);
+      draw();
+    }
+    requestAnimationFrame(loop);
+  }
+  requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>
