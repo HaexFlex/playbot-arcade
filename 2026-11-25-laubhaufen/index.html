@@ -1,0 +1,1728 @@
+<!doctype html>
+<html lang="de-CH">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Laubhaufen</title>
+<link rel="icon" href="../favicon.svg" type="image/svg+xml">
+<meta name="description" content="Ein Herbstgarten. Rechen das Laub zu Haufen. Ahorn, Eiche, Buche und Kastanie.">
+<meta name="theme-color" content="#e7b56a">
+<style>
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;width:100%;overflow:hidden;background:#6a3b22}
+body{position:fixed;inset:0;font-family:Georgia,"Iowan Old Style",Palatino,serif;color:#5c3418;-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent}
+canvas{position:fixed;inset:0;width:100%;height:100%;touch-action:none;cursor:grab}
+canvas.rake{cursor:grabbing}
+button{font-family:system-ui,-apple-system,"Segoe UI",sans-serif;color:#fff6e6;background:rgba(255,246,230,.12);border:1px solid rgba(255,236,210,.3);border-radius:12px;cursor:pointer;touch-action:manipulation}
+button:focus-visible{outline:2px solid #ffd27a;outline-offset:2px}
+#hud{position:fixed;z-index:3;left:max(8px,env(safe-area-inset-left));top:max(8px,env(safe-area-inset-top));background:rgba(255,246,230,.92);border:2px solid rgba(120,68,32,.32);border-radius:14px;padding:7px 12px 8px;max-width:calc(100% - 16px);box-shadow:0 2px 0 rgba(120,68,32,.12);pointer-events:none;line-height:1.3}
+#hud strong{display:block;font-size:18px;font-weight:650;letter-spacing:.2px}
+#stat{font-size:14px;font-variant-numeric:tabular-nums}
+#legend{display:flex;flex-wrap:wrap;gap:3px 8px;margin-top:4px;font-size:12px;font-family:system-ui,sans-serif}
+#legend span{display:inline-flex;align-items:center;gap:4px;white-space:nowrap}
+#legend i{width:9px;height:9px;border-radius:50%;display:inline-block}
+#bar{position:fixed;z-index:4;left:0;right:0;bottom:0;display:flex;flex-wrap:wrap;justify-content:center;align-items:center;gap:6px;width:100%;max-width:100%;margin:0;padding:8px 8px calc(8px + env(safe-area-inset-bottom));background:linear-gradient(to top,rgba(62,32,16,.94),rgba(62,32,16,.78));border-top:1px solid rgba(255,228,196,.16)}
+#bar button{min-width:36px;min-height:36px;padding:6px 10px;font-size:15px;line-height:1.1;display:inline-flex;align-items:center;justify-content:center;gap:4px;flex:0 1 auto}
+#bar button.on{background:rgba(240,176,72,.42);border-color:rgba(255,220,160,.85)}
+#hint,#toast{position:fixed;z-index:3;left:50%;transform:translateX(-50%);text-align:center;background:rgba(255,246,230,.94);border:2px solid rgba(120,68,32,.28);border-radius:12px;padding:7px 12px;max-width:calc(100% - 16px);pointer-events:none}
+#hint{bottom:calc(var(--bar, 64px) + 8px);font-size:15px;transition:opacity .6s}
+#hint.hide{opacity:0}
+#toast{bottom:calc(var(--bar, 64px) + 52px);font-size:15px;opacity:0;transition:opacity .35s}
+#toast.show{opacity:1}
+@media (max-width:720px){
+  #hud strong{font-size:16px}
+  #stat{font-size:13px}
+  #hint,#toast{font-size:14px}
+}
+@media (max-height:430px){
+  #hud{padding:4px 8px}
+  #hud strong{font-size:15px}
+  #legend{display:none}
+  #hint{font-size:13px;padding:4px 8px}
+  #toast{bottom:calc(var(--bar, 52px) + 36px)}
+}
+@media (prefers-reduced-motion:reduce){
+  #hint,#toast{transition:none}
+}
+</style>
+</head>
+<body>
+<canvas id="c" aria-label="Laubhaufen. Ein Herbstgarten. Ziehe durchs Laub, um Haufen zu rechen."></canvas>
+<div id="hud">
+  <strong>Laubhaufen</strong>
+  <div id="stat" aria-live="polite">0 Haufen</div>
+  <div id="legend">
+    <span><i style="background:#e23b1a"></i>Ahorn</span>
+    <span><i style="background:#a56b32"></i>Eiche</span>
+    <span><i style="background:#e2b33a"></i>Buche</span>
+    <span><i style="background:#7e943c"></i>Kastanie</span>
+  </div>
+</div>
+<div id="bar" role="toolbar" aria-label="Laubhaufen">
+  <button id="bTon" type="button" aria-pressed="false" aria-label="Ton ist aus. Tippe, um ihn einzuschalten" title="Ton (M)">
+    <span class="ic" aria-hidden="true">🔇</span><span class="tx">Ton</span>
+  </button>
+  <button id="bBoe" type="button" aria-label="Eine Windböe auslösen" title="Böe (B)">
+    <span class="ic" aria-hidden="true">🌬️</span><span class="tx">Böe</span>
+  </button>
+  <button id="bKind" type="button" aria-label="Das Kind in den grössten Haufen springen lassen" title="Kind (K)">
+    <span class="ic" aria-hidden="true">🧒</span><span class="tx">Kind</span>
+  </button>
+  <button id="bHund" type="button" aria-label="Den Hund in den grössten Haufen springen lassen" title="Hund (H)">
+    <span class="ic" aria-hidden="true">🐕</span><span class="tx">Hund</span>
+  </button>
+  <button id="bNeu" type="button" aria-label="Das Laub neu verteilen" title="Neu (N)">
+    <span class="ic" aria-hidden="true">🍂</span><span class="tx">Neu</span>
+  </button>
+</div>
+<div id="hint" role="status">Ziehe den Rechen durchs Laub und schiebe es zu Haufen.</div>
+<div id="toast" role="status" aria-live="polite"></div>
+<script>
+'use strict';
+(function () {
+  const $ = function (id) { return document.getElementById(id); };
+  const TAU = Math.PI * 2;
+  const clamp = function (v, a, b) { return v < a ? a : v > b ? b : v; };
+  const params = new URLSearchParams(location.search);
+  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const canvas = $('c');
+  const ctx = canvas.getContext('2d', { alpha: false });
+
+  const TREES = [
+    { name: 'Ahorn', kind: 0, x: 0.16, blobs: ['#c4472a', '#e36a2c', '#a33a24', '#f09a40'] },
+    { name: 'Eiche', kind: 1, x: 0.38, blobs: ['#6e4a28', '#8d6236', '#5a4028', '#a07840'] },
+    { name: 'Buche', kind: 2, x: 0.62, blobs: ['#e2b44a', '#f0d070', '#d49430', '#c47828'] },
+    { name: 'Kastanie', kind: 3, x: 0.82, blobs: ['#c6b24a', '#a8b256', '#d4a242', '#7e943c'] }
+  ];
+  const COLORS = [
+    ['#e23b1a', '#f06a22', '#ffb03a', '#c42a22', '#e85a2a'],
+    ['#8d5a2b', '#b07a3e', '#6e4424', '#c48a48', '#7a5428'],
+    ['#e0b03c', '#f2d56a', '#d4892c', '#c45c28', '#f0c14e'],
+    ['#d4a62e', '#e6c65c', '#8eac46', '#c4842c', '#6f8f38']
+  ];
+
+  let W = 800, H = 600, dpr = 1, horizon = 240, front = 560, barH = 64;
+  let simT = 0, gust = 0, ord = 1, rekord = 0, madePile = false;
+  let soundOn = false, userMuted = false, audioUnlocked = false;
+  let ac = null, master = null, noiseBuf = null, windBuf = null, windGain = null, windFilter = null;
+  let rustleAt = 0, hudT = 0, hintT = 0, hintGone = false, toastT = 0;
+  let toldNut = false, toldHog = false;
+  let nextVisit = 18, nextNut = 2.4, nextShed = 0.4;
+  const leaves = [];
+  const nuts = [];
+  const motes = [];
+  const blades = [];
+  const actors = [];
+  const clouds = [
+    { x: 0.18, y: 0.14, s: 1, v: 0.006 },
+    { x: 0.52, y: 0.2, s: 0.72, v: 0.004 },
+    { x: 0.78, y: 0.11, s: 1.05, v: 0.008 }
+  ];
+  const birds = [
+    { x: 0.28, y: 0.18, v: 0.018, f: 0.4 },
+    { x: 0.66, y: 0.13, v: 0.014, f: 1.6 }
+  ];
+  const hog = { active: false, x: 0.4, d: 0.62, state: 'peek', t: 0, face: 1, cool: 4, tx: 0, td: 0 };
+  const rake = { on: false, sx: 0, sy: 0, ang: -0.9, pid: null };
+  let lastStats = { piles: 0, biggest: 0, clusters: [], nuts: 0 };
+
+  try { userMuted = localStorage.getItem('playbot-laubhaufen-ton') === 'aus'; } catch (e) {}
+  try {
+    const saved = JSON.parse(localStorage.getItem('playbot-laubhaufen') || 'null');
+    if (saved && Number.isFinite(+saved.rekord)) rekord = Math.max(0, +saved.rekord | 0);
+  } catch (e) {}
+
+  function spanY() { return Math.max(80, front - horizon); }
+  function project(x, d, z) {
+    const sc = 0.76 + clamp(d, 0, 1) * 0.5;
+    return { sx: x * W, sy: horizon + clamp(d, 0, 1) * spanY() - z, sc: sc };
+  }
+  function screenToGround(sx, sy) {
+    return {
+      x: clamp(sx / Math.max(1, W), 0.02, 0.98),
+      d: clamp((sy - horizon) / spanY(), 0.08, 0.98)
+    };
+  }
+  function crownH() { return clamp(Math.min(H * 0.38, horizon * 0.78), 86, 220); }
+  function crownW() { return clamp(W * 0.16, 68, 188); }
+
+  function makeLeaf(kind, state) {
+    const cols = COLORS[kind];
+    return {
+      kind: kind,
+      state: state || 'rest',
+      x: 0.5, d: 0.5, z: 0,
+      vx: 0, vd: 0, vz: 0, vrot: 0,
+      rot: Math.random() * TAU,
+      phase: Math.random() * TAU,
+      flutter: 2.2 + Math.random() * 2.4,
+      size: 12 + Math.random() * 6,
+      col: cols[(Math.random() * cols.length) | 0],
+      ord: ++ord,
+      restT: 0,
+      mound: 0,
+      ox: 0,
+      tree: kind
+    };
+  }
+
+  function seedGarden() {
+    leaves.length = 0;
+    nuts.length = 0;
+    motes.length = 0;
+    actors.length = 0;
+    ord = 1;
+    toldNut = false;
+    hog.active = false;
+    hog.state = 'peek';
+    hog.cool = 2;
+    sprinkle(0.36, 0.64, 28, null);
+    sprinkle(0.57, 0.74, 20, null);
+    sprinkle(0.22, 0.78, 12, 2);
+    for (let i = 0; i < 70; i++) {
+      const leaf = makeLeaf((Math.random() * 4) | 0, 'rest');
+      leaf.x = 0.06 + Math.random() * 0.88;
+      leaf.d = 0.22 + Math.random() * 0.72;
+      leaf.restT = 2;
+      leaves.push(leaf);
+    }
+    for (let t = 0; t < TREES.length; t++) {
+      for (let i = 0; i < 11; i++) attachLeaf(t);
+    }
+    for (let i = 0; i < 10; i++) {
+      const leaf = attachLeaf((Math.random() * 4) | 0);
+      releaseLeaf(leaf);
+      leaf.z = 40 + Math.random() * crownH() * 0.7;
+      leaf.vz = -20 - Math.random() * 30;
+    }
+    for (let i = 0; i < 3; i++) {
+      nuts.push({
+        x: TREES[3].x + (Math.random() - 0.5) * 0.08,
+        d: 0.28 + Math.random() * 0.35,
+        z: 0, vz: 0,
+        vx: 0, vd: 0,
+        rot: Math.random() * TAU,
+        husk: i === 0,
+        bounced: true
+      });
+    }
+    hog.active = true;
+    hog.x = 0.36;
+    hog.d = 0.64;
+    hog.state = 'peek';
+    hog.t = 0;
+    hog.face = 1;
+    nextNut = 2.2;
+    nextShed = 0.3;
+    nextVisit = 16 + Math.random() * 8;
+  }
+
+  function sprinkle(x, d, n) {
+    for (let i = 0; i < n; i++) {
+      const leaf = makeLeaf((Math.random() * 4) | 0, 'rest');
+      const ang = Math.random() * TAU;
+      const rad = Math.sqrt(Math.random()) * 0.045;
+      leaf.x = clamp(x + Math.cos(ang) * rad, 0.04, 0.96);
+      leaf.d = clamp(d + Math.sin(ang) * rad * 0.85, 0.12, 0.96);
+      leaf.restT = 0.5;
+      leaves.push(leaf);
+    }
+  }
+
+  function attachLeaf(kind) {
+    const tree = TREES[kind];
+    const leaf = makeLeaf(kind, 'canopy');
+    leaf.tree = kind;
+    leaf.ax = tree.x + (Math.random() - 0.5) * 0.1;
+    leaf.ad = 0.05 + Math.random() * 0.08;
+    leaf.azf = 0.42 + Math.random() * 0.5;
+    leaf.x = leaf.ax;
+    leaf.d = leaf.ad;
+    leaf.z = crownH() * leaf.azf;
+    leaf.sway = Math.random() * TAU;
+    leaves.push(leaf);
+    return leaf;
+  }
+
+  function releaseLeaf(leaf) {
+    leaf.state = 'air';
+    leaf.vz = -8 - Math.random() * 16;
+    leaf.vx = (Math.random() - 0.5) * 0.08;
+    leaf.vd = (Math.random() - 0.2) * 0.04;
+    leaf.vrot = (Math.random() - 0.5) * 1.5;
+  }
+
+  function countKind(kind, state) {
+    let n = 0;
+    for (let i = 0; i < leaves.length; i++) {
+      if (leaves[i].kind === kind && leaves[i].state === state) n++;
+    }
+    return n;
+  }
+
+  function updateLeaf(leaf, dt, windPx) {
+    if (leaf.state === 'canopy') {
+      leaf.sway += dt * (1.1 + gust * 2.2);
+      const amp = (reduce ? 0.004 : 0.012) * (1 + gust);
+      leaf.x = leaf.ax + Math.sin(leaf.sway) * amp;
+      leaf.z = crownH() * leaf.azf + Math.cos(leaf.sway * 0.8) * (reduce ? 1 : 3);
+      leaf.rot = Math.sin(leaf.sway) * 0.45;
+      return;
+    }
+    if (leaf.state === 'air' || leaf.z > 0.8) {
+      leaf.phase += dt * leaf.flutter * (reduce ? 0.45 : 1);
+      const flap = Math.sin(leaf.phase);
+      leaf.vx *= Math.exp(-1.15 * dt);
+      leaf.vd *= Math.exp(-1.15 * dt);
+      leaf.vx += (windPx / Math.max(1, W)) * dt * 1.6;
+      leaf.vx += flap * (reduce ? 0.08 : 0.42) * dt;
+      leaf.vd += Math.cos(leaf.phase * 0.8) * (reduce ? 0.03 : 0.14) * dt;
+      if (gust > 0.12) swirl(leaf, dt);
+      leaf.vz -= (reduce ? 360 : 250) * dt;
+      leaf.vz += Math.abs(flap) * (reduce ? 8 : 36) * dt;
+      if (leaf.vz < -62) leaf.vz = -62;
+      leaf.vrot = flap * (reduce ? 0.6 : 2.4);
+      leaf.x += leaf.vx * dt;
+      leaf.d += leaf.vd * dt;
+      leaf.z += leaf.vz * dt;
+      leaf.rot += leaf.vrot * dt;
+      if (leaf.z <= 0) {
+        if (leaf.vz < -36) {
+          leaf.z = 0.4;
+          leaf.vz = -leaf.vz * 0.16;
+          rustle(0.18);
+        } else {
+          leaf.z = 0;
+          leaf.vz = 0;
+          leaf.vx *= 0.35;
+          leaf.vd *= 0.35;
+          leaf.state = 'rest';
+          leaf.restT = 0;
+          leaf.ord = ++ord;
+          rustle(0.1);
+        }
+      }
+    } else {
+      leaf.state = 'rest';
+      leaf.restT += dt;
+      leaf.vx *= Math.exp(-6 * dt);
+      leaf.vd *= Math.exp(-6 * dt);
+      leaf.x += leaf.vx * dt;
+      leaf.d += leaf.vd * dt;
+      leaf.rot += leaf.vx * dt * 6;
+      const breezy = gust > 0.78 && leaf.restT > 0.2;
+      if (breezy && Math.random() < dt * (0.12 + (leaf.mound || 0) / 28)) {
+        leaf.state = 'air';
+        leaf.z = 2;
+        leaf.vz = 40 + Math.random() * 90 * gust;
+        leaf.vx += (windPx / Math.max(1, W)) * 0.35;
+        leaf.mound = 0;
+        leaf.ox = 0;
+      }
+    }
+    if (leaf.x < 0.02) { leaf.x = 0.02; leaf.vx *= -0.25; }
+    if (leaf.x > 0.98) { leaf.x = 0.98; leaf.vx *= -0.25; }
+    if (leaf.d < 0.08) { leaf.d = 0.08; leaf.vd *= -0.25; }
+    if (leaf.d > 0.98) { leaf.d = 0.98; leaf.vd *= -0.25; }
+  }
+
+  function swirl(leaf, dt) {
+    const cx = (0.5 + Math.sin(simT * 0.33) * 0.1) * W;
+    const cy = horizon + (0.48 + Math.cos(simT * 0.25) * 0.08) * spanY();
+    const p = project(leaf.x, leaf.d, 0);
+    const rx = p.sx - cx;
+    const ry = p.sy - cy;
+    const mag = Math.hypot(rx, ry) + 36;
+    const acc = gust * (reduce ? 50 : 210);
+    leaf.vx += ((-ry / mag) * acc * dt) / Math.max(1, W);
+    leaf.vd += ((rx / mag) * acc * dt) / spanY();
+  }
+
+  function layoutPiles() {
+    const cell = 56;
+    const map = new Map();
+    for (let i = 0; i < leaves.length; i++) {
+      const leaf = leaves[i];
+      if (leaf.state !== 'rest' || leaf.z > 2) {
+        leaf.mound = 0;
+        leaf.ox = 0;
+        continue;
+      }
+      const p = project(leaf.x, leaf.d, 0);
+      const key = ((p.sx / cell) | 0) + ',' + ((p.sy / cell) | 0);
+      let bin = map.get(key);
+      if (!bin) map.set(key, bin = []);
+      bin.push(leaf);
+    }
+    map.forEach(function (bin) {
+      bin.sort(function (a, b) { return a.ord - b.ord; });
+      const n = bin.length;
+      let sx = 0, sd = 0;
+      for (let i = 0; i < n; i++) { sx += bin[i].x; sd += bin[i].d; }
+      sx /= n; sd /= n;
+      for (let i = 0; i < n; i++) {
+        const leaf = bin[i];
+        if (n >= 6) {
+          const ang = i * 2.399;
+          leaf.mound = Math.min(40, i * 1.45);
+          leaf.ox = Math.cos(ang) * Math.min(12, 2 + i * 0.35);
+          if (leaf.restT > 0.35 && leaf.restT < 2.4 && gust < 0.55) {
+            const spd = Math.hypot(leaf.vx, leaf.vd);
+            if (spd < 0.08) {
+              leaf.x += (sx - leaf.x) * 0.02;
+              leaf.d += (sd - leaf.d) * 0.02;
+            }
+          }
+        } else {
+          leaf.mound = 0;
+          leaf.ox = 0;
+        }
+      }
+    });
+  }
+
+  function leafScreen(leaf) {
+    const p = project(leaf.x, leaf.d, leaf.z);
+    return {
+      sx: p.sx + (leaf.ox || 0) * p.sc,
+      sy: p.sy - (leaf.mound || 0) * p.sc,
+      sc: p.sc
+    };
+  }
+
+  function computeStats() {
+    const cell = 48;
+    const bins = new Map();
+    for (let i = 0; i < leaves.length; i++) {
+      const leaf = leaves[i];
+      if (leaf.state !== 'rest' || leaf.z >= 3) continue;
+      const p = project(leaf.x, leaf.d, 0);
+      const kx = (p.sx / cell) | 0;
+      const ky = (p.sy / cell) | 0;
+      const key = kx + ',' + ky;
+      let bin = bins.get(key);
+      if (!bin) bins.set(key, bin = { kx: kx, ky: ky, n: 0, sx: 0, sd: 0 });
+      bin.n++;
+      bin.sx += leaf.x;
+      bin.sd += leaf.d;
+    }
+    const cores = [];
+    bins.forEach(function (bin) {
+      if (bin.n >= 8) cores.push(bin);
+    });
+    const used = new Array(cores.length);
+    const clusters = [];
+    for (let i = 0; i < cores.length; i++) {
+      if (used[i]) continue;
+      const q = [i];
+      used[i] = 1;
+      let sx = 0, sd = 0, count = 0;
+      while (q.length) {
+        const k = q.pop();
+        const a = cores[k];
+        sx += a.sx; sd += a.sd; count += a.n;
+        for (let j = 0; j < cores.length; j++) {
+          if (used[j]) continue;
+          const b = cores[j];
+          if (Math.abs(a.kx - b.kx) <= 1 && Math.abs(a.ky - b.ky) <= 1) {
+            used[j] = 1;
+            q.push(j);
+          }
+        }
+      }
+      clusters.push({ x: sx / count, d: sd / count, n: count });
+    }
+    let biggest = 0;
+    for (let i = 0; i < clusters.length; i++) if (clusters[i].n > biggest) biggest = clusters[i].n;
+    let nutN = 0;
+    for (let i = 0; i < nuts.length; i++) if (nuts[i].z < 3) nutN++;
+    return { piles: clusters.length, biggest: biggest, clusters: clusters, nuts: nutN };
+  }
+
+  function biggestPile() {
+    const s = lastStats && lastStats.clusters ? lastStats : computeStats();
+    let best = null;
+    for (let i = 0; i < s.clusters.length; i++) {
+      if (!best || s.clusters[i].n > best.n) best = s.clusters[i];
+    }
+    return best;
+  }
+
+  function updateNuts(dt) {
+    nextNut -= dt;
+    if (nextNut <= 0) {
+      nextNut = 3.2 + Math.random() * 4.5;
+      if (nuts.length < 9) dropNut(false);
+    }
+    for (let i = 0; i < nuts.length; i++) {
+      const n = nuts[i];
+      if (n.z > 0 || Math.abs(n.vz) > 1) {
+        n.vz -= 780 * dt;
+        n.z += n.vz * dt;
+        n.x += n.vx * dt;
+        n.d += n.vd * dt;
+        n.rot += dt * 4;
+        if (n.z <= 0) {
+          if (n.vz < -90) {
+            n.z = 0.6;
+            n.vz = -n.vz * 0.3;
+            n.vx *= 0.6;
+            if (!n.bounced) {
+              n.bounced = true;
+              plop();
+              if (n.husk && Math.random() < 0.65) n.husk = false;
+            }
+          } else {
+            n.z = 0;
+            n.vz = 0;
+            n.vx *= 0.2;
+            n.vd *= 0.2;
+          }
+        }
+      } else {
+        n.vx *= Math.exp(-7 * dt);
+        n.vd *= Math.exp(-7 * dt);
+        n.x += n.vx * dt;
+        n.d += n.vd * dt;
+      }
+      n.x = clamp(n.x, 0.03, 0.97);
+      n.d = clamp(n.d, 0.1, 0.97);
+    }
+  }
+
+  function dropNut(quiet) {
+    const tree = TREES[3];
+    nuts.push({
+      x: tree.x + (Math.random() - 0.5) * 0.07,
+      d: 0.1 + Math.random() * 0.08,
+      z: crownH() * (0.45 + Math.random() * 0.25),
+      vz: 10,
+      vx: (Math.random() - 0.5) * 0.06,
+      vd: 0.03 + Math.random() * 0.04,
+      rot: Math.random() * TAU,
+      husk: Math.random() < 0.5,
+      bounced: false,
+      quiet: !!quiet
+    });
+  }
+
+  function scatter(x, d, power) {
+    const c = project(x, d, 0);
+    let hit = 0;
+    for (let i = 0; i < leaves.length; i++) {
+      const leaf = leaves[i];
+      if (leaf.state === 'canopy') continue;
+      const p = leafScreen(leaf);
+      const dx = p.sx - c.sx, dy = p.sy - c.sy;
+      const dist = Math.hypot(dx, dy);
+      if (dist < power) {
+        const ang = Math.atan2(dy, dx);
+        const f = 1 - dist / power;
+        leaf.vx += Math.cos(ang) * f * 1.15;
+        leaf.vd += Math.sin(ang) * f * 0.55;
+        leaf.vz = 90 + f * 240;
+        leaf.z = Math.max(leaf.z, 6);
+        leaf.vrot = (Math.random() - 0.5) * 8;
+        leaf.state = 'air';
+        leaf.mound = 0;
+        leaf.ox = 0;
+        hit++;
+      }
+    }
+    for (let i = 0; i < nuts.length; i++) {
+      const n = nuts[i];
+      const p = project(n.x, n.d, n.z);
+      const dx = p.sx - c.sx, dy = p.sy - c.sy;
+      const dist = Math.hypot(dx, dy);
+      if (dist < power * 0.85) {
+        const ang = Math.atan2(dy, dx);
+        const f = 1 - dist / power;
+        n.vx += Math.cos(ang) * f * 0.7;
+        n.vd += Math.sin(ang) * f * 0.35;
+        n.vz = 70 + f * 120;
+        n.z = Math.max(n.z, 4);
+      }
+    }
+    rustle(Math.min(1, hit / 10));
+    madePile = true;
+    thud();
+    puff(x, d, Math.min(16, 4 + (hit / 4) | 0));
+    disturbHog(x, d);
+    return hit;
+  }
+
+  function puff(x, d, n) {
+    const p = project(x, d, 8);
+    for (let i = 0; i < n; i++) {
+      if (motes.length > 48) motes.shift();
+      motes.push({
+        x: p.sx + (Math.random() - 0.5) * 20,
+        y: p.sy,
+        vx: (Math.random() - 0.5) * 90,
+        vy: -16 - Math.random() * 50,
+        life: 0.45 + Math.random() * 0.35,
+        t: 0
+      });
+    }
+  }
+
+  function pushStroke(x0, y0, x1, y1) {
+    const mx = x1 - x0, my = y1 - y0;
+    const dist = Math.hypot(mx, my);
+    if (dist < 0.4) return;
+    rake.ang = Math.atan2(my, mx);
+    const steps = Math.max(1, Math.ceil(dist / 14));
+    let moved = 0;
+    for (let s = 1; s <= steps; s++) {
+      const sx = x0 + mx * s / steps;
+      const sy = y0 + my * s / steps;
+      const g = screenToGround(sx, sy);
+      const c = project(g.x, g.d, 0);
+      const wx = (mx / steps) / Math.max(1, W);
+      const wd = (my / steps) / spanY();
+      for (let i = 0; i < leaves.length; i++) {
+        const leaf = leaves[i];
+        if (leaf.state === 'canopy') continue;
+        const p = leafScreen(leaf);
+        const dx = p.sx - c.sx, dy = p.sy - c.sy;
+        const dd = dx * dx + dy * dy;
+        if (dd < 56 * 56) {
+          const f = 1 - Math.sqrt(dd) / 56;
+          leaf.x += wx * (1.15 + f * 0.45);
+          leaf.d += wd * (1.15 + f * 0.45);
+          leaf.vx = wx * 10;
+          leaf.vd = wd * 10;
+          leaf.z = Math.max(leaf.z, 2 + f * 14);
+          leaf.vz = Math.max(leaf.vz, 24 + f * 50);
+          leaf.vrot = (Math.random() - 0.5) * 4;
+          leaf.state = 'air';
+          leaf.mound = 0;
+          leaf.ox = 0;
+          leaf.x = clamp(leaf.x, 0.02, 0.98);
+          leaf.d = clamp(leaf.d, 0.08, 0.98);
+          moved++;
+        }
+      }
+      for (let i = 0; i < nuts.length; i++) {
+        const n = nuts[i];
+        const p = project(n.x, n.d, n.z);
+        const dx = p.sx - c.sx, dy = p.sy - c.sy;
+        if (dx * dx + dy * dy < 48 * 48) {
+          n.x = clamp(n.x + wx * 0.9, 0.03, 0.97);
+          n.d = clamp(n.d + wd * 0.9, 0.1, 0.97);
+          n.vx = wx * 6;
+          n.vd = wd * 6;
+        }
+      }
+      disturbHog(g.x, g.d);
+    }
+    if (moved) { madePile = true; rustle(Math.min(0.7, dist / 90)); }
+  }
+
+  function launch(kind) {
+    for (let i = 0; i < actors.length; i++) {
+      if (actors[i].kind === kind && !actors[i].done) {
+        toast(kind === 'dog' ? 'Der Hund ist schon unterwegs.' : 'Das Kind ist schon unterwegs.');
+        return;
+      }
+    }
+    const pile = biggestPile();
+    const tx = pile ? pile.x : 0.5;
+    const td = pile ? pile.d : 0.68;
+    const fromLeft = tx >= 0.5;
+    actors.push({
+      kind: kind,
+      x: fromLeft ? -0.08 : 1.08,
+      d: clamp(td, 0.35, 0.9),
+      z: 0, vz: 0,
+      state: 'run',
+      t: 0,
+      tx: tx, td: td,
+      face: fromLeft ? 1 : -1,
+      wiggles: 0,
+      done: false,
+      exitX: 0
+    });
+  }
+
+  function updateActor(a, dt) {
+    if (a.done) return;
+    a.t += dt;
+    if (a.state === 'run' || a.state === 'leave') {
+      const tx = a.state === 'leave' ? a.exitX : a.tx;
+      const td = a.state === 'leave' ? a.d : a.td;
+      const dx = tx - a.x;
+      const dd = td - a.d;
+      const dist = Math.hypot(dx * W, dd * spanY());
+      if (a.state === 'run' && dist < 26) {
+        a.state = 'jump';
+        a.vz = a.kind === 'dog' ? 300 : 340;
+        a.z = 0;
+        a.t = 0;
+        return;
+      }
+      if (dist < 6 && a.state === 'leave') { a.done = true; return; }
+      const len = Math.hypot(dx, dd) || 0.0001;
+      const speed = a.kind === 'dog' ? 0.58 : 0.46;
+      a.x += dx / len * speed * dt;
+      a.d += dd / len * speed * 0.9 * dt;
+      a.face = dx >= 0 ? 1 : -1;
+      a.d = clamp(a.d, 0.2, 0.95);
+    } else if (a.state === 'jump') {
+      a.vz -= 540 * dt;
+      a.z += a.vz * dt;
+      a.x += (a.tx - a.x) * Math.min(1, dt * 2.4);
+      a.d += (a.td - a.d) * Math.min(1, dt * 2.4);
+      if (a.z <= 0) {
+        a.z = 0;
+        a.vz = 0;
+        scatter(a.x, a.d, a.kind === 'dog' ? 150 : 175);
+        if (a.kind === 'dog') { bark(); a.wiggles = 3; }
+        else laugh();
+        toast(a.kind === 'dog' ? 'Der Hund springt in den Haufen.' : 'Das Kind springt in den Haufen.');
+        a.state = 'land';
+        a.t = 0;
+      }
+    } else if (a.state === 'land') {
+      if (a.kind === 'dog' && a.wiggles > 0 && a.t > 0.16) {
+        a.t = 0;
+        a.wiggles--;
+        scatter(a.x, a.d, 78);
+      }
+      if ((a.kind === 'dog' && a.wiggles <= 0 && a.t > 0.45) || (a.kind !== 'dog' && a.t > 0.85)) {
+        a.state = 'leave';
+        a.exitX = a.x < 0.5 ? -0.14 : 1.14;
+        a.t = 0;
+      }
+    }
+  }
+
+  function updateHog(dt) {
+    if (hog.cool > 0 && !hog.active) hog.cool -= dt;
+    if (!hog.active) {
+      if (hog.cool <= 0) {
+        const pile = biggestPile();
+        if (pile && pile.n >= 12 && Math.random() < dt * 0.12) {
+          hog.active = true;
+          hog.state = 'peek';
+          hog.x = pile.x;
+          hog.d = pile.d;
+          hog.t = 0;
+          hog.face = pile.x < 0.5 ? 1 : -1;
+          if (!toldHog) {
+            toldHog = true;
+            toast('Ein Igel versteckt sich im Laub.');
+          }
+        }
+      }
+      return;
+    }
+    hog.t += dt;
+    if (hog.state === 'run') {
+      const dx = hog.tx - hog.x;
+      const dd = hog.td - hog.d;
+      const dist = Math.hypot(dx * W, dd * spanY());
+      if (dist < 10) {
+        hog.active = false;
+        hog.cool = 9 + Math.random() * 6;
+        hog.state = 'peek';
+      } else {
+        const len = Math.hypot(dx, dd) || 0.0001;
+        hog.x += dx / len * 0.62 * dt;
+        hog.d += dd / len * 0.62 * dt;
+        hog.face = dx >= 0 ? 1 : -1;
+      }
+    }
+  }
+
+  function disturbHog(x, d) {
+    if (!hog.active || hog.state === 'run') return;
+    const a = project(hog.x, hog.d, 0);
+    const b = project(x, d, 0);
+    if (Math.hypot(a.sx - b.sx, a.sy - b.sy) < 86) {
+      hog.state = 'run';
+      const left = hog.x < 0.5;
+      hog.tx = left ? 0.05 : 0.95;
+      hog.td = 0.24;
+      hog.face = left ? -1 : 1;
+      squeak();
+      toast('Der Igel flitzt ins Gebüsch.');
+    }
+  }
+
+  function shedAndGrow(dt) {
+    nextShed -= dt;
+    if (nextShed > 0) return;
+    nextShed = 0.35 + Math.random() * 0.9;
+    const kind = (Math.random() * 4) | 0;
+    const ready = [];
+    for (let i = 0; i < leaves.length; i++) {
+      if (leaves[i].state === 'canopy' && leaves[i].kind === kind) ready.push(leaves[i]);
+    }
+    if (ready.length) releaseLeaf(ready[(Math.random() * ready.length) | 0]);
+    if (countKind(kind, 'canopy') < 7 && leaves.length < 280) attachLeaf(kind);
+  }
+
+  function step(dt) {
+    simT += dt;
+    if (gust > 0) gust = Math.max(0, gust - dt * 0.22);
+    const windPx = (22 + Math.sin(simT * 0.37) * 10 + gust * (reduce ? 80 : 250));
+    const n = leaves.length;
+    for (let i = 0; i < n; i++) updateLeaf(leaves[i], dt, windPx);
+    shedAndGrow(dt);
+    updateNuts(dt);
+    layoutPiles();
+    for (let i = 0; i < actors.length; i++) updateActor(actors[i], dt);
+    for (let i = actors.length - 1; i >= 0; i--) if (actors[i].done) actors.splice(i, 1);
+    updateHog(dt);
+    for (let i = motes.length - 1; i >= 0; i--) {
+      const m = motes[i];
+      m.t += dt;
+      m.x += m.vx * dt;
+      m.y += m.vy * dt;
+      m.vy += 20 * dt;
+      if (m.t >= m.life) motes.splice(i, 1);
+    }
+    for (let i = 0; i < clouds.length; i++) {
+      clouds[i].x += clouds[i].v * dt * (0.6 + gust);
+      if (clouds[i].x > 1.25) clouds[i].x = -0.25;
+    }
+    for (let i = 0; i < birds.length; i++) {
+      const b = birds[i];
+      b.x += b.v * dt * (1 + gust * 0.8);
+      b.f += dt * (reduce ? 2 : 7);
+      if (b.x > 1.15) b.x = -0.15;
+    }
+    nextVisit -= dt;
+    if (nextVisit <= 0) {
+      nextVisit = 22 + Math.random() * 16;
+      if (!actors.length && Math.random() < 0.75) launch(Math.random() < 0.5 ? 'child' : 'dog');
+    }
+    if (simT - hudT > 0.25) {
+      hudT = simT;
+      lastStats = computeStats();
+      if (madePile && lastStats.biggest > rekord) {
+        rekord = lastStats.biggest;
+        try { localStorage.setItem('playbot-laubhaufen', JSON.stringify({ rekord: rekord })); } catch (e) {}
+      }
+      paintStat();
+      $('bBoe').classList.toggle('on', gust > 0.2);
+      $('bKind').classList.toggle('on', hasActor('child'));
+      $('bHund').classList.toggle('on', hasActor('dog'));
+    }
+    if (!hintGone) {
+      hintT += dt;
+      if (hintT > 8) hideHint();
+    }
+    if (toastT > 0) {
+      toastT -= dt;
+      if (toastT <= 0) $('toast').classList.remove('show');
+    }
+    syncWind();
+  }
+
+  function hasActor(kind) {
+    for (let i = 0; i < actors.length; i++) if (actors[i].kind === kind) return true;
+    return false;
+  }
+
+  function paintStat() {
+    const s = lastStats;
+    let text = s.piles + ' Haufen';
+    if (s.biggest) text += ' · grösster ' + s.biggest;
+    text += ' · ' + s.nuts + (s.nuts === 1 ? ' Kastanie' : ' Kastanien');
+    if (hog.active && hog.state !== 'run') text += ' · Igel im Laub';
+    if (rekord > 0) text += ' · Rekord ' + rekord;
+    $('stat').textContent = text;
+  }
+
+  function hideHint() {
+    hintGone = true;
+    $('hint').classList.add('hide');
+  }
+
+  function toast(msg) {
+    const el = $('toast');
+    el.textContent = msg;
+    el.classList.add('show');
+    toastT = 2.6;
+  }
+
+  function triggerGust() {
+    gust = 1;
+    toast('Eine Böe wirbelt das Laub auf.');
+    $('bBoe').classList.add('on');
+  }
+
+  function fresh() {
+    seedGarden();
+    toldHog = false;
+    madePile = false;
+    lastStats = computeStats();
+    toast('Das Laub liegt wieder verstreut.');
+    paintStat();
+  }
+
+  // ----- sound, quiet until the first tap -----
+  function startAudio() {
+    if (ac) {
+      if (ac.state === 'suspended') ac.resume().catch(function () {});
+      return;
+    }
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return;
+    try { ac = new AC(); } catch (e) { ac = null; return; }
+    master = ac.createGain();
+    master.gain.value = 0;
+    master.connect(ac.destination);
+    const sr = ac.sampleRate;
+    noiseBuf = ac.createBuffer(1, sr, sr);
+    windBuf = ac.createBuffer(1, sr * 2, sr);
+    const nd = noiseBuf.getChannelData(0);
+    const wd = windBuf.getChannelData(0);
+    let b0 = 0, b1 = 0;
+    for (let i = 0; i < sr; i++) {
+      const w = Math.random() * 2 - 1;
+      b0 = b0 * 0.82 + w * 0.18;
+      nd[i] = b0 * 1.8;
+    }
+    for (let i = 0; i < sr * 2; i++) {
+      const w = Math.random() * 2 - 1;
+      b1 = b1 * 0.985 + w * 0.015;
+      wd[i] = b1 * 3;
+    }
+    const src = ac.createBufferSource();
+    src.buffer = windBuf;
+    src.loop = true;
+    windFilter = ac.createBiquadFilter();
+    windFilter.type = 'lowpass';
+    windFilter.frequency.value = 420;
+    windGain = ac.createGain();
+    windGain.gain.value = 0;
+    src.connect(windFilter);
+    windFilter.connect(windGain);
+    windGain.connect(master);
+    src.start();
+    if (ac.state === 'suspended') ac.resume().catch(function () {});
+  }
+
+  function syncWind() {
+    if (!ac || !windGain || !master) return;
+    const audible = soundOn && !document.hidden;
+    master.gain.setTargetAtTime(audible ? 0.85 : 0, ac.currentTime, 0.06);
+    const g = audible ? 0.012 + gust * 0.07 + 0.01 : 0;
+    windGain.gain.setTargetAtTime(g, ac.currentTime, 0.25);
+    if (windFilter) windFilter.frequency.setTargetAtTime(280 + gust * 640, ac.currentTime, 0.3);
+  }
+
+  function rustle(amount) {
+    if (!ac || !soundOn || !noiseBuf) return;
+    const now = ac.currentTime;
+    if (now < rustleAt) return;
+    rustleAt = now + 0.045;
+    const src = ac.createBufferSource();
+    src.buffer = noiseBuf;
+    const f = ac.createBiquadFilter();
+    f.type = 'bandpass';
+    f.frequency.value = 700 + Math.random() * 1600;
+    f.Q.value = 0.65;
+    const g = ac.createGain();
+    const vol = Math.max(0.0008, Math.min(0.22, 0.03 + amount * 0.16));
+    g.gain.setValueAtTime(vol, now);
+    g.gain.exponentialRampToValueAtTime(0.0008, now + 0.1 + amount * 0.08);
+    src.connect(f); f.connect(g); g.connect(master);
+    const off = Math.random() * 0.4;
+    src.start(now, off);
+    src.stop(now + 0.22);
+  }
+
+  function tone(freq, dur, vol, delay, type) {
+    if (!ac || !soundOn) return;
+    const t = ac.currentTime + (delay || 0);
+    const o = ac.createOscillator();
+    const g = ac.createGain();
+    o.type = type || 'sine';
+    o.frequency.setValueAtTime(Math.max(40, freq), t);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(Math.max(0.0002, vol), t + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g); g.connect(master);
+    o.start(t);
+    o.stop(t + dur + 0.02);
+  }
+
+  function thud() { tone(90, 0.12, 0.05, 0, 'sine'); }
+  function laugh() { tone(520, 0.12, 0.045, 0, 'triangle'); tone(680, 0.14, 0.035, 0.09, 'triangle'); }
+  function bark() { tone(170, 0.14, 0.06, 0, 'sawtooth'); tone(110, 0.1, 0.04, 0.12, 'square'); }
+  function plop() {
+    tone(150, 0.09, 0.05, 0, 'sine');
+    if (!toldNut) { toldNut = true; toast('Eine Kastanie fällt vom Baum.'); }
+  }
+  function squeak() { tone(880, 0.07, 0.03, 0, 'sine'); }
+
+  function paintTon() {
+    const b = $('bTon');
+    b.querySelector('.ic').textContent = soundOn ? '🔊' : '🔇';
+    b.setAttribute('aria-pressed', soundOn ? 'true' : 'false');
+    b.setAttribute('aria-label', soundOn ? 'Ton ist an. Tippe, um ihn auszuschalten' : 'Ton ist aus. Tippe, um ihn einzuschalten');
+    b.classList.toggle('on', soundOn);
+  }
+
+  function setSound(on) {
+    soundOn = !!on;
+    if (soundOn) startAudio();
+    paintTon();
+    if (ac && master) master.gain.setTargetAtTime(soundOn && !document.hidden ? 0.85 : 0, ac.currentTime, 0.04);
+    try { localStorage.setItem('playbot-laubhaufen-ton', userMuted ? 'aus' : 'an'); } catch (e) {}
+  }
+
+  function unlockFromPlay() {
+    audioUnlocked = true;
+    if (!userMuted && !soundOn) setSound(true);
+    else if (soundOn) startAudio();
+  }
+
+  function toggleSound() {
+    audioUnlocked = true;
+    if (soundOn) { userMuted = true; setSound(false); toast('Ton ist aus.'); }
+    else { userMuted = false; setSound(true); toast('Ton ist an.'); }
+  }
+
+  // ----- draw -----
+  function drawSky() {
+    const g = ctx.createLinearGradient(0, 0, 0, horizon + 30);
+    g.addColorStop(0, '#f0a56a');
+    g.addColorStop(0.38, '#f6d2a4');
+    g.addColorStop(0.72, '#fbe6c8');
+    g.addColorStop(1, '#f3d7b4');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, W, H);
+    const sx = W * 0.14, sy = horizon * 0.28, r = clamp(H * 0.07, 22, 54);
+    const glow = ctx.createRadialGradient(sx, sy, r * 0.2, sx, sy, r * 3.2);
+    glow.addColorStop(0, 'rgba(255,236,190,.95)');
+    glow.addColorStop(0.35, 'rgba(255,196,120,.35)');
+    glow.addColorStop(1, 'rgba(255,196,120,0)');
+    ctx.fillStyle = glow;
+    ctx.fillRect(0, 0, W, horizon + 40);
+    ctx.fillStyle = '#fff1c8';
+    ctx.beginPath();
+    ctx.arc(sx, sy, r, 0, TAU);
+    ctx.fill();
+  }
+
+  function puffCloud(x, y, s) {
+    ctx.fillStyle = 'rgba(255,248,238,.82)';
+    ctx.beginPath();
+    ctx.ellipse(x, y, 34 * s, 16 * s, 0, 0, TAU);
+    ctx.ellipse(x - 26 * s, y + 4 * s, 22 * s, 12 * s, 0, 0, TAU);
+    ctx.ellipse(x + 28 * s, y + 6 * s, 24 * s, 13 * s, 0, 0, TAU);
+    ctx.fill();
+  }
+
+  function drawBird(b) {
+    const x = b.x * W;
+    const y = b.y * horizon;
+    const flap = Math.sin(b.f) * 5;
+    ctx.strokeStyle = 'rgba(90,48,36,.75)';
+    ctx.lineWidth = 1.6;
+    ctx.beginPath();
+    ctx.moveTo(x - 8, y);
+    ctx.quadraticCurveTo(x - 4, y - 4 - flap, x, y);
+    ctx.quadraticCurveTo(x + 4, y - 4 - flap, x + 8, y);
+    ctx.stroke();
+  }
+
+  function drawHill() {
+    ctx.fillStyle = '#d7a48e';
+    ctx.beginPath();
+    ctx.moveTo(0, horizon + 8);
+    ctx.quadraticCurveTo(W * 0.25, horizon - clamp(H * 0.06, 16, 48), W * 0.55, horizon - 6);
+    ctx.quadraticCurveTo(W * 0.82, horizon + 16, W, horizon - 18);
+    ctx.lineTo(W, horizon + 18);
+    ctx.lineTo(0, horizon + 18);
+    ctx.fill();
+    ctx.fillStyle = '#c48472';
+    const farN = Math.max(5, (W / 90) | 0);
+    for (let i = 0; i < farN; i++) {
+      const x = (i + 0.5) * W / farN;
+      const h = 16 + (i % 3) * 8;
+      ctx.beginPath();
+      ctx.moveTo(x - 14, horizon);
+      ctx.lineTo(x, horizon - h);
+      ctx.lineTo(x + 16, horizon);
+      ctx.fill();
+    }
+  }
+
+  function drawFence() {
+    const y = horizon + 6;
+    ctx.strokeStyle = '#8d6242';
+    ctx.lineWidth = 3;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(8, y);
+    ctx.lineTo(W - 8, y);
+    ctx.moveTo(8, y + 12);
+    ctx.lineTo(W - 8, y + 12);
+    ctx.stroke();
+    const posts = Math.max(5, (W / 78) | 0);
+    ctx.lineWidth = 4;
+    for (let i = 0; i <= posts; i++) {
+      const x = 10 + i * (W - 20) / posts;
+      ctx.beginPath();
+      ctx.moveTo(x, y - 10);
+      ctx.lineTo(x, y + 24);
+      ctx.stroke();
+    }
+  }
+
+  function drawTree(tree) {
+    const base = project(tree.x, 0.1, 0);
+    const h = crownH();
+    const w = crownW();
+    ctx.fillStyle = 'rgba(90,50,20,.18)';
+    ctx.beginPath();
+    ctx.ellipse(base.sx + 6, base.sy + 4, w * 0.42, 8 * base.sc, 0, 0, TAU);
+    ctx.fill();
+    ctx.fillStyle = '#6a4630';
+    ctx.beginPath();
+    ctx.moveTo(base.sx - 7 * base.sc, base.sy);
+    ctx.quadraticCurveTo(base.sx - 4, base.sy - h * 0.62, base.sx - 2, base.sy - h * 0.58);
+    ctx.lineTo(base.sx + 5, base.sy - h * 0.58);
+    ctx.quadraticCurveTo(base.sx + 8, base.sy - h * 0.4, base.sx + 11 * base.sc, base.sy);
+    ctx.fill();
+    ctx.strokeStyle = '#5a3824';
+    ctx.lineWidth = 3;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(base.sx, base.sy - h * 0.5);
+    ctx.lineTo(base.sx - w * 0.28, base.sy - h * 0.7);
+    ctx.moveTo(base.sx + 1, base.sy - h * 0.46);
+    ctx.lineTo(base.sx + w * 0.3, base.sy - h * 0.66);
+    ctx.stroke();
+    ctx.fillStyle = '#4e3424';
+    ctx.fillRect(base.sx - 2, base.sy - h * 0.58, 4, h * 0.2);
+    const cy = base.sy - h * 0.62;
+    for (let i = 0; i < 5; i++) {
+      ctx.fillStyle = tree.blobs[i % tree.blobs.length];
+      ctx.beginPath();
+      ctx.ellipse(
+        base.sx + Math.sin(i * 1.7) * w * 0.18,
+        cy + ((i % 3) - 1) * h * 0.08,
+        w * (0.42 - i * 0.03),
+        h * 0.2,
+        0, 0, TAU
+      );
+      ctx.fill();
+    }
+    for (let i = 0; i < leaves.length; i++) {
+      const leaf = leaves[i];
+      if (leaf.state !== 'canopy' || leaf.tree !== tree.kind) continue;
+      const p = project(leaf.x, leaf.d, leaf.z);
+      drawLeaf(leaf.kind, p.sx, p.sy, leaf.size * 0.85 * p.sc, leaf.col, leaf.rot);
+    }
+    if (W >= 760) {
+      ctx.font = '600 13px Georgia, serif';
+      ctx.fillStyle = 'rgba(255,246,230,.88)';
+      const tw = ctx.measureText(tree.name).width;
+      const pw = tw + 12;
+      const lx = clamp(base.sx - pw / 2, 6, Math.max(6, W - pw - 6));
+      const ly = base.sy + 14;
+      roundRect(lx, ly, pw, 18, 8);
+      ctx.fill();
+      ctx.fillStyle = '#5c3418';
+      ctx.fillText(tree.name, lx + 6, ly + 13);
+    }
+  }
+
+  function buildGrass() {
+    blades.length = 0;
+    const n = Math.min(420, Math.floor(W * spanY() / 220));
+    for (let i = 0; i < n; i++) {
+      const hsh = hash(i + 3);
+      blades.push({
+        x: hash(i * 5 + 1),
+        d: 0.12 + hash(i * 5 + 2) * 0.86,
+        h: 5 + hsh * 11,
+        lean: hash(i * 9 + 4),
+        col: hsh > 0.55 ? '#8ea24a' : '#c2a25a'
+      });
+    }
+  }
+
+  function hash(i) {
+    let x = Math.imul(i | 0, 374761393) + 668265263 | 0;
+    x = Math.imul(x ^ (x >>> 13), 1274126177);
+    return ((x ^ (x >>> 16)) >>> 0) / 4294967296;
+  }
+
+  function drawGrass() {
+    const lean = (Math.sin(simT * 0.8) * 2 + gust * 8) * (reduce ? 0.3 : 1);
+    for (let i = 0; i < blades.length; i++) {
+      const b = blades[i];
+      const p = project(b.x, b.d, 0);
+      ctx.strokeStyle = b.col;
+      ctx.globalAlpha = 0.45;
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(p.sx, p.sy);
+      ctx.lineTo(p.sx + lean * (0.4 + b.lean), p.sy - b.h * p.sc);
+      ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  function drawPath() {
+    const span = spanY();
+    function center(t) {
+      const y = horizon + span * (0.08 + t * 1.02);
+      const x = W * (0.58 - t * 0.16 + Math.sin(t * 2.4) * 0.05);
+      return { x: x, y: y };
+    }
+    ctx.beginPath();
+    const steps = 18;
+    for (let side = 1; side >= -1; side -= 2) {
+      const from = side > 0 ? 0 : steps;
+      const to = side > 0 ? steps : 0;
+      const dir = side > 0 ? 1 : -1;
+      for (let i = from; dir > 0 ? i <= to : i >= to; i += dir) {
+        const t = i / steps;
+        const c = center(t);
+        const ahead = t < 0.98;
+        const c2 = center(ahead ? t + 0.02 : t - 0.02);
+        const dx = ahead ? c2.x - c.x : c.x - c2.x;
+        const dy = ahead ? c2.y - c.y : c.y - c2.y;
+        const len = Math.hypot(dx, dy) || 1;
+        const nx = -dy / len, ny = dx / len;
+        const w = 16 + t * 42;
+        const x = c.x + nx * w * side;
+        const y = c.y + ny * w * side;
+        if (side > 0 && i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      }
+    }
+    ctx.closePath();
+    ctx.fillStyle = 'rgba(214,176,122,.5)';
+    ctx.fill();
+  }
+
+  function drawBush(x, d, sc) {
+    const p = project(x, d, 0);
+    ctx.fillStyle = '#6e8a3a';
+    ctx.beginPath();
+    ctx.ellipse(p.sx, p.sy - 10 * sc, 26 * sc, 14 * sc, 0, 0, TAU);
+    ctx.ellipse(p.sx - 16 * sc, p.sy - 4 * sc, 16 * sc, 10 * sc, 0, 0, TAU);
+    ctx.ellipse(p.sx + 16 * sc, p.sy - 2 * sc, 16 * sc, 11 * sc, 0, 0, TAU);
+    ctx.fill();
+    ctx.fillStyle = '#c45c28';
+    ctx.globalAlpha = 0.8;
+    ctx.beginPath();
+    ctx.ellipse(p.sx + 6 * sc, p.sy - 14 * sc, 8 * sc, 5 * sc, 0, 0, TAU);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+  }
+
+  function drawBench() {
+    const p = project(0.8, 0.48, 0);
+    const s = p.sc;
+    ctx.fillStyle = '#8a5a34';
+    ctx.fillRect(p.sx - 28 * s, p.sy - 16 * s, 56 * s, 6 * s);
+    ctx.fillRect(p.sx - 24 * s, p.sy - 28 * s, 48 * s, 5 * s);
+    ctx.fillRect(p.sx - 24 * s, p.sy - 24 * s, 4 * s, 16 * s);
+    ctx.fillRect(p.sx + 20 * s, p.sy - 24 * s, 4 * s, 16 * s);
+    ctx.fillStyle = '#6b4328';
+    ctx.fillRect(p.sx - 22 * s, p.sy - 4 * s, 4 * s, 12 * s);
+    ctx.fillRect(p.sx + 18 * s, p.sy - 4 * s, 4 * s, 12 * s);
+  }
+
+  function drawLeaf(kind, x, y, s, col, rot) {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(rot);
+    ctx.scale(s, s);
+    ctx.fillStyle = col;
+    if (kind === 0) {
+      const angs = [-2.4, -1.2, 0, 1.2, 2.4];
+      const lens = [0.55, 0.82, 0.98, 0.82, 0.55];
+      const wids = [0.2, 0.24, 0.26, 0.24, 0.2];
+      for (let i = 0; i < 5; i++) {
+        ctx.save();
+        ctx.rotate(angs[i]);
+        ctx.beginPath();
+        ctx.ellipse(0, -lens[i] * 0.62, wids[i], lens[i] * 0.62, 0, 0, TAU);
+        ctx.fill();
+        ctx.restore();
+      }
+      ctx.fillStyle = '#5a3824';
+      ctx.fillRect(-0.035, 0.02, 0.07, 0.42);
+    } else if (kind === 1) {
+      ctx.beginPath();
+      ctx.moveTo(0, -0.95);
+      ctx.bezierCurveTo(0.55, -1.0, 0.95, -0.45, 0.48, -0.28);
+      ctx.bezierCurveTo(1.0, -0.12, 0.9, 0.28, 0.42, 0.18);
+      ctx.bezierCurveTo(0.78, 0.48, 0.4, 0.9, 0, 0.58);
+      ctx.bezierCurveTo(-0.4, 0.9, -0.78, 0.48, -0.42, 0.18);
+      ctx.bezierCurveTo(-0.9, 0.28, -1.0, -0.12, -0.48, -0.28);
+      ctx.bezierCurveTo(-0.95, -0.45, -0.55, -1.0, 0, -0.95);
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(70,36,16,.45)';
+      ctx.lineWidth = 0.06;
+      ctx.beginPath();
+      ctx.moveTo(0, 0.5);
+      ctx.lineTo(0, -0.8);
+      ctx.stroke();
+    } else if (kind === 2) {
+      ctx.beginPath();
+      ctx.moveTo(0, -1.02);
+      ctx.bezierCurveTo(0.58, -0.55, 0.42, 0.42, 0, 0.78);
+      ctx.bezierCurveTo(-0.42, 0.42, -0.58, -0.55, 0, -1.02);
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(90,50,16,.4)';
+      ctx.lineWidth = 0.05;
+      ctx.beginPath();
+      ctx.moveTo(0, 0.65);
+      ctx.lineTo(0, -0.85);
+      ctx.stroke();
+    } else {
+      for (let i = 0; i < 7; i++) {
+        const a = -Math.PI / 2 + (i - 3) * 0.34;
+        ctx.save();
+        ctx.rotate(a);
+        ctx.beginPath();
+        ctx.ellipse(0, -0.58, 0.11, 0.42, 0, 0, TAU);
+        ctx.fill();
+        ctx.restore();
+      }
+      ctx.fillStyle = '#5a3824';
+      ctx.fillRect(-0.03, -0.05, 0.06, 0.4);
+    }
+    ctx.restore();
+  }
+
+  function drawNut(n) {
+    const p = project(n.x, n.d, n.z);
+    const s = p.sc;
+    ctx.save();
+    ctx.translate(p.sx, p.sy);
+    ctx.scale(s, s);
+    ctx.rotate(n.rot * 0.2);
+    if (n.husk) {
+      ctx.fillStyle = '#6f8a34';
+      for (let i = 0; i < 8; i++) {
+        const a = i / 8 * TAU;
+        ctx.beginPath();
+        ctx.ellipse(Math.cos(a) * 6, Math.sin(a) * 4.5, 3.2, 5.5, a, 0, TAU);
+        ctx.fill();
+      }
+    }
+    ctx.fillStyle = '#6a3d22';
+    ctx.beginPath();
+    ctx.ellipse(0, 0, 6.5, 5.4, 0, 0, TAU);
+    ctx.fill();
+    ctx.fillStyle = '#d8b07a';
+    ctx.beginPath();
+    ctx.ellipse(-1.6, -1.6, 2, 1.3, -0.4, 0, TAU);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  function drawHog() {
+    const near = nearbyMound(hog.x, hog.d);
+    const bob = hog.state === 'peek' ? Math.sin(hog.t * 2) * 1.2 : 0;
+    const p = project(hog.x, hog.d, 0);
+    const s = p.sc * (hog.state === 'run' ? 1.15 : 1.5);
+    const y = p.sy - Math.min(near, 16) * 0.28 + bob;
+    ctx.save();
+    ctx.translate(p.sx, y);
+    ctx.scale(hog.face * s, s);
+    ctx.fillStyle = 'rgba(60,30,10,.22)';
+    ctx.beginPath();
+    ctx.ellipse(0, 7, 16, 3.4, 0, 0, TAU);
+    ctx.fill();
+    ctx.fillStyle = '#8b5a38';
+    ctx.beginPath();
+    ctx.ellipse(-1, 1, 13, 7.5, 0, 0, TAU);
+    ctx.fill();
+    ctx.fillStyle = '#4a3428';
+    for (let i = 0; i < 7; i++) {
+      const x = -11 + i * 2.8;
+      const hgt = 9 + (i % 3) * 2;
+      ctx.beginPath();
+      ctx.moveTo(x, -1);
+      ctx.lineTo(x + 1.1, -2 - hgt);
+      ctx.lineTo(x + 3.2, -1);
+      ctx.fill();
+    }
+    ctx.fillStyle = '#f0d0ae';
+    ctx.beginPath();
+    ctx.ellipse(11, 1.5, 6.2, 5, 0.15, 0, TAU);
+    ctx.fill();
+    ctx.fillStyle = '#e7c4a4';
+    ctx.beginPath();
+    ctx.ellipse(8.5, -4.2, 2.1, 2.8, -0.5, 0, TAU);
+    ctx.fill();
+    ctx.fillStyle = '#f6dcc0';
+    ctx.beginPath();
+    ctx.ellipse(16.2, 2.6, 3.1, 2.2, 0.2, 0, TAU);
+    ctx.fill();
+    ctx.fillStyle = '#2a201c';
+    ctx.beginPath();
+    ctx.arc(18.4, 2.7, 1.15, 0, TAU);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(13.4, 0.2, 0.85, 0, TAU);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  function nearbyMound(x, d) {
+    const c = project(x, d, 0);
+    let n = 0;
+    for (let i = 0; i < leaves.length; i++) {
+      const leaf = leaves[i];
+      if (leaf.state !== 'rest') continue;
+      const p = project(leaf.x, leaf.d, 0);
+      const dx = p.sx - c.sx, dy = p.sy - c.sy;
+      if (dx * dx + dy * dy < 52 * 52) n++;
+    }
+    return Math.min(28, Math.max(0, n - 4) * 1.1);
+  }
+
+  function drawChild(a) {
+    const p = project(a.x, a.d, a.z);
+    const s = p.sc;
+    const run = a.state === 'run' || a.state === 'leave';
+    const leg = run ? Math.sin(a.t * 14) * 4 : 0;
+    ctx.save();
+    ctx.translate(p.sx, p.sy);
+    ctx.scale(a.face * s, s);
+    ctx.fillStyle = 'rgba(60,30,10,.22)';
+    ctx.beginPath();
+    ctx.ellipse(0, 4, 12, 3.5, 0, 0, TAU);
+    ctx.fill();
+    ctx.strokeStyle = '#5c3a28';
+    ctx.lineWidth = 3;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(-4, -8);
+    ctx.lineTo(-6, 2 + leg);
+    ctx.moveTo(4, -8);
+    ctx.lineTo(6, 2 - leg);
+    ctx.stroke();
+    ctx.fillStyle = '#d3543a';
+    roundRect(-8, -24, 16, 16, 5);
+    ctx.fill();
+    ctx.fillStyle = '#e23b1a';
+    ctx.beginPath();
+    ctx.moveTo(-8, -20);
+    ctx.quadraticCurveTo(-16, -8, -6, -6);
+    ctx.lineTo(-4, -14);
+    ctx.fill();
+    ctx.strokeStyle = '#f3c9a8';
+    ctx.lineWidth = 3;
+    if (a.state === 'jump') {
+      ctx.beginPath();
+      ctx.moveTo(-6, -20);
+      ctx.lineTo(-12, -32);
+      ctx.moveTo(6, -20);
+      ctx.lineTo(12, -32);
+      ctx.stroke();
+    } else {
+      ctx.beginPath();
+      ctx.moveTo(-7, -18);
+      ctx.lineTo(-12, -8 + leg);
+      ctx.moveTo(7, -18);
+      ctx.lineTo(11, -10 - leg);
+      ctx.stroke();
+    }
+    ctx.fillStyle = '#f3c9a8';
+    ctx.beginPath();
+    ctx.arc(0, -30, 7.2, 0, TAU);
+    ctx.fill();
+    ctx.fillStyle = '#c4472a';
+    ctx.beginPath();
+    ctx.arc(0, -34, 7.4, Math.PI, TAU);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(0, -40, 2.4, 0, TAU);
+    ctx.fill();
+    ctx.fillStyle = '#3a2a22';
+    ctx.beginPath();
+    ctx.arc(2.4, -30.5, 0.7, 0, TAU);
+    ctx.arc(5.2, -30.2, 0.7, 0, TAU);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  function drawDog(a) {
+    const p = project(a.x, a.d, a.z);
+    const s = p.sc;
+    const run = a.state === 'run' || a.state === 'leave' || a.state === 'land';
+    const leg = run ? Math.sin(a.t * 16) * 3.5 : 0;
+    const wag = Math.sin(simT * 10) * 0.6;
+    ctx.save();
+    ctx.translate(p.sx, p.sy);
+    ctx.scale(a.face * s, s);
+    ctx.fillStyle = 'rgba(60,30,10,.22)';
+    ctx.beginPath();
+    ctx.ellipse(0, 2, 14, 3.5, 0, 0, TAU);
+    ctx.fill();
+    ctx.strokeStyle = '#8a5a30';
+    ctx.lineWidth = 2.4;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(-6, -6);
+    ctx.lineTo(-8, 2 + leg);
+    ctx.moveTo(-1, -6);
+    ctx.lineTo(-2, 2 - leg);
+    ctx.moveTo(6, -6);
+    ctx.lineTo(8, 2 - leg);
+    ctx.moveTo(2, -6);
+    ctx.lineTo(3, 2 + leg);
+    ctx.stroke();
+    ctx.fillStyle = '#d08a45';
+    ctx.beginPath();
+    ctx.ellipse(0, -10, 13, 7, 0, 0, TAU);
+    ctx.fill();
+    ctx.save();
+    ctx.translate(-12, -12);
+    ctx.rotate(-0.8 + wag);
+    ctx.fillRect(0, -1.5, 10, 3);
+    ctx.restore();
+    ctx.beginPath();
+    ctx.ellipse(12, -14, 6.5, 5.5, 0.3, 0, TAU);
+    ctx.fill();
+    ctx.fillStyle = '#b87438';
+    ctx.beginPath();
+    ctx.ellipse(10, -20, 3.2, 5, -0.4, 0, TAU);
+    ctx.fill();
+    ctx.fillStyle = '#3a2a22';
+    ctx.beginPath();
+    ctx.arc(16, -14, 1.5, 0, TAU);
+    ctx.fill();
+    ctx.fillStyle = '#2a2018';
+    ctx.beginPath();
+    ctx.arc(14.5, -16, 0.8, 0, TAU);
+    ctx.fill();
+    ctx.fillStyle = '#c23b3b';
+    ctx.fillRect(6, -12, 5, 2.2);
+    ctx.restore();
+  }
+
+  function drawRakeAt(sx, sy, ang) {
+    ctx.save();
+    ctx.translate(sx, sy);
+    ctx.rotate(ang);
+    ctx.strokeStyle = '#c4884a';
+    ctx.lineWidth = 4;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(-4, 0);
+    ctx.lineTo(-76, 0);
+    ctx.stroke();
+    ctx.strokeStyle = '#6b4428';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(0, -16);
+    ctx.lineTo(0, 16);
+    ctx.stroke();
+    ctx.lineWidth = 2;
+    for (let i = -2; i <= 2; i++) {
+      ctx.beginPath();
+      ctx.moveTo(0, i * 7);
+      ctx.lineTo(13, i * 7);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  function drawIdleRake() {
+    const p = project(0.7, 0.7, 0);
+    drawRakeAt(p.sx, p.sy - 6, -1.05);
+  }
+
+  function roundRect(x, y, w, h, r) {
+    ctx.beginPath();
+    if (ctx.roundRect) ctx.roundRect(x, y, w, h, r);
+    else ctx.rect(x, y, w, h);
+  }
+
+  function drawLawn() {
+    const g = ctx.createLinearGradient(0, horizon, 0, H);
+    g.addColorStop(0, '#d2b56a');
+    g.addColorStop(0.35, '#c4a85a');
+    g.addColorStop(1, '#7f9344');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, horizon - 4, W, H - horizon + 8);
+  }
+
+  function draw() {
+    drawSky();
+    for (let i = 0; i < clouds.length; i++) {
+      const c = clouds[i];
+      puffCloud(c.x * W, c.y * horizon, c.s * clamp(W / 900, 0.7, 1.3));
+    }
+    for (let i = 0; i < birds.length; i++) drawBird(birds[i]);
+    drawHill();
+    drawFence();
+    drawLawn();
+    drawPath();
+    drawGrass();
+    for (let i = 0; i < TREES.length; i++) drawTree(TREES[i]);
+    drawBush(0.05, 0.28, 1);
+    drawBush(0.95, 0.3, 1);
+    drawBench();
+
+    const sprites = [];
+    for (let i = 0; i < leaves.length; i++) {
+      const leaf = leaves[i];
+      if (leaf.state === 'canopy') continue;
+      sprites.push({ d: leaf.d + (leaf.state === 'air' ? 0.01 : 0), leaf: leaf });
+    }
+    for (let i = 0; i < nuts.length; i++) sprites.push({ d: nuts[i].d + 0.012, nut: nuts[i] });
+    for (let i = 0; i < actors.length; i++) sprites.push({ d: actors[i].d + 0.03, actor: actors[i] });
+    if (hog.active) sprites.push({ d: hog.d + 0.045, hog: true });
+    sprites.sort(function (a, b) { return a.d - b.d; });
+    for (let i = 0; i < sprites.length; i++) {
+      const s = sprites[i];
+      if (s.leaf) {
+        const leaf = s.leaf;
+        const p = leafScreen(leaf);
+        if (leaf.z < 50) {
+          const gnd = project(leaf.x, leaf.d, 0);
+          ctx.fillStyle = 'rgba(70,40,16,' + (0.16 * (1 - leaf.z / 50)).toFixed(3) + ')';
+          ctx.beginPath();
+          ctx.ellipse(gnd.sx + (leaf.ox || 0), gnd.sy + 2, leaf.size * 0.45 * p.sc, 3.2 * p.sc, leaf.rot, 0, TAU);
+          ctx.fill();
+        }
+        drawLeaf(leaf.kind, p.sx, p.sy, leaf.size * p.sc, leaf.col, leaf.rot);
+      } else if (s.nut) drawNut(s.nut);
+      else if (s.actor) {
+        if (s.actor.kind === 'dog') drawDog(s.actor);
+        else drawChild(s.actor);
+      } else if (s.hog) drawHog();
+    }
+    for (let i = 0; i < motes.length; i++) {
+      const m = motes[i];
+      const a = 1 - m.t / m.life;
+      ctx.fillStyle = 'rgba(120,72,36,' + (0.35 * a).toFixed(3) + ')';
+      ctx.fillRect(m.x, m.y, 2, 2);
+    }
+    if (rake.on) drawRakeAt(rake.sx, rake.sy, rake.ang);
+    else drawIdleRake();
+  }
+
+  function layout() {
+    W = Math.max(1, canvas.clientWidth || window.innerWidth);
+    H = Math.max(1, canvas.clientHeight || window.innerHeight);
+    dpr = Math.min(2, window.devicePixelRatio || 1);
+    canvas.width = Math.max(1, Math.round(W * dpr));
+    canvas.height = Math.max(1, Math.round(H * dpr));
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    barH = $('bar').offsetHeight || 56;
+    document.documentElement.style.setProperty('--bar', barH + 'px');
+    horizon = H < 430 ? H * 0.36 : H * 0.4;
+    front = H - barH - 8;
+    if (front < horizon + 80) front = horizon + 80;
+    buildGrass();
+  }
+
+  function frame(now) {
+    if (!frame.prev) frame.prev = now;
+    let dt = (now - frame.prev) / 1000;
+    frame.prev = now;
+    if (dt > 0.05) dt = 0.05;
+    if (dt < 0) dt = 0;
+    step(dt);
+    draw();
+    requestAnimationFrame(frame);
+  }
+
+  function localPoint(e) {
+    const r = canvas.getBoundingClientRect();
+    return { x: e.clientX - r.left, y: e.clientY - r.top };
+  }
+
+  canvas.addEventListener('pointerdown', function (e) {
+    if (e.button != null && e.button !== 0) return;
+    rake.on = true;
+    rake.pid = e.pointerId;
+    canvas.classList.add('rake');
+    try { canvas.setPointerCapture(e.pointerId); } catch (err) {}
+    const p = localPoint(e);
+    rake.sx = p.x;
+    rake.sy = p.y;
+    hideHint();
+  });
+  canvas.addEventListener('pointermove', function (e) {
+    if (!rake.on || e.pointerId !== rake.pid) return;
+    const p = localPoint(e);
+    pushStroke(rake.sx, rake.sy, p.x, p.y);
+    rake.sx = p.x;
+    rake.sy = p.y;
+  });
+  function endRake(e) {
+    if (!rake.on) return;
+    if (e && rake.pid != null && e.pointerId !== rake.pid) return;
+    rake.on = false;
+    rake.pid = null;
+    canvas.classList.remove('rake');
+  }
+  canvas.addEventListener('pointerup', endRake);
+  canvas.addEventListener('pointercancel', endRake);
+
+  document.addEventListener('pointerdown', function (e) {
+    const ton = e.target.closest && e.target.closest('#bTon');
+    if (ton) return;
+    unlockFromPlay();
+  }, true);
+
+  $('bTon').addEventListener('pointerdown', function (e) {
+    e.preventDefault();
+    e.stopPropagation();
+    toggleSound();
+  });
+  $('bBoe').addEventListener('click', function () { triggerGust(); });
+  $('bKind').addEventListener('click', function () { launch('child'); });
+  $('bHund').addEventListener('click', function () { launch('dog'); });
+  $('bNeu').addEventListener('click', function () { fresh(); });
+
+  document.addEventListener('keydown', function (e) {
+    if (e.repeat || e.metaKey || e.ctrlKey || e.altKey) return;
+    const k = e.key;
+    if (k === 'm' || k === 'M') { e.preventDefault(); toggleSound(); }
+    else if (k === 'b' || k === 'B') { unlockFromPlay(); triggerGust(); }
+    else if (k === 'k' || k === 'K') { unlockFromPlay(); launch('child'); }
+    else if (k === 'h' || k === 'H') { unlockFromPlay(); launch('dog'); }
+    else if (k === 'n' || k === 'N') { unlockFromPlay(); fresh(); }
+  });
+
+  document.addEventListener('visibilitychange', function () {
+    if (ac && master) master.gain.setTargetAtTime(!document.hidden && soundOn ? 0.85 : 0, ac.currentTime, 0.05);
+  });
+
+  window.addEventListener('resize', function () { layout(); });
+
+  if (params.has('probe')) {
+    window.__laub = {
+      get soundOn() { return soundOn; },
+      get userMuted() { return userMuted; },
+      get audioUnlocked() { return audioUnlocked; },
+      get gust() { return gust; },
+      stats: function () { return computeStats(); },
+      leaves: function () { return leaves.length; },
+      actors: function () { return actors.length; },
+      hog: function () { return { active: hog.active, state: hog.state }; }
+    };
+  }
+
+  layout();
+  seedGarden();
+  lastStats = computeStats();
+  paintStat();
+  paintTon();
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
