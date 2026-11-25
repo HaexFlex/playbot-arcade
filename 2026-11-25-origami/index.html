@@ -1,0 +1,1607 @@
+<!DOCTYPE html>
+<html lang="de-CH">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Origami</title>
+<style>
+  :root {
+    --ink: #2a241e;
+    --paper: #f6f0e6;
+    --line: #e4d8c6;
+    --btn: #fffaf3;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0;
+    height: 100%;
+    overflow: hidden;
+    background: #d7e1ea;
+    color: var(--ink);
+    font: 16px/1.35 system-ui, "Segoe UI", Roboto, sans-serif;
+  }
+  body {
+    display: flex;
+    flex-direction: column;
+    max-width: 100%;
+    user-select: none;
+    -webkit-user-select: none;
+    overscroll-behavior: none;
+  }
+  #bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 8px 6px;
+    background: var(--paper);
+    border-bottom: 1px solid var(--line);
+    min-width: 0;
+    max-width: 100%;
+  }
+  .group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    min-width: 0;
+    max-width: 100%;
+  }
+  h1 {
+    margin: 0;
+    font-size: 18px;
+    line-height: 36px;
+    letter-spacing: 0.01em;
+    padding: 0 4px;
+  }
+  button {
+    min-height: 36px;
+    min-width: 36px;
+    padding: 6px 12px;
+    border: 1px solid #d9cdb8;
+    border-radius: 999px;
+    background: var(--btn);
+    color: var(--ink);
+    font: inherit;
+    font-size: 15px;
+    line-height: 1.2;
+    cursor: pointer;
+    max-width: 100%;
+  }
+  button:focus-visible { outline: 2px solid #1d6a8a; outline-offset: 2px; }
+  button[aria-pressed="true"], button.on {
+    background: var(--ink);
+    color: #f6f0e6;
+    border-color: var(--ink);
+  }
+  button:disabled { opacity: 0.38; cursor: default; }
+  button.swatch {
+    padding: 0;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    border: 2px solid #fff;
+    box-shadow: 0 0 0 1px #c8bfb2;
+  }
+  button.swatch[aria-pressed="true"] { box-shadow: 0 0 0 2px var(--ink); }
+  #hint {
+    flex: 1 0 100%;
+    margin: 0;
+    min-width: 0;
+    max-width: 100%;
+    font-size: 15px;
+    line-height: 1.35;
+    overflow-wrap: anywhere;
+  }
+  #stage {
+    position: relative;
+    flex: 1 1 auto;
+    min-height: 120px;
+    min-width: 0;
+    max-width: 100%;
+    touch-action: none;
+  }
+  canvas {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+  #ui { pointer-events: auto; }
+  #gl { pointer-events: none; }
+  @media (max-height: 430px) {
+    #bar { padding: 4px 6px; gap: 4px; }
+    h1 { font-size: 16px; }
+    #hint { font-size: 14px; }
+    button { padding: 4px 10px; }
+  }
+</style>
+</head>
+<body>
+<header id="bar">
+  <h1>Origami</h1>
+  <div class="group" role="group" aria-label="Modell" id="models"></div>
+  <div class="group" role="group" aria-label="Muster" id="patterns"></div>
+  <div class="group" role="group" aria-label="Farbe" id="colors"></div>
+  <div class="group" role="group" aria-label="Schritte" id="controls"></div>
+  <p id="hint" aria-live="polite"></p>
+</header>
+<div id="stage">
+  <canvas id="gl"></canvas>
+  <canvas id="ui"></canvas>
+</div>
+<script>
+(function () {
+  "use strict";
+
+  const EPS = 1e-7;
+  const COLORS = [
+    { id: "rot", name: "Rot", rgb: [0.80, 0.18, 0.20] },
+    { id: "blau", name: "Blau", rgb: [0.16, 0.40, 0.72] },
+    { id: "gruen", name: "Grün", rgb: [0.12, 0.50, 0.36] },
+    { id: "gold", name: "Gold", rgb: [0.86, 0.64, 0.18] },
+    { id: "violett", name: "Violett", rgb: [0.46, 0.26, 0.64] },
+    { id: "weiss", name: "Weiss", rgb: [0.95, 0.94, 0.91] }
+  ];
+  const PATTERNS = [
+    { id: "uni", name: "Uni" },
+    { id: "washi", name: "Washi" },
+    { id: "karo", name: "Karo" }
+  ];
+
+  function P(text, scope, extra) {
+    const s = Object.assign({ text: text, scope: scope || "all", angle: Math.PI }, extra || {});
+    return s;
+  }
+
+  const MODELS = {
+    kranich: {
+      name: "Kranich",
+      yaw: -0.55,
+      done: "Der Kranich dreht sich langsam auf dem Tisch.",
+      steps: [
+        P("Falte das Blatt in der Mitte.", "all", { a: [0, -1], b: [0, 1], move: [-1, 0] }),
+        P("Falte die untere Ecke schräg nach oben.", "all", { from: [0, -1], to: [0.62, 0.05] }),
+        P("Zieh den Hals lang nach oben.", "all", { from: [1, 1], to: [0.15, 1.45] }),
+        P("Falte die Spitze zum Schnabel.", "all", { from: [0.15, 1.45], to: [-0.15, 1.2] }),
+        {
+          text: "Hebe den Hals. Der Kranich hebt den Kopf.",
+          pose: true,
+          hinges: [
+            { a: [-0.15, 0.55], b: [0.42, 0.72], move: [0.05, 1.25], angle: 1.05, scope: "all" }
+          ]
+        }
+      ]
+    },
+    schiffchen: {
+      name: "Schiffchen",
+      yaw: 0.15,
+      done: "Das Schiffchen dreht sich langsam auf dem Tisch.",
+      steps: [
+        P("Falte das Blatt auf die Hälfte.", "all", { a: [-1, 0], b: [1, 0], move: [0, -1] }),
+        P("Falte die obere linke Ecke zur Mitte.", "all", { from: [-1, 1], to: [0, 0.5] }),
+        P("Falte die obere rechte Ecke zur Mitte.", "all", { from: [1, 1], to: [0, 0.5] }),
+        P("Falte die untere linke Ecke zur Mitte.", "all", { from: [-1, 0], to: [0, 0.5] }),
+        P("Falte die letzte Ecke. Das ist der Rumpf.", "all", { from: [1, 0], to: [0, 0.5] }),
+        {
+          text: "Stelle die Wände auf. Das Schiffchen ist bereit.",
+          pose: true,
+          hinges: [
+            { a: [-0.16, -0.3], b: [-0.16, 1.3], move: [-0.7, 0.5], angle: 1.05, scope: "all" },
+            { a: [0.16, -0.3], b: [0.16, 1.3], move: [0.7, 0.5], angle: 1.05, scope: "all" }
+          ]
+        }
+      ]
+    },
+    hut: {
+      name: "Hut",
+      yaw: 0.08,
+      done: "Der Hut dreht sich langsam auf dem Tisch.",
+      steps: [
+        P("Falte das Blatt auf die Hälfte.", "all", { a: [-1, 0], b: [1, 0], move: [0, -1] }),
+        P("Falte die linke Ecke zur Mitte.", "top", { from: [-1, 1], to: [0, 0.5] }),
+        P("Falte die rechte Ecke zur Mitte.", "top", { from: [1, 1], to: [0, 0.5] }),
+        P("Falte die Krempe nach oben.", "all", { from: [0, 0], to: [0, 0.42] }),
+        {
+          text: "Biege die Krempe leicht nach oben.",
+          pose: true,
+          hinges: [
+            { a: [-1.6, 0.34], b: [1.6, 0.34], move: [0, 0.22], angle: 0.95, scope: "all" }
+          ]
+        }
+      ]
+    },
+    frosch: {
+      name: "Frosch",
+      yaw: 0.2,
+      done: "Der Frosch dreht sich langsam auf dem Tisch.",
+      steps: [
+        P("Falte die untere linke Ecke in die Mitte.", "all", { from: [-1, -1], to: [0, 0] }),
+        P("Falte die untere rechte Ecke in die Mitte.", "all", { from: [1, -1], to: [0, 0] }),
+        P("Falte die obere linke Ecke in die Mitte.", "all", { from: [-1, 1], to: [0, 0] }),
+        P("Falte die obere rechte Ecke in die Mitte.", "all", { from: [1, 1], to: [0, 0] }),
+        P("Falte die untere Spitze. Das werden die Beine.", "all", { from: [0, -1], to: [0, 0.15] }),
+        P("Falte die obere Spitze zum Kopf.", "top", { from: [0, 1], to: [0, 0.25] }),
+        {
+          text: "Setze den Frosch hin.",
+          pose: true,
+          hinges: [
+            { a: [-1.3, 0.12], b: [1.3, 0.12], move: [0, -0.35], angle: 0.95, scope: "all" }
+          ]
+        }
+      ]
+    },
+    fisch: {
+      name: "Fisch",
+      yaw: -0.78,
+      done: "Der Fisch dreht sich langsam auf dem Tisch.",
+      steps: [
+        P("Falte das Blatt diagonal zur Hälfte.", "all", { a: [-1, -1], b: [1, 1], move: [-1, 1] }),
+        P("Falte die Ecke zur Schwanzflosse.", "all", { from: [1, -1], to: [0.15, -0.15] }),
+        P("Falte die Spitze zum Maul.", "all", { from: [1, 1], to: [0.55, 0.55] }),
+        {
+          text: "Stelle die Rückenflosse auf.",
+          pose: true,
+          hinges: [
+            { a: [-0.55, -1.05], b: [0.85, 0.35], move: [-1.2, -0.7], angle: 1.25, scope: "all" }
+          ]
+        }
+      ]
+    }
+  };
+
+  const hintEl = document.getElementById("hint");
+  const glCanvas = document.getElementById("gl");
+  const uiCanvas = document.getElementById("ui");
+  const ui = uiCanvas.getContext("2d");
+
+  let colorId = "rot";
+  let patternId = "uni";
+  let modelId = "kranich";
+  let paper = null;
+  let stepIndex = 0;
+  let undoStack = [];
+  let busy = false;
+  let anim = null;
+  let spin = 0;
+  let spinOverride = null;
+  let lastT = 0;
+  let frame = { cx: 0, cy: 0, radius: 1.2 };
+  let matrices = null;
+  let cssW = 1, cssH = 1;
+  let drag = null;
+  let swipe = null;
+  let preview = null;
+  let foldLines = [];
+  let handles = [];
+  let tonOn = false;
+  let hadGesture = false;
+  let audioCtx = null;
+  let pending = null;
+  let statusNote = "";
+
+  function colorOf() { return COLORS.find((c) => c.id === colorId) || COLORS[0]; }
+  function model() { return MODELS[modelId] || null; }
+  function steps() { return model() ? model().steps : []; }
+  function isDone() { return !!model() && stepIndex >= steps().length; }
+
+  function newSheet() {
+    return {
+      v: [
+        { x: -1, y: -1, z: 0.02, u: 0, v: 0 },
+        { x: 1, y: -1, z: 0.02, u: 1, v: 0 },
+        { x: 1, y: 1, z: 0.02, u: 1, v: 1 },
+        { x: -1, y: 1, z: 0.02, u: 0, v: 1 }
+      ],
+      f: [
+        { idx: [0, 1, 2], layer: 1 },
+        { idx: [0, 2, 3], layer: 1 }
+      ]
+    };
+  }
+  function snap() {
+    return {
+      v: paper.v.map((p) => ({ x: p.x, y: p.y, z: p.z, u: p.u, v: p.v })),
+      f: paper.f.map((f) => ({ idx: f.idx.slice(), layer: f.layer }))
+    };
+  }
+  function restore(s) {
+    paper = {
+      v: s.v.map((p) => ({ x: p.x, y: p.y, z: p.z, u: p.u, v: p.v })),
+      f: s.f.map((f) => ({ idx: f.idx.slice(), layer: f.layer }))
+    };
+  }
+  function resetSheet() {
+    paper = newSheet();
+    stepIndex = 0;
+    undoStack = [];
+    busy = false;
+    anim = null;
+    preview = null;
+    drag = null;
+    swipe = null;
+    spin = 0;
+    statusNote = "";
+    if (pending) { pending(false); pending = null; }
+    updateUi();
+  }
+
+  function sideOf(p, a, b) {
+    return (b.x - a.x) * (p.y - a.y) - (b.y - a.y) * (p.x - a.x);
+  }
+  function centroid(f) {
+    const a = paper.v[f.idx[0]], b = paper.v[f.idx[1]], c = paper.v[f.idx[2]];
+    return { x: (a.x + b.x + c.x) / 3, y: (a.y + b.y + c.y) / 3 };
+  }
+  function pointInTri(f, p) {
+    const a = paper.v[f.idx[0]], b = paper.v[f.idx[1]], c = paper.v[f.idx[2]];
+    const s1 = sideOf(p, a, b), s2 = sideOf(p, b, c), s3 = sideOf(p, c, a);
+    const neg = s1 < -EPS || s2 < -EPS || s3 < -EPS;
+    const pos = s1 > EPS || s2 > EPS || s3 > EPS;
+    return !(neg && pos);
+  }
+  function weldEdge(cache, i, j, t) {
+    const key = i < j ? i + ":" + j : j + ":" + i;
+    if (cache.has(key)) return cache.get(key);
+    const A = paper.v[i], B = paper.v[j];
+    paper.v.push({
+      x: A.x + (B.x - A.x) * t,
+      y: A.y + (B.y - A.y) * t,
+      z: A.z + (B.z - A.z) * t,
+      u: A.u + (B.u - A.u) * t,
+      v: A.v + (B.v - A.v) * t
+    });
+    const id = paper.v.length - 1;
+    cache.set(key, id);
+    return id;
+  }
+  function splitAll(a, b) {
+    const cache = new Map();
+    const next = [];
+    const A = { x: a[0], y: a[1] }, B = { x: b[0], y: b[1] };
+    for (const f of paper.f) {
+      const ids = f.idx;
+      const ps = ids.map((i) => ({ i: i, s: sideOf(paper.v[i], A, B) }));
+      const crosses = ps.some((p) => p.s > EPS) && ps.some((p) => p.s < -EPS);
+      if (!crosses) { next.push(f); continue; }
+      const poly = [];
+      for (let k = 0; k < 3; k++) {
+        const i0 = ids[k], i1 = ids[(k + 1) % 3];
+        const s0 = ps[k].s, s1 = ps[(k + 1) % 3].s;
+        poly.push({ i: i0, s: s0 });
+        if ((s0 > EPS && s1 < -EPS) || (s0 < -EPS && s1 > EPS)) {
+          const t = s0 / (s0 - s1);
+          poly.push({ i: weldEdge(cache, i0, i1, t), s: 0 });
+        }
+      }
+      const pushSide = (pred) => {
+        const arr = [];
+        for (let k = 0; k < poly.length; k++) if (pred(poly[k].s)) arr.push(poly[k].i);
+        const o = [];
+        for (const i of arr) if (o[o.length - 1] !== i) o.push(i);
+        if (o.length > 1 && o[0] === o[o.length - 1]) o.pop();
+        if (o.length < 3) return;
+        const add = (ia, ib, ic) => next.push({ idx: [ia, ib, ic], layer: f.layer });
+        if (o.length === 3) add(o[0], o[1], o[2]);
+        else if (o.length === 4) { add(o[0], o[1], o[2]); add(o[0], o[2], o[3]); }
+        else for (let k = 1; k < o.length - 1; k++) add(o[0], o[k], o[k + 1]);
+      };
+      pushSide((s) => s >= -EPS);
+      pushSide((s) => s <= EPS);
+    }
+    paper.f = next;
+  }
+  function selectFaces(a, b, move, scope, seeds) {
+    const A = { x: a[0], y: a[1] }, B = { x: b[0], y: b[1] };
+    const M = { x: move[0], y: move[1] };
+    const sign = sideOf(M, A, B) >= 0 ? 1 : -1;
+    const cand = [];
+    for (const f of paper.f) {
+      const c = centroid(f);
+      if (sideOf(c, A, B) * sign > EPS) cand.push(f);
+    }
+    if (scope === "all") return cand;
+    if (scope === "flap") {
+      const flap = floodFlap(cand, seeds && seeds.length ? seeds : [M]);
+      if (flap.length) return flap;
+    }
+    return cand.filter((f) => {
+      const c = centroid(f);
+      for (const o of paper.f) {
+        if (o === f) continue;
+        if (o.layer > f.layer + 0.1 && pointInTri(o, c)) return false;
+      }
+      return true;
+    });
+  }
+  function floodFlap(cand, seeds) {
+    const adj = new Map();
+    for (const f of cand) {
+      for (const i of f.idx) {
+        let list = adj.get(i);
+        if (!list) adj.set(i, list = []);
+        list.push(f);
+      }
+    }
+    const seen = new Set();
+    const q = [];
+    for (const f of cand) {
+      let hit = false;
+      for (const i of f.idx) {
+        const p = paper.v[i];
+        for (const s of seeds) {
+          const dx = p.x - s.x, dy = p.y - s.y;
+          if (dx * dx + dy * dy < 0.14 * 0.14) { hit = true; break; }
+        }
+        if (hit) break;
+      }
+      if (hit) q.push(f);
+    }
+    const out = [];
+    while (q.length) {
+      const f = q.pop();
+      if (seen.has(f)) continue;
+      seen.add(f);
+      out.push(f);
+      for (const i of f.idx) {
+        const list = adj.get(i) || [];
+        for (const g of list) if (!seen.has(g)) q.push(g);
+      }
+    }
+    return out;
+  }
+  function detach(faces) {
+    const set = new Set(faces);
+    const usedM = new Set(), usedO = new Set();
+    for (const f of paper.f) {
+      const dst = set.has(f) ? usedM : usedO;
+      for (const i of f.idx) dst.add(i);
+    }
+    const map = new Map();
+    for (const i of usedM) {
+      if (usedO.has(i)) {
+        const src = paper.v[i];
+        paper.v.push({ x: src.x, y: src.y, z: src.z, u: src.u, v: src.v });
+        map.set(i, paper.v.length - 1);
+      }
+    }
+    const movers = new Set();
+    for (const f of faces) {
+      f.idx = f.idx.map((i) => (map.has(i) ? map.get(i) : i));
+      for (const i of f.idx) movers.add(i);
+    }
+    return movers;
+  }
+  function reflectPoint(p, a, b) {
+    const dx = b.x - a.x, dy = b.y - a.y;
+    const L = dx * dx + dy * dy || 1;
+    const t = ((p.x - a.x) * dx + (p.y - a.y) * dy) / L;
+    const qx = a.x + t * dx, qy = a.y + t * dy;
+    return { x: 2 * qx - p.x, y: 2 * qy - p.y };
+  }
+  function axisOf(a, b, move) {
+    let ux = b[0] - a[0], uy = b[1] - a[1];
+    const len = Math.hypot(ux, uy) || 1;
+    ux /= len; uy /= len;
+    const wx = move[0] - a[0], wy = move[1] - a[1];
+    if (ux * wy - uy * wx < 0) { ux = -ux; uy = -uy; }
+    let sz = 0, n = 0;
+    const A = { x: a[0], y: a[1] }, B = { x: b[0], y: b[1] };
+    for (const p of paper.v) {
+      if (Math.abs(sideOf(p, A, B)) < 0.04) { sz += p.z; n++; }
+    }
+    return { ax: a[0], ay: a[1], az: n ? sz / n : 0.02, ux: ux, uy: uy, uz: 0 };
+  }
+  function rotate(p, axis, th) {
+    const x = p.x - axis.ax, y = p.y - axis.ay, z = p.z - axis.az;
+    const c = Math.cos(th), s = Math.sin(th);
+    const ux = axis.ux, uy = axis.uy, uz = axis.uz;
+    const dot = x * ux + y * uy + z * uz;
+    const cx = uy * z - uz * y, cy = uz * x - ux * z, cz = ux * y - uy * x;
+    return {
+      x: axis.ax + x * c + cx * s + ux * dot * (1 - c),
+      y: axis.ay + y * c + cy * s + uy * dot * (1 - c),
+      z: axis.az + z * c + cz * s + uz * dot * (1 - c)
+    };
+  }
+  function resolveLine(spec) {
+    if (spec.from) {
+      const from = spec.from, to = spec.to;
+      const mx = (from[0] + to[0]) / 2, my = (from[1] + to[1]) / 2;
+      const dx = to[0] - from[0], dy = to[1] - from[1];
+      return {
+        a: [mx - dy, my + dx],
+        b: [mx + dy, my - dx],
+        move: from,
+        angle: spec.angle == null ? Math.PI : spec.angle,
+        scope: spec.scope || "all",
+        seeds: spec.seeds || null
+      };
+    }
+    return {
+      a: spec.a, b: spec.b, move: spec.move,
+      angle: spec.angle == null ? Math.PI : spec.angle,
+      scope: spec.scope || "all",
+      seeds: spec.seeds || null
+    };
+  }
+  function hingesOf(step) {
+    if (step.pose) return step.hinges.map(resolveLine);
+    return [resolveLine(step)];
+  }
+  function prepare(lines, flat) {
+    if (paper.f.length > 2200) return null;
+    for (const ln of lines) splitAll(ln.a, ln.b);
+    const assigned = new Set();
+    const groups = [];
+    for (const ln of lines) {
+      const faces = selectFaces(ln.a, ln.b, ln.move, ln.scope, ln.seeds).filter((f) => !assigned.has(f));
+      if (!faces.length) continue;
+      for (const f of faces) assigned.add(f);
+      const axis = axisOf(ln.a, ln.b, ln.move);
+      groups.push({ faces: faces, axis: axis, angle: ln.angle, line: ln });
+    }
+    if (!groups.length) return null;
+    for (const g of groups) g.movers = detach(g.faces);
+    const bases = paper.v.map((p) => ({ x: p.x, y: p.y, z: p.z }));
+    return { groups: groups, bases: bases, flat: flat };
+  }
+  function applyU(state, u) {
+    for (let i = 0; i < paper.v.length; i++) {
+      const b = state.bases[i];
+      if (!b) continue;
+      paper.v[i].x = b.x;
+      paper.v[i].y = b.y;
+      paper.v[i].z = b.z;
+    }
+    for (const g of state.groups) {
+      const th = g.angle * u;
+      for (const i of g.movers) {
+        const r = rotate(state.bases[i], g.axis, th);
+        paper.v[i].x = r.x;
+        paper.v[i].y = r.y;
+        paper.v[i].z = r.z;
+      }
+    }
+  }
+  function liftLayers() {
+    const zOf = new Array(paper.v.length).fill(0.02);
+    for (const f of paper.f) {
+      const z = 0.022 + (f.layer - 1) * 0.0032;
+      for (const i of f.idx) if (z > zOf[i]) zOf[i] = z;
+    }
+    for (let i = 0; i < paper.v.length; i++) paper.v[i].z = zOf[i];
+  }
+  function finalizeFlat(state) {
+    for (const g of state.groups) {
+      const A = { x: g.line.a[0], y: g.line.a[1] };
+      const B = { x: g.line.b[0], y: g.line.b[1] };
+      for (const i of g.movers) {
+        const r = reflectPoint(state.bases[i], A, B);
+        paper.v[i].x = r.x;
+        paper.v[i].y = r.y;
+      }
+      const set = new Set(g.faces);
+      let maxStay = 0, minM = Infinity;
+      for (const f of paper.f) if (!set.has(f)) maxStay = Math.max(maxStay, f.layer);
+      for (const f of g.faces) minM = Math.min(minM, f.layer);
+      for (const f of g.faces) f.layer = maxStay + 1 + (f.layer - minM);
+    }
+    liftLayers();
+  }
+
+  function ease(t) { return t * t * (3 - 2 * t); }
+
+  function startPrepared(state, dir, onDone) {
+    busy = true;
+    anim = { state: state, u: dir > 0 ? 0 : 1, dir: dir, onDone: onDone, t0: performance.now() };
+    applyU(state, anim.u);
+    updateUi();
+  }
+
+  function foldForward() {
+    if (pending) return pending.promise;
+    if (busy || !model() || isDone()) return Promise.resolve(false);
+    const step = steps()[stepIndex];
+    const before = snap();
+    const savedStep = stepIndex;
+    const lines = hingesOf(step);
+    const state = prepare(lines, !step.pose);
+    if (!state) {
+      restore(before);
+      statusNote = "Diese Falte geht gerade nicht.";
+      updateUi();
+      return Promise.resolve(false);
+    }
+    undoStack.push({ before: before, step: savedStep });
+    playRustle();
+    let resolve;
+    const promise = new Promise((r) => { resolve = r; });
+    pending = { promise: promise, resolve: resolve };
+    startPrepared(state, 1, function () {
+      if (state.flat) finalizeFlat(state);
+      stepIndex = savedStep + 1;
+      statusNote = "";
+      finishPending(true);
+    });
+    return promise;
+  }
+  function foldBack() {
+    if (busy || !undoStack.length) return Promise.resolve(false);
+    const rec = undoStack.pop();
+    const lines = model() && stepIndex > 0 ? hingesOf(steps()[stepIndex - 1]) : null;
+    if (!lines) {
+      restore(rec.before);
+      stepIndex = rec.step;
+      updateUi();
+      return Promise.resolve(true);
+    }
+    restore(rec.before);
+    const state = prepare(lines, !steps()[stepIndex - 1].pose);
+    if (!state) {
+      restore(rec.before);
+      stepIndex = rec.step;
+      updateUi();
+      return Promise.resolve(true);
+    }
+    applyU(state, 1);
+    if (state.flat) finalizeFlat(state);
+    playRustle();
+    let resolve;
+    const promise = new Promise((r) => { resolve = r; });
+    pending = { promise: promise, resolve: resolve };
+    startPrepared(state, -1, function () {
+      restore(rec.before);
+      stepIndex = rec.step;
+      statusNote = "";
+      finishPending(true);
+    });
+    return promise;
+  }
+  function finishPending(ok) {
+    busy = false;
+    anim = null;
+    const p = pending;
+    pending = null;
+    updateUi();
+    if (p) p.resolve(ok);
+  }
+  function tickAnim(now) {
+    if (!anim) return;
+    const dur = anim.state.flat ? 760 : 980;
+    const raw = Math.min(1, (now - anim.t0) / dur);
+    const k = ease(raw);
+    anim.u = anim.dir > 0 ? k : 1 - k;
+    applyU(anim.state, anim.u);
+    if (raw >= 1) anim.onDone();
+  }
+
+  function bounds() {
+    let minx = Infinity, miny = Infinity, maxx = -Infinity, maxy = -Infinity;
+    for (const p of paper.v) {
+      if (p.x < minx) minx = p.x;
+      if (p.y < miny) miny = p.y;
+      if (p.x > maxx) maxx = p.x;
+      if (p.y > maxy) maxy = p.y;
+    }
+    if (!isFinite(minx)) { minx = -1; miny = -1; maxx = 1; maxy = 1; }
+    return { minx: minx, miny: miny, maxx: maxx, maxy: maxy };
+  }
+  function lineOnPaper(a, b) {
+    const box = bounds();
+    const pad = 0.06;
+    box.minx -= pad; box.miny -= pad; box.maxx += pad; box.maxy += pad;
+    const dx = b[0] - a[0], dy = b[1] - a[1];
+    let t0 = -1e9, t1 = 1e9;
+    const dims = [[a[0], dx, box.minx, box.maxx], [a[1], dy, box.miny, box.maxy]];
+    for (let i = 0; i < 2; i++) {
+      const o = dims[i][0], dir = dims[i][1], mn = dims[i][2], mx = dims[i][3];
+      if (Math.abs(dir) < 1e-9) {
+        if (o < mn || o > mx) return null;
+      } else {
+        let tA = (mn - o) / dir, tB = (mx - o) / dir;
+        if (tA > tB) { const s = tA; tA = tB; tB = s; }
+        if (tA > t0) t0 = tA;
+        if (tB < t1) t1 = tB;
+        if (t0 > t1) return null;
+      }
+    }
+    const extra = 0.08;
+    const len = Math.hypot(dx, dy) || 1;
+    t0 -= extra / len;
+    t1 += extra / len;
+    return {
+      a: [a[0] + dx * t0, a[1] + dy * t0],
+      b: [a[0] + dx * t1, a[1] + dy * t1]
+    };
+  }
+
+  function guides() {
+    foldLines = [];
+    if (model() && !isDone() && !busy) {
+      const step = steps()[stepIndex];
+      if (step) {
+        for (const ln of hingesOf(step)) {
+          const seg = lineOnPaper(ln.a, ln.b);
+          if (seg) foldLines.push(seg);
+        }
+      }
+    } else if (!model() && preview && preview.seg) {
+      foldLines = [preview.seg];
+    }
+  }
+
+  function boundaryHandles() {
+    handles = [];
+    if (model() || busy) return;
+    const count = new Map();
+    const ends = new Map();
+    const key = (i, j) => (i < j ? i + "-" + j : j + "-" + i);
+    for (const f of paper.f) {
+      const id = f.idx;
+      for (let k = 0; k < 3; k++) {
+        const i = id[k], j = id[(k + 1) % 3];
+        const k2 = key(i, j);
+        count.set(k2, (count.get(k2) || 0) + 1);
+        ends.set(k2, [i, j]);
+      }
+    }
+    const seen = new Set();
+    for (const [k2, c] of count) {
+      if (c !== 1) continue;
+      const ij = ends.get(k2);
+      const A = paper.v[ij[0]], B = paper.v[ij[1]];
+      const len = Math.hypot(A.x - B.x, A.y - B.y);
+      if (!seen.has(ij[0])) {
+        seen.add(ij[0]);
+        handles.push({ x: A.x, y: A.y, seeds: [{ x: A.x, y: A.y }], kind: "ecke" });
+      }
+      if (!seen.has(ij[1])) {
+        seen.add(ij[1]);
+        handles.push({ x: B.x, y: B.y, seeds: [{ x: B.x, y: B.y }], kind: "ecke" });
+      }
+      if (len > 0.22) {
+        handles.push({
+          x: (A.x + B.x) / 2,
+          y: (A.y + B.y) / 2,
+          seeds: [{ x: A.x, y: A.y }, { x: B.x, y: B.y }, { x: (A.x + B.x) / 2, y: (A.y + B.y) / 2 }],
+          kind: "kante"
+        });
+      }
+    }
+  }
+
+  function currentYaw() {
+    const base = model() ? model().yaw : 0.25;
+    if (!isDone()) return base;
+    if (spinOverride != null) return base + spinOverride;
+    return base + spin;
+  }
+  function modelMatrix(cx, cy, yaw) {
+    const co = Math.cos(yaw), si = Math.sin(yaw);
+    const tx = cx - co * cx + si * cy;
+    const ty = cy - si * cx - co * cy;
+    return [
+      co, si, 0, 0,
+      -si, co, 0, 0,
+      0, 0, 1, 0,
+      tx, ty, 0, 1
+    ];
+  }
+  function mul(a, b) {
+    const o = new Array(16);
+    for (let c = 0; c < 4; c++) {
+      for (let r = 0; r < 4; r++) {
+        o[c * 4 + r] = a[r] * b[c * 4] + a[4 + r] * b[c * 4 + 1] + a[8 + r] * b[c * 4 + 2] + a[12 + r] * b[c * 4 + 3];
+      }
+    }
+    return o;
+  }
+  function perspective(fovy, aspect, near, far) {
+    const f = 1 / Math.tan(fovy / 2);
+    const nf = 1 / (near - far);
+    return [
+      f / aspect, 0, 0, 0,
+      0, f, 0, 0,
+      0, 0, (far + near) * nf, -1,
+      0, 0, 2 * far * near * nf, 0
+    ];
+  }
+  function lookAt(eye, center, up) {
+    let zx = eye[0] - center[0], zy = eye[1] - center[1], zz = eye[2] - center[2];
+    let zl = Math.hypot(zx, zy, zz) || 1;
+    zx /= zl; zy /= zl; zz /= zl;
+    let xx = up[1] * zz - up[2] * zy;
+    let xy = up[2] * zx - up[0] * zz;
+    let xz = up[0] * zy - up[1] * zx;
+    const xl = Math.hypot(xx, xy, xz) || 1;
+    xx /= xl; xy /= xl; xz /= xl;
+    const yx = zy * xz - zz * xy;
+    const yy = zz * xx - zx * xz;
+    const yz = zx * xy - zy * xx;
+    return [
+      xx, yx, zx, 0,
+      xy, yy, zy, 0,
+      xz, yz, zz, 0,
+      -(xx * eye[0] + xy * eye[1] + xz * eye[2]),
+      -(yx * eye[0] + yy * eye[1] + yz * eye[2]),
+      -(zx * eye[0] + zy * eye[1] + zz * eye[2]),
+      1
+    ];
+  }
+  function invert(a) {
+    const a00 = a[0], a01 = a[1], a02 = a[2], a03 = a[3];
+    const a10 = a[4], a11 = a[5], a12 = a[6], a13 = a[7];
+    const a20 = a[8], a21 = a[9], a22 = a[10], a23 = a[11];
+    const a30 = a[12], a31 = a[13], a32 = a[14], a33 = a[15];
+    const b00 = a00 * a11 - a01 * a10, b01 = a00 * a12 - a02 * a10, b02 = a00 * a13 - a03 * a10;
+    const b03 = a01 * a12 - a02 * a11, b04 = a01 * a13 - a03 * a11, b05 = a02 * a13 - a03 * a12;
+    const b06 = a20 * a31 - a21 * a30, b07 = a20 * a32 - a22 * a30, b08 = a20 * a33 - a23 * a30;
+    const b09 = a21 * a32 - a22 * a31, b10 = a21 * a33 - a23 * a31, b11 = a22 * a33 - a23 * a32;
+    const det = b00 * b11 - b01 * b10 + b02 * b09 + b03 * b08 - b04 * b07 + b05 * b06;
+    if (!det) return null;
+    const id = 1 / det;
+    return [
+      (a11 * b11 - a12 * b10 + a13 * b09) * id,
+      (a02 * b10 - a01 * b11 - a03 * b09) * id,
+      (a31 * b05 - a32 * b04 + a33 * b03) * id,
+      (a22 * b04 - a21 * b05 - a23 * b03) * id,
+      (a12 * b08 - a10 * b11 - a13 * b07) * id,
+      (a00 * b11 - a02 * b08 + a03 * b07) * id,
+      (a32 * b02 - a30 * b05 - a33 * b01) * id,
+      (a20 * b05 - a22 * b02 + a23 * b01) * id,
+      (a10 * b10 - a11 * b08 + a13 * b06) * id,
+      (a01 * b08 - a00 * b10 - a03 * b06) * id,
+      (a30 * b04 - a31 * b02 + a33 * b00) * id,
+      (a21 * b02 - a20 * b04 - a23 * b00) * id,
+      (a11 * b07 - a10 * b09 - a12 * b06) * id,
+      (a00 * b09 - a01 * b07 + a02 * b06) * id,
+      (a31 * b01 - a30 * b03 - a32 * b00) * id,
+      (a20 * b03 - a21 * b01 + a22 * b00) * id
+    ];
+  }
+  function buildCamera() {
+    const box = bounds();
+    const cx = (box.minx + box.maxx) / 2;
+    const cy = (box.miny + box.maxy) / 2;
+    const radius = Math.max(0.55, 0.5 * Math.hypot(box.maxx - box.minx, box.maxy - box.miny));
+    frame = { cx: cx, cy: cy, radius: radius };
+    const dist = Math.max(3.35, radius * 3.45);
+    const eye = [cx + dist * 0.2, cy - dist * 0.5, dist * 1.08];
+    const center = [cx, cy, 0.05];
+    const view = lookAt(eye, center, [0, 0, 1]);
+    const proj = perspective(32 * Math.PI / 180, cssW / Math.max(1, cssH), 0.08, 40);
+    const modelM = modelMatrix(cx, cy, currentYaw());
+    const vp = mul(proj, view);
+    const mvp = mul(vp, modelM);
+    matrices = { view: view, proj: proj, model: modelM, vp: vp, mvp: mvp, eye: eye };
+  }
+  function project(x, y, z) {
+    const m = matrices.mvp;
+    const w = m[3] * x + m[7] * y + m[11] * z + m[15];
+    const cx = (m[0] * x + m[4] * y + m[8] * z + m[12]) / w;
+    const cy = (m[1] * x + m[5] * y + m[9] * z + m[13]) / w;
+    return { x: (cx * 0.5 + 0.5) * cssW, y: (-cy * 0.5 + 0.5) * cssH };
+  }
+  function screenToPaper(sx, sy) {
+    const ndx = (sx / cssW) * 2 - 1;
+    const ndy = 1 - (sy / cssH) * 2;
+    const inv = invert(matrices.vp);
+    if (!inv) return null;
+    function un(ndz) {
+      const w = inv[3] * ndx + inv[7] * ndy + inv[11] * ndz + inv[15];
+      return {
+        x: (inv[0] * ndx + inv[4] * ndy + inv[8] * ndz + inv[12]) / w,
+        y: (inv[1] * ndx + inv[5] * ndy + inv[9] * ndz + inv[13]) / w,
+        z: (inv[2] * ndx + inv[6] * ndy + inv[10] * ndz + inv[14]) / w
+      };
+    }
+    const a = un(0), b = un(1);
+    const dz = b.z - a.z;
+    if (Math.abs(dz) < 1e-8) return null;
+    const t = (0.02 - a.z) / dz;
+    const wx = a.x + (b.x - a.x) * t;
+    const wy = a.y + (b.y - a.y) * t;
+    const yaw = currentYaw();
+    const co = Math.cos(yaw), si = Math.sin(yaw);
+    const dx = wx - frame.cx, dy = wy - frame.cy;
+    return { x: frame.cx + co * dx + si * dy, y: frame.cy - si * dx + co * dy };
+  }
+
+  const vertSrc = `#version 300 es
+precision highp float;
+layout(location=0) in vec3 aPos;
+layout(location=1) in vec2 aUv;
+layout(location=2) in float aAlpha;
+uniform mat4 uMvp;
+uniform mat4 uModel;
+out vec2 vUv;
+out vec3 vW;
+out float vA;
+void main() {
+  vec4 w = uModel * vec4(aPos, 1.0);
+  vW = w.xyz;
+  vUv = aUv;
+  vA = aAlpha;
+  gl_Position = uMvp * vec4(aPos, 1.0);
+}`;
+  const fragSrc = `#version 300 es
+precision highp float;
+in vec2 vUv;
+in vec3 vW;
+in float vA;
+uniform vec3 uFront;
+uniform vec3 uBack;
+uniform vec3 uCam;
+uniform int uPattern;
+uniform int uStyle;
+uniform float uTime;
+out vec4 o;
+float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+float vnoise(vec2 p){
+  vec2 i = floor(p), f = fract(p);
+  float a = hash(i), b = hash(i+vec2(1.0,0.0)), c = hash(i+vec2(0.0,1.0)), d = hash(i+vec2(1.0,1.0));
+  vec2 u = f*f*(3.0-2.0*f);
+  return mix(mix(a,b,u.x), mix(c,d,u.x), u.y);
+}
+void main() {
+  if (uStyle == 2) { o = vec4(0.15, 0.10, 0.06, vA); return; }
+  if (uStyle == 3) {
+    float h = clamp(vW.z / 2.4, 0.0, 1.0);
+    vec3 wall = mix(vec3(0.90, 0.86, 0.80), vec3(0.78, 0.85, 0.90), h);
+    o = vec4(wall, 1.0);
+    return;
+  }
+  vec3 n = cross(dFdx(vW), dFdy(vW));
+  float nl = length(n);
+  n = nl < 1e-5 ? vec3(0.0, 0.0, 1.0) : n / nl;
+  vec3 vd = normalize(uCam - vW);
+  if (dot(n, vd) < 0.0) n = -n;
+  vec3 L = normalize(vec3(-0.35, -0.55, 0.85));
+  float wrap = dot(n, L) * 0.45 + 0.55;
+  float light = 0.48 + 0.62 * wrap;
+  float rim = pow(1.0 - max(dot(n, vd), 0.0), 2.2);
+  if (uStyle == 1) {
+    float g = vW.x * 1.15 + sin(vW.y * 1.3) * 0.25;
+    float ring = 0.5 + 0.5 * sin(g * 3.2);
+    float grit = vnoise(vW.xy * 5.0);
+    vec3 wood = mix(vec3(0.67, 0.47, 0.28), vec3(0.50, 0.34, 0.20), ring * 0.32 + grit * 0.18);
+    float fade = smoothstep(3.3, 1.1, length(vW.xy));
+    o = vec4(wood * (0.78 + 0.22 * fade) * light, 1.0);
+    return;
+  }
+  if (uStyle == 5) { o = vec4(0.28, 0.16, 0.12, 0.9); return; }
+  if (uStyle == 4) {
+    float across = abs(vUv.y - 0.5);
+    float core = smoothstep(0.5, 0.05, across);
+    float dash = smoothstep(0.42, 0.58, abs(fract(vUv.x * 5.0 - uTime * 0.85) - 0.5));
+    float pulse = 0.75 + 0.25 * sin(uTime * 3.0);
+    vec3 gold = vec3(1.0, 0.84, 0.45);
+    o = vec4(gold, core * (0.35 + 0.65 * dash) * pulse);
+    return;
+  }
+  bool front = gl_FrontFacing;
+  vec3 base = front ? uFront : vec3(0.96, 0.93, 0.86);
+  if (!front) {
+    base = mix(base, uFront, 0.08);
+  } else if (uPattern == 2) {
+    vec2 g = step(0.5, fract(vUv * 7.0));
+    float k = abs(g.x - g.y);
+    base = mix(base, vec3(0.97, 0.95, 0.90), k * 0.72);
+    base *= 0.96 + 0.04 * vnoise(vUv * 30.0);
+  } else if (uPattern == 1) {
+    float fiber = 0.5 + 0.5 * sin(vUv.x * 90.0 + vUv.y * 14.0 + vnoise(vUv * 8.0) * 6.0);
+    float blot = vnoise(vUv * 5.5);
+    float fleck = smoothstep(0.82, 0.97, vnoise(vUv * 28.0));
+    base = mix(base, base * vec3(0.82, 0.78, 0.7), fiber * 0.18);
+    base = mix(base, base * vec3(1.05, 0.98, 0.9), blot * 0.22);
+    base += fleck * vec3(0.18, 0.14, 0.05);
+  } else {
+    base *= 0.94 + 0.08 * vnoise(vUv * 22.0);
+    base *= 0.97 + 0.03 * vnoise(vUv * 80.0);
+  }
+  base *= light;
+  base += rim * 0.05;
+  o = vec4(base, 1.0);
+}`;
+
+  let gl, prog, buf, glowBuf, sceneBuf, loc;
+  function compile(type, src) {
+    const s = gl.createShader(type);
+    gl.shaderSource(s, src);
+    gl.compileShader(s);
+    if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s));
+    return s;
+  }
+  function initGl() {
+    gl = glCanvas.getContext("webgl2", { alpha: false, antialias: true, depth: true, stencil: false, preserveDrawingBuffer: true });
+    if (!gl) return false;
+    prog = gl.createProgram();
+    gl.attachShader(prog, compile(gl.VERTEX_SHADER, vertSrc));
+    gl.attachShader(prog, compile(gl.FRAGMENT_SHADER, fragSrc));
+    gl.linkProgram(prog);
+    if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(prog));
+    loc = {
+      mvp: gl.getUniformLocation(prog, "uMvp"),
+      model: gl.getUniformLocation(prog, "uModel"),
+      front: gl.getUniformLocation(prog, "uFront"),
+      cam: gl.getUniformLocation(prog, "uCam"),
+      pattern: gl.getUniformLocation(prog, "uPattern"),
+      style: gl.getUniformLocation(prog, "uStyle"),
+      time: gl.getUniformLocation(prog, "uTime")
+    };
+    buf = gl.createBuffer();
+    glowBuf = gl.createBuffer();
+    sceneBuf = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+    gl.enableVertexAttribArray(0);
+    gl.enableVertexAttribArray(1);
+    gl.enableVertexAttribArray(2);
+    return true;
+  }
+  function bindAttribs() {
+    gl.enableVertexAttribArray(0);
+    gl.enableVertexAttribArray(1);
+    gl.enableVertexAttribArray(2);
+    gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 24, 0);
+    gl.vertexAttribPointer(1, 2, gl.FLOAT, false, 24, 12);
+    gl.vertexAttribPointer(2, 1, gl.FLOAT, false, 24, 20);
+  }
+  function pushVert(arr, x, y, z, u, v, a) {
+    arr.push(x, y, z, u, v, a);
+  }
+  function drawScene(now) {
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    cssW = glCanvas.clientWidth || 1;
+    cssH = glCanvas.clientHeight || 1;
+    const w = Math.max(2, Math.round(cssW * dpr));
+    const h = Math.max(2, Math.round(cssH * dpr));
+    if (glCanvas.width !== w || glCanvas.height !== h) {
+      glCanvas.width = w; glCanvas.height = h;
+      uiCanvas.width = w; uiCanvas.height = h;
+    }
+    buildCamera();
+    guides();
+    boundaryHandles();
+    gl.viewport(0, 0, w, h);
+    gl.clearColor(0.85, 0.89, 0.92, 1);
+    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+    gl.enable(gl.DEPTH_TEST);
+    gl.disable(gl.CULL_FACE);
+    gl.useProgram(prog);
+    const col = colorOf().rgb;
+    const pat = patternId === "washi" ? 1 : patternId === "karo" ? 2 : 0;
+    gl.uniform3f(loc.front, col[0], col[1], col[2]);
+    gl.uniform3f(loc.cam, matrices.eye[0], matrices.eye[1], matrices.eye[2]);
+    gl.uniform1i(loc.pattern, pat);
+    gl.uniform1f(loc.time, now * 0.001);
+    const ident = [1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1];
+    gl.uniformMatrix4fv(loc.mvp, false, mul(matrices.vp, ident));
+    gl.uniformMatrix4fv(loc.model, false, ident);
+
+    const scene = [];
+    const T = 3.15;
+    pushVert(scene, -T, -2.35, 0, 0, 0, 1);
+    pushVert(scene, T, -2.35, 0, 1, 0, 1);
+    pushVert(scene, T, 2.55, 0, 1, 1, 1);
+    pushVert(scene, -T, -2.35, 0, 0, 0, 1);
+    pushVert(scene, T, 2.55, 0, 1, 1, 1);
+    pushVert(scene, -T, 2.55, 0, 0, 1, 1);
+    pushVert(scene, -T, -2.35, 0, 0, 0, 1);
+    pushVert(scene, T, -2.35, -0.18, 1, 0, 1);
+    pushVert(scene, T, -2.35, 0, 1, 1, 1);
+    pushVert(scene, -T, -2.35, 0, 0, 0, 1);
+    pushVert(scene, -T, -2.35, -0.18, 0, 1, 1);
+    pushVert(scene, T, -2.35, -0.18, 1, 0, 1);
+    pushVert(scene, -3.4, 2.72, 0, 0, 0, 1);
+    pushVert(scene, 3.4, 2.72, 0, 1, 0, 1);
+    pushVert(scene, 3.4, 2.72, 2.5, 1, 1, 1);
+    pushVert(scene, -3.4, 2.72, 0, 0, 0, 1);
+    pushVert(scene, 3.4, 2.72, 2.5, 1, 1, 1);
+    pushVert(scene, -3.4, 2.72, 2.5, 0, 1, 1);
+    gl.bindBuffer(gl.ARRAY_BUFFER, sceneBuf);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(scene), gl.DYNAMIC_DRAW);
+    bindAttribs();
+    gl.uniform1i(loc.style, 1);
+    gl.drawArrays(gl.TRIANGLES, 0, 12);
+    gl.uniform1i(loc.style, 3);
+    gl.drawArrays(gl.TRIANGLES, 12, 6);
+
+    const box = bounds();
+    const shadow = [];
+    const sx = (box.minx + box.maxx) / 2, sy = (box.miny + box.maxy) / 2;
+    const rx = Math.max(0.35, (box.maxx - box.minx) * 0.55);
+    const ry = Math.max(0.35, (box.maxy - box.miny) * 0.55);
+    pushVert(shadow, sx, sy, 0.006, 0, 0, 0.22);
+    for (let i = 0; i <= 28; i++) {
+      const a = (i / 28) * Math.PI * 2;
+      pushVert(shadow, sx + Math.cos(a) * rx, sy + Math.sin(a) * ry, 0.006, 0, 0, 0);
+    }
+    gl.uniformMatrix4fv(loc.mvp, false, matrices.mvp);
+    gl.uniformMatrix4fv(loc.model, false, matrices.model);
+    gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(shadow), gl.DYNAMIC_DRAW);
+    bindAttribs();
+    gl.enable(gl.BLEND);
+    gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+    gl.depthMask(false);
+    gl.uniform1i(loc.style, 2);
+    gl.drawArrays(gl.TRIANGLE_FAN, 0, 30);
+    gl.depthMask(true);
+
+    const tris = [];
+    for (const f of paper.f) {
+      const area = Math.abs(sideOf(paper.v[f.idx[1]], paper.v[f.idx[0]], paper.v[f.idx[2]]));
+      if (area < 1e-8) continue;
+      for (let k = 0; k < 3; k++) {
+        const p = paper.v[f.idx[k]];
+        pushVert(tris, p.x, p.y, p.z, p.u, p.v, 1);
+      }
+    }
+    gl.disable(gl.BLEND);
+    gl.uniform1i(loc.style, 0);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(tris), gl.DYNAMIC_DRAW);
+    bindAttribs();
+    gl.drawArrays(gl.TRIANGLES, 0, tris.length / 6);
+
+    const ec = new Map();
+    const ek = (i, j) => (i < j ? i + "-" + j : j + "-" + i);
+    for (const f of paper.f) {
+      for (let k = 0; k < 3; k++) {
+        const i = f.idx[k], j = f.idx[(k + 1) % 3];
+        const key = ek(i, j);
+        ec.set(key, (ec.get(key) || 0) + 1);
+      }
+    }
+    const edges = [];
+    for (const [k2, c] of ec) {
+      if (c !== 1) continue;
+      const parts = k2.split("-");
+      const A = paper.v[+parts[0]], B = paper.v[+parts[1]];
+      pushVert(edges, A.x, A.y, A.z + 0.008, 0, 0, 1);
+      pushVert(edges, B.x, B.y, B.z + 0.008, 1, 0, 1);
+    }
+    if (edges.length) {
+      gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(edges), gl.DYNAMIC_DRAW);
+      bindAttribs();
+      gl.uniform1i(loc.style, 5);
+      gl.drawArrays(gl.LINES, 0, edges.length / 6);
+    }
+
+    if (foldLines.length && !busy) {
+      const glow = [];
+      for (const seg of foldLines) {
+        const ax = seg.a[0], ay = seg.a[1], bx = seg.b[0], by = seg.b[1];
+        const dx = bx - ax, dy = by - ay;
+        const len = Math.hypot(dx, dy) || 1;
+        const nx = -dy / len * 0.055, ny = dx / len * 0.055;
+        const z = 0.11;
+        pushVert(glow, ax + nx, ay + ny, z, 0, 1, 1);
+        pushVert(glow, bx + nx, by + ny, z, 1, 1, 1);
+        pushVert(glow, bx - nx, by - ny, z, 1, 0, 1);
+        pushVert(glow, ax + nx, ay + ny, z, 0, 1, 1);
+        pushVert(glow, bx - nx, by - ny, z, 1, 0, 1);
+        pushVert(glow, ax - nx, ay - ny, z, 0, 0, 1);
+      }
+      gl.bindBuffer(gl.ARRAY_BUFFER, glowBuf);
+      gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(glow), gl.DYNAMIC_DRAW);
+      bindAttribs();
+      gl.enable(gl.BLEND);
+      gl.blendFunc(gl.SRC_ALPHA, gl.ONE);
+      gl.depthMask(false);
+      gl.uniform1i(loc.style, 4);
+      gl.drawArrays(gl.TRIANGLES, 0, glow.length / 6);
+      gl.depthMask(true);
+      gl.disable(gl.BLEND);
+    }
+    drawOverlay(now);
+  }
+
+  function drawOverlay(now) {
+    ui.setTransform(uiCanvas.width / cssW, 0, 0, uiCanvas.height / cssH, 0, 0);
+    ui.clearRect(0, 0, cssW, cssH);
+    ui.lineJoin = "round";
+    ui.lineCap = "round";
+    if (!model() && !busy) {
+      for (const h of handles) {
+        const s = project(h.x, h.y, 0.12);
+        ui.beginPath();
+        ui.arc(s.x, s.y, h.kind === "kante" ? 6 : 8, 0, Math.PI * 2);
+        ui.fillStyle = h.kind === "kante" ? "rgba(255,250,240,0.9)" : "rgba(42,36,30,0.88)";
+        ui.fill();
+        ui.lineWidth = 2;
+        ui.strokeStyle = h.kind === "kante" ? "rgba(42,36,30,0.7)" : "rgba(255,250,240,0.9)";
+        ui.stroke();
+      }
+    }
+    if (foldLines.length && !busy) {
+      const t = (now * 0.001) % 1;
+      for (const seg of foldLines) {
+        const A = project(seg.a[0], seg.a[1], 0.12);
+        const B = project(seg.b[0], seg.b[1], 0.12);
+        const x = A.x + (B.x - A.x) * t;
+        const y = A.y + (B.y - A.y) * t;
+        const ang = Math.atan2(B.y - A.y, B.x - A.x);
+        ui.save();
+        ui.translate(x, y);
+        ui.rotate(ang);
+        ui.beginPath();
+        ui.moveTo(11, 0);
+        ui.lineTo(-6, 7);
+        ui.lineTo(-6, -7);
+        ui.closePath();
+        ui.fillStyle = "rgba(90, 58, 12, 0.92)";
+        ui.fill();
+        ui.restore();
+      }
+    }
+  }
+
+  function screenLines() {
+    const rect = uiCanvas.getBoundingClientRect();
+    return foldLines.map((seg) => {
+      const A = project(seg.a[0], seg.a[1], 0.12);
+      const B = project(seg.b[0], seg.b[1], 0.12);
+      return { x1: rect.left + A.x, y1: rect.top + A.y, x2: rect.left + B.x, y2: rect.top + B.y };
+    });
+  }
+  function localPoint(ev) {
+    const rect = uiCanvas.getBoundingClientRect();
+    return { x: ev.clientX - rect.left, y: ev.clientY - rect.top };
+  }
+  function distToSeg(px, py, ax, ay, bx, by) {
+    const dx = bx - ax, dy = by - ay;
+    const L = dx * dx + dy * dy || 1;
+    let t = ((px - ax) * dx + (py - ay) * dy) / L;
+    t = Math.max(0, Math.min(1, t));
+    const x = ax + dx * t, y = ay + dy * t;
+    return Math.hypot(px - x, py - y);
+  }
+
+  function onDown(ev) {
+    hadGesture = true;
+    if (tonOn && audioCtx && audioCtx.state === "suspended") audioCtx.resume();
+    if (busy) return;
+    const p = localPoint(ev);
+    if (model() && !isDone()) {
+      let best = 1e9, seg = null;
+      for (const ln of foldLines) {
+        const A = project(ln.a[0], ln.a[1], 0.12);
+        const B = project(ln.b[0], ln.b[1], 0.12);
+        const d = distToSeg(p.x, p.y, A.x, A.y, B.x, B.y);
+        if (d < best) { best = d; seg = { A: A, B: B }; }
+      }
+      if (seg && best < 32) {
+        swipe = { x: p.x, y: p.y, id: ev.pointerId, A: seg.A, B: seg.B };
+        uiCanvas.setPointerCapture(ev.pointerId);
+      }
+      return;
+    }
+    if (!model()) {
+      let best = 1e9, h = null;
+      for (const handle of handles) {
+        const s = project(handle.x, handle.y, 0.12);
+        const d = Math.hypot(s.x - p.x, s.y - p.y);
+        if (d < best) { best = d; h = handle; }
+      }
+      if (h && best < 30) {
+        drag = { handle: h, id: ev.pointerId, committed: snap() };
+        uiCanvas.setPointerCapture(ev.pointerId);
+        statusNote = "Die Falz folgt dem Finger. Lass los, um sie zu behalten.";
+        updateUi();
+      }
+    }
+  }
+  function previewAt(paperPoint) {
+    restore(drag.committed);
+    const from = [drag.handle.x, drag.handle.y];
+    const to = [paperPoint.x, paperPoint.y];
+    const dist = Math.hypot(to[0] - from[0], to[1] - from[1]);
+    if (dist < 0.08) { preview = null; return; }
+    const spec = {
+      from: from, to: to, scope: "flap", angle: Math.PI,
+      seeds: drag.handle.seeds
+    };
+    const state = prepare([resolveLine(spec)], true);
+    if (!state) { preview = null; restore(drag.committed); return; }
+    const u = Math.max(0, Math.min(1, (dist - 0.06) / 0.72));
+    applyU(state, u);
+    const ln = resolveLine(spec);
+    preview = { seg: lineOnPaper(ln.a, ln.b), u: u, state: state };
+  }
+  function onMove(ev) {
+    if (swipe && ev.pointerId === swipe.id) {
+      const p = localPoint(ev);
+      const dx = p.x - swipe.x, dy = p.y - swipe.y;
+      const lx = swipe.B.x - swipe.A.x, ly = swipe.B.y - swipe.A.y;
+      const len = Math.hypot(lx, ly) || 1;
+      const along = Math.abs(dx * lx + dy * ly) / len;
+      const perp = Math.abs(dx * -ly + dy * lx) / len;
+      const need = Math.max(26, Math.min(64, len * 0.38));
+      if (along > need && along > perp * 1.05) {
+        swipe = null;
+        foldForward();
+      }
+      return;
+    }
+    if (drag && ev.pointerId === drag.id) {
+      const p = localPoint(ev);
+      const world = screenToPaper(p.x, p.y);
+      if (!world) return;
+      previewAt(world);
+    }
+  }
+  function onUp(ev) {
+    if (swipe && ev.pointerId === swipe.id) swipe = null;
+    if (drag && ev.pointerId === drag.id) {
+      const keep = preview && preview.u > 0.42;
+      const committed = drag.committed;
+      const state = preview && preview.state;
+      drag = null;
+      preview = null;
+      if (keep && state) {
+        restore(committed);
+        const again = prepare(state.groups.map((g) => g.line), true);
+        if (!again) { restore(committed); statusNote = "Diese Falte geht gerade nicht."; updateUi(); return; }
+        undoStack.push({ before: committed, step: stepIndex });
+        playRustle();
+        let resolve;
+        const promise = new Promise((r) => { resolve = r; });
+        pending = { promise: promise, resolve: resolve };
+        startPrepared(again, 1, function () {
+          finalizeFlat(again);
+          statusNote = "";
+          finishPending(true);
+        });
+        applyU(again, 0);
+      } else {
+        restore(committed);
+        statusNote = keep ? "" : "Zu kurz. Zieh etwas weiter.";
+        updateUi();
+      }
+    }
+  }
+
+  function ensureAudio() {
+    if (!hadGesture || !tonOn) return null;
+    if (!audioCtx) {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) return null;
+      audioCtx = new AC();
+    }
+    if (audioCtx.state === "suspended") audioCtx.resume();
+    return audioCtx;
+  }
+  function playRustle() {
+    const ctx = ensureAudio();
+    if (!ctx) return;
+    const dur = 0.36;
+    const n = Math.floor(ctx.sampleRate * dur);
+    const buf = ctx.createBuffer(1, n, ctx.sampleRate);
+    const d = buf.getChannelData(0);
+    let last = 0;
+    for (let i = 0; i < n; i++) {
+      const t = i / n;
+      const env = Math.sin(Math.PI * Math.pow(t, 0.5)) * Math.exp(-2.4 * t);
+      const white = Math.random() * 2 - 1;
+      last = last * 0.62 + white * 0.38;
+      const crack = Math.random() < 0.0035 ? (Math.random() * 2 - 1) : 0;
+      d[i] = (last + crack * 0.85) * env * 0.9;
+    }
+    const src = ctx.createBufferSource();
+    src.buffer = buf;
+    const bp = ctx.createBiquadFilter();
+    bp.type = "bandpass";
+    bp.frequency.value = 800 + Math.random() * 1400;
+    bp.Q.value = 0.55;
+    const g = ctx.createGain();
+    g.gain.value = 0.4;
+    src.connect(bp); bp.connect(g); g.connect(ctx.destination);
+    src.start();
+  }
+
+  function setModel(id) {
+    if (busy) return;
+    modelId = id;
+    resetSheet();
+    try { localStorage.setItem("origami-model", id); } catch (e) {}
+  }
+  function setPattern(id) {
+    patternId = id;
+    try { localStorage.setItem("origami-pattern", id); } catch (e) {}
+    updateUi();
+  }
+  function setColor(id) {
+    colorId = id;
+    try { localStorage.setItem("origami-color", id); } catch (e) {}
+    updateUi();
+  }
+  function toggleTon() {
+    hadGesture = true;
+    tonOn = !tonOn;
+    if (tonOn) ensureAudio();
+    updateUi();
+  }
+
+  function updateUi() {
+    const m = model();
+    for (const b of document.querySelectorAll("[data-model]")) {
+      const on = b.dataset.model === "frei" ? modelId === "" : b.dataset.model === modelId;
+      b.setAttribute("aria-pressed", on ? "true" : "false");
+    }
+    for (const b of document.querySelectorAll("[data-pattern]")) {
+      b.setAttribute("aria-pressed", b.dataset.pattern === patternId ? "true" : "false");
+    }
+    for (const b of document.querySelectorAll("[data-color]")) {
+      b.setAttribute("aria-pressed", b.dataset.color === colorId ? "true" : "false");
+    }
+    const ton = document.getElementById("ton");
+    ton.setAttribute("aria-pressed", tonOn ? "true" : "false");
+    const weiter = document.getElementById("weiter");
+    const zurueck = document.getElementById("zurueck");
+    weiter.disabled = busy || !m || isDone();
+    zurueck.disabled = busy || undoStack.length === 0;
+    let text = "";
+    if (!m) {
+      text = statusNote || "Frei. Zieh eine Ecke oder eine Kante. Die Falz entsteht unter dem Finger.";
+    } else if (isDone()) {
+      text = m.done;
+    } else {
+      const step = steps()[stepIndex];
+      const n = "Schritt " + (stepIndex + 1) + " von " + steps().length + ". ";
+      text = n + step.text + " Zieh der leuchtenden Linie nach, oder tippe Weiter.";
+      if (statusNote) text = statusNote + " " + text;
+    }
+    hintEl.textContent = text;
+  }
+
+  function buildUi() {
+    const models = document.getElementById("models");
+    [["kranich", "Kranich"], ["schiffchen", "Schiffchen"], ["hut", "Hut"], ["frosch", "Frosch"], ["fisch", "Fisch"], ["frei", "Frei"]].forEach((pair) => {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.textContent = pair[1];
+      b.dataset.model = pair[0];
+      b.addEventListener("click", () => setModel(pair[0] === "frei" ? "" : pair[0]));
+      models.appendChild(b);
+    });
+    const patterns = document.getElementById("patterns");
+    PATTERNS.forEach((p) => {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.textContent = p.name;
+      b.dataset.pattern = p.id;
+      b.addEventListener("click", () => setPattern(p.id));
+      patterns.appendChild(b);
+    });
+    const colors = document.getElementById("colors");
+    COLORS.forEach((c) => {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.className = "swatch";
+      b.dataset.color = c.id;
+      b.setAttribute("aria-label", c.name);
+      b.title = c.name;
+      b.style.background = "rgb(" + Math.round(c.rgb[0] * 255) + "," + Math.round(c.rgb[1] * 255) + "," + Math.round(c.rgb[2] * 255) + ")";
+      b.addEventListener("click", () => setColor(c.id));
+      colors.appendChild(b);
+    });
+    const controls = document.getElementById("controls");
+    function add(id, label, fn) {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.id = id;
+      b.textContent = label;
+      b.addEventListener("click", fn);
+      controls.appendChild(b);
+      return b;
+    }
+    add("zurueck", "Zurück", () => { hadGesture = true; foldBack(); });
+    add("weiter", "Weiter", () => { hadGesture = true; foldForward(); });
+    add("neu", "Neu", () => { hadGesture = true; resetSheet(); });
+    add("ton", "Ton", () => toggleTon());
+    document.getElementById("ton").setAttribute("aria-pressed", "false");
+  }
+
+  document.addEventListener("keydown", (ev) => {
+    if (ev.repeat) return;
+    const k = ev.key;
+    if (k === "ArrowRight" || k === "Enter") { ev.preventDefault(); foldForward(); }
+    else if (k === "ArrowLeft" || k === "Backspace") { ev.preventDefault(); foldBack(); }
+    else if (k === "1") setModel("kranich");
+    else if (k === "2") setModel("schiffchen");
+    else if (k === "3") setModel("hut");
+    else if (k === "4") setModel("frosch");
+    else if (k === "5") setModel("fisch");
+    else if (k === "6") setModel("");
+    else if (k === "t" || k === "T") toggleTon();
+    else if (k === "n" || k === "N") resetSheet();
+    else if (k === "u" || k === "U") setPattern("uni");
+    else if (k === "w" || k === "W") setPattern("washi");
+    else if (k === "k" || k === "K") setPattern("karo");
+  });
+
+  uiCanvas.addEventListener("pointerdown", onDown);
+  uiCanvas.addEventListener("pointermove", onMove);
+  uiCanvas.addEventListener("pointerup", onUp);
+  uiCanvas.addEventListener("pointercancel", onUp);
+  window.addEventListener("pointerdown", () => { hadGesture = true; }, { capture: true });
+
+  function frameLoop(now) {
+    if (!lastT) lastT = now;
+    const dt = Math.min(0.05, (now - lastT) / 1000);
+    lastT = now;
+    if (isDone() && spinOverride == null) spin += dt * 0.38;
+    tickAnim(now);
+    try { drawScene(now); } catch (err) {
+      if (!frameLoop.reported) {
+        frameLoop.reported = true;
+        console.error(err);
+      }
+    }
+    requestAnimationFrame(frameLoop);
+  }
+
+  function selfCheck() {
+    const m = mul(perspective(0.6, 1.3, 0.1, 30), lookAt([0.2, -3, 2], [0, 0, 0], [0, 0, 1]));
+    const invm = invert(m);
+    const x = 0.4, y = -0.2, z = 0.02;
+    const w = m[3] * x + m[7] * y + m[11] * z + m[15];
+    const cx = (m[0] * x + m[4] * y + m[8] * z + m[12]) / w;
+    const cy = (m[1] * x + m[5] * y + m[9] * z + m[13]) / w;
+    const cz = (m[2] * x + m[6] * y + m[10] * z + m[14]) / w;
+    const iw = invm[3] * cx + invm[7] * cy + invm[11] * cz + invm[15];
+    const ix = (invm[0] * cx + invm[4] * cy + invm[8] * cz + invm[12]) / iw;
+    const iy = (invm[1] * cx + invm[5] * cy + invm[9] * cz + invm[13]) / iw;
+    const iz = (invm[2] * cx + invm[6] * cy + invm[10] * cz + invm[14]) / iw;
+    if (Math.hypot(ix - x, iy - y, iz - z) > 1e-3) throw new Error("Projektion");
+  }
+
+  buildUi();
+  try {
+    if (localStorage.getItem("origami-color")) colorId = localStorage.getItem("origami-color");
+    if (localStorage.getItem("origami-pattern")) patternId = localStorage.getItem("origami-pattern");
+    if (!COLORS.some((c) => c.id === colorId)) colorId = "rot";
+    if (!PATTERNS.some((p) => p.id === patternId)) patternId = "uni";
+  } catch (e) {}
+  if (!initGl()) {
+    hintEl.textContent = "WebGL fehlt in diesem Browser.";
+  } else {
+    selfCheck();
+    resetSheet();
+    requestAnimationFrame(frameLoop);
+  }
+
+  window.__origami = {
+    get model() { return modelId || "frei"; },
+    get step() { return stepIndex; },
+    get total() { return steps().length; },
+    get done() { return isDone(); },
+    get animating() { return busy; },
+    get audioStarted() { return !!audioCtx; },
+    get ton() { return tonOn; },
+    get faces() { return paper ? paper.f.length : 0; },
+    fold: foldForward,
+    undo: foldBack,
+    setModel: (id) => setModel(id === "frei" ? "" : id),
+    setPattern: setPattern,
+    setColor: setColor,
+    setSpin: (v) => { spinOverride = v; },
+    foldLine: screenLines,
+    anchors: () => {
+      const rect = uiCanvas.getBoundingClientRect();
+      return handles.map((h) => {
+        const s = project(h.x, h.y, 0.12);
+        return { x: rect.left + s.x, y: rect.top + s.y, kind: h.kind };
+      });
+    },
+    mesh: () => paper.f.map((f) => {
+      const p = f.idx.map((i) => paper.v[i]);
+      const cross = (p[1].x - p[0].x) * (p[2].y - p[0].y) - (p[1].y - p[0].y) * (p[2].x - p[0].x);
+      return { layer: f.layer, cross: Math.round(cross * 100) / 100, z: p.map((q) => Math.round(q.z * 1000) / 1000) };
+    })
+  };
+})();
+</script>
+</body>
+</html>
