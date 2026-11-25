@@ -1049,6 +1049,64 @@ function waterfalls(S, drop, qMin) {
     nf++; if (hi - lo > best) { best = hi - lo; top = ti; } }
   return { n: nf, best, cells, top };
 }
+// ---------- the long river (read-only, for the app's long river wish) ----------
+// From every spring, follow the water downhill: each step goes to the neighbour that gets the biggest outflow
+// (virtual-pipe flux). A river needs RIVER_Q of outflow; thin sheet flow below that has dried out. When the walk
+// enters a lake (still water, as in the lake wish: deeper than 0.2 and slower than 0.8, or iced) it crosses it:
+// the whole lake (4-connected still cells) is searched for its outlet, the lake cell that pushes the most water
+// into a cell outside the lake. A lake whose outlet carries less than RIVER_Q keeps the river (it ends there).
+// The walk stops at the valley's edge (the river reached it), on a dry cell, or where it would run in a circle.
+// Length: the flowing stretches are measured along the path smoothed over RIVER_K cells (so a 4-neighbour
+// staircase does not count as a zigzag), a lake crossing as a straight line from where the river enters to its
+// outlet; metres are FALL_M / N per cell (a valley is 1.28 km across at every grid size).
+// Returns { m, reached, best: { m, reached, spring, lakes, path }, all } where m is the longest river that
+// reaches the edge (0 if none does) and best its walk (or the longest that does not, for hints).
+const RIVER_Q = 0.5, RIVER_D = 0.02, RIVER_K = 3;
+let rvSeen = null, rvLake = null, rvQ = null, rvStamp = 0;
+function lakeStill(S, i) { return S.d[i] > 0.2 && (Math.abs(S.u[i]) + Math.abs(S.v[i]) < 0.8 || (S.ice && S.ice[i] > 0.5)); }
+function riverWalk(S, x0, y0, qMin) {
+  const N = S.N, n = N * N, d = S.d, fL = S.fL, fR = S.fR, fT = S.fT, fB = S.fB;
+  const stamp = ++rvStamp, seen = rvSeen, lake = rvLake, q = rvQ;
+  let i = Math.max(0, Math.min(N - 1, Math.round(y0))) * N + Math.max(0, Math.min(N - 1, Math.round(x0)));
+  const path = [i], anchors = [0]; let reached = false, lakes = 0, end = 'dry';
+  for (let guard = 0; guard < n; guard++) {
+    const x = i % N, y = (i / N) | 0; seen[i] = stamp;
+    if (guard > 0 && (x === 0 || y === 0 || x === N - 1 || y === N - 1)) { reached = true; end = 'edge'; break; }
+    if (lakeStill(S, i)) { // cross the lake: find its strongest outlet
+      let h = 0, t = 0, bq = 0, bj = -1, bk = -1; q[t++] = i; lake[i] = stamp;
+      while (h < t) { const j = q[h++], jx = j % N;
+        const nb = [jx > 0 ? j - 1 : -1, jx < N - 1 ? j + 1 : -1, j >= N ? j - N : -1, j < n - N ? j + N : -1], fl = [fL[j], fR[j], fT[j], fB[j]];
+        for (let k = 0; k < 4; k++) { const e = nb[k]; if (e < 0 || lake[e] === stamp) continue;
+          if (lakeStill(S, e)) { lake[e] = stamp; seen[e] = stamp; q[t++] = e; } else if (fl[k] > bq && seen[e] !== stamp) { bq = fl[k]; bj = j; bk = e; } } }
+      lakes++;
+      if (bk < 0 || bq < qMin) { end = 'lake'; break; }
+      path.push(bj); anchors.push(path.length - 1); path.push(bk); anchors.push(path.length - 1); seen[bj] = stamp; i = bk; continue;
+    }
+    const l = x > 0 ? fL[i] : 0, r = x < N - 1 ? fR[i] : 0, tp = y > 0 ? fT[i] : 0, b = y < N - 1 ? fB[i] : 0;
+    if (d[i] < RIVER_D || Math.max(l, r, tp, b) < qMin) { end = 'dry'; break; }
+    const j = l >= r && l >= tp && l >= b ? i - 1 : r >= tp && r >= b ? i + 1 : tp >= b ? i - N : i + N;
+    if (seen[j] === stamp) { end = 'loop'; break; }
+    path.push(j); i = j;
+  }
+  // length: smoothed polyline (every RIVER_K-th cell plus the lake anchors and the end)
+  let len = 0, px = path[0] % N, py = (path[0] / N) | 0, ai = 1;
+  for (let k = 1; k < path.length; k++) {
+    const anc = ai < anchors.length && anchors[ai] === k; if (anc) ai++;
+    if (!anc && k % RIVER_K && k !== path.length - 1) continue;
+    const cx = path[k] % N, cy = (path[k] / N) | 0; len += Math.hypot(cx - px, cy - py); px = cx; py = cy;
+  }
+  return { m: len * FALL_M / N, reached, lakes, end, path };
+}
+function longRiver(S, qMin) {
+  qMin = qMin || RIVER_Q; const N = S.N, n = N * N;
+  if (!rvSeen || rvSeen.length !== n) { rvSeen = new Int32Array(n); rvLake = new Int32Array(n); rvQ = new Int32Array(n); rvStamp = 0; }
+  if (rvStamp > 2e9) { rvSeen.fill(0); rvLake.fill(0); rvStamp = 0; }
+  let best = null, m = 0; const all = [];
+  S.springs.forEach((sp, k) => { const w = riverWalk(S, sp.x * N, sp.y * N, qMin); w.spring = k; all.push({ m: w.m, reached: w.reached, lakes: w.lakes, end: w.end });
+    if (w.reached && w.m > m) m = w.m;
+    if (!best || (w.reached && !best.reached) || (w.reached === best.reached && w.m > best.m)) best = w; });
+  return { m, reached: !!(best && best.reached), best, all };
+}
 function totalIce(S) { let n = 0; const a = S.ice, d = S.d; for (let i = 0; i < a.length; i++) if (a[i] > 0.5 && d[i] > 0.02) n++; return n; }
 function totalSnow(S) { let t = 0; const a = S.snow; for (let i = 0; i < a.length; i++) t += a[i]; return t; }
 
@@ -1339,7 +1397,7 @@ function unpackShare(bytes, seed, opts) {
   if (hasNaN(S)) throw new Error('share link has broken numbers');
   return S;
 }
-const API = { SOWN_YEARS, SOWN_SCYTHE, pondCells, POND_DEEP, WEIR_H, findRoute, ROUTE_CLIMB, waterfalls, FALL_DROP, FALL_Q, FALL_M, packState, unpackState, packShare, unpackShare, initLife,  iceStep, iceJam, totalIce, ICE_HOLD, JAM_MIN, JAM_Y, FLOE_PTS, eventRain, droughtOf, droughtAt, weatherEvent, STORM_AMP, yearFrac, yearFracAt, yearLen, yearNum, season, snowLine, snowFalling, leafState, snowStep, totalSnow, SEASONS, clockHour, dayFrac, planRain, rainCell, weatherStep, mulberry32, hashStr, makeNoise, randomSeedName, generateTerrain, create, seedLife, step, applyTool, totalWater, totalTerrain, resample, lifeStep, countTrees, countLife, leafy, treeHappy, cottageMood, cottageCell, countVillage, waterNear, wellYield, WELL_MIN, WELL_HIGH, MILL_T, MILL_RIPEN, raceCells, raceR, RACE_T, RACE_DIG, RACE_SP, FLOOD_RUIN, GROW_MAX, KIDS_MAX, GROW_T, plotSize, plotOf, plotCrop, hasNaN, DEFAULTS };
+const API = { SOWN_YEARS, SOWN_SCYTHE, pondCells, POND_DEEP, WEIR_H, findRoute, ROUTE_CLIMB, waterfalls, FALL_DROP, FALL_Q, FALL_M, longRiver, RIVER_Q, packState, unpackState, packShare, unpackShare, initLife,  iceStep, iceJam, totalIce, ICE_HOLD, JAM_MIN, JAM_Y, FLOE_PTS, eventRain, droughtOf, droughtAt, weatherEvent, STORM_AMP, yearFrac, yearFracAt, yearLen, yearNum, season, snowLine, snowFalling, leafState, snowStep, totalSnow, SEASONS, clockHour, dayFrac, planRain, rainCell, weatherStep, mulberry32, hashStr, makeNoise, randomSeedName, generateTerrain, create, seedLife, step, applyTool, totalWater, totalTerrain, resample, lifeStep, countTrees, countLife, leafy, treeHappy, cottageMood, cottageCell, countVillage, waterNear, wellYield, WELL_MIN, WELL_HIGH, MILL_T, MILL_RIPEN, raceCells, raceR, RACE_T, RACE_DIG, RACE_SP, FLOOD_RUIN, GROW_MAX, KIDS_MAX, GROW_T, plotSize, plotOf, plotCrop, hasNaN, DEFAULTS };
 if (typeof module !== 'undefined' && module.exports) module.exports = API; else root.LV = API;
 })(typeof window !== 'undefined' ? window : globalThis);
 </script>
@@ -5014,7 +5072,7 @@ window.LV_DAY = { set: setAlwaysDay, get: () => st.alwaysDay, hour: () => LT.h }
 // twice a second (read-only: the sim and its determinism are untouched). Each wish has three tiers;
 // reaching a tier grants a star (best ever, saved in localStorage), with a cheerful toast, a sparkle and,
 // if sound is on, a little chime. Free play never waits for a wish. window.LV_WISHES is the test hook.
-const WISH_KEY = 'lv-wishes', WISH_DT = 0.5;
+const WISH_KEY = 'lv-wishes', WISH_DT = 0.5, RIVER_WARM = 9000; // RIVER_WARM: sim steps before the long river counts (a fresh valley's first shower drains to the edge as a 1.2-1.7 km flood in the first ~6000 steps)
 const WISHES = [
   { id: 'lake', icon: '🏞️', name: 'A lake to row on', tip: 'Dig a basin or dam a stream until the water stands still', tiers: [0.035, 0.06, 0.1], pct: true, unit: 'of the valley is one still lake' },
   { id: 'forest', icon: '🌲', name: 'A deep green forest', tip: 'Plant trees on moist ground below the snow', tiers: [0.32, 0.38, 0.45], pct: true, unit: 'of the valley is forest' },
@@ -5028,7 +5086,8 @@ const WISHES = [
   { id: 'thirsty', icon: '🪣', name: 'A well for a thirsty cottage', tip: 'A cottage far from water gets thirsty: dig it a well in the lowland (droughts make more)', tiers: [1, 3, 6], unit: 'thirsty cottages saved' },
   { id: 'waterfall', icon: '💦', name: 'A waterfall', tip: 'Dig a steep drop right below a fast stream: the water pours over the edge (storms make wild ones)', tiers: [12, 25, 45], unit: 'm tall waterfall' },
   { id: 'bread', icon: '🍞', name: 'Fresh bread for the village', tip: 'A turning mill fills flour sacks; the miller carts them to a cottage along a dry road', tiers: [3, 9, 18], unit: 'sacks of flour delivered' },
-  { id: 'bloom', icon: '🌼', name: 'A valley in bloom', tip: 'Sow wildflowers (Flowers tool) on dry meadows below the alp: the cottagers scythe them and they bloom for two years', tiers: [0.02, 0.05, 0.1], pct: true, unit: 'of the valley is a sown meadow in bloom' }
+  { id: 'bloom', icon: '🌼', name: 'A valley in bloom', tip: 'Sow wildflowers (Flowers tool) on dry meadows below the alp: the cottagers scythe them and they bloom for two years', tiers: [0.02, 0.05, 0.1], pct: true, unit: 'of the valley is a sown meadow in bloom' },
+  { id: 'river', icon: '🛶', name: 'A long river', tip: "Lead a spring's stream all the way to the valley's edge: more springs keep it flowing, dig the lakes an outlet and the river a winding bed", tiers: [1600, 2000, 2500], km: true, unit: "long river from a spring to the valley's edge" }
 ];
 const W = { stars: {}, val: {}, live: {}, forced: {}, granted: 0, toasts: [], evals: 0, ms: 0, open: false, storm: { on: false, set: null, wet: false, S: null, best: 0 }, rainbows0: 0 };
 for (const w of WISHES) { W.stars[w.id] = 0; W.val[w.id] = 0; }
@@ -5061,6 +5120,7 @@ function wishValues() {
   o.skate = st.skatersDrawn > 0 && st.skateSpots ? st.skateSpots.length : 0;
   o.harvest = V.harvested || 0; o.snowman = st.snowmenDrawn || 0; o.thirsty = RESCUE.seed === S.seed ? RESCUE.n : 0; o.bread = FLOUR.seed === S.seed ? FLOUR.n : 0;
   o.bloom = sownBloom(S) / N2; // sown wildflower meadow in bloom (the valley's own wild flowers don't count: they start lush and thin out by themselves)
+  st.river = LV.longRiver(S); o.river = S.steps >= RIVER_WARM ? st.river.m : 0; // metres of the longest spring-fed river that reaches the edge (the first shower's flood is still draining before RIVER_WARM)
   st.falls = LV.waterfalls(S); o.waterfall = st.falls.best / S.N * LV.FALL_M; // the tallest fall right now, in metres
   for (const k in W.forced) o[k] = W.forced[k];
 }
@@ -5081,13 +5141,14 @@ const bWish = document.createElement('button'); bWish.id = 'wishBtn'; bWish.oncl
 const wPanel = document.createElement('div'); wPanel.id = 'wishPanel'; wPanel.setAttribute('role', 'dialog'); wPanel.setAttribute('aria-label', 'Valley wishes'); document.body.appendChild(wPanel);
 const wToast = document.createElement('div'); wToast.id = 'wishToast'; wToast.setAttribute('role', 'status'); document.body.appendChild(wToast);
 function updWishBtn() { const n = wishTotal(), h = `${starSvg}<span>Wishes</span><b>${n}</b>`; if (bWish.innerHTML !== h) bWish.innerHTML = h; bWish.setAttribute('aria-label', `Valley wishes: ${n} of ${WISHES.length * 3} stars`); bWish.classList.toggle('on', W.open); }
-const fmtW = (w, v) => w.pct ? (v * 100).toFixed(1).replace(/\.0$/, '') + '%' : String(Math.round(v));
+const fmtW = (w, v) => w.km ? (v / 1000).toFixed(2) + ' km' : w.pct ? (v * 100).toFixed(1).replace(/\.0$/, '') + '%' : String(Math.round(v));
 function wishLine(w) {
   const v = W.val[w.id], s = W.stars[w.id], cur = starsOf(w, v);
   if (w.id === 'storm' && W.storm.on) return `Storm! ${W.storm.wet ? 'A cottage got wet feet' : W.storm.set.length + ' cottage' + (W.storm.set.length === 1 ? '' : 's') + ' dry so far'}`;
   if (s >= 3) return 'All three stars!' + (v >= w.tiers[0] ? ' Now ' + fmtW(w, v) + ' ' + w.unit : ' ✨');
   const next = w.tiers[Math.max(s, cur)] != null ? w.tiers[Math.max(s, cur)] : w.tiers[2];
-  return `${fmtW(w, v)} ${w.unit} · next ★ at ${fmtW(w, next)}` + (w.id === 'storm' && W.storm.last === -1 ? ' (last storm: wet feet)' : '');
+  const rb = w.id === 'river' && st.river && st.river.best; // the river that got furthest, for a hint where it stops
+  return `${fmtW(w, v)} ${w.unit} · next ★ at ${fmtW(w, next)}` + (rb && !rb.reached && rb.m > 50 ? ` (longest stream ${fmtW(w, rb.m)}, ${rb.end === 'lake' ? 'stops in a lake' : rb.end === 'dry' ? 'dries out' : 'spreads out'})` : '') + (w.id === 'storm' && W.storm.last === -1 ? ' (last storm: wet feet)' : '');
 }
 function renderWishes() {
   const n = wishTotal();

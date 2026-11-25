@@ -238,7 +238,7 @@ freeze again at night). On winter days the bullfinches in the bare trees call no
 low, slightly wistful whistled *pew*, and when the fox or a skater sends them up you hear a quick whirr of small wings.
 
 ## Valley wishes
-Tap the **Wishes** star for a small panel of thirteen gentle goals, each with three stars:
+Tap the **Wishes** star for a small panel of fourteen gentle goals, each with three stars:
 a lake to row on (one still lake covering 3.5%, 6% or 10% of the valley), a deep green forest
 (32%, 38%, 45% forest), a little village (3, 6, 10 cottages), the mill wheel turns (1, 2, 3 mills
 turning), dry feet in a storm (1, 3, 5 cottages kept dry until a storm has passed), rainbow hunter
@@ -250,12 +250,24 @@ wildflower meadow in bloom on 2%, 5% or 10% of the valley; the wild flowers don'
 out by themselves) and a
 waterfall (the tallest fall right now, 12, 25 or 45 m: a strong stream pouring over a drop twice as steep as
 wet ground settles; dig a steep pit just below a fast stream, and catch it quickly, because the wet cliff
-slumps within seconds; storms on the steep slopes make wild ones too). Each line shows live
+slumps within seconds; storms on the steep slopes make wild ones too) and a long river (1.6, 2 or 2.5 km
+from a spring all the way to the valley's edge; see below). Each line shows live
 progress, the next goal and a short tip. Wishes are checked against the real valley twice a
 second (they only read it; the simulation is unchanged). Reaching a goal gives a star with a
 cheerful toast and sparkles (and a little chime if the sound is on). The star badge counts all
 stars; your best is saved on this device (localStorage). Wishes are optional: the panel closes
 with ✕ or a tap on the valley, and free play never waits for them. `window.LV_WISHES` is the test hook.
+
+**A long river** (🛶): from every spring the wish follows the water downhill, always to the neighbour
+that gets the most outflow. When the stream runs into a lake it crosses it to the lake's strongest outlet;
+a lake without a real outlet (less than `RIVER_Q` 0.5 of outflow) keeps the river, and so does dry ground.
+Only a river that reaches the edge of the valley counts, measured along its smoothed course (lakes as a
+straight line, 10 m per cell on a 128 valley, the valley is 1.28 km across at every size). Measured on 8 fresh
+valleys over a whole year: the first shower drains to the edge as a 1.2-1.7 km flood in the first ~6000 steps
+(the wish ignores the first 9000 steps), after that the springs end in lakes or dry out, and only the spring
+melt lets a river through now and then (1.2-1.47 km). With effort (three more springs on the longest stream
+and a deep channel from the lake where it stops to the outlet) rivers reached 1.1-2.0 km. The panel line also
+says how far the longest stream gets and whether it stops in a lake or dries out. `tools/river-check.js`.
 
 ## Save and share
 Tap **Share** (next to the wishes star) for a small panel with three buttons:
