@@ -1,0 +1,1649 @@
+<!DOCTYPE html>
+<html lang="de-CH">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#070914">
+<title>Polarlicht</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect fill='%23070914' width='32' height='32'/%3E%3Cpath d='M4 26c5-9 7-16 12-20 2 7 5 12 12 18' fill='none' stroke='%237dffb0' stroke-width='2'/%3E%3C/svg%3E">
+<style>
+  *, *::before, *::after { box-sizing: border-box; }
+  html, body {
+    margin: 0;
+    height: 100%;
+    background: #070914;
+    color: #e7eef3;
+    font-family: "Avenir Next", "Segoe UI", Helvetica, Arial, sans-serif;
+  }
+  body {
+    position: fixed;
+    inset: 0;
+    overflow: hidden;
+    max-width: 100%;
+    user-select: none;
+    -webkit-user-select: none;
+    touch-action: none;
+  }
+  #view {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    display: block;
+    z-index: 0;
+    cursor: grab;
+    touch-action: none;
+  }
+  #view.dragging { cursor: grabbing; }
+  header {
+    position: fixed;
+    z-index: 2;
+    top: 0;
+    left: 0;
+    right: 0;
+    padding: calc(12px + env(safe-area-inset-top)) 16px 0;
+    pointer-events: none;
+    text-shadow: 0 1px 10px rgba(0, 0, 0, 0.65);
+    max-width: 100%;
+  }
+  h1 {
+    margin: 0;
+    font-family: Palatino, "Palatino Linotype", "Iowan Old Style", Georgia, serif;
+    font-weight: 500;
+    font-size: 15px;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+  }
+  header p {
+    margin: 3px 0 0;
+    font-size: 12.5px;
+    line-height: 1.35;
+    opacity: 0.8;
+    max-width: min(28rem, 68vw);
+  }
+  header .hint {
+    opacity: 0.55;
+    font-size: 11.5px;
+  }
+  .bar {
+    position: fixed;
+    z-index: 3;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    width: 100%;
+    max-width: 100%;
+    padding: 8px 10px calc(8px + env(safe-area-inset-bottom));
+    background: rgba(6, 10, 18, 0.5);
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    touch-action: manipulation;
+  }
+  .bar > * { min-width: 0; }
+  .wind {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 1px;
+    flex: 1 1 220px;
+    max-width: 100%;
+    min-height: 44px;
+    padding: 0 4px;
+  }
+  .wind span {
+    font-size: 12px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    opacity: 0.8;
+  }
+  #windwort {
+    font-style: normal;
+    text-transform: none;
+    letter-spacing: 0;
+    color: #c8ffe4;
+    opacity: 1;
+  }
+  input[type="range"] {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    max-width: 100%;
+    height: 44px;
+    margin: 0;
+    background: transparent;
+    touch-action: none;
+  }
+  input[type="range"]:focus { outline: none; }
+  input[type="range"]:focus-visible { outline: 2px solid #c8ffe4; outline-offset: 2px; }
+  input[type="range"]::-webkit-slider-runnable-track {
+    height: 4px;
+    border-radius: 99px;
+    background: linear-gradient(90deg, #1c4a40, #8dffc0 55%, #ff8ad4);
+  }
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 22px;
+    height: 22px;
+    margin-top: -9px;
+    border-radius: 50%;
+    background: #f4fff8;
+    border: 1px solid rgba(0, 0, 0, 0.35);
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
+  }
+  input[type="range"]::-moz-range-track {
+    height: 4px;
+    border-radius: 99px;
+    background: linear-gradient(90deg, #1c4a40, #8dffc0 55%, #ff8ad4);
+  }
+  input[type="range"]::-moz-range-thumb {
+    width: 22px;
+    height: 22px;
+    border: 1px solid rgba(0, 0, 0, 0.35);
+    border-radius: 50%;
+    background: #f4fff8;
+  }
+  button {
+    font: inherit;
+    color: #e9f3f4;
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    border-radius: 999px;
+    min-height: 44px;
+    min-width: 44px;
+    padding: 0 14px;
+    font-size: 15px;
+    letter-spacing: 0.02em;
+    cursor: pointer;
+    touch-action: manipulation;
+  }
+  button:focus { outline: none; }
+  button:focus-visible { outline: 2px solid #c8ffe4; outline-offset: 2px; }
+  button:active { background: rgba(180, 255, 210, 0.22); }
+  @media (hover: hover) {
+    button:hover { background: rgba(255, 255, 255, 0.18); }
+  }
+  #ton[aria-pressed="true"] {
+    background: rgba(150, 255, 196, 0.22);
+    border-color: rgba(190, 255, 220, 0.45);
+    color: #f3fff6;
+  }
+  .card {
+    position: fixed;
+    z-index: 4;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+    background: rgba(0, 0, 0, 0.46);
+    touch-action: manipulation;
+  }
+  .card[hidden] { display: none !important; }
+  .card article {
+    width: min(36rem, calc(100vw - 24px));
+    max-height: min(78vh, 640px);
+    display: flex;
+    flex-direction: column;
+    margin: 0;
+    background: rgba(8, 14, 24, 0.9);
+    color: #e6eef2;
+    border: 1px solid rgba(190, 255, 220, 0.18);
+    border-radius: 18px;
+    box-shadow: 0 24px 70px rgba(0, 0, 0, 0.4);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+  }
+  .card .body {
+    overflow: auto;
+    padding: 20px 18px 8px;
+    -webkit-overflow-scrolling: touch;
+  }
+  .card h2 {
+    margin: 0 0 10px;
+    font-family: Palatino, "Palatino Linotype", Georgia, serif;
+    font-weight: 500;
+    font-size: 26px;
+    letter-spacing: 0.01em;
+  }
+  .card p {
+    margin: 0 0 12px;
+    font-size: 16.5px;
+    line-height: 1.5;
+    overflow-wrap: break-word;
+  }
+  .card strong { color: #e7fff3; font-weight: 650; }
+  .card .actions {
+    flex: none;
+    display: flex;
+    justify-content: flex-end;
+    padding: 4px 14px 14px;
+  }
+  @media (max-width: 720px) {
+    .wind { flex-basis: 100%; }
+    button { padding: 0 12px; }
+  }
+  @media (max-width: 420px) {
+    h1 { letter-spacing: 0.16em; font-size: 14px; }
+    button { font-size: 14.5px; padding: 0 11px; }
+    .bar { gap: 6px; padding-left: 8px; padding-right: 8px; }
+  }
+</style>
+</head>
+<body>
+<canvas id="view" aria-label="Nordnacht mit Polarlicht über einem zugefrorenen See"></canvas>
+<header>
+  <h1>Polarlicht</h1>
+  <p id="phaseLine">Vollmond · Nacht über dem See</p>
+  <p class="hint">Tippen schickt einen Sturm. Ziehen biegt den Vorhang.</p>
+</header>
+<div id="card" class="card" hidden role="dialog" aria-modal="true" aria-labelledby="cardtitle">
+  <article>
+    <div class="body">
+      <h2 id="cardtitle">Warum grün und rot?</h2>
+      <p>Das Polarlicht entsteht hoch über uns, weit über den Wolken, dort wo die Luft schon sehr dünn ist.</p>
+      <p>Die Sonne schickt den Sonnenwind, einen Strom geladener Teilchen. Das Magnetfeld der Erde lenkt ihn zu den Polen. Wenn die Teilchen auf Sauerstoff und Stickstoff treffen, nehmen die Gase die Energie auf und geben sie als Licht wieder ab.</p>
+      <p><strong>Grün</strong> kommt vom Sauerstoff, etwa 100 bis 150 Kilometer hoch. Das ist die Farbe, die man am häufigsten sieht.</p>
+      <p><strong>Rot</strong> kommt vom selben Sauerstoff, nur noch höher, oft über 200 Kilometer. Es braucht einen starken Sonnenwind und liegt dann als stiller Saum über dem Grün.</p>
+      <p><strong>Rosa und Violett</strong> kommen vom Stickstoff. Sie liegen tiefer, am unteren Rand der Vorhänge.</p>
+    </div>
+    <div class="actions">
+      <button type="button" id="schliessen">Schliessen</button>
+    </div>
+  </article>
+</div>
+<footer class="bar">
+  <label class="wind">
+    <span>Sonnenwind <em id="windwort">wach</em></span>
+    <input id="wind" type="range" min="0" max="100" value="54" aria-label="Sonnenwind">
+  </label>
+  <button type="button" id="sturm">Sturm</button>
+  <button type="button" id="mond">Mond</button>
+  <button type="button" id="warum">Warum</button>
+  <button type="button" id="foto">Foto</button>
+  <button type="button" id="ton" aria-pressed="false">Ton aus</button>
+</footer>
+<script>
+(function () {
+  const view = document.getElementById('view');
+  const vctx = view.getContext('2d', { alpha: false });
+  if (!vctx) return;
+
+  const world = document.createElement('canvas');
+  const wctx = world.getContext('2d', { alpha: true });
+
+  const params = new URLSearchParams(location.search);
+  const forceCanvas = params.get('renderer') === 'canvas';
+
+  const PHASES = [
+    { name: 'Neumond', t: 0 },
+    { name: 'junge Sichel', t: 0.12 },
+    { name: 'erstes Viertel', t: 0.25 },
+    { name: 'zunehmender Mond', t: 0.38 },
+    { name: 'Vollmond', t: 0.5 },
+    { name: 'abnehmender Mond', t: 0.62 },
+    { name: 'letztes Viertel', t: 0.75 },
+    { name: 'alte Sichel', t: 0.88 }
+  ];
+
+  const motionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
+  let motionScale = motionQuery.matches ? 0.28 : 1;
+  if (motionQuery.addEventListener) {
+    motionQuery.addEventListener('change', function () {
+      motionScale = motionQuery.matches ? 0.28 : 1;
+    });
+  }
+
+  let wind01 = 0.54;
+  let bendX = 0;
+  let bendY = 0;
+  let storm = 0;
+  let phaseIndex = 4;
+  let quality = 1;
+  let aurScale = 1;
+  let frames = 0;
+  let fpsEma = 60;
+  let fpsShown = 60;
+  let sinceAdapt = 0;
+  let rendererName = 'canvas';
+  let glError = '';
+  let dragging = false;
+  let horizon = 100;
+  let snowLine = 200;
+  let propS = 1;
+  let cabinX = 0;
+  let cabinY = 0;
+  let needsResize = true;
+  let W = 1;
+  let H = 1;
+
+  const coronas = [
+    { x: 0.5, y: 0.7, r: 0.2, life: 0 },
+    { x: 0.3, y: 0.6, r: 0.16, life: 0 },
+    { x: 0.7, y: 0.75, r: 0.14, life: 0 }
+  ];
+  let coronaI = 0;
+
+  function mulberry32(a) {
+    return function () {
+      a |= 0;
+      a = (a + 0x6d2b79f5) | 0;
+      let t = Math.imul(a ^ (a >>> 15), 1 | a);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+
+  function clamp(v, a, b) { return v < a ? a : v > b ? b : v; }
+
+  function windWord(v) {
+    if (v < 30) return 'ruhig';
+    if (v < 62) return 'wach';
+    if (v < 85) return 'stark';
+    return 'wild';
+  }
+
+  const stars = [];
+  (function () {
+    const rnd = mulberry32(11);
+    for (let i = 0; i < 210; i++) {
+      stars.push({
+        x: rnd(),
+        y: Math.pow(rnd(), 0.85) * 0.96,
+        r: 0.35 + Math.pow(rnd(), 2) * 1.7,
+        p: rnd() * Math.PI * 2,
+        tw: 0.4 + rnd() * 2.2,
+        warm: rnd(),
+        bright: rnd() > 0.94
+      });
+    }
+  })();
+
+  function makeRidge(n, minH, maxH, seed) {
+    const rnd = mulberry32(seed);
+    const pts = [];
+    for (let i = 0; i <= n; i++) {
+      const edge = i === 0 || i === n;
+      let x = i / n;
+      if (!edge) x += (rnd() - 0.5) * (0.5 / n);
+      const y = edge ? minH * 0.45 : minH + rnd() * (maxH - minH);
+      pts.push({ x: clamp(x, 0, 1), y: y });
+    }
+    pts.sort(function (a, b) { return a.x - b.x; });
+    return pts;
+  }
+
+  const ridges = [
+    { pts: makeRidge(7, 0.08, 0.2, 3), fill: '#2a3b52', snow: '#e8eef5' },
+    { pts: makeRidge(9, 0.04, 0.11, 9), fill: '#121a24', snow: '#d5dee8' }
+  ];
+
+  const farTrees = [];
+  (function () {
+    const rnd = mulberry32(21);
+    let x = 0.01;
+    while (x < 0.99) {
+      const h = 0.035 + Math.pow(rnd(), 1.4) * 0.09;
+      farTrees.push({ x: x, h: h, layers: 2 + (rnd() * 2) | 0 });
+      x += 0.012 + rnd() * 0.028;
+    }
+  })();
+
+  const cracks = [];
+  (function () {
+    const rnd = mulberry32(42);
+    for (let i = 0; i < 4; i++) {
+      const line = [];
+      let x = 0.12 + rnd() * 0.76;
+      let y = 0.45 + rnd() * 0.4;
+      const segs = 2 + (rnd() * 2) | 0;
+      for (let s = 0; s < segs; s++) {
+        line.push([x, y]);
+        x = clamp(x + (rnd() - 0.5) * 0.28, 0.02, 0.98);
+        y = clamp(y + (rnd() - 0.35) * 0.22, 0.05, 0.95);
+      }
+      cracks.push(line);
+    }
+  })();
+
+  const flakes = [];
+  function syncFlakes() {
+    const area = (view.clientWidth || 800) * (view.clientHeight || 600);
+    const want = Math.round(clamp(area / 6800, 42, 130) * (quality < 0.7 ? 0.7 : 1));
+    while (flakes.length < want) {
+      flakes.push({
+        x: Math.random(),
+        y: Math.random(),
+        r: 0.7 + Math.random() * 2.1,
+        s: 10 + Math.random() * 26,
+        drift: Math.random() * Math.PI * 2,
+        a: 0.35 + Math.random() * 0.55
+      });
+    }
+    if (flakes.length > want) flakes.length = want;
+  }
+
+  const smoke = [];
+  for (let i = 0; i < 7; i++) {
+    smoke.push({ p: i / 7, j: Math.random() * 6 });
+  }
+
+  const shots = [];
+  let shotIn = 5 + Math.random() * 7;
+
+  const moonCanvas = document.createElement('canvas');
+  function renderMoonSprite(phase) {
+    const S = 180;
+    moonCanvas.width = S;
+    moonCanvas.height = S;
+    const ctx = moonCanvas.getContext('2d');
+    const img = ctx.createImageData(S, S);
+    const d = img.data;
+    const cx = (S - 1) / 2;
+    const cy = (S - 1) / 2;
+    const R = S * 0.28;
+    const glowR = S * 0.48;
+    const phi = phase * Math.PI * 2;
+    const craters = [
+      [-0.28, -0.12, 0.11],
+      [0.22, 0.16, 0.08],
+      [-0.05, 0.3, 0.055],
+      [0.38, -0.26, 0.06],
+      [-0.36, 0.22, 0.05]
+    ];
+    for (let y = 0; y < S; y++) {
+      for (let x = 0; x < S; x++) {
+        const dx = x - cx;
+        const dy = y - cy;
+        const dist = Math.hypot(dx, dy);
+        const i = (y * S + x) * 4;
+        if (dist < glowR && dist > R) {
+          const glow = 1 - dist / glowR;
+          const g = glow * glow * 150;
+          d[i] = 214;
+          d[i + 1] = 220;
+          d[i + 2] = 196;
+          d[i + 3] = g;
+        }
+        if (dist <= R) {
+          const ny = dy / R;
+          const nx = dx / R;
+          const limb = Math.sqrt(Math.max(0, 1 - ny * ny));
+          const edgeX = Math.cos(phi) * limb;
+          let lit;
+          if (phi <= Math.PI) lit = nx >= edgeX;
+          else lit = nx <= -edgeX;
+          let shade = 1 - Math.pow(dist / R, 1.7) * 0.38;
+          for (let c = 0; c < craters.length; c++) {
+            const cr = craters[c];
+            const cd = Math.hypot(nx - cr[0], ny - cr[1]);
+            if (cd < cr[2]) shade *= 0.78 + (cd / cr[2]) * 0.22;
+          }
+          if (lit) {
+            d[i] = 244 * shade;
+            d[i + 1] = 238 * shade;
+            d[i + 2] = 220 * shade;
+            d[i + 3] = 255;
+          } else {
+            const earth = 26 * (0.75 + 0.25 * shade);
+            d[i] = earth;
+            d[i + 1] = earth + 6;
+            d[i + 2] = earth + 16;
+            d[i + 3] = 255;
+          }
+        }
+      }
+    }
+    ctx.putImageData(img, 0, 0);
+  }
+  renderMoonSprite(PHASES[phaseIndex].t);
+
+  const flakeSprites = [];
+  (function () {
+    const sizes = [2, 3.5, 5, 8];
+    for (let i = 0; i < sizes.length; i++) {
+      const r = sizes[i];
+      const c = document.createElement('canvas');
+      const s = Math.ceil(r * 4);
+      c.width = c.height = s;
+      const g = c.getContext('2d');
+      const rg = g.createRadialGradient(s / 2, s / 2, 0, s / 2, s / 2, s / 2);
+      rg.addColorStop(0, 'rgba(255,255,255,0.95)');
+      rg.addColorStop(0.45, 'rgba(255,255,255,0.45)');
+      rg.addColorStop(1, 'rgba(255,255,255,0)');
+      g.fillStyle = rg;
+      g.fillRect(0, 0, s, s);
+      flakeSprites.push(c);
+    }
+  })();
+
+  let auroraCanvas = document.createElement('canvas');
+  let gl = null;
+  let actx = null;
+  let prog = null;
+  let uni = null;
+
+  const VERT = [
+    'attribute vec2 aPos;',
+    'void main(){ gl_Position = vec4(aPos, 0.0, 1.0); }'
+  ].join('\n');
+
+  const FRAG = [
+    '#ifdef GL_FRAGMENT_PRECISION_HIGH',
+    'precision highp float;',
+    '#else',
+    'precision mediump float;',
+    '#endif',
+    'uniform vec2 uRes;',
+    'uniform float uTime;',
+    'uniform float uWind;',
+    'uniform vec2 uBend;',
+    'uniform float uStorm;',
+    'uniform vec4 uC0;',
+    'uniform vec4 uC1;',
+    'uniform vec4 uC2;',
+    'float hash(vec2 p){',
+    '  p = fract(p * vec2(123.34, 456.21));',
+    '  p += dot(p, p + 45.32);',
+    '  return fract(p.x * p.y);',
+    '}',
+    'float noise(vec2 p){',
+    '  vec2 i = floor(p);',
+    '  vec2 f = fract(p);',
+    '  vec2 u = f * f * (3.0 - 2.0 * f);',
+    '  float a = hash(i);',
+    '  float b = hash(i + vec2(1.0, 0.0));',
+    '  float c = hash(i + vec2(0.0, 1.0));',
+    '  float d = hash(i + vec2(1.0, 1.0));',
+    '  return mix(mix(a, b, u.x), mix(c, d, u.x), u.y);',
+    '}',
+    'float fbm(vec2 p){',
+    '  float v = 0.0;',
+    '  float a = 0.5;',
+    '  for (int i = 0; i < 3; i++) {',
+    '    v += a * noise(p);',
+    '    p = p * 2.02 + vec2(13.1, 7.7);',
+    '    a *= 0.5;',
+    '  }',
+    '  return v;',
+    '}',
+    'vec3 curtain(vec2 uv, float seed, float wind, vec2 bend, float time){',
+    '  float y = uv.y;',
+    '  float n = fbm(vec2(uv.x * 1.35 + seed, time * 0.03 + seed));',
+    '  float n2 = fbm(vec2(uv.x * 2.1 + n, y * 0.65 + time * 0.015));',
+    '  float fold = (n2 - 0.5) * (0.16 + wind * 0.42);',
+    '  fold += sin(y * 3.4 + time * 0.22 + seed * 5.0) * (0.012 + 0.028 * wind);',
+    '  fold += bend.y * sin(y * 7.0 + uv.x * 5.0) * 0.05;',
+    '  float x = uv.x + fold + bend.x * (0.12 + 0.42 * y);',
+    '  float broad = 0.0;',
+    '  for (int i = 0; i < 4; i++) {',
+    '    float fi = float(i);',
+    '    float cx = 0.16 + fi * 0.22 + sin(time * 0.11 + fi * 1.7 + seed) * 0.035 * (0.4 + wind);',
+    '    float w = 0.055 + wind * 0.055;',
+    '    float d = (x - cx) / w;',
+    '    broad += exp(-d * d);',
+    '  }',
+    '  broad = clamp(broad, 0.0, 1.6);',
+    '  float freq = mix(28.0, 70.0, wind);',
+    '  float rx = x * freq + seed * 4.0;',
+    '  float cell = floor(rx);',
+    '  float fr = fract(rx);',
+    '  float rnd = hash(vec2(cell, seed + 3.0));',
+    '  float rw = mix(0.18, 0.62, rnd);',
+    '  float core = smoothstep(rw, rw * 0.12, abs(fr - 0.5));',
+    '  float exist = smoothstep(0.08, 0.62, hash(vec2(cell, seed + 9.0)));',
+    '  float top = mix(0.78, 1.15, hash(vec2(cell, seed + 1.3)));',
+    '  float env = smoothstep(0.0, 0.06, y) * smoothstep(top, top - 0.62, y);',
+    '  float shimmer = 0.58 + 0.42 * sin(y * (36.0 + wind * 50.0) - time * (0.55 + wind * 0.8) + rnd * 10.0);',
+    '  shimmer *= 0.82 + 0.18 * sin(y * 110.0 + cell);',
+    '  float rays = core * exist * shimmer;',
+    '  float bandY = smoothstep(0.0, 0.12, y) * smoothstep(1.08, 0.42, y);',
+    '  float intensity = broad * (0.42 + 0.7 * rays) * env * (0.7 + 0.55 * bandY);',
+    '  float clump = 0.72 + 0.55 * fbm(vec2(x * 1.8 + seed, y * 1.15 - time * 0.035));',
+    '  intensity *= clump * mix(0.55, 1.35, wind);',
+    '  float edge = smoothstep(0.42, 0.98, abs(fr - 0.5) / max(rw, 0.001));',
+    '  vec3 green = vec3(0.20, 0.92, 0.48);',
+    '  vec3 white = vec3(0.82, 1.0, 0.9);',
+    '  vec3 pink = vec3(1.0, 0.32, 0.58);',
+    '  vec3 violet = vec3(0.52, 0.28, 1.0);',
+    '  vec3 red = vec3(1.0, 0.24, 0.28);',
+    '  vec3 col = mix(white, green, 0.72);',
+    '  col = mix(col, vec3(0.75, 1.0, 0.85), rays * 0.45);',
+    '  col = mix(col, mix(pink, violet, clamp(y, 0.0, 1.0)), edge * 0.75);',
+    '  float hem = smoothstep(0.38, 0.05, y);',
+    '  col = mix(col, pink, hem * edge * 0.85);',
+    '  float redAmt = smoothstep(0.45, 1.0, wind) * smoothstep(0.62, 1.0, y);',
+    '  col = mix(col, red, redAmt * 0.8);',
+    '  return col * intensity;',
+    '}',
+    'vec3 corona(vec2 uv, vec4 c){',
+    '  if (c.w < 0.001) return vec3(0.0);',
+    '  vec2 p = uv - c.xy;',
+    '  p.x *= uRes.x / max(uRes.y, 1.0);',
+    '  float r = length(p);',
+    '  float rad = max(c.z, 0.02);',
+    '  float glow = exp(-(r * r) / (rad * rad));',
+    '  float ringD = (r - rad * 0.8) / (rad * 0.16);',
+    '  float ring = exp(-(ringD * ringD));',
+    '  vec3 cc = mix(vec3(0.78, 1.0, 0.88), vec3(1.0, 0.4, 0.72), smoothstep(0.0, rad, r));',
+    '  return cc * (glow * 0.85 + ring * 0.5) * c.w;',
+    '}',
+    'void main(){',
+    '  vec2 uv = gl_FragCoord.xy / uRes;',
+    '  float wind = clamp(uWind, 0.0, 1.0);',
+    '  vec3 col = curtain(uv, 0.3, wind, uBend, uTime);',
+    '  col += curtain(uv + vec2(0.17, 0.0), 2.2, wind, uBend * vec2(0.85, 1.0), uTime * 0.93 + 6.0) * 0.8;',
+    '  float pulse = 0.5 + 0.5 * sin(uTime * 5.2);',
+    '  col *= 1.0 + uStorm * (0.28 + 0.9 * pulse);',
+    '  col += corona(uv, uC0) + corona(uv, uC1) + corona(uv, uC2);',
+    '  float veil = fbm(vec2(uv.x * 1.6 + uTime * 0.008, uv.y * 0.8 + uBend.x));',
+    '  col += vec3(0.18, 0.55, 0.42) * veil * 0.07 * (0.25 + wind);',
+    '  col *= smoothstep(0.0, 0.05, uv.y);',
+    '  col = 1.0 - exp(-col * 1.35);',
+    '  gl_FragColor = vec4(col, 1.0);',
+    '}',
+  ].join('\n');
+
+  function compile(gl, type, src) {
+    const sh = gl.createShader(type);
+    gl.shaderSource(sh, src);
+    gl.compileShader(sh);
+    if (!gl.getShaderParameter(sh, gl.COMPILE_STATUS)) {
+      glError = gl.getShaderInfoLog(sh) || 'shader';
+      gl.deleteShader(sh);
+      return null;
+    }
+    return sh;
+  }
+
+  function initGL(canvas) {
+    let context = null;
+    try {
+      context = canvas.getContext('webgl', {
+        alpha: true,
+        premultipliedAlpha: true,
+        antialias: false,
+        depth: false,
+        stencil: false,
+        preserveDrawingBuffer: true,
+        powerPreference: 'high-performance',
+        failIfMajorPerformanceCaveat: false
+      });
+    } catch (e) {
+      context = null;
+    }
+    if (!context) return false;
+    const vs = compile(context, context.VERTEX_SHADER, VERT);
+    const fs = compile(context, context.FRAGMENT_SHADER, FRAG);
+    if (!vs || !fs) return false;
+    const program = context.createProgram();
+    context.attachShader(program, vs);
+    context.attachShader(program, fs);
+    context.linkProgram(program);
+    if (!context.getProgramParameter(program, context.LINK_STATUS)) {
+      glError = context.getProgramInfoLog(program) || 'link';
+      return false;
+    }
+    context.useProgram(program);
+    const buf = context.createBuffer();
+    context.bindBuffer(context.ARRAY_BUFFER, buf);
+    context.bufferData(context.ARRAY_BUFFER, new Float32Array([
+      -1, -1, 1, -1, -1, 1, 1, 1
+    ]), context.STATIC_DRAW);
+    const loc = context.getAttribLocation(program, 'aPos');
+    context.enableVertexAttribArray(loc);
+    context.vertexAttribPointer(loc, 2, context.FLOAT, false, 0, 0);
+    context.disable(context.DEPTH_TEST);
+    context.disable(context.BLEND);
+    uni = {
+      res: context.getUniformLocation(program, 'uRes'),
+      time: context.getUniformLocation(program, 'uTime'),
+      wind: context.getUniformLocation(program, 'uWind'),
+      bend: context.getUniformLocation(program, 'uBend'),
+      storm: context.getUniformLocation(program, 'uStorm'),
+      c0: context.getUniformLocation(program, 'uC0'),
+      c1: context.getUniformLocation(program, 'uC1'),
+      c2: context.getUniformLocation(program, 'uC2')
+    };
+    gl = context;
+    prog = program;
+    return true;
+  }
+
+  function useCanvasAurora() {
+    auroraCanvas = document.createElement('canvas');
+    actx = auroraCanvas.getContext('2d');
+    gl = null;
+    rendererName = 'canvas';
+  }
+
+  if (!forceCanvas && initGL(auroraCanvas)) rendererName = 'webgl';
+  else useCanvasAurora();
+
+  document.body.dataset.renderer = rendererName;
+
+  function groundY(x) {
+    return snowLine
+      + Math.sin(x * 0.0075 + 1.2) * 7 * propS
+      + Math.sin(x * 0.00205 + 0.4) * 15 * propS;
+  }
+
+  function layout() {
+    const cssH = view.clientHeight || window.innerHeight || 1;
+    const barCss = document.querySelector('.bar').getBoundingClientRect().height;
+    const bar = barCss * (H / cssH);
+    const aspect = (view.clientWidth || 1) / cssH;
+    let horizonFrac = aspect > 1.25 ? 0.58 : aspect > 0.8 ? 0.52 : 0.47;
+    const barFrac = bar / H;
+    if (horizonFrac > 0.8 - barFrac) horizonFrac = Math.max(0.34, 0.76 - barFrac);
+    horizon = H * horizonFrac;
+    const lakePortion = aspect < 0.85 ? 0.58 : 0.66;
+    snowLine = horizon + (H - horizon) * lakePortion;
+    const maxSnow = H - bar - 6 * (H / cssH);
+    if (snowLine > maxSnow) snowLine = Math.max(horizon + 28, maxSnow);
+    propS = clamp(Math.min(W, H) / 560, 0.68, 1.65);
+    cabinX = W * (aspect > 1.05 ? 0.73 : 0.62);
+    cabinY = groundY(cabinX);
+  }
+
+  function sizeAurora() {
+    const aw = Math.max(180, Math.round(Math.min(560, W * 0.55) * aurScale));
+    const ah = Math.max(120, Math.round(Math.min(300, Math.max(horizon, 1) * 0.55) * aurScale));
+    if (auroraCanvas.width !== aw || auroraCanvas.height !== ah) {
+      auroraCanvas.width = aw;
+      auroraCanvas.height = ah;
+    }
+  }
+
+  function resize() {
+    const cssW = view.clientWidth || window.innerWidth;
+    const cssH = view.clientHeight || window.innerHeight;
+    if (cssW < 2 || cssH < 2) return;
+    const dpr = clamp((window.devicePixelRatio || 1) * quality, 0.45, 1.5);
+    const bw = Math.max(2, Math.round(cssW * dpr));
+    const bh = Math.max(2, Math.round(cssH * dpr));
+    if (view.width !== bw || view.height !== bh) {
+      view.width = bw;
+      view.height = bh;
+      world.width = bw;
+      world.height = bh;
+    }
+    W = view.width;
+    H = view.height;
+    layout();
+    sizeAurora();
+    syncFlakes();
+  }
+
+  function drawGL(time) {
+    const aw = auroraCanvas.width;
+    const ah = auroraCanvas.height;
+    gl.viewport(0, 0, aw, ah);
+    gl.clearColor(0, 0, 0, 0);
+    gl.clear(gl.COLOR_BUFFER_BIT);
+    gl.useProgram(prog);
+    gl.uniform2f(uni.res, aw, ah);
+    gl.uniform1f(uni.time, time);
+    gl.uniform1f(uni.wind, wind01);
+    gl.uniform2f(uni.bend, bendX, bendY);
+    gl.uniform1f(uni.storm, storm);
+    const c0 = coronas[0], c1 = coronas[1], c2 = coronas[2];
+    gl.uniform4f(uni.c0, c0.x, c0.y, c0.r, c0.life);
+    gl.uniform4f(uni.c1, c1.x, c1.y, c1.r, c1.life);
+    gl.uniform4f(uni.c2, c2.x, c2.y, c2.r, c2.life);
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+  }
+
+  function ribbonX(i, yUp, w, time) {
+    const cx = w * (0.12 + i * 0.18);
+    const amp = w * (0.025 + wind01 * 0.04);
+    return cx
+      + Math.sin(yUp * 3.2 + time * 0.28 * motionScale + i) * amp
+      + bendX * w * (0.1 + 0.28 * yUp)
+      + bendY * w * 0.04 * Math.sin(yUp * 8 + i);
+  }
+
+  function draw2D(time) {
+    const c = auroraCanvas;
+    const ctx = actx;
+    const w = c.width;
+    const h = c.height;
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, w, h);
+    ctx.globalCompositeOperation = 'lighter';
+    const pulse = 1 + storm * (0.3 + 0.7 * (0.5 + 0.5 * Math.sin(time * 5.2)));
+    const g = ctx.createLinearGradient(0, 0, 0, h);
+    g.addColorStop(0, 'rgba(255, 78, 96, 0.55)');
+    g.addColorStop(0.16, 'rgba(150, 80, 255, 0.28)');
+    g.addColorStop(0.42, 'rgba(186, 255, 206, 1)');
+    g.addColorStop(0.7, 'rgba(36, 210, 120, 0.9)');
+    g.addColorStop(1, 'rgba(255, 110, 160, 0.4)');
+    ctx.strokeStyle = g;
+    ctx.lineWidth = Math.max(2, w / 150);
+    ctx.lineCap = 'round';
+    const cols = Math.min(150, Math.max(48, Math.floor(w / 4)));
+    for (let i = 0; i < cols; i++) {
+      const u = (i + 0.5) / cols;
+      let broad = 0;
+      for (let b = 0; b < 5; b++) {
+        const cx = 0.14 + b * 0.18 + Math.sin(time * 0.13 + b * 1.7) * 0.02 * (0.5 + wind01);
+        const d = u - cx;
+        broad += Math.exp(-(d * d) / (0.006 + wind01 * 0.01));
+      }
+      const yMid = 0.55;
+      const xMid = ribbonX(i % 5, yMid, 1, time);
+      const stria = 0.3 + 0.7 * Math.abs(Math.sin(u * 64 + time * 0.6));
+      const alpha = Math.min(0.8, broad * stria * (0.18 + wind01 * 0.38) * pulse);
+      if (alpha < 0.035) continue;
+      ctx.globalAlpha = alpha;
+      const x = u * w + (xMid - (0.14 + (i % 5) * 0.18)) * w * 0.35 + bendX * w * 0.12;
+      ctx.beginPath();
+      ctx.moveTo(x, h * 0.98);
+      ctx.quadraticCurveTo(x + bendX * w * 0.08, h * 0.45, x + bendX * w * 0.16 + Math.sin(time * 0.2 + u * 8) * w * 0.02, h * 0.02);
+      ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+    for (let i = 0; i < coronas.length; i++) {
+      const corona = coronas[i];
+      if (corona.life < 0.02) continue;
+      const x = corona.x * w;
+      const y = (1 - corona.y) * h;
+      const rad = Math.max(8, corona.r * h * 1.8);
+      const g = ctx.createRadialGradient(x, y, 0, x, y, rad);
+      g.addColorStop(0, 'rgba(220, 255, 236, ' + (0.75 * corona.life) + ')');
+      g.addColorStop(0.45, 'rgba(255, 120, 180, ' + (0.28 * corona.life) + ')');
+      g.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.arc(x, y, rad, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.globalCompositeOperation = 'source-over';
+  }
+
+  let aurTick = 0;
+  function renderAurora(time) {
+    aurTick++;
+    const live = dragging || storm > 0.12 || frames < 2;
+    if (!live && aurTick % 2 === 1) return;
+    try {
+      if (rendererName === 'webgl') drawGL(time);
+      else draw2D(time);
+    } catch (e) {
+      if (rendererName === 'webgl') {
+        glError = 'runtime';
+        useCanvasAurora();
+        sizeAurora();
+        document.body.dataset.renderer = rendererName;
+        try { draw2D(time); } catch (e2) { /* keep the scene */ }
+      }
+    }
+  }
+
+  function drawRidge(ridge) {
+    const pts = ridge.pts;
+    wctx.beginPath();
+    wctx.moveTo(0, horizon + 1);
+    for (let i = 0; i < pts.length; i++) {
+      wctx.lineTo(pts[i].x * W, horizon - pts[i].y * horizon);
+    }
+    wctx.lineTo(W, horizon + 1);
+    wctx.closePath();
+    wctx.fillStyle = ridge.fill;
+    wctx.fill();
+    wctx.beginPath();
+    for (let i = 1; i < pts.length - 1; i++) {
+      const p = pts[i];
+      const l = pts[i - 1];
+      const r = pts[i + 1];
+      if (p.y <= l.y || p.y <= r.y || p.y < 0.06) continue;
+      const x = p.x * W;
+      const y = horizon - p.y * horizon;
+      const xl = l.x * W;
+      const yl = horizon - l.y * horizon;
+      const xr = r.x * W;
+      const yr = horizon - r.y * horizon;
+      wctx.moveTo(x + (xl - x) * 0.42, y + (yl - y) * 0.42);
+      wctx.lineTo(x, y - propS);
+      wctx.lineTo(x + (xr - x) * 0.42, y + (yr - y) * 0.42);
+      wctx.closePath();
+    }
+    wctx.fillStyle = ridge.snow;
+    wctx.fill();
+    wctx.beginPath();
+    for (let i = 0; i < pts.length; i++) {
+      const x = pts[i].x * W;
+      const y = horizon - pts[i].y * horizon;
+      if (i === 0) wctx.moveTo(x, y);
+      else wctx.lineTo(x, y);
+    }
+    wctx.strokeStyle = 'rgba(186, 255, 214, ' + (0.05 + wind01 * 0.22 + storm * 0.18) + ')';
+    wctx.lineWidth = Math.max(1, propS * 1.4);
+    wctx.stroke();
+  }
+
+  function drawFarTrees() {
+    wctx.fillStyle = '#070e14';
+    for (let i = 0; i < farTrees.length; i++) {
+      const t = farTrees[i];
+      const x = t.x * W;
+      const h = t.h * horizon;
+      const trunk = Math.max(1.5, propS);
+      wctx.fillRect(x - trunk * 0.5, horizon - h * 0.18, trunk, h * 0.2);
+      for (let k = 0; k < t.layers; k++) {
+        const yy = horizon - h * (0.15 + k * 0.28);
+        const tw = h * (0.42 - k * 0.08);
+        wctx.beginPath();
+        wctx.moveTo(x, yy - h * 0.34);
+        wctx.lineTo(x + tw, yy);
+        wctx.lineTo(x - tw, yy);
+        wctx.closePath();
+        wctx.fill();
+      }
+    }
+  }
+
+  function drawSky(time) {
+    wctx.setTransform(1, 0, 0, 1, 0, 0);
+    wctx.globalAlpha = 1;
+    wctx.globalCompositeOperation = 'source-over';
+    wctx.clearRect(0, 0, W, H);
+    const g = wctx.createLinearGradient(0, 0, 0, horizon);
+    g.addColorStop(0, '#060818');
+    g.addColorStop(0.42, '#101c3a');
+    g.addColorStop(0.78, '#16344e');
+    g.addColorStop(1, '#1a4a52');
+    wctx.fillStyle = g;
+    wctx.fillRect(0, 0, W, horizon);
+
+    const wash = wctx.createLinearGradient(0, horizon * 0.45, 0, horizon);
+    wash.addColorStop(0, 'rgba(0,0,0,0)');
+    wash.addColorStop(1, 'rgba(40, 160, 120, ' + (0.05 + wind01 * 0.16) + ')');
+    wctx.fillStyle = wash;
+    wctx.fillRect(0, horizon * 0.45, W, horizon * 0.55);
+
+    for (let i = 0; i < stars.length; i++) {
+      const s = stars[i];
+      const x = s.x * W;
+      const y = s.y * horizon;
+      const tw = 0.45 + 0.55 * (0.5 + 0.5 * Math.sin(time * s.tw + s.p));
+      const rad = s.r * propS * (s.bright ? 1.35 : 1);
+      wctx.globalAlpha = tw * (s.bright ? 1 : 0.85);
+      wctx.fillStyle = s.warm > 0.82 ? '#ffe6c4' : s.warm < 0.18 ? '#d5e6ff' : '#f7f8ff';
+      wctx.beginPath();
+      wctx.arc(x, y, Math.max(0.4, rad), 0, Math.PI * 2);
+      wctx.fill();
+      if (s.bright) {
+        wctx.strokeStyle = 'rgba(255,255,255,' + (0.45 * tw) + ')';
+        wctx.lineWidth = Math.max(0.6, propS * 0.7);
+        const L = rad * 5.5;
+        wctx.beginPath();
+        wctx.moveTo(x - L, y);
+        wctx.lineTo(x + L, y);
+        wctx.moveTo(x, y - L);
+        wctx.lineTo(x, y + L);
+        wctx.stroke();
+      }
+    }
+    wctx.globalAlpha = 1;
+
+    wctx.globalCompositeOperation = 'lighter';
+    wctx.drawImage(auroraCanvas, 0, 0, W, horizon);
+    wctx.globalCompositeOperation = 'source-over';
+
+    const mx = W * (W > H ? 0.84 : 0.8);
+    const my = Math.max(horizon * 0.16, 28 * propS);
+    const mr = clamp(Math.min(W, H) * 0.072, 20, 70);
+    const drawSize = mr / 0.28;
+    wctx.drawImage(moonCanvas, mx - drawSize / 2, my - drawSize / 2, drawSize, drawSize);
+
+    drawRidge(ridges[0]);
+    drawRidge(ridges[1]);
+    drawFarTrees();
+
+    for (let i = 0; i < shots.length; i++) {
+      const s = shots[i];
+      const k = s.life / s.max;
+      const fade = Math.sin(Math.min(1, k) * Math.PI);
+      const mag = Math.hypot(s.vx, s.vy) || 1;
+      const len = (70 + 40 * fade) * propS;
+      const x2 = s.x - (s.vx / mag) * len;
+      const y2 = s.y - (s.vy / mag) * len;
+      const grd = wctx.createLinearGradient(s.x, s.y, x2, y2);
+      grd.addColorStop(0, 'rgba(255,255,255,' + (0.9 * fade) + ')');
+      grd.addColorStop(1, 'rgba(255,255,255,0)');
+      wctx.strokeStyle = grd;
+      wctx.lineWidth = Math.max(1, propS * 1.6);
+      wctx.beginPath();
+      wctx.moveTo(s.x, s.y);
+      wctx.lineTo(x2, y2);
+      wctx.stroke();
+    }
+
+    wctx.globalCompositeOperation = 'lighter';
+    const mist = wctx.createLinearGradient(0, horizon - 60 * propS, 0, horizon);
+    mist.addColorStop(0, 'rgba(120,255,190,0)');
+    const mistA = 0.04 + wind01 * 0.12 + storm * 0.08;
+    mist.addColorStop(1, 'rgba(170, 255, 210, ' + mistA + ')');
+    wctx.fillStyle = mist;
+    wctx.fillRect(0, horizon - 70 * propS, W, 70 * propS);
+    if (storm > 0.05) {
+      wctx.fillStyle = 'rgba(255, 140, 190, ' + (storm * 0.08) + ')';
+      wctx.fillRect(0, horizon - 50 * propS, W, 50 * propS);
+    }
+    wctx.globalCompositeOperation = 'source-over';
+  }
+
+  function drawPine(ctx, x, y, scale) {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.scale(scale, scale);
+    ctx.fillStyle = 'rgba(0,0,0,0.2)';
+    ctx.beginPath();
+    ctx.ellipse(2, 3, 16, 3.2, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#081114';
+    ctx.fillRect(-1.5, -6, 3, 9);
+    for (let i = 0; i < 4; i++) {
+      const w = 22 - i * 4;
+      const base = -10 - i * 13;
+      ctx.beginPath();
+      ctx.moveTo(0, base - 16);
+      ctx.lineTo(w, base);
+      ctx.lineTo(-w, base);
+      ctx.closePath();
+      ctx.fillStyle = i % 2 ? '#0c1818' : '#071214';
+      ctx.fill();
+      ctx.beginPath();
+      ctx.moveTo(0, base - 16);
+      ctx.lineTo(w * 0.48, base - 4);
+      ctx.quadraticCurveTo(2, base - 8, -w * 0.22, base - 7);
+      ctx.closePath();
+      ctx.fillStyle = 'rgba(236, 242, 247, 0.9)';
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  function drawCabin(ctx, x, y, s) {
+    const glow = ctx.createRadialGradient(x, y - 8 * s, 2 * s, x, y, 78 * s);
+    glow.addColorStop(0, 'rgba(255, 170, 70, 0.38)');
+    glow.addColorStop(1, 'rgba(255, 150, 50, 0)');
+    ctx.fillStyle = glow;
+    ctx.beginPath();
+    ctx.ellipse(x + 4 * s, y + 2 * s, 74 * s, 16 * s, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = '#241812';
+    ctx.fillRect(x - 34 * s, y - 36 * s, 68 * s, 36 * s);
+    ctx.strokeStyle = 'rgba(0,0,0,0.35)';
+    ctx.lineWidth = Math.max(1, s);
+    for (let i = 1; i <= 3; i++) {
+      const yy = y - i * 9 * s;
+      ctx.beginPath();
+      ctx.moveTo(x - 34 * s, yy);
+      ctx.lineTo(x + 34 * s, yy);
+      ctx.stroke();
+    }
+    ctx.fillStyle = '#1a100e';
+    ctx.fillRect(x - 6 * s, y - 20 * s, 14 * s, 20 * s);
+
+    const flicker = 0.85 + 0.15 * Math.sin(performance.now() * 0.004);
+    function windowAt(wx, wy) {
+      const wg = ctx.createRadialGradient(wx, wy, 1, wx, wy, 16 * s);
+      wg.addColorStop(0, 'rgba(255, 214, 150, ' + (0.9 * flicker) + ')');
+      wg.addColorStop(1, 'rgba(255, 160, 60, 0)');
+      ctx.fillStyle = wg;
+      ctx.beginPath();
+      ctx.arc(wx, wy, 16 * s, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#ffd7a2';
+      ctx.fillRect(wx - 6 * s, wy - 5 * s, 12 * s, 10 * s);
+      ctx.strokeStyle = '#2a1a12';
+      ctx.lineWidth = Math.max(1, s * 0.8);
+      ctx.strokeRect(wx - 6 * s, wy - 5 * s, 12 * s, 10 * s);
+      ctx.beginPath();
+      ctx.moveTo(wx, wy - 5 * s);
+      ctx.lineTo(wx, wy + 5 * s);
+      ctx.moveTo(wx - 6 * s, wy);
+      ctx.lineTo(wx + 6 * s, wy);
+      ctx.stroke();
+    }
+    windowAt(x - 18 * s, y - 22 * s);
+    windowAt(x + 18 * s, y - 22 * s);
+
+    ctx.beginPath();
+    ctx.moveTo(x - 46 * s, y - 32 * s);
+    ctx.lineTo(x, y - 62 * s);
+    ctx.lineTo(x + 46 * s, y - 32 * s);
+    ctx.closePath();
+    ctx.fillStyle = '#3a241c';
+    ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(x - 48 * s, y - 34 * s);
+    ctx.lineTo(x, y - 64 * s);
+    ctx.lineTo(x + 44 * s, y - 36 * s);
+    ctx.quadraticCurveTo(x + 8 * s, y - 40 * s, x - 36 * s, y - 33 * s);
+    ctx.closePath();
+    ctx.fillStyle = '#e7eef3';
+    ctx.fill();
+
+    ctx.fillStyle = '#2a1c16';
+    ctx.fillRect(x + 16 * s, y - 66 * s, 8 * s, 18 * s);
+    ctx.fillStyle = '#d5dee6';
+    ctx.fillRect(x + 14 * s, y - 68 * s, 12 * s, 4 * s);
+    return { sx: x + 20 * s, sy: y - 68 * s };
+  }
+
+  function drawSmoke(ctx, x, y, time) {
+    for (let i = 0; i < smoke.length; i++) {
+      const p = (smoke[i].p + time * 0.045 * motionScale) % 1;
+      const yy = y - p * 78 * propS;
+      const xx = x + Math.sin(time * 0.5 + smoke[i].j) * 10 * propS * p + wind01 * 22 * propS * p;
+      const r = (3 + p * 14) * propS;
+      ctx.beginPath();
+      ctx.fillStyle = 'rgba(226, 230, 234, ' + ((1 - p) * 0.16) + ')';
+      ctx.arc(xx, yy, r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  function drawForeground(time) {
+    vctx.save();
+    vctx.beginPath();
+    vctx.rect(0, horizon, W, Math.max(1, snowLine - horizon + 40 * propS));
+    vctx.clip();
+    vctx.globalAlpha = 0.22 + wind01 * 0.05;
+    vctx.translate(0, horizon);
+    vctx.scale(1, -1);
+    vctx.translate(0, -horizon);
+    vctx.drawImage(world, 0, 0);
+    vctx.restore();
+    vctx.globalAlpha = 1;
+
+    const ice = vctx.createLinearGradient(0, horizon, 0, snowLine);
+    ice.addColorStop(0, 'rgba(8, 22, 32, 0.28)');
+    ice.addColorStop(0.4, 'rgba(90, 140, 150, 0.14)');
+    ice.addColorStop(1, 'rgba(220, 232, 236, 0.5)');
+    vctx.fillStyle = ice;
+    vctx.fillRect(0, horizon, W, Math.max(0, snowLine - horizon));
+
+    const streak = vctx.createLinearGradient(cabinX, horizon, cabinX, snowLine);
+    streak.addColorStop(0, 'rgba(255, 186, 110, 0)');
+    streak.addColorStop(1, 'rgba(255, 176, 90, ' + 0.16 + ')');
+    vctx.fillStyle = streak;
+    vctx.fillRect(cabinX - 8 * propS, horizon, 16 * propS, Math.max(0, snowLine - horizon));
+
+    vctx.save();
+    vctx.beginPath();
+    vctx.rect(0, horizon, W, Math.max(0, snowLine - horizon));
+    vctx.clip();
+    vctx.strokeStyle = 'rgba(214, 236, 242, 0.1)';
+    vctx.lineWidth = Math.max(1, propS);
+    for (let i = 0; i < cracks.length; i++) {
+      const line = cracks[i];
+      vctx.beginPath();
+      for (let p = 0; p < line.length; p++) {
+        const x = line[p][0] * W;
+        const y = horizon + line[p][1] * (snowLine - horizon);
+        if (p === 0) vctx.moveTo(x, y);
+        else vctx.lineTo(x, y);
+      }
+      vctx.stroke();
+    }
+    vctx.restore();
+
+    vctx.strokeStyle = 'rgba(210, 245, 235, ' + (0.12 + wind01 * 0.2) + ')';
+    vctx.lineWidth = Math.max(1, propS);
+    vctx.beginPath();
+    vctx.moveTo(0, horizon + 0.5);
+    vctx.lineTo(W, horizon + 0.5);
+    vctx.stroke();
+
+    vctx.beginPath();
+    vctx.moveTo(0, H);
+    vctx.lineTo(0, groundY(0));
+    const step = Math.max(8, 14 * propS);
+    for (let x = 0; x <= W; x += step) vctx.lineTo(x, groundY(x));
+    vctx.lineTo(W, H);
+    vctx.closePath();
+    const snow = vctx.createLinearGradient(0, snowLine - 20, 0, H);
+    snow.addColorStop(0, '#f5f8fb');
+    snow.addColorStop(0.35, '#d7e0ea');
+    snow.addColorStop(1, '#c2cedc');
+    vctx.fillStyle = snow;
+    vctx.fill();
+
+    const aurSnow = vctx.createLinearGradient(0, snowLine - 10, 0, snowLine + 50 * propS);
+    aurSnow.addColorStop(0, 'rgba(130, 255, 190, ' + (0.05 + wind01 * 0.08) + ')');
+    aurSnow.addColorStop(1, 'rgba(130, 255, 190, 0)');
+    vctx.fillStyle = aurSnow;
+    vctx.fillRect(0, snowLine - 10, W, 60 * propS);
+
+    drawPine(vctx, cabinX - 78 * propS, groundY(cabinX - 78 * propS), propS * 1.15);
+    drawPine(vctx, cabinX + 86 * propS, groundY(cabinX + 86 * propS), propS * 0.85);
+    const chimney = drawCabin(vctx, cabinX, cabinY, propS);
+    drawSmoke(vctx, chimney.sx, chimney.sy, time);
+    drawPine(vctx, W * 0.02, groundY(W * 0.04) + 4, propS * (W > H ? 2.15 : 1.7));
+    drawPine(vctx, W * 1.01, groundY(W * 0.96), propS * (W > H ? 1.7 : 1.35));
+
+    for (let i = 0; i < flakes.length; i++) {
+      const f = flakes[i];
+      const sprite = flakeSprites[Math.min(flakeSprites.length - 1, f.r > 2.2 ? 3 : f.r > 1.5 ? 2 : f.r > 1 ? 1 : 0)];
+      const x = f.x * W;
+      const y = f.y * H;
+      const size = f.r * 3.2 * propS;
+      vctx.globalAlpha = f.a;
+      vctx.drawImage(sprite, x - size / 2, y - size / 2, size, size);
+    }
+    vctx.globalAlpha = 1;
+
+    const vig = vctx.createRadialGradient(W * 0.55, H * 0.58, Math.min(W, H) * 0.28, W * 0.5, H * 0.5, Math.max(W, H) * 0.72);
+    vig.addColorStop(0, 'rgba(0,0,0,0)');
+    vig.addColorStop(1, 'rgba(0,0,0,0.38)');
+    vctx.fillStyle = vig;
+    vctx.fillRect(0, 0, W, H);
+  }
+
+  function render(time) {
+    drawSky(time);
+    vctx.setTransform(1, 0, 0, 1, 0, 0);
+    vctx.globalAlpha = 1;
+    vctx.globalCompositeOperation = 'source-over';
+    vctx.fillStyle = '#0a1822';
+    vctx.fillRect(0, 0, W, H);
+    vctx.drawImage(world, 0, 0);
+    drawForeground(time);
+  }
+
+  function update(dt, time) {
+    storm *= Math.exp(-dt * 0.45);
+    if (storm < 0.004) storm = 0;
+    for (let i = 0; i < coronas.length; i++) {
+      coronas[i].life *= Math.exp(-dt * 0.55);
+      if (coronas[i].life < 0.004) coronas[i].life = 0;
+    }
+    if (!dragging) {
+      const k = 1 - Math.exp(-dt * 0.38);
+      bendX += (0 - bendX) * k;
+      bendY += (0 - bendY) * k;
+      if (Math.abs(bendX) < 0.0008) bendX = 0;
+      if (Math.abs(bendY) < 0.0008) bendY = 0;
+    }
+    const fall = motionScale * (0.65 + wind01 * 0.7);
+    for (let i = 0; i < flakes.length; i++) {
+      const f = flakes[i];
+      f.y += (f.s * dt * fall) / Math.max(view.clientHeight || 600, 1);
+      f.x += Math.sin(time * 0.35 + f.drift) * dt * 0.012 + wind01 * dt * 0.02;
+      if (f.y > 1.04) {
+        f.y = -0.02;
+        f.x = Math.random();
+      }
+      if (f.x > 1.05) f.x = -0.02;
+      if (f.x < -0.05) f.x = 1.02;
+    }
+    shotIn -= dt * motionScale;
+    if (shotIn <= 0) {
+      shotIn = 8 + Math.random() * 10;
+      const dir = Math.random() < 0.5 ? -1 : 1;
+      shots.push({
+        x: dir < 0 ? W * (0.55 + Math.random() * 0.4) : W * Math.random() * 0.45,
+        y: horizon * Math.random() * 0.45,
+        vx: dir * (180 + Math.random() * 320) * propS,
+        vy: (40 + Math.random() * 140) * propS,
+        life: 0,
+        max: 0.55 + Math.random() * 0.45
+      });
+    }
+    for (let i = shots.length - 1; i >= 0; i--) {
+      const s = shots[i];
+      s.life += dt;
+      s.x += s.vx * dt;
+      s.y += s.vy * dt;
+      if (s.life > s.max) shots.splice(i, 1);
+    }
+  }
+
+  function adapt(dt) {
+    if (dt > 0 && dt < 0.2) fpsEma = fpsEma * 0.9 + (1 / dt) * 0.1;
+    sinceAdapt += dt;
+    if (frames < 90 || sinceAdapt < 1.6) return;
+    if (fpsEma < 52) {
+      if (aurScale > 0.45) aurScale = Math.max(0.45, aurScale * 0.82);
+      else if (quality > 0.55) quality = Math.max(0.55, quality * 0.86);
+      sinceAdapt = 0;
+      needsResize = true;
+    }
+    if (sinceAdapt > 1) {
+      fpsShown = fpsEma;
+      sinceAdapt = sinceAdapt > 2 ? 0 : sinceAdapt;
+    }
+  }
+
+  let audio = null;
+  let tonOn = false;
+  let stormVoices = 0;
+
+  function ensureAudio() {
+    if (audio) return true;
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return false;
+    try {
+      const ctx = new AC();
+      const master = ctx.createGain();
+      master.gain.value = 0;
+      master.connect(ctx.destination);
+      const filter = ctx.createBiquadFilter();
+      filter.type = 'lowpass';
+      filter.frequency.value = 420;
+      filter.Q.value = 0.6;
+      filter.connect(master);
+      function tone(freq, type, gain) {
+        const o = ctx.createOscillator();
+        const g = ctx.createGain();
+        o.type = type;
+        o.frequency.value = freq;
+        g.gain.value = gain;
+        o.connect(g);
+        g.connect(filter);
+        o.start();
+        return o;
+      }
+      tone(55, 'sine', 0.09);
+      tone(55.25, 'sine', 0.055);
+      tone(82.41, 'sine', 0.032);
+      tone(110, 'sine', 0.02);
+      tone(55, 'triangle', 0.016);
+      const len = ctx.sampleRate * 2;
+      const buf = ctx.createBuffer(1, len, ctx.sampleRate);
+      const data = buf.getChannelData(0);
+      let last = 0;
+      for (let i = 0; i < len; i++) {
+        const white = Math.random() * 2 - 1;
+        last = last * 0.986 + white * 0.014;
+        data[i] = last * 4;
+      }
+      const ns = ctx.createBufferSource();
+      ns.buffer = buf;
+      ns.loop = true;
+      const nf = ctx.createBiquadFilter();
+      nf.type = 'lowpass';
+      nf.frequency.value = 640;
+      const ng = ctx.createGain();
+      ng.gain.value = 0.03;
+      ns.connect(nf);
+      nf.connect(ng);
+      ng.connect(master);
+      ns.start();
+      audio = { ctx: ctx, master: master, filter: filter, ng: ng };
+      return true;
+    } catch (e) {
+      audio = null;
+      return false;
+    }
+  }
+
+  function applyWindTone() {
+    if (!audio || !tonOn) return;
+    const now = audio.ctx.currentTime;
+    audio.filter.frequency.setTargetAtTime(320 + wind01 * 980, now, 0.5);
+    audio.ng.gain.setTargetAtTime(0.02 + wind01 * 0.045, now, 0.5);
+  }
+
+  function updateTonButton() {
+    const btn = document.getElementById('ton');
+    btn.setAttribute('aria-pressed', tonOn ? 'true' : 'false');
+    btn.textContent = tonOn ? 'Ton an' : 'Ton aus';
+  }
+
+  function setTon(on) {
+    if (on && !ensureAudio()) {
+      tonOn = false;
+      updateTonButton();
+      return;
+    }
+    tonOn = on;
+    updateTonButton();
+    if (!audio) return;
+    const ctx = audio.ctx;
+    if (ctx.state === 'suspended') {
+      ctx.resume().catch(function () {});
+    }
+    const now = ctx.currentTime;
+    const g = audio.master.gain;
+    g.cancelScheduledValues(now);
+    g.setValueAtTime(Math.max(0, g.value), now);
+    g.linearRampToValueAtTime(on ? 0.26 : 0, now + (on ? 1.05 : 0.45));
+    applyWindTone();
+  }
+
+  function stormChime() {
+    if (!audio || !tonOn || stormVoices >= 3) return;
+    const ctx = audio.ctx;
+    const now = ctx.currentTime;
+    stormVoices++;
+    const freqs = [220, 277.18, 329.63, 440];
+    let pending = freqs.length;
+    for (let i = 0; i < freqs.length; i++) {
+      const o = ctx.createOscillator();
+      const g = ctx.createGain();
+      o.type = 'sine';
+      o.frequency.value = freqs[i];
+      const peak = 0.035 - i * 0.004;
+      g.gain.setValueAtTime(0.0001, now);
+      g.gain.exponentialRampToValueAtTime(peak, now + 0.35 + i * 0.04);
+      g.gain.exponentialRampToValueAtTime(0.0001, now + 4.2);
+      o.connect(g);
+      g.connect(audio.master);
+      o.start(now);
+      o.stop(now + 4.5);
+      o.onended = function () {
+        try { o.disconnect(); g.disconnect(); } catch (e) {}
+        pending--;
+        if (pending <= 0) stormVoices = Math.max(0, stormVoices - 1);
+      };
+    }
+    try {
+      audio.filter.frequency.cancelScheduledValues(now);
+      audio.filter.frequency.setValueAtTime(audio.filter.frequency.value, now);
+      audio.filter.frequency.linearRampToValueAtTime(1500, now + 0.35);
+      audio.filter.frequency.linearRampToValueAtTime(320 + wind01 * 980, now + 4);
+    } catch (e) { /* keep the drone */ }
+  }
+
+  function addCorona(x, y, r) {
+    const c = coronas[coronaI % coronas.length];
+    coronaI++;
+    c.x = clamp(x, 0.02, 0.98);
+    c.y = clamp(y, 0.08, 0.98);
+    c.r = r;
+    c.life = 1;
+  }
+
+  function burst(x, y) {
+    storm = 1;
+    addCorona(x, y, 0.16 + wind01 * 0.12);
+    addCorona(x - 0.14, y + 0.08, 0.11 + wind01 * 0.06);
+    addCorona(x + 0.12, y - 0.06, 0.09 + wind01 * 0.05);
+    stormChime();
+  }
+
+  const windInput = document.getElementById('wind');
+  const windWort = document.getElementById('windwort');
+  function readWind() {
+    const v = Number(windInput.value);
+    wind01 = clamp(v / 100, 0, 1);
+    windWort.textContent = windWord(v);
+    applyWindTone();
+  }
+  windInput.addEventListener('input', readWind);
+
+  document.getElementById('sturm').addEventListener('click', function () {
+    burst(0.48 + (Math.random() - 0.5) * 0.2, 0.62);
+  });
+
+  document.getElementById('mond').addEventListener('click', function () {
+    phaseIndex = (phaseIndex + 1) % PHASES.length;
+    renderMoonSprite(PHASES[phaseIndex].t);
+    document.getElementById('phaseLine').textContent = PHASES[phaseIndex].name + ' · Nacht über dem See';
+  });
+
+  const card = document.getElementById('card');
+  function openCard() { card.hidden = false; }
+  function closeCard() { card.hidden = true; }
+  document.getElementById('warum').addEventListener('click', openCard);
+  document.getElementById('schliessen').addEventListener('click', closeCard);
+  card.addEventListener('click', function (e) { if (e.target === card) closeCard(); });
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') closeCard();
+  });
+
+  document.getElementById('foto').addEventListener('click', function () {
+    const btn = document.getElementById('foto');
+    const mark = function () {
+      btn.textContent = 'Gespeichert';
+      setTimeout(function () { btn.textContent = 'Foto'; }, 1400);
+    };
+    const saveUrl = function (href) {
+      const a = document.createElement('a');
+      a.href = href;
+      a.download = 'polarlicht.png';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      mark();
+    };
+    if (view.toBlob) {
+      view.toBlob(function (blob) {
+        if (!blob) {
+          saveUrl(view.toDataURL('image/png'));
+          return;
+        }
+        const url = URL.createObjectURL(blob);
+        saveUrl(url);
+        setTimeout(function () { URL.revokeObjectURL(url); }, 4000);
+      }, 'image/png');
+    } else {
+      saveUrl(view.toDataURL('image/png'));
+    }
+  });
+
+  document.getElementById('ton').addEventListener('click', function () {
+    setTon(!tonOn);
+  });
+
+  let drag = null;
+  function skyPoint(e) {
+    const rect = view.getBoundingClientRect();
+    const u = (e.clientX - rect.left) / Math.max(1, rect.width);
+    const vCss = (e.clientY - rect.top) / Math.max(1, rect.height);
+    const horizonFrac = horizon / Math.max(1, view.height);
+    const yUp = 1 - vCss / Math.max(0.001, horizonFrac);
+    return { u: u, yUp: yUp, inSky: yUp > 0.02 && yUp < 1.08 && vCss >= 0 };
+  }
+  view.addEventListener('pointerdown', function (e) {
+    if (e.button !== undefined && e.button !== 0) return;
+    const p = skyPoint(e);
+    drag = {
+      id: e.pointerId,
+      x: e.clientX,
+      y: e.clientY,
+      bx: bendX,
+      by: bendY,
+      u: p.u,
+      yUp: p.yUp,
+      sky: p.inSky,
+      moved: false
+    };
+    dragging = true;
+    view.classList.add('dragging');
+    try { view.setPointerCapture(e.pointerId); } catch (err) {}
+  });
+  view.addEventListener('pointermove', function (e) {
+    if (!drag || e.pointerId !== drag.id) return;
+    const dx = e.clientX - drag.x;
+    const dy = e.clientY - drag.y;
+    if (Math.hypot(dx, dy) > 8) drag.moved = true;
+    const rect = view.getBoundingClientRect();
+    bendX = clamp(drag.bx + (dx / Math.max(1, rect.width)) * 1.45, -1.15, 1.15);
+    bendY = clamp(drag.by + (dy / Math.max(1, rect.height)) * 0.85, -0.75, 0.75);
+  });
+  function endDrag(e) {
+    if (!drag || e.pointerId !== drag.id) return;
+    const dx = e.clientX - drag.x;
+    const dy = e.clientY - drag.y;
+    const moved = drag.moved || Math.hypot(dx, dy) > 12;
+    if (!moved && drag.sky) {
+      bendX = drag.bx;
+      bendY = drag.by;
+      burst(drag.u, clamp(drag.yUp, 0.15, 0.95));
+    }
+    drag = null;
+    dragging = false;
+    view.classList.remove('dragging');
+  }
+  view.addEventListener('pointerup', endDrag);
+  view.addEventListener('pointercancel', endDrag);
+
+  let last = performance.now();
+  let started = performance.now();
+  let raf = 0;
+  let running = true;
+
+  function frame(now) {
+    if (!running) return;
+    if (needsResize) {
+      needsResize = false;
+      resize();
+    }
+    const dt = Math.min(0.05, (now - last) / 1000);
+    last = now;
+    const time = ((now - started) / 1000) * motionScale;
+    update(dt, time);
+    renderAurora(time);
+    render(time);
+    frames++;
+    adapt(dt);
+    raf = requestAnimationFrame(frame);
+  }
+
+  document.addEventListener('visibilitychange', function () {
+    if (document.hidden) {
+      running = false;
+      if (raf) cancelAnimationFrame(raf);
+      if (audio && tonOn && audio.ctx.state === 'running') audio.ctx.suspend().catch(function () {});
+    } else {
+      running = true;
+      last = performance.now();
+      if (audio && tonOn) audio.ctx.resume().catch(function () {});
+      raf = requestAnimationFrame(frame);
+    }
+  });
+
+  window.addEventListener('resize', function () { needsResize = true; });
+
+  window.__polarlicht = {
+    get frames() { return frames; },
+    get renderer() { return rendererName; },
+    get storm() { return storm; },
+    get bend() { return bendX; },
+    get wind() { return wind01; },
+    get phase() { return phaseIndex; },
+    get fps() { return fpsShown; },
+    get quality() { return quality; },
+    get aurScale() { return aurScale; },
+    get glError() { return glError; }
+  };
+
+  readWind();
+  resize();
+  raf = requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
