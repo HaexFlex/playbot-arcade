@@ -335,7 +335,8 @@ function digWell(S, gx, gy) {
 function fastCell(S, j) { return S.d[j] > MILL_D && Math.hypot(S.u[j], S.v[j]) > MILL_SP; }
 function millStep(S, c, i, tl) {
   const N = S.N, d = S.d, u = S.u, v = S.v, x = i % N, y = (i / N) | 0;
-  if (!c.wheel) {
+  if (!c.wheel && c.race) { if (!raceStep(S, c, i, tl)) { c.turn = 0; return; } } // digging the race (the wheel goes into its pit)
+  else if (!c.wheel) {
     const R = Math.max(3, N * 0.03), R2 = R * R; let bj = -1, bd = 1e9;
     for (let yy = Math.max(1, Math.floor(y - R)); yy <= Math.min(N - 2, Math.ceil(y + R)); yy++) for (let xx = Math.max(1, Math.floor(x - R)); xx <= Math.min(N - 2, Math.ceil(x + R)); xx++) {
       const r2 = (xx - x) * (xx - x) + (yy - y) * (yy - y); if (r2 > R2 || r2 < 2) continue;
@@ -343,15 +344,79 @@ function millStep(S, c, i, tl) {
       if (r2 < bd) { bd = r2; bj = j; }
     }
     c.turn = 0;
-    if (bj < 0) { c.riverT = Math.max(0, (c.riverT || 0) - tl * 2); return; } // forgets a river that stopped (2 s per s)
+    if (bj < 0) { c.riverT = Math.max(0, (c.riverT || 0) - tl * 2); if (!raceStep(S, c, i, tl)) return; } // forgets a river that stopped (2 s per s); a mill race may bring it closer
+    else {
     if (S.P.rain > 0) return; // wait for the rain to stop
     c.riverT = (c.riverT || 0) + tl; if (c.riverT < MILL_T) return;
     c.wheel = { x: (bj % N) / N, y: ((bj / N) | 0) / N };
-  }
+    }
+  } else if (c.race && c.wheel.race) raceStep(S, c, i, tl); // the miller keeps the race clear
+  const rw = c.wheel.race, dmin = rw ? RACE_WD : 0.2, smin = rw ? RACE_SP : 0.8;
   const wx = Math.max(1, Math.min(N - 2, Math.round(c.wheel.x * N))), wy = Math.max(1, Math.min(N - 2, Math.round(c.wheel.y * N)));
   let sp = 0; // the best flow right at the wheel (its paddles span a cell around it)
-  for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) { const j = (wy + dy) * N + wx + dx; if (d[j] > 0.2) sp = Math.max(sp, Math.hypot(u[j], v[j])); }
-  c.turn = sp > 0.8 ? Math.round(sp * 100) / 100 : 0;
+  for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) { const j = (wy + dy) * N + wx + dx; if (d[j] > dmin) sp = Math.max(sp, Math.hypot(u[j], v[j])); }
+  c.turn = sp > smin ? Math.round(sp * 100) / 100 : 0;
+}
+// A mill race: a cottage a little too far from a fast river for a wheel (no fast cell within N*0.03, but some
+// within RACE_R; intake and outlet may lie up to 1.5 RACE_R away) that has stood dry beside it for RACE_T sim seconds (not counted in the rain) digs a short
+// channel: from an intake upstream (the highest water surface nearby) past its house to a wheel pit RACE_GAP
+// cells from the door, and back down to the river further downstream (the lowest surface). The bed falls
+// evenly from RACE_DEEP below the intake surface to RACE_DEEP below the outlet surface, so the river really
+// runs through it (the shallow-water sim does the rest). The miller digs RACE_DIG cells per sim second, and
+// once the race is cut the wheel goes into the pit as soon as water stands there; a race wheel turns in
+// slower, shallower water (RACE_SP, RACE_WD) than a river wheel. Every village tick the miller clears the
+// race again (bed and low banks), so slumping banks and sand do not choke it. It is refused if it would cut
+// through a cottage, run too deep (RACE_CUT) or have no fall (RACE_HEAD). Stored as fractions of the map in
+// c.race (survives a resample), the dug terrain is just terrain (saved, shared, eroded like any other).
+const RACE_T = 40, RACE_DIG = 0.5, RACE_DEEP = 0.6, RACE_GAP = 3, RACE_CUT = 6, RACE_HEAD = 0.2, RACE_SP = 0.3, RACE_WD = 0.08, RACE_BANK = 0.8;
+function raceR(N) { return Math.max(6, N * 0.075); }
+function raceLine(N, x0, y0, x1, y1, out) { // 4-connected cells from (x0,y0) to (x1,y1) (water only flows to 4 neighbours)
+  let x = x0, y = y0; const X = Math.abs(x1 - x0) || 1, Y = Math.abs(y1 - y0) || 1;
+  while (x !== x1 || y !== y1) {
+    if (Math.abs(x1 - x) / X >= Math.abs(y1 - y) / Y && x !== x1) x += Math.sign(x1 - x); else y += Math.sign(y1 - y);
+    out.push(y * N + x);
+  }
+}
+function raceCells(S, r) { // the cells of a race, intake to outlet
+  const N = S.N, P = (a, b) => [Math.max(1, Math.min(N - 2, Math.round(a * N))), Math.max(1, Math.min(N - 2, Math.round(b * N)))];
+  const [ix, iy] = P(r.ix, r.iy), [wx, wy] = P(r.wx, r.wy), [ox, oy] = P(r.ox, r.oy), out = [iy * N + ix];
+  raceLine(N, ix, iy, wx, wy, out); raceLine(N, wx, wy, ox, oy, out); return out;
+}
+function raceStep(S, c, i, tl) { // returns true once the race has a wheel pit with water in it (then millStep puts the wheel there)
+  const N = S.N, h = S.h, d = S.d;
+  if (!c.race) {
+    if (c.mood === 'flooded') { c.raceT = Math.max(0, (c.raceT || 0) - tl * 2); return false; }
+    const x = i % N, y = (i / N) | 0, R = raceR(N), R2 = R * R, Rs = R * 1.5, Rs2 = Rs * Rs; let hi = -1, hv = -1e9, lo = -1, lv = 1e9, near = false;
+    for (let yy = Math.max(1, Math.floor(y - Rs)); yy <= Math.min(N - 2, Math.ceil(y + Rs)); yy++) for (let xx = Math.max(1, Math.floor(x - Rs)); xx <= Math.min(N - 2, Math.ceil(x + Rs)); xx++) {
+      const r2 = (xx - x) * (xx - x) + (yy - y) * (yy - y); if (r2 > Rs2) continue;
+      const j = yy * N + xx; if (!fastCell(S, j)) continue; const sv = h[j] + d[j]; if (r2 <= R2) near = true;
+      if (sv > hv) { hv = sv; hi = j; } if (sv < lv) { lv = sv; lo = j; }
+    }
+    if (!near) { c.raceT = Math.max(0, (c.raceT || 0) - tl * 2); return false; }
+    if (S.P.rain > 0) return false;
+    c.raceT = (c.raceT || 0) + tl; if (c.raceT < RACE_T) return false;
+    c.raceT = 0; // plan it (a refused plan waits RACE_T again)
+    if (hv - lv < RACE_HEAD || h[i] < hv + 0.5 || h[i] > hv + RACE_CUT) return false;
+    const mx = ((hi % N) + (lo % N)) / 2 - x, my = (((hi / N) | 0) + ((lo / N) | 0)) / 2 - y, ml = Math.hypot(mx, my) || 1;
+    const wx = Math.round(x + mx / ml * RACE_GAP), wy = Math.round(y + my / ml * RACE_GAP);
+    const r = { ix: (hi % N) / N, iy: ((hi / N) | 0) / N, wx: wx / N, wy: wy / N, ox: (lo % N) / N, oy: ((lo / N) | 0) / N, si: (hv - RACE_DEEP) / N, so: (lv - RACE_DEEP) / N, k: 0 };
+    const cells = raceCells(S, r);
+    for (const j of cells) for (const o of S.cottages) { if (o.ruin) continue; const q = cottageCell(S, o); if (Math.abs(q % N - j % N) <= 1 && Math.abs(((q / N) | 0) - ((j / N) | 0)) <= 1) return false; }
+    c.race = r;
+  }
+  const r = c.race, cells = raceCells(S, r), n = cells.length;
+  r.k = Math.min(n, r.k + tl * RACE_DIG); r.n = n;
+  const dug = Math.floor(r.k), si = r.si * N, so = r.so * N;
+  for (let k = 0; k < dug; k++) {
+    const j = cells[k], bed = si + (so - si) * k / Math.max(1, n - 1);
+    if (h[j] > bed) h[j] = bed;
+    S.tree[j] = 0; S.field[j] = 0; S.path[j] = 0;
+    for (const o of [j - 1, j + 1, j - N, j + N]) if (h[o] > bed + RACE_BANK) { h[o] = bed + RACE_BANK; S.tree[o] *= 0.5; S.field[o] = 0; }
+  }
+  if (dug < n || c.wheel) return false;
+  const P = (a) => Math.max(1, Math.min(N - 2, Math.round(a * N))), wj = P(r.wy) * N + P(r.wx);
+  if (d[wj] < RACE_WD) return false;
+  c.wheel = { x: r.wx, y: r.wy, race: true }; return true;
 }
 // ---------- the village grows: fields, footpaths and new cottages ----------
 // field: crop cover 0..1 (> 0.3 shows a field), ripe: 0..1.3 (green → golden, harvested at 1.3, then sown again),
@@ -465,7 +530,7 @@ function villageStep(S, tl) {
     if (c.ruin) continue;
     const i = cottageCell(S, c);
     c.flood = cottageStanding(S, i) ? (c.flood || 0) + tl : (c.flood || 0) * 0.85;
-    if (c.flood > FLOOD_RUIN) { c.ruin = true; c.flood = 0; c.mood = 'ruin'; c.happyT = 0; c.wheel = null; c.turn = 0; continue; } // the flood takes the wheel; the stone well stays
+    if (c.flood > FLOOD_RUIN) { c.ruin = true; c.flood = 0; c.mood = 'ruin'; c.happyT = 0; c.wheel = null; c.turn = 0; c.race = null; c.raceT = 0; continue; } // the flood takes the wheel; the stone well stays
     c.mood = cottageMood(S, c); millStep(S, c, i, tl);
     tree[i] = 0; tree[i - 1] *= 0.5; tree[i + 1] *= 0.5; tree[i - N] *= 0.5; tree[i + N] *= 0.5; // the garden stays open
     const x = i % N, y = (i / N) | 0, happy = c.mood === 'happy', tmark = c.turn > 0 ? 2 : 1; // 2: a turning mill grinds, its fields ripen faster
@@ -1048,7 +1113,7 @@ function resample(S, N2) {
     T.wet[i] = lerp(S.wet, px, py); T.dep[i] = lerp(S.dep, px, py) * hs; T.h0[i] = lerp(S.h0, px, py) * hs;
     T.veg[i] = lerp(S.veg, px, py); T.tree[i] = lerp(S.tree, px, py); T.moist[i] = lerp(S.moist, px, py); T.fert[i] = lerp(S.fert, px, py); T.flood[i] = lerp(S.flood, px, py); T.rush[i] = lerp(S.rush, px, py); T.bloom[i] = lerp(S.bloom, px, py); T.field[i] = lerp(S.field, px, py); T.ripe[i] = lerp(S.ripe, px, py); T.path[i] = lerp(S.path, px, py); T.snow[i] = lerp(S.snow, px, py) * hs; T.ice[i] = lerp(S.ice, px, py);
   }
-  T.springs = S.springs.map(sp => Object.assign({}, sp)); T.cottages = S.cottages.map(c => Object.assign({}, c, c.wheel ? { wheel: Object.assign({}, c.wheel) } : {})); T.grown = S.grown; T.vtick = S.vtick; T.steps = S.steps; T.time = S.time; T.wx = S.wx ? Object.assign({}, S.wx) : null; T.rainNow = S.rainNow || 0; T.yearOff = S.yearOff || 0; T.icePeak = S.icePeak || 0; T.jam = S.jam ? Object.assign({}, S.jam) : null; T.dryNow = S.dryNow || 0; T.drOver = S.drOver ? Object.assign({}, S.drOver) : null;
+  T.springs = S.springs.map(sp => Object.assign({}, sp)); T.cottages = S.cottages.map(c => Object.assign({}, c, c.wheel ? { wheel: Object.assign({}, c.wheel) } : {}, c.race ? { race: Object.assign({}, c.race) } : {})); T.grown = S.grown; T.vtick = S.vtick; T.steps = S.steps; T.time = S.time; T.wx = S.wx ? Object.assign({}, S.wx) : null; T.rainNow = S.rainNow || 0; T.yearOff = S.yearOff || 0; T.icePeak = S.icePeak || 0; T.jam = S.jam ? Object.assign({}, S.jam) : null; T.dryNow = S.dryNow || 0; T.drOver = S.drOver ? Object.assign({}, S.drOver) : null;
   return T;
 }
 
@@ -1176,7 +1241,7 @@ function unpackShare(bytes, seed, opts) {
   if (hasNaN(S)) throw new Error('share link has broken numbers');
   return S;
 }
-const API = { findRoute, ROUTE_CLIMB, waterfalls, FALL_DROP, FALL_Q, FALL_M, packState, unpackState, packShare, unpackShare, initLife,  iceStep, iceJam, totalIce, ICE_HOLD, JAM_MIN, JAM_Y, FLOE_PTS, eventRain, droughtOf, droughtAt, weatherEvent, STORM_AMP, yearFrac, yearFracAt, yearLen, yearNum, season, snowLine, snowFalling, leafState, snowStep, totalSnow, SEASONS, clockHour, dayFrac, planRain, rainCell, weatherStep, mulberry32, hashStr, makeNoise, randomSeedName, generateTerrain, create, seedLife, step, applyTool, totalWater, totalTerrain, resample, lifeStep, countTrees, countLife, leafy, treeHappy, cottageMood, cottageCell, countVillage, waterNear, wellYield, WELL_MIN, WELL_HIGH, MILL_T, MILL_RIPEN, FLOOD_RUIN, GROW_MAX, KIDS_MAX, GROW_T, plotSize, plotOf, plotCrop, hasNaN, DEFAULTS };
+const API = { findRoute, ROUTE_CLIMB, waterfalls, FALL_DROP, FALL_Q, FALL_M, packState, unpackState, packShare, unpackShare, initLife,  iceStep, iceJam, totalIce, ICE_HOLD, JAM_MIN, JAM_Y, FLOE_PTS, eventRain, droughtOf, droughtAt, weatherEvent, STORM_AMP, yearFrac, yearFracAt, yearLen, yearNum, season, snowLine, snowFalling, leafState, snowStep, totalSnow, SEASONS, clockHour, dayFrac, planRain, rainCell, weatherStep, mulberry32, hashStr, makeNoise, randomSeedName, generateTerrain, create, seedLife, step, applyTool, totalWater, totalTerrain, resample, lifeStep, countTrees, countLife, leafy, treeHappy, cottageMood, cottageCell, countVillage, waterNear, wellYield, WELL_MIN, WELL_HIGH, MILL_T, MILL_RIPEN, raceCells, raceR, RACE_T, RACE_DIG, RACE_SP, FLOOD_RUIN, GROW_MAX, KIDS_MAX, GROW_T, plotSize, plotOf, plotCrop, hasNaN, DEFAULTS };
 if (typeof module !== 'undefined' && module.exports) module.exports = API; else root.LV = API;
 })(typeof window !== 'undefined' ? window : globalThis);
 </script>
@@ -1630,6 +1695,7 @@ function renderTilt(t) {
   { const t0 = performance.now(); drawBats(t); st.batMs = (st.batMs || 0) * 0.9 + (performance.now() - t0) * 0.1; }
   { const t0 = performance.now(); drawMidges(t); st.midgeMs = (st.midgeMs || 0) * 0.9 + (performance.now() - t0) * 0.1; }
   { const t0 = performance.now(); drawDragonflies(t); st.dfMs = (st.dfMs || 0) * 0.9 + (performance.now() - t0) * 0.1; }
+  { const t0 = performance.now(); drawButterflies(t); st.btfMs = (st.btfMs || 0) * 0.9 + (performance.now() - t0) * 0.1; }
   { const t0 = performance.now(); drawWebs(t); st.webMs = (st.webMs || 0) * 0.9 + (performance.now() - t0) * 0.1; }
   { const t0 = performance.now(); drawHoarFrost(t); st.frostMs = (st.frostMs || 0) * 0.9 + (performance.now() - t0) * 0.1; }
   { const t0 = performance.now(); drawFox(t); st.foxMs = (st.foxMs || 0) * 0.9 + (performance.now() - t0) * 0.1; }
@@ -2160,6 +2226,49 @@ function rasterCottages(T, data) {
   st.cottagesDrawn = n;
   rasterCarts(T, put);
   rasterWheels(T, data, put);
+  rasterRaces(T, put);
+}
+// mill races (sim: LV raceCells): a wooden sluice board across the intake; while the race is being dug, little
+// survey stakes mark the rest of the line and the miller digs at its head, the spade going up and down and
+// clods flying (a soft spade 'chuk' with sound on). The channel itself is terrain and water, drawn as usual.
+const RACE_SPADE = 0.9; // seconds between spade sounds per digger
+const raceSnd = new WeakMap();
+function raceXY(T, x, y) { const S = st.S, N = S.N, i = y * N + x, sc = persp(y, N); return [(x + 0.5 - N / 2) * T.cp * sc + T.ow / 2, baseY(T, y, N) - (S.h[i] + S.d[i]) * T.cp * T.hEx * sc, sc]; }
+function raceSeen(T, x, y, bx, by) { const N = st.S.N, pc = T.pick[Math.min(T.oh - 1, Math.max(0, by + 1)) * T.ow + bx]; return !(pc >= 0 && (Math.abs(pc % N - x) > 4 || Math.abs(((pc / N) | 0) - y) > 5)); }
+function rasterRaces(T, put) {
+  const S = st.S, N = S.N, ow = T.ow, oh = T.oh, cp = T.cp, now = performance.now() / 1000; let races = 0, stakes = 0, diggers = 0, sluices = 0;
+  for (const c of S.cottages) {
+    if (!c.race || c.ruin) continue; races++;
+    const cells = LV.raceCells(S, c.race), n = cells.length, dug = Math.min(n, Math.floor(c.race.k));
+    { // the sluice: two posts and a plank across the intake
+      const j = cells[Math.min(1, n - 1)], x = j % N, y = (j / N) | 0, [ox, oy, sc] = raceXY(T, x, y), bx = Math.round(ox), by = Math.round(oy), w = Math.max(2, Math.round(cp * sc * 0.9)), hh = Math.max(2, Math.round(cp * sc * 0.8));
+      if (bx > w + 1 && by > hh + 2 && bx < ow - w - 1 && by < oh - 1 && raceSeen(T, x, y, bx, by)) {
+        for (let py = by - hh - 1; py <= by + 1; py++) { put(bx - w, py, 74, 52, 32); put(bx + w, py, 74, 52, 32); }
+        for (let px = bx - w; px <= bx + w; px++) { put(px, by - hh + 1, 150, 110, 66); put(px, by - hh + 2, 120, 84, 48); }
+        sluices++;
+      }
+    }
+    if (dug >= n) continue;
+    for (let k = dug + 2; k < n; k += 3) { // survey stakes along the line still to dig
+      const j = cells[k], x = j % N, y = (j / N) | 0, [ox, oy, sc] = raceXY(T, x, y), bx = Math.round(ox), by = Math.round(oy), hh = Math.max(2, Math.round(cp * sc * 0.9));
+      if (bx < 1 || by < hh + 2 || bx >= ow - 1 || by >= oh || !raceSeen(T, x, y, bx, by)) continue;
+      for (let py = by - hh; py <= by; py++) put(bx, py, 236, 226, 200); put(bx, by - hh - 1, 220, 70, 50); stakes++;
+    }
+    // the miller at the head of the cut: smock, cap, a spade that bobs, clods flying
+    const j = cells[Math.max(0, dug)], x = j % N, y = (j / N) | 0, [ox, oy, sc] = raceXY(T, x, y), bx = Math.round(ox), by = Math.round(oy), u = Math.max(1, cp * sc * 0.45);
+    if (bx < 6 || by < 12 || bx >= ow - 6 || by >= oh || !raceSeen(T, x, y, bx, by)) continue;
+    const ph = st.paused ? 0 : (now * 1.6 + c.x * 7) % 1, lift = ph < 0.5 ? ph * 2 : 2 - ph * 2, H = Math.round(u * 7);
+    for (let py = by - H; py <= by - Math.round(u * 2); py++) for (let px = bx - Math.round(u); px <= bx + Math.round(u); px++) put(px, py, 120, 98, 70); // smock
+    for (let py = by - Math.round(u * 2); py <= by; py++) { put(bx - Math.round(u * 0.6), py, 70, 56, 44); put(bx + Math.round(u * 0.6), py, 70, 56, 44); } // legs
+    for (let py = by - H - Math.round(u * 2); py < by - H; py++) for (let px = bx - Math.round(u * 0.8); px <= bx + Math.round(u * 0.8); px++) put(px, py, 232, 190, 160); // head
+    for (let px = bx - Math.round(u); px <= bx + Math.round(u); px++) put(px, by - H - Math.round(u * 2), 90, 70, 50); // cap
+    const sx = bx + Math.round(u * 2), sy = by - Math.round(u * (1 + lift * 3)); for (let k = 0; k <= Math.round(u * 4); k++) put(sx - Math.round(k * 0.4), sy - k, 140, 104, 60); // spade handle
+    for (let px = sx - 1; px <= sx + 1; px++) for (let py = sy; py <= sy + Math.max(1, Math.round(u)); py++) put(px, py, 150, 156, 160); // blade
+    if (lift > 0.6) for (let q = 0; q < 3; q++) put(sx + 2 + q * 2, sy - Math.round(u * (lift * 2 + q)), 110, 82, 52); // clods flying
+    diggers++;
+    const ls = raceSnd.get(c) || 0; if (!st.paused && now - ls > RACE_SPADE) { raceSnd.set(c, now); sndSpade(T.sx + bx * T.s); }
+  }
+  st.racesDrawn = races; st.raceStakes = stakes; st.raceDiggers = diggers; st.raceSluices = sluices;
 }
 // the flour cart: when three sacks wait by a mill's door, the miller loads them onto a little handcart
 // (after the full pile has stood CART_LOAD s of grinding) and pulls it to the nearest dry, standing cottage (a dry road: no water deeper than CART_WET on the way),
@@ -2306,6 +2415,15 @@ function drawCottagesTop() {
     const r = Math.max(4, s * 0.38), a = wheelAng.get(c) || 0; if (!st.paused) wheelAng.set(c, a + (c.turn || 0) * 0.02 * SPEEDS[st.speed][0]);
     cx.save(); cx.translate(p[0], p[1]); cx.rotate(a); cx.strokeStyle = '#5a3a1e'; cx.lineWidth = 2; cx.beginPath(); cx.arc(0, 0, r, 0, 7); cx.stroke();
     cx.lineWidth = 1.3; cx.beginPath(); for (let k = 0; k < 4; k++) { const q = k * Math.PI / 4; cx.moveTo(-Math.cos(q) * r, -Math.sin(q) * r); cx.lineTo(Math.cos(q) * r, Math.sin(q) * r); } cx.stroke(); cx.restore(); st.wheelsTop++;
+  }
+  // mill races on the map: a sluice bar at the intake; while digging, a dotted line of stakes ahead and the miller
+  st.racesTop = 0;
+  for (const c of S.cottages) {
+    if (!c.race || c.ruin) continue; const cells = LV.raceCells(S, c.race), n = cells.length, dug = Math.min(n, Math.floor(c.race.k)), q = cells[Math.min(1, n - 1)], pi = proj(q % N + 0.5, ((q / N) | 0) + 0.5);
+    if (pi) { cx.fillStyle = '#6b4a2a'; cx.fillRect(pi[0] - s * 0.3, pi[1] - 1.5, s * 0.6, 3); }
+    if (dug < n) { cx.fillStyle = '#f4ecd6'; for (let k = dug + 2; k < n; k += 3) { const j = cells[k], p = proj(j % N + 0.5, ((j / N) | 0) + 0.5); if (p) cx.fillRect(p[0] - 1.5, p[1] - 1.5, 3, 3); }
+      const j = cells[dug], p = proj(j % N + 0.5, ((j / N) | 0) + 0.5); if (p) { cx.fillStyle = '#7a6046'; cx.beginPath(); cx.arc(p[0], p[1], Math.max(2.5, s * 0.2), 0, 7); cx.fill(); } }
+    st.racesTop++;
   }
   cx.restore(); st.cottagesTop = n;
 }
@@ -2973,6 +3091,103 @@ function drawDragonflies(t) {
   }
   cx.restore();
   st.dfAlt = st.dragonfliesDrawn ? sa / st.dragonfliesDrawn : 0; st.dfOverWater = st.dragonfliesDrawn ? nw / st.dragonfliesDrawn : 0;
+}
+// butterflies: on sunny days from mid-spring to early autumn (yearFrac ~0.08-0.62, about 9:30-17:30) a capped few
+// butterflies (8 desk / 4 phone) flutter low over the blooming meadows (flower cells: bloom > 0.35 as the flower dots, dry, no snow, not
+// under trees, visible in the tilt view). Each one wanders in a jittery, bobbing flight (the heading drifts and
+// wobbles, the height bounces with every wing beat) to a flower a few cells away, settles on it for a few seconds with
+// its wings slowly opening and closing, then flutters off to the next. Four kinds: a cabbage white (black tips), a
+// lemon-yellow brimstone, a sky-blue common blue and an orange tortoiseshell with dark spots; each has a soft shadow
+// on the grass. Fewer when the meadows are small; none in rain or storms, a strong wind, at night, in the early
+// morning or evening, in late autumn or winter, without flowers, or in the map view. The always-day mode follows its
+// own hour like the other creatures. Hooks: st.butterfliesDrawn, st.btfAmt, st.btfAt (screen px of the first),
+// st.btfMoved (cells flown by the first), st.btfLandings, st.btfPerched (sitting now), st.btfAlt (mean height in
+// cells), st.btfOnFlowers (share over flower cells), st.btfKinds (kinds drawn), st.btfSpan (wingspan px), st.btfSrc,
+// st.btfPts (screen px and wing opening of each), st.btfMs.
+const BTF_MAX = isPhone ? 4 : 8, BTF = { S: null, N: 0, t: -1e9, src: [], flies: [], last: -1, moved: 0, landings: 0 };
+const BTF_KINDS = [ // [wing, wing edge/spots, under side]
+  [[246, 246, 236], [40, 40, 44], [226, 232, 196]], // cabbage white: black tips
+  [[248, 226, 74], [196, 150, 30], [224, 230, 150]], // brimstone
+  [[112, 160, 236], [60, 80, 150], [190, 196, 200]], // common blue
+  [[232, 120, 40], [40, 30, 30], [120, 96, 80]] // small tortoiseshell
+];
+function btfAmt() {
+  const S = st.S, y = S.P.seasons ? LV.yearFrac(S) : 0.4, h = LT.h;
+  const sea = smooth(0.06, 0.1, y) * (1 - smooth(0.58, 0.63, y)), day = smooth(9.2, 9.8, h) * (1 - smooth(17.2, 17.8, h));
+  const w = Math.abs(mistWind());
+  return sea * day * (1 - smooth(0.5, 0.8, w)) * (1 - smooth(0.04, 0.12, LT.rain)) * (LT.storm > 0.02 ? 0 : 1);
+}
+function btfFlower(S, i) { return S.bloom[i] > 0.35 && S.d[i] < 0.03 && !(S.snow[i] > 0.02) && S.tree[i] < 0.35; }
+function btfSpots(S, T) { // visible blooming meadow cells
+  const N = S.N, out = [], s2 = Math.max(1, N >> 6);
+  for (let y = 4; y < N - 4; y += s2) for (let x = 4; x < N - 4; x += s2) { const i = y * N + x; if (btfFlower(S, i) && duckSeen(T, S, x, y)) out.push([x, y]); }
+  return out;
+}
+function drawButterflies(t) {
+  const T = tilt, S = st.S, N = S.N; st.butterfliesDrawn = 0; st.btfAt = null; st.btfPerched = 0; st.btfKinds = 0; st.btfPts = [];
+  const amt = st.btfAmt = btfAmt(), dt = Math.max(0, Math.min(0.1, t - BTF.last)); BTF.last = t;
+  st.btfMoved = BTF.moved; st.btfLandings = BTF.landings;
+  if (!T || T.s == null) return;
+  if (BTF.S !== S || BTF.N !== N) { BTF.S = S; BTF.N = N; BTF.flies = []; BTF.t = -1e9; }
+  if (amt < 0.02 && !BTF.flies.some(f => f.a > 0.02)) { BTF.flies.forEach(f => { f.a = 0; }); return; }
+  if (st.time - BTF.t > 6 || st.time < BTF.t || (!BTF.src.length && performance.now() - (BTF.rt || 0) > 1000)) { BTF.t = st.time; BTF.rt = performance.now(); BTF.src = btfSpots(S, T); }
+  const src = BTF.src; st.btfSrc = src.length;
+  const room = Math.min(1, src.length / 16), n = Math.round(BTF_MAX * Math.min(1, amt * 1.1) * room); // a few flowers: one or two
+  const pu = Math.max(0.5, T.cp * T.s), V = Math.max(1.6, 26 / pu), R = Math.max(2, 6 / pu); // ~26 px/s on screen
+  while (BTF.flies.length < BTF_MAX) BTF.flies.push({ x: 0, y: 0, tx: 0, ty: 0, a: 0, sit: false, until: 0, alt: 0.8, ang: Math.random() * 6.28, ph: Math.random() * 6.28, kind: BTF.flies.length % 4 });
+  const pick = f => { // the next flower: a few cells away, not straight back
+    if (!src.length) { f.tx = f.x; f.ty = f.y; return; }
+    let q = null; for (let k = 0; k < 14; k++) { const c = src[(Math.random() * src.length) | 0], d = Math.hypot(c[0] + 0.5 - f.x, c[1] + 0.5 - f.y); if (d > 1.2 && d < 5 * R) { q = c; break; } if (!q || d < Math.hypot(q[0] + 0.5 - f.x, q[1] + 0.5 - f.y)) q = c; }
+    f.tx = q[0] + 0.3 + Math.random() * 0.4; f.ty = q[1] + 0.3 + Math.random() * 0.4; };
+  const cp = T.cp, ow = T.ow, oh = T.oh, s = T.s, body = litC(36, 30, 28), edge = 'rgba(40,36,34,0.55)', shad = 'rgba(20,40,10,0.2)';
+  const kc = BTF_KINDS.map(K => K.map(c => litC(c[0], c[1], c[2]))), seen = [0, 0, 0, 0];
+  let sa = 0, nf = 0; cx.save();
+  for (let j = 0; j < BTF_MAX; j++) {
+    const f = BTF.flies[j], want = j < n ? 1 : 0;
+    if (want && f.a < 0.02) { if (!src.length) continue; // a fresh one comes in over a flower, away from the others
+      let best = null, bs = -1; for (let k = 0; k < 8; k++) { const q = src[(Math.random() * src.length) | 0]; let dm = 99; for (const o of BTF.flies) if (o !== f && o.a > 0.02) dm = Math.min(dm, Math.hypot(o.x - q[0], o.y - q[1])); if (dm > bs) { bs = dm; best = q; } }
+      f.x = best[0] + 0.5; f.y = best[1] + 0.5; f.sit = false; f.alt = 1; pick(f); }
+    f.a += (want - f.a) * Math.min(1, dt * (want ? 1 : 1.5)); if (f.a < 0.02) continue;
+    if (f.sit) { if (t >= f.until || !src.length) { f.sit = false; pick(f); } }
+    else { const dx = f.tx - f.x, dy = f.ty - f.y, d = Math.hypot(dx, dy);
+      if (d < 0.35) { f.sit = true; f.until = t + 1.5 + Math.random() * 3; BTF.landings++; }
+      else { // flutter: steer towards the flower with a wobbling heading, slower close in
+        const want2 = Math.atan2(dy, dx) + 0.9 * Math.sin(t * 2.7 + f.ph) * Math.min(1, d / 2); let dA = want2 - f.ang; dA = Math.atan2(Math.sin(dA), Math.cos(dA)); f.ang += dA * Math.min(1, dt * 4);
+        const sp = V * (0.55 + 0.45 * Math.min(1, d / 2)) * (0.8 + 0.4 * Math.sin(t * 5.1 + f.ph * 3)), st1 = Math.min(d, sp * dt);
+        f.x += Math.cos(f.ang) * st1; f.y += Math.sin(f.ang) * st1; f.x = Math.max(2, Math.min(N - 3, f.x)); f.y = Math.max(2, Math.min(N - 3, f.y)); if (j === 0) BTF.moved += st1; } }
+    const fl = f.sit ? 0.5 + 0.5 * Math.sin(t * 2.2 + f.ph) : Math.abs(Math.sin(t * 15 + f.ph)); // wings: fast beats in flight, slow fanning when sitting
+    const altT = f.sit ? 0.12 : 0.7 + 0.35 * Math.sin(t * 1.9 + f.ph) + 0.18 * fl; f.alt += (altT - f.alt) * Math.min(1, dt * (f.sit ? 6 : 9));
+    const gx = f.x, gy = f.y, ci = (gy | 0) * N + (gx | 0); if (btfFlower(S, ci)) nf++;
+    const x0 = Math.min(N - 2, gx | 0), y0 = Math.min(N - 2, gy | 0), fx = gx - x0, fy = gy - y0, k0 = y0 * N + x0;
+    const hs = surf[k0] * (1 - fx) * (1 - fy) + surf[k0 + 1] * fx * (1 - fy) + surf[k0 + N] * (1 - fx) * fy + surf[k0 + N + 1] * fx * fy;
+    const sc = persp(gy, N), ox = (gx - N / 2) * cp * sc + ow / 2, oyG = baseY(T, gy, N) - hs * cp * T.hEx * sc, oyB = oyG - f.alt * cp * sc;
+    const px = Math.round(ox), py = Math.round(oyG); if (px < 0 || px >= ow || py < 0 || py >= oh) continue;
+    { const pc = T.pick[py * ow + px]; if (pc >= 0 && ((pc / N) | 0) > gy + 3) continue; }
+    const u = cp * sc * s, X = T.sx + ox * s, Y = T.sy + oyB * s, Yg = T.sy + oyG * s;
+    const W = Math.max(isPhone ? 5.5 : 7, u * 1.1), K = kc[f.kind], fade = f.a; // half the wingspan in px
+    const c = Math.cos(f.ang), sn = Math.sin(f.ang) * 0.6, hd = Math.atan2(sn, c), hc = Math.cos(hd), hsn = Math.sin(hd), pxv = -hsn, pyv = hc; // heading on screen and its side
+    cx.globalAlpha = fade * (f.sit ? 0.5 : 0.3); cx.fillStyle = shad; cx.beginPath(); cx.ellipse(X, Yg + 0.5, W * 0.7, W * 0.22, 0, 0, 7); cx.fill();
+    const open = 0.18 + 0.82 * fl; // seen from above: the wings fold up (narrow) and open (wide)
+    for (const side of [-1, 1]) {
+      const ox2 = pxv * side, oy2 = pyv * side, rot = Math.atan2(oy2, ox2);
+      // fore wing: a broad oval out to the side and a little forward; hind wing: smaller, a little back
+      const fx2 = X + ox2 * W * 0.5 * open + hc * W * 0.18, fy2 = Y + oy2 * W * 0.5 * open + hsn * W * 0.18;
+      const bx2 = X + ox2 * W * 0.36 * open - hc * W * 0.22, by2 = Y + oy2 * W * 0.36 * open - hsn * W * 0.22;
+      cx.globalAlpha = fade; cx.fillStyle = open < 0.35 ? K[2] : K[0]; cx.strokeStyle = edge; cx.lineWidth = 0.6;
+      cx.beginPath(); cx.ellipse(fx2, fy2, Math.max(0.8, W * 0.52 * open), W * 0.34, rot - side * 0.35, 0, 6.2832); cx.fill(); cx.stroke();
+      cx.beginPath(); cx.ellipse(bx2, by2, Math.max(0.7, W * 0.38 * open), W * 0.26, rot + side * 0.4, 0, 6.2832); cx.fill(); cx.stroke();
+      if (open > 0.35) { cx.fillStyle = K[1]; // wing tips (white, brimstone) or spots (blue, tortoiseshell)
+        if (f.kind < 2) { cx.beginPath(); cx.arc(X + ox2 * W * 0.88 * open + hc * W * 0.3, Y + oy2 * W * 0.88 * open + hsn * W * 0.3, Math.max(0.9, W * 0.15), 0, 7); cx.fill(); }
+        else { cx.beginPath(); cx.arc(fx2, fy2, Math.max(0.8, W * 0.12), 0, 7); cx.arc(bx2, by2, Math.max(0.7, W * 0.09), 0, 7); cx.fill(); } }
+    }
+    cx.globalAlpha = fade; cx.strokeStyle = body; cx.lineWidth = Math.max(1, W * 0.11); cx.lineCap = 'round';
+    cx.beginPath(); cx.moveTo(X - hc * W * 0.45, Y - hsn * W * 0.45); cx.lineTo(X + hc * W * 0.3, Y + hsn * W * 0.3); cx.stroke(); // body
+    cx.globalAlpha = fade * 0.6; cx.lineWidth = 0.6; cx.beginPath(); for (const side of [-1, 1]) { cx.moveTo(X + hc * W * 0.3, Y + hsn * W * 0.3); cx.lineTo(X + hc * W * 0.62 + pxv * side * W * 0.18, Y + hsn * W * 0.62 + pyv * side * W * 0.18); } cx.stroke(); // feelers
+    if (!st.butterfliesDrawn) st.btfAt = [X, Y]; st.btfPts.push([X, Y, open]); st.butterfliesDrawn++; seen[f.kind] = 1; if (f.sit) st.btfPerched++; sa += f.alt; st.btfSpan = W * 2;
+  }
+  cx.restore();
+  st.btfKinds = seen[0] + seen[1] + seen[2] + seen[3];
+  st.btfAlt = st.butterfliesDrawn ? sa / st.butterfliesDrawn : 0; st.btfOnFlowers = st.butterfliesDrawn ? nf / st.butterfliesDrawn : 0;
 }
 // glow-worms: on warm early-summer nights (yearFrac ~0.30-0.45, about 22:00-02:00) a capped number of tiny steady
 // greenish-yellow lights (24 desk / 12 phone) sit low in the grass where a meadow meets the forest (open grass cells
@@ -3775,7 +3990,7 @@ function frame(now) {
   const tc0 = performance.now(); computeColours(st.time); st.colMs = (st.colMs || 0) * 0.9 + (performance.now() - tc0) * 0.1;
   cx.setTransform(dpr, 0, 0, dpr, 0, 0);
   if (st.view === 'tilt') { tiltGeom(); drawSky(st.time, dtReal); renderTilt(st.time); }
-  else { drawSky(st.time, dtReal); renderTop(st.time); drawCottagesTop(); drawWindowGlowTop(st.time); st.websDrawn = 0; st.webAt = []; st.webCells = []; st.webGlints = 0; WEB.webs.forEach(w => { w.a = 0; }); st.frostTrees = 0; st.frostGlints = 0; st.frostGlintAt = []; FR.src = []; FR.gl.forEach(g => { g.age = g.life; }); st.foxTracks = 0; st.foxPrints = 0; st.foxPrintCells = []; st.foxDrawn = 0; st.foxAt = null; if (FOX.fox) { FOX.fox = null; FOX.rest = 5; } FOX.last = st.time; st.glowwormsDrawn = 0; st.glowwormAt = []; st.glowwormCells = []; st.glowwormLvl = []; GW.worms.forEach(w => { w.a = 0; }); st.petalsDrawn = 0; st.mistDrawn = 0; st.mistDrift = 0; st.puddlesDrawn = 0; st.icyPuddles = 0; st.puddleIcePx = 0; st.splashKids = 0; st.splashHopping = 0; st.splashDrops = 0; st.splashSpots = 0; st.splashPuds = []; KID.on = false; st.batsDrawn = 0; st.batAt = null; st.midgesDrawn = 0; st.midgeSpecks = 0; st.midgeGlints = 0; st.midgeCols = []; MID.last = st.time; st.dragonfliesDrawn = 0; st.dfAt = null; st.dfHover = 0; DF.last = st.time; st.duckFams = 0; st.ducksDrawn = 0; st.ducklingsDrawn = 0; st.duckLine = null; DUCK.last = null; st.swallowsDrawn = 0; st.swallowRings = 0; st.swallowAt = null; SW.last = st.time; st.bfDrawn = 0; st.bfSit = 0; st.bfFlying = 0; st.bfAtFeeder = 0; st.bfFeeders = 0; st.bfAt = []; st.bfFeederAt = []; BF.birds = []; BF.feeders = []; BF.home = null; BF.crowns = []; } // no petals in the map view (seen from far above they would be specks of dust)
+  else { drawSky(st.time, dtReal); renderTop(st.time); drawCottagesTop(); drawWindowGlowTop(st.time); st.websDrawn = 0; st.webAt = []; st.webCells = []; st.webGlints = 0; WEB.webs.forEach(w => { w.a = 0; }); st.frostTrees = 0; st.frostGlints = 0; st.frostGlintAt = []; FR.src = []; FR.gl.forEach(g => { g.age = g.life; }); st.foxTracks = 0; st.foxPrints = 0; st.foxPrintCells = []; st.foxDrawn = 0; st.foxAt = null; if (FOX.fox) { FOX.fox = null; FOX.rest = 5; } FOX.last = st.time; st.glowwormsDrawn = 0; st.glowwormAt = []; st.glowwormCells = []; st.glowwormLvl = []; GW.worms.forEach(w => { w.a = 0; }); st.petalsDrawn = 0; st.mistDrawn = 0; st.mistDrift = 0; st.puddlesDrawn = 0; st.icyPuddles = 0; st.puddleIcePx = 0; st.splashKids = 0; st.splashHopping = 0; st.splashDrops = 0; st.splashSpots = 0; st.splashPuds = []; KID.on = false; st.batsDrawn = 0; st.batAt = null; st.midgesDrawn = 0; st.midgeSpecks = 0; st.midgeGlints = 0; st.midgeCols = []; MID.last = st.time; st.dragonfliesDrawn = 0; st.dfAt = null; st.butterfliesDrawn = 0; st.btfAt = null; BTF.flies.forEach(f => { f.a = 0; }); st.dfHover = 0; DF.last = st.time; st.duckFams = 0; st.ducksDrawn = 0; st.ducklingsDrawn = 0; st.duckLine = null; DUCK.last = null; st.swallowsDrawn = 0; st.swallowRings = 0; st.swallowAt = null; SW.last = st.time; st.bfDrawn = 0; st.bfSit = 0; st.bfFlying = 0; st.bfAtFeeder = 0; st.bfFeeders = 0; st.bfAt = []; st.bfFeederAt = []; BF.birds = []; BF.feeders = []; BF.home = null; BF.crowns = []; } // no petals in the map view (seen from far above they would be specks of dust)
   floeStep(S, dtReal); drawFloes();
   drawCottageBadges(st.time);
   drawNaturalRain(st.time); drawOverlays(st.time); drawShower(st.time);
@@ -3787,6 +4002,7 @@ function frame(now) {
   statT -= dtReal; if (statT <= 0) { statT = 0.5; const L = LV.countLife(S), V = LV.countVillage(S), nt = L.trees, k = v => v >= 1000 ? (v / 1000).toFixed(1) + 'k' : v, tt = k(nt), ff = k(L.flowers); st.life = L; st.village = V; const hp = nt ? Math.round(L.happy / nt * 100) : 100;
     // cottages: count and happy count (ruins only when there are some)
     if (S.grown > (st.grownSeen || 0)) hint('The village grows: a new cottage by the water!'); st.grownSeen = S.grown;
+    { let dig = 0; for (const c of S.cottages) if (c.race && !c.ruin && c.race.k < (c.race.n || 1e9)) dig++; if (dig > (st.racesDigging || 0)) { hint('A cottage digs a mill race to bring the river to its wheel!'); st.raceHints = (st.raceHints || 0) + 1; } st.racesDigging = dig; }
     const fl = V.fields ? ` · ${V.fields} field${V.fields > 1 ? 's' : ''}` : '';
     const ru = V.ruins ? ` · ${V.ruins} ruin${V.ruins > 1 ? 's' : ''}` : '';
     const mi = V.mills ? ` · ${V.mills} mill${V.mills > 1 ? 's' : ''}` : '';
@@ -3817,7 +4033,7 @@ function adapt(dt) {
 // and thunder after lightning, wind (stronger in winter and storms), birds by day in the forest, crickets on
 // summer evenings, an owl at night, the creak and clack of turning mill wheels, cowbells near the village.
 // window.LV_AUDIO holds the levels (0..1) and gains so tests can check them without listening.
-const AU = { want: false, on: false, started: false, state: 'none', nodes: 0, live: 0, L: {}, G: {}, ev: { chirp: 0, cricket: 0, owl: 0, clack: 0, creak: 0, bell: 0, thunder: 0, plop: 0, slurp: 0, splash: 0, knock: 0, well: 0, rustle: 0, rumble: 0, drip: 0, squeak: 0, thump: 0, crunch: 0, skate: 0, icicle: 0, puddle: 0, peep: 0, twit: 0, bat: 0, pipe: 0, whirr: 0, honk: 0, murmur: 0 }, flow: 0, riverPan: 0, veg: 0, ticks: 0, vol: 1, snowCover: 0, rainMuffle: 0, rainCut: 9000, masterT: 0, melt: 0, meltPan: 0 };
+const AU = { want: false, on: false, started: false, state: 'none', nodes: 0, live: 0, L: {}, G: {}, ev: { chirp: 0, cricket: 0, owl: 0, clack: 0, creak: 0, bell: 0, thunder: 0, plop: 0, slurp: 0, splash: 0, knock: 0, well: 0, rustle: 0, rumble: 0, drip: 0, squeak: 0, thump: 0, crunch: 0, skate: 0, icicle: 0, puddle: 0, peep: 0, twit: 0, bat: 0, pipe: 0, whirr: 0, honk: 0, murmur: 0, spade: 0 }, flow: 0, riverPan: 0, veg: 0, ticks: 0, vol: 1, snowCover: 0, rainMuffle: 0, rainCut: 9000, masterT: 0, melt: 0, meltPan: 0 };
 window.LV_AUDIO = AU;
 const AU_KEY = 'lv-sound', AU_MASTER = 0.45, AU_DT = 0.25;
 const AU_MAX = { river: 0.55, rain: 0.42, wind: 0.2, birds: 0.42, crickets: 0.13, owl: 0.38, mill: 0.42, cows: 0.26, thunder: 0.85, melt: 0.3 }; // full-level gain per layer
@@ -3996,6 +4212,11 @@ function sndSqueak(x, k) { // the flour cart: a dry wooden wheel squeaks on its 
   const o = osc('triangle', f, t, dur + 0.05, bp); o.frequency.linearRampToValueAtTime(f * 1.18, t + dur * 0.4); o.frequency.linearRampToValueAtTime(f * 0.92, t + dur);
   e.gain.setValueAtTime(0, t); e.gain.linearRampToValueAtTime(0.06 * k, t + 0.03); e.gain.setValueAtTime(0.06 * k, t + dur * 0.6); e.gain.linearRampToValueAtTime(0, t + dur); setTimeout(() => bp.disconnect(), (dur + 0.4) * 1000);
   noiseHit('fx', AG.brown, t + dur * 0.5, 0.1, 'lowpass', 500, 0.7, 0.12 * k, pan, 0.02); AU.ev.squeak++;
+}
+function sndSpade(x) { // the miller digs the race: a short gritty 'chuk' of a spade biting into earth (fx bus)
+  if (!fxOn()) return; const t = AG.ac.currentTime + 0.02, pan = fxPan(x);
+  noiseHit('fx', AG.brown, t, 0.12, 'bandpass', 700, 1.2, 0.16, pan, 0.03); noiseHit('fx', AG.white, t + 0.01, 0.06, 'bandpass', 2600, 2, 0.05, pan, 0.012);
+  AU.ev.spade++;
 }
 function sndThump(x) { // the sacks come off the cart: two soft, dull thumps
   if (!fxOn()) return; const t = AG.ac.currentTime + 0.02, pan = fxPan(x);
@@ -4224,7 +4445,7 @@ const WISHES = [
   { id: 'lake', icon: '🏞️', name: 'A lake to row on', tip: 'Dig a basin or dam a stream until the water stands still', tiers: [0.035, 0.06, 0.1], pct: true, unit: 'of the valley is one still lake' },
   { id: 'forest', icon: '🌲', name: 'A deep green forest', tip: 'Plant trees on moist ground below the snow', tiers: [0.32, 0.38, 0.45], pct: true, unit: 'of the valley is forest' },
   { id: 'village', icon: '🏡', name: 'A little village', tip: 'Build cottages near water: happy villages grow by themselves', tiers: [3, 6, 10], unit: 'cottages' },
-  { id: 'mill', icon: '⚙️', name: 'The mill wheel turns', tip: 'Build a cottage right beside a fast stream', tiers: [1, 2, 3], unit: 'mills turning' },
+  { id: 'mill', icon: '⚙️', name: 'The mill wheel turns', tip: 'Build a cottage beside a fast stream (a few steps back, it digs a mill race)', tiers: [1, 2, 3], unit: 'mills turning' },
   { id: 'storm', icon: '⛈️', name: 'Dry feet in a storm', tip: 'Keep every cottage dry until a storm has passed', tiers: [1, 3, 5], unit: 'cottages stayed dry' },
   { id: 'rainbow', icon: '🌈', name: 'Rainbow hunter', tip: 'When the rain stops on a sunny day, look up', tiers: [1, 2, 3], unit: 'rainbows seen' },
   { id: 'skate', icon: '⛸️', name: 'Skaters on the ice', tip: 'In winter a frozen lake near cottages draws skaters', tiers: [1, 2, 3], unit: 'skating spots' },

@@ -117,6 +117,23 @@ knot and thins out again, then at nightfall pours down in a stream into the tree
 rain, storms or the map view. With the sound on you hear the soft rush of their wings as the flock turns.
 (`screenshot-murmuration.png`: the murmuration at autumn dusk.)
 
+**Mill race**: a cottage a few steps back from a fast river (too far for a wheel of its own) doesn't give up.
+After it has watched the river run for a while (not in the rain), the miller digs a mill race: a short channel
+from a little wooden sluice upstream, past the cottage door and back down into the river further on. Small white
+stakes with red tips mark the line, and you can watch the miller at the head of the cut, spade going up and
+down and clods flying (with the sound on, a soft spade 'chuk'). The channel is real: the river runs through it,
+a wheel goes into it right by the door and turns, the cottage is happy with water at its doorstep, and the
+miller keeps the race clear when the banks slump. It never cuts through a house, and in the map view you see
+the sluice and the stakes too.
+(`screenshot-millrace.png`: the miller digging the race beside the river, stakes ahead.)
+
+**Butterflies**: on sunny days from spring to early autumn, butterflies flutter over the flower meadows. They
+bob along in a jittery little flight, settle on a flower for a few seconds with their wings slowly opening and
+closing, and then flutter on to the next one. There are cabbage whites with black wing tips, lemon-yellow
+brimstones, sky-blue common blues and orange tortoiseshells. They stay away in rain, storms and strong wind, at
+night and in late autumn and winter, and where there are no flowers. The more meadow in bloom, the more butterflies.
+(`screenshot-butterflies.png`: butterflies over a summer meadow.)
+
 **Snowmen**: when the snow reaches the village, little snowmen with red scarves and dark hats
 appear in the cottage gardens, and they melt with the snow in spring.
 
