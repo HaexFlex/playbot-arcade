@@ -1,0 +1,1289 @@
+<!doctype html>
+<html lang="de-CH">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Murmelbahn</title>
+<link rel="icon" href="../favicon.svg" type="image/svg+xml">
+<meta name="description" content="Eine hölzerne Murmelbahn zum Bauen. Rampen, ein Heberad, Glocken und Klangstäbe.">
+<meta name="theme-color" content="#3a2416">
+<style>
+html,body{margin:0;height:100%;background:#2a1810;overflow:hidden;font-family:system-ui,-apple-system,"Segoe UI",sans-serif;color:#f6efe4;-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent}
+canvas{display:block;width:100%;height:100%;touch-action:none}
+button{font:inherit;color:#f6efe4;background:rgba(255,236,210,.08);border:1px solid rgba(255,220,180,.16);border-radius:12px;cursor:pointer;touch-action:manipulation}
+button:focus-visible{outline:2px solid #f0d78c;outline-offset:2px}
+button.on{background:rgba(232,176,96,.38);border-color:rgba(255,214,150,.75)}
+#top{position:fixed;z-index:3;top:max(8px,env(safe-area-inset-top));left:max(8px,env(safe-area-inset-left));right:max(8px,env(safe-area-inset-right));display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:16px;background:rgba(42,24,16,.78);border:1px solid rgba(255,220,180,.14);backdrop-filter:blur(8px);box-sizing:border-box}
+#top strong{font-size:17px;letter-spacing:.01em;padding:0 4px}
+#count{margin-left:auto;font-size:13px;opacity:.9;white-space:nowrap}
+#top button{min-height:40px;padding:6px 10px;font-size:15px}
+#dock{position:fixed;z-index:3;left:max(8px,env(safe-area-inset-left));right:max(8px,env(safe-area-inset-right));bottom:max(8px,env(safe-area-inset-bottom));display:flex;flex-direction:column;gap:6px;padding:6px;border-radius:16px;background:rgba(42,24,16,.82);border:1px solid rgba(255,220,180,.14);backdrop-filter:blur(8px);box-sizing:border-box}
+#pal,#acts{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none}
+#pal::-webkit-scrollbar,#acts::-webkit-scrollbar{display:none}
+#pal button,#acts button{flex:none;min-height:44px;min-width:44px;padding:6px 8px;font-size:13px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;line-height:1.1}
+#pal button .mk{font-size:16px}
+#acts button{flex-direction:row;gap:6px;font-size:14px;padding:6px 10px}
+#hint{position:fixed;z-index:2;left:50%;bottom:calc(max(8px,env(safe-area-inset-bottom)) + 128px);transform:translateX(-50%);background:rgba(42,24,16,.72);border-radius:12px;padding:8px 12px;font-size:14px;max-width:min(460px,92vw);text-align:center;pointer-events:none;transition:opacity .6s}
+#hint.gone{opacity:0}
+#toast{position:fixed;z-index:5;left:50%;top:calc(max(8px,env(safe-area-inset-top)) + 64px);transform:translateX(-50%);background:rgba(42,24,16,.92);border:1px solid rgba(240,215,140,.4);border-radius:12px;padding:8px 14px;font-size:14px;pointer-events:none}
+#toast[hidden]{display:none}
+#exBox{position:fixed;z-index:6;left:50%;bottom:calc(max(8px,env(safe-area-inset-bottom)) + 124px);transform:translateX(-50%);width:min(360px,92vw);background:rgba(42,28,20,.96);border:1px solid rgba(255,220,180,.2);border-radius:16px;padding:12px;box-sizing:border-box}
+#exBox[hidden]{display:none}
+#exBox b{display:block;font-size:16px;margin-bottom:8px}
+#exBox button{display:block;width:100%;text-align:left;min-height:44px;margin-top:6px;padding:8px 10px}
+#exBox button small{display:block;opacity:.75;font-size:12px}
+@media (max-width:720px){
+  #top strong{font-size:15px}
+  #count{font-size:12px}
+}
+@media (max-width:520px){
+  #top{flex-wrap:wrap;row-gap:4px}
+  #top strong{font-size:14px;padding:0}
+  #top button{padding:6px 8px;font-size:14px}
+  #count{flex:1 0 100%;margin-left:0;text-align:right;white-space:normal}
+}
+@media (max-height:460px){
+  #hint{display:none}
+  #top{padding:3px 6px}
+  #top button,#pal button,#acts button{min-height:36px}
+  #dock{gap:4px;padding:4px}
+}
+</style>
+</head>
+<body>
+<canvas id="c" aria-label="Murmelbahn, eine Kugelbahn aus Holz. Im Bauen Teile setzen, im Spielen Murmeln laufen lassen."></canvas>
+<div id="top">
+  <strong>Murmelbahn</strong>
+  <button id="bBuild" type="button" aria-pressed="false">Bauen</button>
+  <button id="bPlay" type="button" aria-pressed="true">Spielen</button>
+  <button id="bSound" type="button" aria-pressed="false" aria-label="Ton ist aus. Tippen zum Einschalten" title="Ton (M)">Ton</button>
+  <div id="count"><span id="korb">Im Korb 0</span> · <span id="weg">unterwegs 0</span></div>
+</div>
+<div id="dock">
+  <div id="pal" role="toolbar" aria-label="Teile"></div>
+  <div id="acts" role="toolbar" aria-label="Aktionen">
+    <button id="bUndo" type="button" title="Rückgängig (Z)">Rückgängig</button>
+    <button id="bClear" type="button">Leeren</button>
+    <button id="bEx" type="button" aria-expanded="false">Beispiele</button>
+    <button id="bShare" type="button">Teilen</button>
+    <button id="bRate" type="button" title="Tempo der Murmeln">Takt</button>
+    <button id="bRot" type="button" title="Drehen (R)">Drehen</button>
+    <button id="bSize" type="button" title="Grösse der Glocke oder des Klangstabs">Grösse</button>
+    <button id="bDel" type="button" title="Entfernen">Entfernen</button>
+  </div>
+</div>
+<div id="hint" class="gone">Tippe ins Raster, um ein Teil zu setzen. Nochmals tippen wählt es. Drehen, Grösse und Entfernen gelten für die Auswahl.</div>
+<div id="toast" hidden role="status" aria-live="polite"></div>
+<div id="exBox" hidden role="dialog" aria-label="Beispiele">
+  <b>Beispiele</b>
+  <button type="button" data-ex="bach">Bach<small>Eine ruhige Treppe bis in den Korb</small></button>
+  <button type="button" data-ex="melodie">Melodie<small>Klangstäbe spielen eine kleine Weise</small></button>
+  <button type="button" data-ex="uhrwerk">Uhrwerk<small>Heberad, Spirale, Weiche, Wippe, Trampolin</small></button>
+  <button id="exClose" type="button">Schliessen</button>
+</div>
+<script>
+'use strict';
+(function () {
+  const COLS = 10, ROWS = 16;
+  const G = 18, SUB = 8, STEP = 1 / 60, SDT = STEP / SUB, MAXV = 12, MAXBALLS = 40;
+  const E_WOOD = 0.16, E_BALL = 0.1;
+  const KEY = 'playbot-murmelbahn-v1';
+  const RATES = [1.15, 0.75, 0.45, 0.28];
+  const RATE_NAME = ['Langsam', 'Mittel', 'Schnell', 'Rasch'];
+  const NOTES = ['C', 'D', 'E', 'G', 'A', 'C', 'D'];
+  const XYLO = [523.25, 587.33, 659.25, 783.99, 880, 1046.5, 1174.66];
+  const BELLF = [784, 659.25, 523.25, 440, 349.23, 293.66, 246.94];
+  const GLASS = [
+    ['#e24b4b', '#8d1e22', 1.05],
+    ['#3b7de0', '#1a3e86', 1.00],
+    ['#2fa36a', '#14643c', 0.92],
+    ['#e2a22e', '#8a5a10', 1.12],
+    ['#8b5ad0', '#4c2c82', 0.88],
+    ['#3aa8b8', '#1a5c68', 0.96],
+    ['#f4f7f8', '#8e9aa3', 0.84]
+  ];
+  const PARTS = [
+    ['s', 'Gerade', '╲'],
+    ['c', 'Kurve', '╰'],
+    ['f', 'Trichter', '▽'],
+    ['p', 'Spirale', '🌀'],
+    ['w', 'Wippe', '⚖'],
+    ['g', 'Glocke', '🔔'],
+    ['k', 'Klangstab', '🎵'],
+    ['h', 'Heberad', '⚙'],
+    ['e', 'Weiche', 'Y'],
+    ['t', 'Trampolin', '⤒'],
+    ['b', 'Korb', '⌂'],
+    ['d', 'Spender', '◉']
+  ];
+  const BAR_COL = ['#c45a3a', '#d07a32', '#e0a020', '#d6c15a', '#8aaa55', '#3d8b8b', '#3d6ea8'];
+
+  const canvas = document.getElementById('c');
+  const ctx = canvas.getContext('2d', { alpha: false });
+  const pal = document.getElementById('pal');
+  const $= (id) => document.getElementById(id);
+
+  let parts = [];
+  let balls = [];
+  let segsStatic = [];
+  let nextId = 1;
+  let mode = 'play';
+  let tool = 's';
+  let ghostRot = 0;
+  let ghostSize = 0;
+  let selected = 0;
+  let rate = 1;
+  let soundOn = false;
+  let basket = 0, lost = 0, nan = 0, deep = 0, tunnel = 0, spawned = 0;
+  let spawnAcc = 0, dispCursor = 0, spawnN = 0;
+  let undo = [];
+  let cell = 40, originX = 0, originY = 0, panX = 0, panY = 0, fitAll = true;
+  let hover = null;
+  let toastT = 0;
+  let hintT = 0;
+  let hintArmed = false;
+  function armHint() {
+    if (hintArmed) return;
+    hintArmed = true;
+    $('hint').classList.remove('gone');
+    hintT = 7;
+  }
+  function hideHint() {
+    hintT = 0;
+    const el = $('hint');
+    if (el) el.classList.add('gone');
+  }
+  let simAcc = 0, lastTs = 0;
+  let audio = null;
+  let rollAmp = 0;
+  const rings = [];
+  const sparks = [];
+  const pile = {};
+  const simTimes = [];
+  const frameTimes = [];
+
+  function baseSize(t) {
+    if (t === 'p') return [2, 2];
+    if (t === 'h') return [2, 3];
+    if (t === 'w' || t === 'b') return [2, 1];
+    return [1, 1];
+  }
+  function rotPoint(lx, ly, w, h, rot) {
+    let dx = lx - w / 2, dy = ly - h / 2;
+    const s = [0, 1, 0, -1][rot];
+    const c = [1, 0, -1, 0][rot];
+    const x = dx * c - dy * s;
+    const y = dx * s + dy * c;
+    const rw = rot % 2 ? h : w;
+    const rh = rot % 2 ? w : h;
+    return [x + rw / 2, y + rh / 2];
+  }
+  function toLocal(wx, wy, part) {
+    const [w, h] = baseSize(part.t);
+    const rw = part.r % 2 ? h : w;
+    const rh = part.r % 2 ? w : h;
+    let x = wx - part.x - rw / 2;
+    let y = wy - part.y - rh / 2;
+    for (let i = 0; i < part.r; i++) { const nx = y; y = -x; x = nx; }
+    return [x + w / 2, y + h / 2];
+  }
+  function cellsOf(p) {
+    const [w, h] = baseSize(p.t);
+    const out = [];
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+      const [rx, ry] = rotPoint(x + 0.5, y + 0.5, w, h, p.r);
+      out.push([p.x + Math.floor(rx + 1e-6), p.y + Math.floor(ry + 1e-6)]);
+    }
+    return out;
+  }
+  function inBoard(list) {
+    return list.every(([x, y]) => x >= 0 && y >= 0 && x < COLS && y < ROWS);
+  }
+  function occupied(list, ignore) {
+    for (const q of parts) {
+      if (q.id === ignore) continue;
+      for (const [x, y] of cellsOf(q)) {
+        for (const [a, b] of list) if (a === x && b === y) return true;
+      }
+    }
+    return false;
+  }
+  function make(t, x, y, r, s) {
+    return { id: nextId++, t, x, y, r: r || 0, s: s || 0, alt: 0, ang: 0, angVel: 0, phi: 0, omega: 1.05, ring: 0, boing: 0, _torque: 0 };
+  }
+
+  function addSeg(segs, p, x1, y1, x2, y2, side, opt) {
+    opt = opt || {};
+    const [w, h] = baseSize(p.t);
+    const [ax, ay] = rotPoint(x1, y1, w, h, p.r);
+    const [bx, by] = rotPoint(x2, y2, w, h, p.r);
+    const seg = {
+      x1: ax + p.x, y1: ay + p.y, x2: bx + p.x, y2: by + p.y,
+      e: opt.e != null ? opt.e : E_WOOD, tag: opt.tag || p.t, part: p, side
+    };
+    const dx = seg.x2 - seg.x1, dy = seg.y2 - seg.y1;
+    const len = Math.hypot(dx, dy) || 1;
+    let nx = -dy / len, ny = dx / len;
+    if (side === 'up' || side === 'down') {
+      if ((side === 'up' && ny > 0) || (side === 'down' && ny < 0)) { nx = -nx; ny = -ny; }
+    } else {
+      let px = side === 'right' ? 1 : -1, py = 0;
+      for (let i = 0; i < p.r; i++) { const npx = -py; py = px; px = npx; }
+      if (nx * px + ny * py < 0) { nx = -nx; ny = -ny; }
+    }
+    seg.nx = nx; seg.ny = ny;
+    segs.push(seg);
+    return seg;
+  }
+
+  function rebuild() {
+    const segs = [];
+    for (const p of parts) {
+      if (p.t === 's' || p.t === 'k' || p.t === 'g') {
+        addSeg(segs, p, -0.08, -0.08, 1.08, 1.08, 'up', { tag: p.t });
+      } else if (p.t === 'c') {
+        addSeg(segs, p, -0.06, -0.04, 0.5, 0.32, 'up', {});
+        addSeg(segs, p, 0.84, 0.02, 0.84, 1.02, 'left', {});
+        addSeg(segs, p, 0.7, 0.46, -0.12, 1.12, 'up', {});
+      } else if (p.t === 'f') {
+        addSeg(segs, p, 0.02, 0.0, 0.26, 0.98, 'right', {});
+        addSeg(segs, p, 0.98, 0.0, 0.74, 0.98, 'left', {});
+      } else if (p.t === 'p') {
+        addSeg(segs, p, 0.06, 0.22, 1.35, 0.58, 'up', {});
+        addSeg(segs, p, 1.9, 0.28, 1.9, 1.45, 'left', {});
+        addSeg(segs, p, 1.78, 1.05, 0.35, 1.55, 'up', {});
+        addSeg(segs, p, 0.15, 1.48, 1.7, 1.98, 'up', {});
+      } else if (p.t === 't') {
+        addSeg(segs, p, 0.08, 0.7, 0.92, 0.7, 'up', { e: 0.2, tag: 't' });
+      } else if (p.t === 'b') {
+        addSeg(segs, p, 0.08, 0.25, 0.08, 0.92, 'right', { tag: 'bwall' });
+        addSeg(segs, p, 1.92, 0.25, 1.92, 0.92, 'left', { tag: 'bwall' });
+        addSeg(segs, p, 0.08, 0.9, 1.92, 0.9, 'up', { tag: 'bfloor' });
+      } else if (p.t === 'e') {
+        addSeg(segs, p, 0.06, 0.42, 0.02, 0.98, 'right', {});
+        addSeg(segs, p, 0.94, 0.42, 0.98, 0.98, 'left', {});
+      } else if (p.t === 'h') {
+        addSeg(segs, p, 1.92, 0.1, 1.92, 2.5, 'left', {});
+        addSeg(segs, p, 1.18, 0.15, 1.18, 1.7, 'right', {});
+        addSeg(segs, p, 1.18, 2.2, 1.52, 2.58, 'up', { tag: 'cradle' });
+        addSeg(segs, p, 1.88, 2.2, 1.52, 2.58, 'up', { tag: 'cradle' });
+        addSeg(segs, p, 1.0, 0.38, -0.08, 1.2, 'up', { tag: 'hexit' });
+      }
+    }
+    segsStatic = segs;
+  }
+
+  function dynamicSegs(segs) {
+    for (const p of parts) {
+      if (p.t === 'w') {
+        const [w, h] = baseSize('w');
+        const ang = p.ang || 0;
+        const c = Math.cos(ang), s = Math.sin(ang);
+        const pts = [[1 - 0.92, 0.5], [1 + 0.92, 0.5]];
+        const world = pts.map(([lx, ly]) => {
+          const dx = lx - 1, dy = ly - 0.5;
+          const tx = dx * c - dy * s, ty = dx * s + dy * c;
+          const [rx, ry] = rotPoint(tx + 1, ty + 0.5, w, h, p.r);
+          return [rx + p.x, ry + p.y];
+        });
+        const seg = {
+          x1: world[0][0], y1: world[0][1], x2: world[1][0], y2: world[1][1],
+          e: 0.12, tag: 'w', part: p, seesaw: true
+        };
+        const [px, py] = rotPoint(1, 0.5, w, h, p.r);
+        seg.px = px + p.x; seg.py = py + p.y;
+        const dx = seg.x2 - seg.x1, dy = seg.y2 - seg.y1;
+        const len = Math.hypot(dx, dy) || 1;
+        let nx = -dy / len, ny = dx / len;
+        if (ny > 0) { nx = -nx; ny = -ny; }
+        seg.nx = nx; seg.ny = ny;
+        seg.av = p.angVel || 0;
+        segs.push(seg);
+      } else if (p.t === 'e') {
+        const alt = p.alt ? 1 : 0;
+        addSeg(segs, p, 0.5, 0.08, alt ? 0.78 : 0.22, 0.62, alt ? 'left' : 'right', { tag: 'flap' });
+      } else if (p.t === 'h') {
+        const [w, h] = baseSize('h');
+        const [ccx, ccy] = rotPoint(1, 1.45, w, h, p.r);
+        const cx = ccx + p.x, cy = ccy + p.y;
+        const R = 0.95;
+        const phi = p.phi || 0;
+        for (let i = 0; i < 4; i++) {
+          const a = phi + i * Math.PI / 2;
+          let na = a % (Math.PI * 2); if (na < 0) na += Math.PI * 2;
+          if (na < 0.2 || na > 2.85) continue;
+          const px = cx + Math.sin(a) * R, py = cy + Math.cos(a) * R;
+          const tx = Math.cos(a), ty = -Math.sin(a), len = 0.28;
+          const seg = {
+            x1: px - tx * len, y1: py - ty * len, x2: px + tx * len, y2: py + ty * len,
+            e: 0.05, tag: 'scoop', part: p, px: cx, py: cy, av: p.omega || 1.05
+          };
+          let ox = px - cx, oy = py - cy;
+          const L = Math.hypot(ox, oy) || 1;
+          ox /= L; oy /= L;
+          if (oy > 0) { ox = -ox; oy = -oy; }
+          seg.nx = ox; seg.ny = oy;
+          segs.push(seg);
+        }
+      }
+    }
+  }
+
+  function spawnAt(p) {
+    const i = spawnN++;
+    const g = GLASS[i % GLASS.length];
+    const m = g[2];
+    balls.push({
+      x: p.x + 0.5, y: p.y + 0.85,
+      vx: ((i % 5) - 2) * 0.05, vy: 0.15,
+      r: 0.148 + (m - 0.84) * 0.04,
+      m, id: i, ride: null, col: g[0], shade: g[1],
+      heard: null, flaps: null, clackT: 0
+    });
+    spawned++;
+  }
+
+  function collideSeg(b, seg) {
+    const abx = seg.x2 - seg.x1, aby = seg.y2 - seg.y1;
+    const len2 = abx * abx + aby * aby;
+    if (len2 < 1e-8) return;
+    const tRaw = ((b.x - seg.x1) * abx + (b.y - seg.y1) * aby) / len2;
+    let t = tRaw < 0 ? 0 : tRaw > 1 ? 1 : tRaw;
+    const qx = seg.x1 + abx * t, qy = seg.y1 + aby * t;
+    let dx = b.x - qx, dy = b.y - qy;
+    const d2 = dx * dx + dy * dy;
+    const r = b.r;
+    if (d2 > r * r) return;
+    let d = Math.sqrt(d2);
+    let nx, ny;
+    if (d > 1e-5) { nx = dx / d; ny = dy / d; }
+    else { nx = seg.nx; ny = seg.ny; d = 0; }
+    const align = nx * seg.nx + ny * seg.ny;
+    if (align < 0) return;
+    if (tRaw < 0.02 || tRaw > 0.98) return;
+    const pen = r - d;
+    if (pen > r * 0.85) deep++;
+    const corr = pen - 0.001;
+    if (corr > 0) { b.x += nx * corr; b.y += ny * corr; }
+    let pvx = 0, pvy = 0;
+    if (seg.av) {
+      const rx = qx - seg.px, ry = qy - seg.py;
+      pvx = seg.av * -ry;
+      pvy = seg.av * rx;
+    }
+    const rvx = b.vx - pvx, rvy = b.vy - pvy;
+    const vn = rvx * nx + rvy * ny;
+    if ((seg.tag === 'k' || seg.tag === 'g') && tRaw > 0.08 && tRaw < 0.92) {
+      b.heard = b.heard || {};
+      const sp = Math.hypot(b.vx, b.vy);
+      if (!b.heard[seg.part.id] && (sp > 0.45 || vn < -0.25)) {
+        b.heard[seg.part.id] = 1;
+        seg.part.ring = 1;
+        rings.push({ t: seg.tag, s: seg.part.s | 0 });
+        chime(seg.tag, seg.part.s | 0, Math.min(1, Math.max(0.45, sp * 0.22, -vn)));
+      }
+    }
+    if (vn < 0) {
+      let e = Math.abs(vn) < 0.45 ? 0 : seg.e;
+      if (seg.tag === 't') e = 0;
+      const jn = -(1 + e) * vn;
+      b.vx += jn * nx;
+      b.vy += jn * ny;
+      const tx = -ny, ty = nx;
+      const vt = (b.vx - pvx) * tx + (b.vy - pvy) * ty;
+      const damp = seg.tag === 'scoop' ? 0.35 : 0.006;
+      b.vx -= vt * tx * damp;
+      b.vy -= vt * ty * damp;
+      if (seg.tag === 't') {
+        const kick = 3.3;
+        b.vx += seg.nx * kick * 0.25;
+        b.vy += seg.ny * kick;
+        seg.part.boing = 1;
+        boing();
+      }
+      if (seg.seesaw) seg.part._torque = (seg.part._torque || 0) + (qx - seg.px) * b.m * G;
+      if (seg.tag === 'flap') {
+        b.flaps = b.flaps || {};
+        if (!b.flaps[seg.part.id]) {
+          b.flaps[seg.part.id] = 1;
+          seg.part.alt = seg.part.alt ? 0 : 1;
+        }
+      }
+      if (seg.tag !== 'scoop' && -vn > 0.9 && b.clackT <= 0) {
+        b.clackT = 0.07;
+        clack(-vn, seg.tag === 'g');
+        sparks.push({ x: qx, y: qy, life: 0.18 });
+      }
+      if (seg.side === 'up' || seg.tag === 'w' || seg.tag === 't' || seg.tag === 'k' || seg.tag === 's' || seg.tag === 'g') {
+        const sp = Math.hypot(b.vx, b.vy);
+        if (sp > rollAmp) rollAmp = sp;
+      }
+      b.hit = true;
+    }
+  }
+
+  function collideBalls(a, c) {
+    let dx = c.x - a.x, dy = c.y - a.y;
+    let d2 = dx * dx + dy * dy;
+    const rr = a.r + c.r;
+    if (d2 >= rr * rr) return;
+    if (d2 < 1e-10) { c.x += 0.01; dx = 0.01; dy = 0; d2 = 0.0001; }
+    const d = Math.sqrt(d2);
+    const nx = dx / d, ny = dy / d;
+    const pen = rr - d;
+    const inv = 1 / a.m + 1 / c.m;
+    const ca = (1 / a.m) / inv, cc = (1 / c.m) / inv;
+    a.x -= nx * pen * ca; a.y -= ny * pen * ca;
+    c.x += nx * pen * cc; c.y += ny * pen * cc;
+    const vn = (c.vx - a.vx) * nx + (c.vy - a.vy) * ny;
+    if (vn < 0) {
+      const e = Math.abs(vn) < 0.3 ? 0 : E_BALL;
+      const j = -(1 + e) * vn / inv;
+      a.vx -= j * nx / a.m; a.vy -= j * ny / a.m;
+      c.vx += j * nx / c.m; c.vy += j * ny / c.m;
+      if (-vn > 1.1 && a.clackT <= 0) { a.clackT = 0.05; clack(-vn * 0.7, false); }
+    }
+  }
+
+  function physics() {
+    for (const p of parts) p._torque = 0;
+    for (let s = 0; s < SUB; s++) {
+      for (const p of parts) {
+        if (p.t === 'h') p.phi = (p.phi || 0) + (p.omega || 1.05) * SDT;
+        if (p.t === 'w') {
+          const I = 1.4;
+          p.angVel = (p.angVel || 0) + ((p._torque || 0) / I) * SDT;
+          p.angVel += -(p.ang || 0) * 6 * SDT;
+          p.angVel *= Math.exp(-0.8 * SDT);
+          p.ang = (p.ang || 0) + p.angVel * SDT;
+          p._torque = 0;
+          const LIM = 0.42;
+          if (p.ang > LIM) { p.ang = LIM; if (p.angVel > 0) p.angVel *= -0.25; }
+          if (p.ang < -LIM) { p.ang = -LIM; if (p.angVel < 0) p.angVel *= -0.25; }
+        }
+      }
+      const segs = segsStatic.slice();
+      dynamicSegs(segs);
+      for (const b of balls) {
+        if (b.ride) continue;
+        b.vy += G * SDT;
+        b.vx *= (1 - 0.05 * SDT);
+        b.vy *= (1 - 0.05 * SDT);
+        const sp = Math.hypot(b.vx, b.vy);
+        if (sp > MAXV) { const k = MAXV / sp; b.vx *= k; b.vy *= k; }
+        b.x += b.vx * SDT;
+        b.y += b.vy * SDT;
+        if (b.clackT > 0) b.clackT -= SDT;
+      }
+      for (const b of balls) {
+        if (b.ride) {
+          const p = b.ride.p;
+          const [w, h] = baseSize('h');
+          const [ccx, ccy] = rotPoint(1, 1.45, w, h, p.r);
+          const cx = ccx + p.x, cy = ccy + p.y;
+          const a = (p.phi || 0) + b.ride.i * Math.PI / 2;
+          const R = 1.02;
+          b.x = cx + Math.sin(a) * R;
+          b.y = cy + Math.cos(a) * R;
+          const av = p.omega || 1.05;
+          b.vx = av * R * Math.cos(a);
+          b.vy = -av * R * Math.sin(a);
+          if ((p.r | 0) === 0 && b.y < cy - R * 0.55 && b.vx < -0.2 && b.x < cx + 0.15) {
+            b.ride = null;
+            b.x = p.x + 0.62;
+            b.y = p.y + 0.52;
+            b.vx = -2;
+            b.vy = 1.3;
+          }
+          continue;
+        }
+        const beforeX = b.x, beforeY = b.y;
+        for (const seg of segs) collideSeg(b, seg);
+        for (const seg of segs) {
+          if (!(seg.side === 'up' || seg.tag === 's' || seg.tag === 'k' || seg.tag === 'g' || seg.tag === 'hexit')) continue;
+          const abx = seg.x2 - seg.x1, aby = seg.y2 - seg.y1;
+          const len2 = abx * abx + aby * aby || 1;
+          const t1 = ((b.x - seg.x1) * abx + (b.y - seg.y1) * aby) / len2;
+          if (t1 < 0.15 || t1 > 0.85) continue;
+          const sd0 = (beforeX - seg.x1) * seg.nx + (beforeY - seg.y1) * seg.ny;
+          const sd1 = (b.x - seg.x1) * seg.nx + (b.y - seg.y1) * seg.ny;
+          if (sd0 > b.r && sd1 < -0.12) tunnel++;
+        }
+      }
+      for (let i = 0; i < balls.length; i++) {
+        const a = balls[i];
+        if (a.ride) continue;
+        for (let j = i + 1; j < balls.length; j++) {
+          if (!balls[j].ride) collideBalls(a, balls[j]);
+        }
+      }
+      for (let i = balls.length - 1; i >= 0; i--) {
+        const b = balls[i];
+        if (!Number.isFinite(b.x) || !Number.isFinite(b.y) || !Number.isFinite(b.vx) || !Number.isFinite(b.vy)) {
+          nan++; balls.splice(i, 1); continue;
+        }
+        if (!b.ride) {
+          let caught = null;
+          for (const seg of segsStatic) {
+            if (seg.tag !== 'bfloor') continue;
+            if (b.x > Math.min(seg.x1, seg.x2) - 0.2 && b.x < Math.max(seg.x1, seg.x2) + 0.2 &&
+                b.y > seg.y1 - 0.85 && b.y < seg.y1 + 0.2 && b.vy > -2) { caught = seg.part; break; }
+          }
+          if (caught) {
+            basket++;
+            const arr = pile[caught.id] || (pile[caught.id] = []);
+            arr.push(b.col);
+            if (arr.length > 10) arr.shift();
+            thud();
+            balls.splice(i, 1);
+            continue;
+          }
+          for (const p of parts) {
+            if (p.t !== 'h') continue;
+            const [lx, ly] = toLocal(b.x, b.y, p);
+            if (lx > 1.2 && lx < 1.9 && ly > 2.15 && ly < 2.75 && Math.hypot(b.vx, b.vy) < 6) {
+              let best = 0, bd = 99;
+              for (let k = 0; k < 4; k++) {
+                let pa = ((p.phi || 0) + k * Math.PI / 2) % (Math.PI * 2);
+                if (pa < 0) pa += Math.PI * 2;
+                const near = Math.min(pa, Math.PI * 2 - pa);
+                if (near < bd) { bd = near; best = k; }
+              }
+              if (bd < 0.35) b.ride = { p, i: best };
+            }
+          }
+        }
+        if (!b.ride && (b.y > ROWS + 3 || b.x < -2 || b.x > COLS + 2)) {
+          lost++; balls.splice(i, 1);
+        }
+      }
+    }
+  }
+
+  function tickSpawn() {
+    if (mode !== 'play') return;
+    spawnAcc += STEP;
+    if (spawnAcc < RATES[rate]) return;
+    spawnAcc = 0;
+    const ds = [];
+    for (const p of parts) if (p.t === 'd') ds.push(p);
+    if (!ds.length || balls.length >= MAXBALLS) return;
+    spawnAt(ds[dispCursor % ds.length]);
+    dispCursor++;
+  }
+
+  function frameSim() {
+    if (mode !== 'play') return;
+    tickSpawn();
+    rollAmp = 0;
+    physics();
+    if (audio && soundOn && audio.roll) {
+      const g = Math.min(0.22, rollAmp * 0.012);
+      audio.roll.gain.setTargetAtTime(g, audio.ctx.currentTime, 0.05);
+    }
+  }
+
+  function resetRun() {
+    balls = [];
+    basket = 0; lost = 0; nan = 0; deep = 0; tunnel = 0; spawned = 0;
+    spawnAcc = 0; spawnN = 0;
+    for (const k in pile) delete pile[k];
+    for (const p of parts) {
+      p.ang = 0; p.angVel = 0; p.phi = 0; p.alt = 0; p._torque = 0; p.ring = 0; p.boing = 0;
+    }
+    rings.length = 0;
+  }
+
+  function ser(list) {
+    const rows = list.map(p => p.t + p.x + '.' + p.y + '.' + (p.r | 0) + '.' + (p.s | 0));
+    rows.sort();
+    return 'v1r' + rate + '~' + rows.join('~');
+  }
+  function hashNow() { return ser(parts); }
+  function parseHash(h) {
+    h = (h || '').replace(/^#/, '');
+    if (!h.startsWith('v1')) return null;
+    const bits = h.split('~');
+    const head = bits[0];
+    const r = /^v1r(\d)$/.exec(head);
+    const ri = r ? +r[1] : 1;
+    const list = [];
+    for (let i = 1; i < bits.length; i++) {
+      const tok = bits[i];
+      if (!tok) continue;
+      const t = tok[0];
+      const rest = tok.slice(1).split('.');
+      if (rest.length < 4) continue;
+      list.push({ t, x: +rest[0], y: +rest[1], r: +rest[2], s: +rest[3] });
+    }
+    return { rate: ri, list };
+  }
+  function applyList(list, ri, pushUndoFirst) {
+    if (pushUndoFirst && parts.length) undo.push(hashNow());
+    if (undo.length > 50) undo.shift();
+    parts = list.map(p => make(p.t, p.x | 0, p.y | 0, p.r | 0, p.s | 0));
+    rate = Math.max(0, Math.min(3, ri | 0));
+    selected = 0;
+    resetRun();
+    rebuild();
+    save();
+    syncUI();
+  }
+  function save() {
+    try {
+      const slim = parts.map(p => ({ t: p.t, x: p.x, y: p.y, r: p.r, s: p.s }));
+      localStorage.setItem(KEY, JSON.stringify({ v: 1, rate, parts: slim }));
+    } catch (e) { /* private mode */ }
+  }
+  function snapshot() { undo.push(hashNow()); if (undo.length > 50) undo.shift(); }
+
+  const EX = {
+    bach: { rate: 1, p: [
+      ['d', 1, 0, 0, 0],
+      ['s', 1, 1, 0, 0], ['s', 2, 2, 0, 0], ['s', 3, 3, 0, 0], ['s', 4, 4, 0, 0], ['s', 5, 5, 0, 0],
+      ['c', 6, 6, 0, 0],
+      ['s', 5, 7, 1, 0], ['s', 4, 8, 1, 0], ['s', 3, 9, 1, 0], ['s', 2, 10, 1, 0],
+      ['b', 1, 11, 0, 0]
+    ]},
+    melodie: { rate: 0, p: [
+      ['d', 1, 0, 0, 0],
+      ['k', 1, 1, 0, 0], ['k', 2, 2, 0, 1], ['k', 3, 3, 0, 2], ['k', 4, 4, 0, 3], ['k', 5, 5, 0, 4],
+      ['c', 6, 6, 0, 0],
+      ['k', 5, 7, 1, 4], ['k', 4, 8, 1, 3], ['k', 3, 9, 1, 2],
+      ['g', 2, 10, 1, 1],
+      ['b', 1, 11, 0, 0]
+    ]},
+    uhrwerk: { rate: 0, p: [
+      ['d', 6, 0, 0, 0], ['f', 6, 1, 0, 0], ['h', 5, 2, 0, 0],
+      ['s', 4, 3, 1, 0], ['g', 3, 4, 1, 1], ['k', 2, 5, 1, 4], ['b', 1, 6, 0, 0],
+      ['d', 0, 9, 0, 0], ['p', 0, 10, 0, 0], ['b', 0, 12, 0, 0],
+      ['d', 8, 0, 0, 0], ['s', 8, 1, 0, 0], ['e', 9, 2, 0, 0],
+      ['w', 7, 4, 0, 0], ['t', 8, 6, 0, 0], ['b', 8, 7, 0, 0]
+    ]}
+  };
+  function loadExample(name) {
+    const ex = EX[name];
+    if (!ex) return;
+    applyList(ex.p.map(p => ({ t: p[0], x: p[1], y: p[2], r: p[3], s: p[4] })), ex.rate, true);
+    mode = 'play';
+    syncUI();
+    toast('Beispiel: ' + (name === 'bach' ? 'Bach' : name === 'melodie' ? 'Melodie' : 'Uhrwerk'));
+  }
+  function loadHash(h) {
+    const parsed = parseHash(h);
+    if (!parsed) return false;
+    applyList(parsed.list, parsed.rate, false);
+    return true;
+  }
+
+  function toast(msg) {
+    const el = $('toast');
+    el.hidden = false;
+    el.textContent = msg;
+    toastT = 2.2;
+  }
+  function syncUI() {
+    $('bBuild').classList.toggle('on', mode === 'build');
+    $('bPlay').classList.toggle('on', mode === 'play');
+    $('bBuild').setAttribute('aria-pressed', mode === 'build' ? 'true' : 'false');
+    $('bPlay').setAttribute('aria-pressed', mode === 'play' ? 'true' : 'false');
+    $('bSound').classList.toggle('on', soundOn);
+    $('bSound').setAttribute('aria-pressed', soundOn ? 'true' : 'false');
+    $('bSound').setAttribute('aria-label', soundOn ? 'Ton ist ein. Tippen zum Ausschalten' : 'Ton ist aus. Tippen zum Einschalten');
+    $('bSound').textContent = soundOn ? 'Ton an' : 'Ton';
+    $('bRate').textContent = 'Takt: ' + RATE_NAME[rate];
+    $('korb').textContent = 'Im Korb ' + basket;
+    $('weg').textContent = 'unterwegs ' + balls.length;
+    for (const btn of pal.children) btn.classList.toggle('on', btn.dataset.t === tool);
+  }
+
+  function placeAt(cx, cy) {
+    const ghost = { t: tool, x: cx, y: cy, r: ghostRot, s: ghostSize };
+    const cells = cellsOf(ghost);
+    if (!inBoard(cells)) { toast('Kein Platz hier'); return; }
+    const hit = parts.find(q => cellsOf(q).some(([x, y]) => x === cx && y === cy));
+    if (hit) { selected = hit.id; return; }
+    if (occupied(cells, 0)) { toast('Kein Platz hier'); return; }
+    snapshot();
+    parts.push(make(tool, cx, cy, ghostRot, (tool === 'k' || tool === 'g') ? ghostSize : 0));
+    selected = parts[parts.length - 1].id;
+    rebuild();
+    save();
+    hideHint();
+  }
+  function rotateSel() {
+    const p = parts.find(q => q.id === selected);
+    if (!p) { ghostRot = (ghostRot + 1) % 4; toast('Nächstes Teil: Drehung ' + (ghostRot * 90)); return; }
+    const nr = (p.r + 1) % 4;
+    const cells = cellsOf({ t: p.t, x: p.x, y: p.y, r: nr });
+    if (!inBoard(cells) || occupied(cells, p.id)) { toast('Kein Platz hier'); return; }
+    snapshot();
+    p.r = nr;
+    rebuild();
+    save();
+  }
+  function sizeSel() {
+    const p = parts.find(q => q.id === selected);
+    if (!p || (p.t !== 'k' && p.t !== 'g')) {
+      ghostSize = (ghostSize + 1) % 7;
+      toast('Grösse ' + (ghostSize + 1) + ' · Ton ' + NOTES[ghostSize]);
+      return;
+    }
+    snapshot();
+    p.s = ((p.s | 0) + 1) % 7;
+    rebuild();
+    save();
+    toast((p.t === 'g' ? 'Glocke ' : 'Klangstab ') + NOTES[p.s]);
+  }
+  function deleteSel() {
+    const i = parts.findIndex(q => q.id === selected);
+    if (i < 0) { toast('Nichts gewählt'); return; }
+    snapshot();
+    parts.splice(i, 1);
+    selected = 0;
+    rebuild();
+    save();
+  }
+  function undoAct() {
+    const prev = undo.pop();
+    if (!prev) { toast('Nichts zum Rückgängigmachen'); return; }
+    const parsed = parseHash(prev);
+    if (!parsed) return;
+    applyList(parsed.list, parsed.rate, false);
+  }
+  function clearAll() {
+    if (!parts.length) return;
+    snapshot();
+    parts = [];
+    selected = 0;
+    resetRun();
+    rebuild();
+    save();
+    toast('Geleert');
+  }
+
+  function ensureAudio() {
+    if (audio) return;
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    if (!Ctx) return;
+    const ctxA = new Ctx();
+    const master = ctxA.createGain();
+    master.gain.value = 0.42;
+    const comp = ctxA.createDynamicsCompressor();
+    comp.threshold.value = -16;
+    comp.ratio.value = 3;
+    master.connect(comp).connect(ctxA.destination);
+    const len = ctxA.sampleRate;
+    const buf = ctxA.createBuffer(1, len, ctxA.sampleRate);
+    const data = buf.getChannelData(0);
+    let n = 0;
+    for (let i = 0; i < len; i++) {
+      n = (n + 0.02 * (Math.random() * 2 - 1)) / 1.02;
+      data[i] = n * 3.2;
+    }
+    const src = ctxA.createBufferSource();
+    src.buffer = buf; src.loop = true;
+    const bp = ctxA.createBiquadFilter();
+    bp.type = 'bandpass'; bp.frequency.value = 420; bp.Q.value = 0.8;
+    const roll = ctxA.createGain(); roll.gain.value = 0;
+    src.connect(bp).connect(roll).connect(master);
+    src.start();
+    audio = { ctx: ctxA, master, roll };
+  }
+  function envGain(dur, peak) {
+    if (!audio || !soundOn) return null;
+    const g = audio.ctx.createGain();
+    const t = audio.ctx.currentTime;
+    g.gain.setValueAtTime(peak, t);
+    g.gain.exponentialRampToValueAtTime(0.0008, t + dur);
+    g.connect(audio.master);
+    return { g, t };
+  }
+  function clack(speed, metal) {
+    const eg = envGain(metal ? 0.12 : 0.07, Math.min(0.35, 0.05 + speed * 0.04));
+    if (!eg) return;
+    const o = audio.ctx.createOscillator();
+    o.type = metal ? 'square' : 'triangle';
+    o.frequency.setValueAtTime(metal ? 520 : 160 + speed * 28, eg.t);
+    o.frequency.exponentialRampToValueAtTime(metal ? 220 : 90, eg.t + 0.06);
+    o.connect(eg.g); o.start(eg.t); o.stop(eg.t + 0.1);
+  }
+  function chime(tag, size, amp) {
+    const eg = envGain(tag === 'g' ? 1.1 : 0.55, Math.min(0.28, 0.08 + amp * 0.12));
+    if (!eg) return;
+    if (tag === 'g') {
+      const f = BELLF[size] || 440;
+      [1, 2.01, 2.76, 4.2].forEach((partial, i) => {
+        const o = audio.ctx.createOscillator();
+        const g = audio.ctx.createGain();
+        o.type = 'sine';
+        o.frequency.value = f * partial;
+        g.gain.setValueAtTime((0.5 / (i + 1)) * Math.min(0.3, 0.08 + amp * 0.1), eg.t);
+        g.gain.exponentialRampToValueAtTime(0.0008, eg.t + 1.0 - i * 0.15);
+        o.connect(g).connect(audio.master);
+        o.start(eg.t); o.stop(eg.t + 1.15);
+      });
+    } else {
+      const f = XYLO[size] || 523;
+      const o = audio.ctx.createOscillator();
+      o.type = 'sine';
+      o.frequency.value = f;
+      o.connect(eg.g); o.start(eg.t); o.stop(eg.t + 0.6);
+      const o2 = audio.ctx.createOscillator();
+      const g2 = audio.ctx.createGain();
+      o2.type = 'triangle';
+      o2.frequency.value = f * 3;
+      g2.gain.setValueAtTime(0.04, eg.t);
+      g2.gain.exponentialRampToValueAtTime(0.0008, eg.t + 0.2);
+      o2.connect(g2).connect(audio.master);
+      o2.start(eg.t); o2.stop(eg.t + 0.25);
+    }
+  }
+  function boing() {
+    const eg = envGain(0.22, 0.12);
+    if (!eg) return;
+    const o = audio.ctx.createOscillator();
+    o.type = 'sine';
+    o.frequency.setValueAtTime(220, eg.t);
+    o.frequency.exponentialRampToValueAtTime(90, eg.t + 0.18);
+    o.connect(eg.g); o.start(eg.t); o.stop(eg.t + 0.22);
+  }
+  function thud() {
+    const eg = envGain(0.12, 0.16);
+    if (!eg) return;
+    const o = audio.ctx.createOscillator();
+    o.type = 'sine';
+    o.frequency.setValueAtTime(140, eg.t);
+    o.frequency.exponentialRampToValueAtTime(60, eg.t + 0.1);
+    o.connect(eg.g); o.start(eg.t); o.stop(eg.t + 0.12);
+  }
+
+  function layout() {
+    const topH = $('top').offsetHeight + 10;
+    const botH = $('dock').offsetHeight + 10;
+    const aw = window.innerWidth, ah = window.innerHeight - topH - botH;
+    let c = Math.min((aw - 16) / COLS, (ah - 12) / ROWS);
+    fitAll = c >= 26;
+    if (!fitAll) c = Math.max(28, Math.min((aw - 16) / COLS, 52));
+    cell = c;
+    const bw = COLS * cell, bh = ROWS * cell;
+    if (fitAll) {
+      panX = 0; panY = 0;
+      originX = (aw - bw) / 2;
+      originY = topH + Math.max(0, (ah - bh) / 2);
+    } else {
+      const maxX = Math.max(0, bw - aw + 16);
+      const maxY = Math.max(0, bh - ah + 8);
+      panX = Math.max(0, Math.min(maxX, panX));
+      panY = Math.max(0, Math.min(maxY, panY));
+      originX = 8 - panX;
+      originY = topH - panY;
+    }
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    canvas.width = Math.round(aw * dpr);
+    canvas.height = Math.round(window.innerHeight * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+
+  function sx(x) { return originX + x * cell; }
+  function sy(y) { return originY + y * cell; }
+
+  function roundRect(x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + w, y, x + w, y + h, r);
+    ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r);
+    ctx.arcTo(x, y, x + w, y, r);
+    ctx.closePath();
+  }
+
+  function draw() {
+    const W = window.innerWidth, H = window.innerHeight;
+    ctx.fillStyle = '#2a1810';
+    ctx.fillRect(0, 0, W, H);
+    const bw = COLS * cell, bh = ROWS * cell;
+    ctx.save();
+    roundRect(originX - 10, originY - 10, bw + 20, bh + 20, 16);
+    ctx.fillStyle = '#6b3e22';
+    ctx.fill();
+    roundRect(originX, originY, bw, bh, 10);
+    const wood = ctx.createLinearGradient(originX, originY, originX, originY + bh);
+    wood.addColorStop(0, '#f0d7a4');
+    wood.addColorStop(1, '#e2bc82');
+    ctx.fillStyle = wood;
+    ctx.fill();
+    ctx.clip();
+    ctx.fillStyle = '#8a5a32';
+    const peg = Math.max(1.2, cell * 0.035);
+    for (let y = 0; y <= ROWS; y += 0.5) {
+      for (let x = 0; x <= COLS; x += 0.5) {
+        ctx.beginPath();
+        ctx.arc(sx(x), sy(y), peg, 0, 7);
+        ctx.fill();
+      }
+    }
+    ctx.fillStyle = 'rgba(255,236,210,.55)';
+    for (let y = 0; y <= ROWS; y += 0.5) {
+      for (let x = 0; x <= COLS; x += 0.5) {
+        ctx.beginPath();
+        ctx.arc(sx(x) - peg * 0.3, sy(y) - peg * 0.3, peg * 0.35, 0, 7);
+        ctx.fill();
+      }
+    }
+    const segs = segsStatic.slice();
+    dynamicSegs(segs);
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.lineWidth = cell * 0.15;
+    for (const seg of segs) {
+      if (seg.tag === 'scoop' || seg.tag === 'bfloor' || seg.tag === 'bwall') continue;
+      ctx.strokeStyle = seg.tag === 'k' ? BAR_COL[(seg.part.s | 0) % 7] : seg.tag === 't' ? '#b94b3a' : seg.tag === 'flap' ? '#6e4424' : '#a86b38';
+      if (seg.tag === 'k') ctx.lineWidth = cell * (0.2 - (seg.part.s | 0) * 0.012);
+      else if (seg.tag === 't') ctx.lineWidth = cell * (0.12 + (1 - (seg.part.boing || 0)) * 0.06);
+      else ctx.lineWidth = cell * 0.15;
+      ctx.beginPath();
+      ctx.moveTo(sx(seg.x1), sy(seg.y1));
+      ctx.lineTo(sx(seg.x2), sy(seg.y2));
+      ctx.stroke();
+    }
+    ctx.strokeStyle = 'rgba(255,228,190,.4)';
+    ctx.lineWidth = cell * 0.04;
+    ctx.beginPath();
+    for (const seg of segs) {
+      if (seg.tag === 'scoop' || seg.tag === 'bfloor' || seg.tag === 'bwall' || seg.tag === 'k') continue;
+      ctx.moveTo(sx(seg.x1), sy(seg.y1));
+      ctx.lineTo(sx(seg.x2), sy(seg.y2));
+    }
+    ctx.stroke();
+    for (const p of parts) drawDecor(p);
+    if (mode === 'build' && hover) drawGhost(hover[0], hover[1]);
+    for (let i = sparks.length - 1; i >= 0; i--) {
+      const s = sparks[i];
+      s.life -= 1 / 60;
+      if (s.life <= 0) { sparks.splice(i, 1); continue; }
+      ctx.globalAlpha = Math.max(0, s.life * 4);
+      ctx.fillStyle = '#f0d78c';
+      ctx.beginPath();
+      ctx.arc(sx(s.x), sy(s.y), cell * 0.05, 0, 7);
+      ctx.fill();
+      ctx.globalAlpha = 1;
+    }
+    for (const b of balls) drawBall(b);
+    if (selected) {
+      const p = parts.find(q => q.id === selected);
+      if (p) {
+        ctx.strokeStyle = '#f0d78c';
+        ctx.lineWidth = 2;
+        ctx.setLineDash([5, 4]);
+        for (const [x, y] of cellsOf(p)) {
+          ctx.strokeRect(sx(x) + 2, sy(y) + 2, cell - 4, cell - 4);
+        }
+        ctx.setLineDash([]);
+      }
+    }
+    ctx.restore();
+    for (const p of parts) if (p.ring > 0 || p.boing > 0) {
+      p.ring = Math.max(0, p.ring - 0.02);
+      p.boing = Math.max(0, p.boing - 0.04);
+    }
+  }
+
+  function drawDecor(p) {
+    if (p.t === 'd') {
+      const x = sx(p.x + 0.5), y = sy(p.y + 0.15);
+      ctx.fillStyle = '#7a4a28';
+      roundRect(x - cell * 0.28, y, cell * 0.56, cell * 0.42, 6);
+      ctx.fill();
+      ctx.fillStyle = '#d7ecf4';
+      roundRect(x - cell * 0.1, y + cell * 0.36, cell * 0.2, cell * 0.4, 3);
+      ctx.fill();
+    } else if (p.t === 'b') {
+      const [w, h] = baseSize('b');
+      const rw = p.r % 2 ? h : w, rh = p.r % 2 ? w : h;
+      const x = sx(p.x), y = sy(p.y);
+      ctx.fillStyle = '#6b3a22';
+      roundRect(x + cell * 0.08, y + cell * 0.28, cell * (rw - 0.16), cell * (rh - 0.32), 8);
+      ctx.fill();
+      ctx.strokeStyle = '#c98956';
+      ctx.lineWidth = 2;
+      for (let i = 0; i < 4; i++) {
+        const yy = y + cell * (0.4 + i * 0.12);
+        ctx.beginPath();
+        ctx.moveTo(x + cell * 0.16, yy);
+        ctx.lineTo(x + cell * (rw - 0.16), yy);
+        ctx.stroke();
+      }
+      const dots = pile[p.id] || [];
+      dots.forEach((col, i) => {
+        ctx.fillStyle = col;
+        ctx.beginPath();
+        ctx.arc(x + cell * (0.35 + (i % 5) * 0.28), y + cell * (rh - 0.28 - Math.floor(i / 5) * 0.18), cell * 0.07, 0, 7);
+        ctx.fill();
+      });
+    } else if (p.t === 'h') {
+      const [w, h] = baseSize('h');
+      const [ccx, ccy] = rotPoint(1, 1.45, w, h, p.r);
+      const cx = sx(ccx + p.x), cy = sy(ccy + p.y);
+      const R = cell * 1.05;
+      ctx.beginPath();
+      ctx.arc(cx, cy, R, 0, 7);
+      ctx.fillStyle = '#c4894f';
+      ctx.fill();
+      ctx.lineWidth = cell * 0.08;
+      ctx.strokeStyle = '#6b3e22';
+      ctx.stroke();
+      ctx.strokeStyle = '#f0d2a4';
+      ctx.lineWidth = 2;
+      const phi = p.phi || 0;
+      for (let i = 0; i < 4; i++) {
+        const a = phi + i * Math.PI / 2;
+        ctx.beginPath();
+        ctx.moveTo(cx, cy);
+        ctx.lineTo(cx + Math.sin(a) * R * 0.92, cy + Math.cos(a) * R * 0.92);
+        ctx.stroke();
+        ctx.fillStyle = '#6b3e22';
+        ctx.beginPath();
+        ctx.arc(cx + Math.sin(a) * R * 0.78, cy + Math.cos(a) * R * 0.78, cell * 0.1, 0, 7);
+        ctx.fill();
+      }
+      ctx.fillStyle = '#d5dde2';
+      ctx.beginPath();
+      ctx.arc(cx, cy, cell * 0.14, 0, 7);
+      ctx.fill();
+    } else if (p.t === 'g') {
+      const rad = cell * (0.16 + (p.s | 0) * 0.025);
+      const x = sx(p.x + 0.62), y = sy(p.y + 0.28);
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.rotate(Math.sin((1 - (p.ring || 0)) * 12) * (p.ring || 0) * 0.4);
+      ctx.fillStyle = p.ring > 0.2 ? '#f0d78c' : '#e6c15a';
+      ctx.beginPath();
+      ctx.arc(0, 0, rad, Math.PI, 0);
+      ctx.quadraticCurveTo(rad * 0.4, rad * 0.3, 0, rad * 0.15);
+      ctx.quadraticCurveTo(-rad * 0.4, rad * 0.3, -rad, 0);
+      ctx.fill();
+      ctx.fillStyle = '#6b3e22';
+      ctx.fillRect(-2, rad * 0.1, 4, rad * 0.45);
+      ctx.restore();
+    } else if (p.t === 'w') {
+      const [w, h] = baseSize('w');
+      const [px, py] = rotPoint(1, 0.5, w, h, p.r);
+      ctx.fillStyle = '#6b3e22';
+      ctx.beginPath();
+      ctx.moveTo(sx(px + p.x), sy(py + p.y) + cell * 0.16);
+      ctx.lineTo(sx(px + p.x) - cell * 0.14, sy(py + p.y) + cell * 0.34);
+      ctx.lineTo(sx(px + p.x) + cell * 0.14, sy(py + p.y) + cell * 0.34);
+      ctx.fill();
+    } else if (p.t === 't') {
+      ctx.fillStyle = '#5c3018';
+      ctx.fillRect(sx(p.x + 0.1), sy(p.y + 0.62), cell * 0.08, cell * 0.28);
+      ctx.fillRect(sx(p.x + 0.82), sy(p.y + 0.62), cell * 0.08, cell * 0.28);
+    } else if (p.t === 'k' && mode === 'build') {
+      ctx.fillStyle = '#3a2416';
+      ctx.font = Math.max(10, cell * 0.28) + 'px system-ui,sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(NOTES[p.s | 0] || '', sx(p.x + 0.5), sy(p.y + 0.28));
+    } else if (p.t === 'e') {
+      ctx.fillStyle = p.alt ? '#f0d78c' : '#c98956';
+      ctx.beginPath();
+      ctx.arc(sx(p.x + 0.5), sy(p.y + 0.12), cell * 0.06, 0, 7);
+      ctx.fill();
+    }
+  }
+
+  function drawGhost(cx, cy) {
+    const ghost = { t: tool, x: cx, y: cy, r: ghostRot, s: ghostSize };
+    const cells = cellsOf(ghost);
+    ctx.globalAlpha = 0.45;
+    ctx.fillStyle = inBoard(cells) && !occupied(cells, 0) ? '#f0d78c' : '#e24b4b';
+    for (const [x, y] of cells) ctx.fillRect(sx(x) + 3, sy(y) + 3, cell - 6, cell - 6);
+    ctx.globalAlpha = 1;
+  }
+
+  function drawBall(b) {
+    const x = sx(b.x), y = sy(b.y), r = b.r * cell;
+    ctx.fillStyle = 'rgba(40,18,8,.28)';
+    ctx.beginPath();
+    ctx.ellipse(x + r * 0.15, y + r * 0.55, r * 0.75, r * 0.32, 0, 0, 7);
+    ctx.fill();
+    const g = ctx.createRadialGradient(x - r * 0.35, y - r * 0.4, r * 0.08, x, y, r);
+    g.addColorStop(0, '#ffffff');
+    g.addColorStop(0.28, b.col);
+    g.addColorStop(1, b.shade);
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, 7);
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,.45)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.arc(x - r * 0.28, y - r * 0.32, r * 0.22, 0, 7);
+    ctx.stroke();
+  }
+
+  function bootUI() {
+    for (const [t, name, mk] of PARTS) {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.dataset.t = t;
+      b.innerHTML = '<span class="mk" aria-hidden="true">' + mk + '</span><span>' + name + '</span>';
+      b.setAttribute('aria-label', name);
+      b.addEventListener('click', () => { tool = t; selected = 0; syncUI(); });
+      pal.appendChild(b);
+    }
+    $('bBuild').onclick = () => { mode = 'build'; resetRun(); syncUI(); armHint(); };
+    $('bPlay').onclick = () => { mode = 'play'; resetRun(); syncUI(); hideHint(); };
+    $('bSound').onclick = () => {
+      soundOn = !soundOn;
+      if (soundOn) {
+        ensureAudio();
+        if (audio && audio.ctx.state === 'suspended') audio.ctx.resume();
+      } else if (audio) audio.roll.gain.setTargetAtTime(0, audio.ctx.currentTime, 0.05);
+      syncUI();
+    };
+    $('bUndo').onclick = undoAct;
+    $('bClear').onclick = clearAll;
+    $('bEx').onclick = () => {
+      const box = $('exBox');
+      box.hidden = !box.hidden;
+      $('bEx').setAttribute('aria-expanded', box.hidden ? 'false' : 'true');
+    };
+    $('exClose').onclick = () => { $('exBox').hidden = true; $('bEx').setAttribute('aria-expanded', 'false'); };
+    $('exBox').addEventListener('click', (e) => {
+      const btn = e.target.closest('[data-ex]');
+      if (!btn) return;
+      loadExample(btn.dataset.ex);
+      $('exBox').hidden = true;
+    });
+    $('bShare').onclick = async () => {
+      const h = hashNow();
+      const url = location.origin + location.pathname + '#' + h;
+      try { history.replaceState(null, '', '#' + h); } catch (e) { location.hash = h; }
+      try {
+        await navigator.clipboard.writeText(url);
+        toast('Link kopiert');
+      } catch (e) {
+        toast('Link steht in der Adresszeile');
+      }
+    };
+    $('bRate').onclick = () => { rate = (rate + 1) % 4; save(); syncUI(); toast('Takt: ' + RATE_NAME[rate]); };
+    $('bRot').onclick = rotateSel;
+    $('bSize').onclick = sizeSel;
+    $('bDel').onclick = deleteSel;
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'm' || e.key === 'M') $('bSound').click();
+      else if (e.key === 'z' || e.key === 'Z' || (e.key === 'z' && (e.metaKey || e.ctrlKey))) undoAct();
+      else if (e.key === ' ') { e.preventDefault(); mode = mode === 'play' ? 'build' : 'play'; if (mode === 'build') armHint(); else hideHint(); resetRun(); syncUI(); }
+      else if (e.key === 'r' || e.key === 'R') rotateSel();
+      else if (e.key === 'Backspace' || e.key === 'Delete') deleteSel();
+      else if (e.key === 'Escape') $('exBox').hidden = true;
+    });
+    let ptr = null;
+    canvas.addEventListener('pointerdown', (e) => {
+      canvas.setPointerCapture(e.pointerId);
+      ptr = { id: e.pointerId, x: e.clientX, y: e.clientY, pan: false, px: panX, py: panY };
+    });
+    canvas.addEventListener('pointermove', (e) => {
+      const wx = (e.clientX - originX) / cell, wy = (e.clientY - originY) / cell;
+      const cx = Math.floor(wx), cy = Math.floor(wy);
+      if (mode === 'build' && cx >= 0 && cy >= 0 && cx < COLS && cy < ROWS) hover = [cx, cy];
+      else hover = null;
+      if (!ptr || e.pointerId !== ptr.id) return;
+      const dx = e.clientX - ptr.x, dy = e.clientY - ptr.y;
+      if (!ptr.pan && dx * dx + dy * dy > 64) ptr.pan = true;
+      if (ptr.pan && !fitAll) { panX = ptr.px - dx; panY = ptr.py - dy; layout(); }
+    });
+    canvas.addEventListener('pointerup', (e) => {
+      if (!ptr || e.pointerId !== ptr.id) return;
+      if (!ptr.pan && mode === 'build') {
+        const wx = (e.clientX - originX) / cell, wy = (e.clientY - originY) / cell;
+        const cx = Math.floor(wx), cy = Math.floor(wy);
+        if (cx >= 0 && cy >= 0 && cx < COLS && cy < ROWS) placeAt(cx, cy);
+      }
+      ptr = null;
+    });
+    canvas.addEventListener('pointercancel', () => { ptr = null; });
+    canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+    window.addEventListener('resize', layout);
+  }
+
+  function loop(ts) {
+    const t0 = performance.now();
+    if (!lastTs) lastTs = ts;
+    let dt = Math.min(0.05, (ts - lastTs) / 1000);
+    lastTs = ts;
+    frameTimes.push(dt * 1000);
+    if (frameTimes.length > 120) frameTimes.shift();
+    if (toastT > 0) {
+      toastT -= dt;
+      if (toastT <= 0) $('toast').hidden = true;
+    }
+    if (hintT > 0) {
+      hintT -= dt;
+      if (hintT <= 0) $('hint').classList.add('gone');
+    }
+    simAcc += dt;
+    let guard = 0;
+    while (simAcc >= STEP && guard < 3) {
+      frameSim();
+      simAcc -= STEP;
+      guard++;
+    }
+    draw();
+    $('korb').textContent = 'Im Korb ' + basket;
+    $('weg').textContent = 'unterwegs ' + balls.length;
+    simTimes.push(performance.now() - t0);
+    if (simTimes.length > 120) simTimes.shift();
+    requestAnimationFrame(loop);
+  }
+
+  function boot() {
+    bootUI();
+    const fromHash = location.hash.length > 2 && loadHash(location.hash);
+    if (!fromHash) {
+      let stored = null;
+      try { stored = JSON.parse(localStorage.getItem(KEY) || 'null'); } catch (e) { stored = null; }
+      if (stored && stored.v === 1 && Array.isArray(stored.parts) && stored.parts.length) {
+        applyList(stored.parts, stored.rate | 0, false);
+      } else loadExample('bach');
+    }
+    mode = 'play';
+    layout();
+    syncUI();
+    requestAnimationFrame(loop);
+  }
+
+  window.__mb = {
+    ready: true,
+    step(n) {
+      mode = 'play';
+      for (let i = 0; i < n; i++) frameSim();
+    },
+    loadExample,
+    loadHash,
+    hash: hashNow,
+    stats() {
+      let maxSpeed = 0;
+      for (const b of balls) {
+        const s = Math.hypot(b.vx, b.vy);
+        if (s > maxSpeed) maxSpeed = s;
+      }
+      return {
+        basket, lost, nan, deep, tunnel, spawned, balls: balls.length, maxSpeed,
+        parts: parts.map(p => ({ t: p.t, x: p.x, y: p.y, r: p.r, s: p.s })),
+        rings: rings.slice(),
+        mode, rate
+      };
+    },
+    simTimes() { return simTimes.slice(); },
+    frameTimes() { return frameTimes.slice(); },
+    setMode(m) { mode = m; syncUI(); },
+    layout
+  };
+
+  boot();
+})();
+</script>
+</body>
+</html>
