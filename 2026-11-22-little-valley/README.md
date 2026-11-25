@@ -279,6 +279,9 @@ a short rest. It follows the river's own walk (smoothed once whenever the wish c
 second), hides behind ridges and on ice, and never shows while no river reaches the edge. In the map view the
 counted river, or the longest stream while none gets through, is a faint glowing line.
 (`screenshot-boat.png`: the canoe on its way down a river to the edge.)
+Where the river crosses a lake on its way, the canoe slows to a drift over the still water, rests for a moment
+in the middle (paddle laid across the boat, a gentle bob, small ripple rings) and then paddles on.
+(`screenshot-boat-lake.png`: the canoe resting on a small lake.)
 
 ## Save and share
 Tap **Share** (next to the wishes star) for a small panel with three buttons:

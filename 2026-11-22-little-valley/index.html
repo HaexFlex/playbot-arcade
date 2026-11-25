@@ -3720,18 +3720,32 @@ function drawDippers(t) {
 // glowing line, skipped when the frame is busy. Hidden behind ridges and on ice; none while no river reaches the edge.
 // Hooks: st.boatOn (a river reaches the edge), st.boatDrawn, st.boatAt (grid), st.boatPx (screen), st.boatK (0..1 along),
 // st.boatTrips (trips finished), st.boatAlpha, st.boatPts (smoothed course points), st.riverLine (map line: points, reached).
-const BOAT = { R: null, S: null, pts: null, cum: null, len: 0, reached: false, s: 0, a: 0, rest: 0, on: false, trips: 0, last: -1, moved: 0 };
-const BOAT_V = 1 / 32, BOAT_REST = 2.5, BOAT_FADE = 1.2;
-function boatCourse(S, path) { // river cells -> points every cell (lake jumps filled in), smoothed over +-3, cumulative length
-  const N = S.N, raw = [];
-  for (let k = 0; k < path.length; k++) { const x = path[k] % N + 0.5, y = ((path[k] / N) | 0) + 0.5;
-    if (raw.length) { const p = raw[raw.length - 1], dd = Math.hypot(x - p[0], y - p[1]); for (let j = 1; j < dd; j++) raw.push([p[0] + (x - p[0]) * j / dd, p[1] + (y - p[1]) * j / dd]); }
-    raw.push([x, y]); }
+// Lakes on the way: boatCourse marks the stretches over still water (a lake jump of the walk, or a still cell under the
+// course) as spans; inside one the canoe slows to a drift (BOAT_DRIFT), stops at the span's middle for BOAT_PAUSE s with
+// the paddle resting across the gunwales, bobbing gently in small ripple rings, then paddles on (once per lake and trip).
+// Hooks: st.boatLakes (spans), st.boatInLake, st.boatPausing, st.boatPauses (pauses so far), st.boatSpeed (0..1 of BOAT_V),
+// st.boatRestK (0 paddling .. 1 resting), st.boatRipples (rings drawn last frame), st.boatSpans ([s0, s1] as 0..1 of the course).
+const BOAT = { R: null, S: null, pts: null, cum: null, len: 0, reached: false, s: 0, a: 0, rest: 0, on: false, trips: 0, last: -1, moved: 0,
+  spans: [], pause: 0, pauses: 0, pauseAt: null, rk: 0, sp: 1, inLake: false };
+const BOAT_V = 1 / 32, BOAT_REST = 2.5, BOAT_FADE = 1.2, BOAT_DRIFT = 0.35, BOAT_PAUSE = 2.6;
+function boatStill(S, i) { return S.d[i] > 0.2 && Math.abs(S.u[i]) + Math.abs(S.v[i]) < 0.8; } // as lakeStill in sim.js (ice aside)
+function boatCourse(S, path) { // river cells -> points every cell (lake jumps filled in), smoothed over +-3, cumulative length, lake spans
+  const N = S.N, raw = [], lk = [];
+  for (let k = 0; k < path.length; k++) { const x = path[k] % N + 0.5, y = ((path[k] / N) | 0) + 0.5, st0 = boatStill(S, path[k]);
+    if (raw.length) { const p = raw[raw.length - 1], dd = Math.hypot(x - p[0], y - p[1]), jump = dd > 1.5; for (let j = 1; j < dd; j++) { raw.push([p[0] + (x - p[0]) * j / dd, p[1] + (y - p[1]) * j / dd]); lk.push(jump); } }
+    raw.push([x, y]); lk.push(st0); }
   const pts = [], W = 3;
   for (let k = 0; k < raw.length; k++) { let sx = 0, sy = 0, c = 0; for (let j = Math.max(0, k - W); j <= Math.min(raw.length - 1, k + W); j++) { sx += raw[j][0]; sy += raw[j][1]; c++; } pts.push(k === 0 || k === raw.length - 1 ? raw[k] : [sx / c, sy / c]); }
   const cum = [0]; for (let k = 1; k < pts.length; k++) cum.push(cum[k - 1] + Math.hypot(pts[k][0] - pts[k - 1][0], pts[k][1] - pts[k - 1][1]));
-  return { pts, cum, len: cum[cum.length - 1] };
+  const spans = []; let k0 = -1; // runs of lake points (gaps of one dry point bridged), at least 2 cells long, not at the very start or end
+  for (let k = 0; k <= lk.length; k++) { const w = k < lk.length && (lk[k] || (k0 >= 0 && k + 1 < lk.length && lk[k + 1]));
+    if (w && k0 < 0) k0 = k; else if (!w && k0 >= 0) { const s0 = cum[k0], s1 = cum[k - 1]; if (s1 - s0 >= 2 && s0 > 1 && s1 < cum[cum.length - 1] - 1) spans.push([s0, s1]); k0 = -1; } }
+  return { pts, cum, len: cum[cum.length - 1], spans };
 }
+function boatSpeed(s) { // 1 on flowing water; inside a lake span a drift, easing in and out over ~2 cells and slowest near the middle
+  for (const sp of BOAT.spans) { if (s < sp[0] || s > sp[1]) continue; const e = Math.min(s - sp[0], sp[1] - s), m = Math.abs(s - (sp[0] + sp[1]) / 2);
+    return Math.min(BOAT_DRIFT + (1 - BOAT_DRIFT) * Math.max(0, 1 - e / 2), 0.15 + 0.85 * Math.min(1, m / 3) + (m < 3 ? 0 : 1)); }
+  return 1; }
 function boatAt(s) { const P = BOAT.pts, C = BOAT.cum; if (!P || P.length < 2) return null; s = Math.max(0, Math.min(BOAT.len, s));
   let lo = 0, hi = C.length - 1; while (hi - lo > 1) { const m = (lo + hi) >> 1; if (C[m] <= s) lo = m; else hi = m; }
   const f = C[hi] > C[lo] ? (s - C[lo]) / (C[hi] - C[lo]) : 0; return [P[lo][0] + (P[hi][0] - P[lo][0]) * f, P[lo][1] + (P[hi][1] - P[lo][1]) * f]; }
@@ -3740,22 +3754,33 @@ function boatStep() { // once a frame in either view: follow a new river walk, d
   if (BOAT.S !== S) { BOAT.S = S; BOAT.R = null; BOAT.pts = null; BOAT.on = false; BOAT.a = 0; BOAT.s = 0; BOAT.rest = 0; }
   if (R !== BOAT.R) { BOAT.R = R; const b = R && R.best && R.best.path && R.best.path.length > 1 ? R.best : null;
     const old = BOAT.on && BOAT.pts ? boatAt(BOAT.s) : null;
-    if (b) { const c = boatCourse(S, b.path); BOAT.pts = c.pts; BOAT.cum = c.cum; BOAT.len = c.len; BOAT.reached = !!b.reached; } else { BOAT.pts = null; BOAT.len = 0; BOAT.reached = false; }
+    if (b) { const c = boatCourse(S, b.path); BOAT.pts = c.pts; BOAT.cum = c.cum; BOAT.len = c.len; BOAT.spans = c.spans; BOAT.reached = !!b.reached; } else { BOAT.pts = null; BOAT.len = 0; BOAT.spans = []; BOAT.reached = false; }
     if (old && BOAT.pts) { let bd = 1e9, bs = 0; for (let k = 0; k < BOAT.pts.length; k++) { const q = BOAT.pts[k], dd = (q[0] - old[0]) ** 2 + (q[1] - old[1]) ** 2; if (dd < bd) { bd = dd; bs = BOAT.cum[k]; } }
-      if (bd <= 9) BOAT.s = bs; else { BOAT.s = 0; BOAT.a = 0; BOAT.rest = 0.5; } } } // the river moved away under the boat: start again at the spring
+      if (bd <= 9) BOAT.s = bs; else { BOAT.s = 0; BOAT.a = 0; BOAT.rest = 0.5; BOAT.pause = 0; BOAT.pauseAt = null; } } } // the river moved away under the boat: start again at the spring
   const on = !!(R && R.reached && S.steps >= RIVER_WARM && BOAT.pts && BOAT.reached && BOAT.len > 4);
-  if (on && !BOAT.on) { BOAT.s = 0; BOAT.a = 0; BOAT.rest = 0.6; }
+  if (on && !BOAT.on) { BOAT.s = 0; BOAT.a = 0; BOAT.rest = 0.6; BOAT.pause = 0; BOAT.pauseAt = null; }
   BOAT.on = on; st.boatOn = on;
-  if (!on) { BOAT.a = Math.max(0, BOAT.a - dt * 2); return; }
-  if (BOAT.rest > 0) { BOAT.rest -= dt; BOAT.a = 0; if (BOAT.rest <= 0) BOAT.s = 0; return; }
-  const v = S.N * BOAT_V, mv = v * dt; BOAT.s += mv; BOAT.moved += mv;
+  if (!on) { BOAT.a = Math.max(0, BOAT.a - dt * 2); BOAT.pause = 0; BOAT.rk = 0; return; }
+  if (BOAT.rest > 0) { BOAT.rest -= dt; BOAT.a = 0; BOAT.pause = 0; BOAT.rk = 0; if (BOAT.rest <= 0) { BOAT.s = 0; BOAT.pauseAt = null; } return; }
+  const v = S.N * BOAT_V, f = BOAT.pause > 0 ? 0 : boatSpeed(BOAT.s), mv = v * f * dt, s0 = BOAT.s; BOAT.sp = f;
+  if (BOAT.pause > 0) BOAT.pause = Math.max(0, BOAT.pause - dt);
+  else { BOAT.s += mv; BOAT.moved += mv;
+    for (const sp of BOAT.spans) { const mid = (sp[0] + sp[1]) / 2; if (s0 < mid && BOAT.s >= mid) { const g = boatAt(mid); // reached the lake's middle: rest a while (once per lake and trip, also across new walks)
+      if (!BOAT.pauseAt || Math.hypot(g[0] - BOAT.pauseAt[0], g[1] - BOAT.pauseAt[1]) > 4) { BOAT.s = mid; BOAT.pause = BOAT_PAUSE; BOAT.pauseAt = g; BOAT.pauses++; } break; } } }
+  BOAT.inLake = BOAT.spans.some(sp => BOAT.s >= sp[0] && BOAT.s <= sp[1]);
+  BOAT.rk += ((BOAT.pause > 0 ? 1 : BOAT.inLake ? 0.4 : 0) - BOAT.rk) * Math.min(1, dt * 3);
   const left = BOAT.len - BOAT.s; BOAT.a = Math.min(1, BOAT.s / (v * BOAT_FADE), Math.max(0, left / (v * BOAT_FADE)));
-  if (left <= 0) { BOAT.trips++; BOAT.rest = BOAT_REST; BOAT.s = 0; BOAT.a = 0; }
+  if (left <= 0) { BOAT.trips++; BOAT.rest = BOAT_REST; BOAT.s = 0; BOAT.a = 0; BOAT.pauseAt = null; }
 }
-function drawCanoe(X, Y, H, ang, al, sm) { // a wooden canoe seen from above-ish, pointed and upturned at both ends, a paddler with a red jacket
+function drawCanoe(X, Y, H, ang, al, sm, rk) { // a wooden canoe seen from above-ish, pointed and upturned at both ends, a paddler with a red jacket
+  rk = rk || 0; // 0 paddling .. 1 resting on a lake (paddle across the gunwales, a gentle bob, ripple rings, no wake)
   const L = H * (0.5 + 0.12 * Math.abs(Math.cos(ang))), Wd = H * 0.13, now = performance.now() / 1000, dark = litC(70, 40, 22), wood = litC(150, 92, 48), lite = litC(204, 146, 82), foam = litC(236, 246, 250);
-  cx.save(); cx.translate(X, Y); cx.globalAlpha = al * 0.5; cx.strokeStyle = foam; cx.lineWidth = Math.max(1, H * 0.035); // a soft V of wake behind it
-  const c = Math.cos(ang), s = Math.sin(ang), wk = H * (0.55 + 0.08 * Math.sin(now * 3));
+  st.boatRipples = 0;
+  if (rk > 0.3) { cx.save(); cx.strokeStyle = foam; cx.lineWidth = 1; for (let j = 0; j < 2; j++) { const ph = (now / 1.8 + j * 0.5) % 1, r = L * (0.9 + ph * 1.1); // small ripple rings spreading from the resting canoe
+      cx.globalAlpha = al * (rk - 0.3) / 0.7 * 0.45 * (1 - ph); cx.beginPath(); cx.ellipse(X, Y + H * 0.02, r, r * (st.view === 'top' ? 0.9 : 0.38), 0, 0, 7); cx.stroke(); st.boatRipples++; } cx.restore(); }
+  Y += Math.sin(now * 1.7) * H * 0.035 * rk; // a gentle bob
+  cx.save(); cx.translate(X, Y); cx.globalAlpha = al * 0.5 * (1 - rk * 0.85); cx.strokeStyle = foam; cx.lineWidth = Math.max(1, H * 0.035); // a soft V of wake behind it
+  const c = Math.cos(ang), s = Math.sin(ang), wk = H * (0.55 + 0.08 * Math.sin(now * 3)) * (1 - rk * 0.6);
   cx.beginPath(); cx.moveTo(-c * L * 0.9, -s * L * 0.9); cx.lineTo(-c * (L + wk) - s * wk * 0.35, -s * (L + wk) + c * wk * 0.35 * sm); cx.moveTo(-c * L * 0.9, -s * L * 0.9); cx.lineTo(-c * (L + wk) + s * wk * 0.35, -s * (L + wk) - c * wk * 0.35 * sm); cx.stroke();
   cx.rotate(ang); cx.globalAlpha = al;
   cx.fillStyle = dark; cx.beginPath(); cx.moveTo(-L - 1, -Wd * 0.4); cx.quadraticCurveTo(0, -Wd * 2.1 - 1, L + 1, -Wd * 0.4); cx.quadraticCurveTo(0, Wd * 2.1 + 1, -L - 1, -Wd * 0.4); cx.fill(); // outline
@@ -3763,15 +3788,20 @@ function drawCanoe(X, Y, H, ang, al, sm) { // a wooden canoe seen from above-ish
   cx.fillStyle = lite; cx.beginPath(); cx.moveTo(-L * 0.8, -Wd * 0.5); cx.quadraticCurveTo(0, -Wd * 1.6, L * 0.8, -Wd * 0.5); cx.quadraticCurveTo(0, -Wd * 0.7, -L * 0.8, -Wd * 0.5); cx.fill(); // sunlit gunwale
   cx.fillStyle = dark; cx.fillRect(-L * 0.45, -Wd * 0.9, Math.max(1, H * 0.04), Wd * 1.4); cx.fillRect(L * 0.4, -Wd * 0.9, Math.max(1, H * 0.04), Wd * 1.4); // thwarts
   cx.restore();
-  cx.save(); cx.translate(X, Y); cx.globalAlpha = al; const ph = Math.sin(now * 2.2), pr = H * 0.07; // the paddler sits upright, the paddle dips left and right
-  cx.strokeStyle = dark; cx.lineWidth = Math.max(1, H * 0.035); cx.beginPath(); cx.moveTo(-H * 0.2 * ph, -H * 0.2); cx.lineTo(H * 0.22 * ph, H * 0.02); cx.stroke();
+  cx.save(); cx.translate(X, Y); cx.globalAlpha = al; const pk = Math.max(0, 1 - rk * 1.6), ph = Math.sin(now * 2.2 * (1 - rk * 0.5)) * pk, pr = H * 0.07; // the paddler sits upright, the paddle dips left and right (slower drifting, still at rest)
+  cx.strokeStyle = dark; cx.lineWidth = Math.max(1, H * 0.035); cx.beginPath();
+  if (rk > 0.6) { const q = Math.min(1, (rk - 0.6) / 0.3), ca = Math.cos(ang), sa = Math.sin(ang) * sm, pl = H * 0.3; cx.moveTo(sa * pl * q, -H * 0.08 - ca * pl * q * 0.5); cx.lineTo(-sa * pl * q, -H * 0.08 + ca * pl * q * 0.5); } // resting across the gunwales
+  else { cx.moveTo(-H * 0.2 * ph, -H * 0.2); cx.lineTo(H * 0.22 * ph, H * 0.02); }
+  cx.stroke();
   cx.fillStyle = litC(196, 58, 44); cx.fillRect(-H * 0.07, -H * 0.2, H * 0.14, H * 0.16); // red jacket
   cx.fillStyle = litC(236, 196, 160); cx.beginPath(); cx.arc(0, -H * 0.26, pr, 0, 7); cx.fill(); // head
   cx.fillStyle = litC(230, 200, 70); cx.fillRect(-pr * 1.2, -H * 0.26 - pr * 1.25, pr * 2.4, pr * 0.8); // straw hat
   if (LT.night > 0.4) { cx.globalAlpha = al * Math.min(1, (LT.night - 0.4) * 3); cx.fillStyle = 'rgba(255,214,120,.35)'; cx.beginPath(); cx.arc(Math.cos(ang) * L * 0.7, Math.sin(ang) * L * 0.7 - H * 0.08, H * 0.18, 0, 7); cx.fill(); cx.fillStyle = 'rgba(255,236,170,1)'; cx.fillRect(Math.cos(ang) * L * 0.7 - 1, Math.sin(ang) * L * 0.7 - H * 0.1, 2, 2); } // a lantern at the bow
   cx.restore();
 }
-function boatInfo() { st.boatAlpha = BOAT.a; st.boatTrips = BOAT.trips; st.boatPts = BOAT.pts ? BOAT.pts.length : 0; st.boatK = BOAT.len ? BOAT.s / BOAT.len : 0; st.boatMoved = BOAT.moved; }
+function boatInfo() { st.boatAlpha = BOAT.a; st.boatTrips = BOAT.trips; st.boatPts = BOAT.pts ? BOAT.pts.length : 0; st.boatK = BOAT.len ? BOAT.s / BOAT.len : 0; st.boatMoved = BOAT.moved;
+  st.boatLakes = BOAT.spans.length; st.boatInLake = BOAT.on && BOAT.inLake; st.boatPausing = BOAT.on && BOAT.pause > 0; st.boatPauses = BOAT.pauses; st.boatSpeed = BOAT.sp; st.boatRestK = BOAT.rk;
+  st.boatSpans = BOAT.len ? BOAT.spans.map(sp => [sp[0] / BOAT.len, sp[1] / BOAT.len]) : []; }
 function drawBoat(t) { // tilt view
   void t; const t0 = performance.now(); st.boatDrawn = 0; st.boatAt = null; st.boatPx = null; boatStep(); boatInfo();
   const T = tilt, S = st.S, N = S.N; if (!T || T.s == null || !BOAT.on || BOAT.a <= 0.01) { st.boatMs = (st.boatMs || 0) * 0.9 + (performance.now() - t0) * 0.1; return; }
@@ -3784,7 +3814,7 @@ function drawBoat(t) { // tilt view
     const X = T.sx + ox * T.s, Y = T.sy + oy * T.s, u = cp * sc * T.s, H = Math.max(isPhone ? 13 : 15, u * 1.8);
     const sc2 = persp(g2[1] - 0.5, N), X2 = T.sx + ((g2[0] - N / 2) * cp * sc2 + T.ow / 2) * T.s, Y2 = T.sy + (baseY(T, g2[1] - 0.5, N) - hs * cp * T.hEx * sc2) * T.s;
     let ang = Math.atan2(Y2 - Y, X2 - X); if (Math.cos(ang) < 0) ang += Math.PI; // a canoe has two ends: never upside down
-    drawCanoe(X, Y, H, ang, BOAT.a, 1); st.boatDrawn = 1; st.boatPx = [X, Y]; st.boatH = H; } }
+    drawCanoe(X, Y, H, ang, BOAT.a, 1, BOAT.rk); st.boatDrawn = 1; st.boatPx = [X, Y]; st.boatH = H; } }
   st.boatMs = (st.boatMs || 0) * 0.9 + (performance.now() - t0) * 0.1;
 }
 function drawRiverTop() { // map view: the counted river (or the longest stream) as a faint glowing line, then the boat
@@ -3798,7 +3828,7 @@ function drawRiverTop() { // map view: the counted river (or the longest stream)
     st.riverLine = { n: P.length, reached: on }; }
   if (BOAT.on && BOAT.a > 0.01) { const g = boatAt(BOAT.s), g2 = boatAt(BOAT.s + 1.5), X = R.x + g[0] / N * R.sz, Y = R.y + g[1] / N * R.sz, X2 = R.x + g2[0] / N * R.sz, Y2 = R.y + g2[1] / N * R.sz;
     let ang = Math.atan2(Y2 - Y, X2 - X); if (Math.cos(ang) < 0) ang += Math.PI; const H = Math.max(isPhone ? 14 : 16, R.sz / N * 5);
-    drawCanoe(X, Y, H, ang, BOAT.a, 1); st.boatDrawn = 1; st.boatAt = g; st.boatPx = [X, Y]; st.boatH = H; }
+    drawCanoe(X, Y, H, ang, BOAT.a, 1, BOAT.rk); st.boatDrawn = 1; st.boatAt = g; st.boatPx = [X, Y]; st.boatH = H; }
   st.boatMs = (st.boatMs || 0) * 0.9 + (performance.now() - t0) * 0.1;
 }
 // the long river hint: while no river reaches the valley's edge, a small pulsing ring marks where the longest stream
