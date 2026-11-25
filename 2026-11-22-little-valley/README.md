@@ -132,6 +132,7 @@ wheel and digs out a small pond behind it. Water spills over the board in a whit
 the pond keeps the wheel turning long after a plain race has stopped. When the flow gets very low the miller
 lowers the board, or pulls it right out so the race runs freely again, and puts it back when plenty of water comes.
 The map view marks the board with a little plank and a white spill line.
+(`screenshot-millpond.png`: a race mill with its weir board and the little pond behind it.)
 
 **Butterflies**: on sunny days from spring to early autumn, butterflies flutter over the flower meadows. They
 bob along in a jittery little flight, settle on a flower for a few seconds with their wings slowly opening and

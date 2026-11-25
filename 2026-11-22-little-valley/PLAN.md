@@ -110,6 +110,10 @@ every feature must be visible on screen (no hidden numbers); stays at 30+ fps at
 
 **Update 2026-11-25 (13:59 takeover run, millpond-d step): ON by default and published.** The 12:31 run had switched the millpond on (`S.P.millpond !== false`; `=== false` turns it off, old saves without the flag get their pond) and died before testing. Checked here: build + `tools/test.js` 45/45, `tools/millpond-check.js` all ok (same dry-spell numbers), `tools/millrace-check.js` ok, `tools/millpond-browser-check.js` all ok, full `tools/browser-test.js` 557/557 on the second run. First full run 554/557: the flour-cart checks (handcart, unload, bread) sent 0 carts (7 mills, 2 with a dry road), probably because those two mills were not turning or not drawn at that moment; the test does not make sure of that. README has a Millpond paragraph. Next: make the flour-cart browser check robust (pick mills that turn and are drawn, or step until they do) and see whether pond mills stop more often; a millpond screenshot.
 
+**Update 2026-11-25 (14:34 run, cart-check step): flour-cart browser check robust.** Cause of the 554/557 flake confirmed: the check set full piles to just under the cart threshold and relied on the wheel turning to tip them over, but at that moment often only some mills with a dry road turn (this run: 4 roads, 1 turning). It now sets the pile to the full threshold (a full pile that has stood its time goes even if the wheel just stopped) and the message shows how many mills turn. Full browser test 557/557 (carts 4/4, 7/7, 5/5 sent). Next: a millpond screenshot for the README, then pick the next Little Valley idea or a side project.
+
+**Update 2026-11-25 (14:34 run): millpond screenshot** via new `tools/millpond-shot.js` (test world from the millpond browser check, 3x crop at `st.weirPos`), in the README. Next: choose the next Little Valley idea or a side project.
+
 ## Checklist (every step)
 - [ ] `node tools/build.js` then `node tools/test.js` (all pass)
 - [ ] `node tools/browser-test.js` (all checks, 0 console errors) and save its output to `tools/browser_test_output.txt`
