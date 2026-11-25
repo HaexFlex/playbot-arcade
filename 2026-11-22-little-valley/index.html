@@ -1698,6 +1698,7 @@ function renderTilt(t) {
   { const t0 = performance.now(); drawButterflies(t); st.btfMs = (st.btfMs || 0) * 0.9 + (performance.now() - t0) * 0.1; }
   { const t0 = performance.now(); drawHerons(t); st.heronMs = (st.heronMs || 0) * 0.9 + (performance.now() - t0) * 0.1; }
   { const t0 = performance.now(); drawKingfishers(t); st.kfMs = (st.kfMs || 0) * 0.9 + (performance.now() - t0) * 0.1; }
+  { const t0 = performance.now(); drawDippers(t); st.dipMs = (st.dipMs || 0) * 0.9 + (performance.now() - t0) * 0.1; }
   { const t0 = performance.now(); drawWebs(t); st.webMs = (st.webMs || 0) * 0.9 + (performance.now() - t0) * 0.1; }
   { const t0 = performance.now(); drawHoarFrost(t); st.frostMs = (st.frostMs || 0) * 0.9 + (performance.now() - t0) * 0.1; }
   { const t0 = performance.now(); drawFox(t); st.foxMs = (st.foxMs || 0) * 0.9 + (performance.now() - t0) * 0.1; }
@@ -3414,6 +3415,119 @@ function drawKingfishers(t) {
   cx.restore();
   st.kfOnStream = nDart ? st.kfOnStream / nDart : 0; st.kfOnBank = nPer ? st.kfOnBank / nPer : 0;
 }
+// white-throated dipper: in winter and late autumn (yearFrac >= 0.7 or < 0.04, needs seasons), by day (7:30-17:30), where
+// a stream runs fast and shallow (open water 0.03-0.5 deep moving faster than 3, not frozen, on screen), a small plump
+// dark-brown bird with a bright white bib stands on a stone in the current (a grey stone with foam, only drawn under a
+// dipper), bobbing (curtsying) all the time and blinking its white eyelid now and then. From the stone it walks into the
+// water and under it (1-2 cells along the stream, sunk and faint with a ripple ring) and pops up again on its stone with a
+// little splash, or flits low and straight along the stream to the next stone (a stone: a fast cell picked by a fixed hash,
+// 3+ cells along the path), and after a few stones it flies off. Up to two at a time (one on a phone), several seconds
+// rest between visits. With sound on a short, sharp 'zit' as it flits off (at most one per 2 s). None without seasons,
+// out of season, at night, in a storm or heavy rain (>= 0.4), on a frozen stream, or in the map view. App-only. Hooks:
+// st.dipDrawn, st.dipAt, st.dipStates (stand, under, fly, away), st.dipPts ([x, y, id]), st.dipFlights, st.dipDips, st.dipPops,
+// st.dipBobs, st.dipSpots, st.dipOnStone (share of standing ones on a stone cell), st.dipOnStream (share of flying ones over
+// the stream), st.dipH, st.dipAmt, st.dipMs, __lv.DIP.
+const DIP_MAX = isPhone ? 1 : 2, DIP = { S: null, src: [], rt: -1e9, birds: [], last: -1, rest: 2, flights: 0, dips: 0, pops: 0, bobs: 0, zitT: 0, sp: [] };
+function dipFast(S, i) { return kfStream(S, i) && S.d[i] < 0.5 && Math.hypot(S.u[i], S.v[i]) > 3; }
+function dipStone(S, i) { if (!dipFast(S, i)) return false; let h = (i * 2654435761) >>> 0; h ^= h >>> 15; h = Math.imul(h, 2246822519) >>> 0; h ^= h >>> 13; return (h & 1023) < 280; }
+function dipAmt() { const S = st.S, h = LT.h; if (!S.P.seasons) return 0; const y = LV.yearFrac(S); return (y >= 0.7 || y < 0.04) && h >= 7.5 && h < 17.5 && LT.storm <= 0.02 && LT.rain < 0.4 ? 1 : 0; }
+function dipSpots(S, T) { const N = S.N, out = [], s2 = Math.max(1, N >> 6);
+  for (let y = 4; y < N - 4; y += s2) for (let x = 4; x < N - 4; x += s2) { const i = y * N + x; if (dipStone(S, i) && duckSeen(T, S, x, y)) out.push([x, y]); }
+  return out; }
+function dipZit(b) { const now = performance.now() / 1000; if (AU.on && now - DIP.zitT > 2) { DIP.zitT = now; sndZit(fxPan(b.sx)); } }
+function dipStartFly(S, b) { // a low flit along the stream to the next stone 3+ cells on (with or against the current)
+  const N = S.N, x0 = b.x | 0, y0 = b.y | 0; if (!kfStream(S, y0 * N + x0)) return false;
+  for (const sg of Math.random() < 0.5 ? [1, -1] : [-1, 1]) { const p = kfPath(S, x0, y0, sg);
+    for (let k = 3; k < p.length; k++) if (dipStone(S, (p[k][1] | 0) * N + (p[k][0] | 0))) { const q = p.slice(0, k + 1); q[0] = [b.x, b.y]; b.path = q; b.pi = 0; b.st = 'fly'; b.t = 0; DIP.flights++; dipZit(b); return true; } }
+  return false; }
+function dipUnderTo(S, b) { // a fast cell 1-2 cells away along the stream to walk to under the water
+  const N = S.N, x0 = b.x | 0, y0 = b.y | 0, c = [];
+  for (let oy = -2; oy <= 2; oy++) for (let ox = -2; ox <= 2; ox++) { if (!ox && !oy) continue; const j = (y0 + oy) * N + x0 + ox; if (j > 0 && j < N * N && dipFast(S, j)) c.push([x0 + ox + 0.5, y0 + oy + 0.5]); }
+  return c.length ? c[(Math.random() * c.length) | 0] : null; }
+function drawDippers(t) {
+  const T = tilt, S = st.S, N = S.N; st.dipDrawn = 0; st.dipAt = null; st.dipStates = []; st.dipPts = []; st.dipOnStone = 0; st.dipOnStream = 0;
+  st.dipFlights = DIP.flights; st.dipDips = DIP.dips; st.dipPops = DIP.pops; st.dipBobs = DIP.bobs;
+  const now = performance.now() / 1000, dt = Math.max(0, Math.min(0.1, DIP.last < 0 ? 0 : now - DIP.last)); DIP.last = now;
+  if (!T || T.s == null) return;
+  if (DIP.S !== S) { DIP.S = S; DIP.birds = []; DIP.sp = []; DIP.rt = -1e9; DIP.rest = 2; }
+  const amt = st.dipAmt = dipAmt();
+  if (amt && now - DIP.rt > 2) { DIP.rt = now; DIP.src = dipSpots(S, T); } else if (!amt) DIP.src = [];
+  const src = DIP.src; st.dipSpots = src.length;
+  const want = !amt || src.length < 4 ? 0 : DIP_MAX, pu = Math.max(0.5, T.cp * T.s), cpx = 1 / pu;
+  DIP.rest -= dt;
+  if (DIP.birds.length < want && DIP.rest <= 0) { // a new one flits in and lands on a stone
+    DIP.rest = DIP.birds.length ? 6 + Math.random() * 10 : 3 + Math.random() * 5;
+    for (let k = 0; k < 12; k++) { const c = src[(Math.random() * src.length) | 0]; if (DIP.birds.some(o => Math.hypot(o.x - c[0], o.y - c[1]) < 12)) continue;
+      DIP.birds.push({ id: DIP.id = (DIP.id || 0) + 1, x: c[0] + 0.5, y: c[1] + 0.5, sx0: c[0] + 0.5, sy0: c[1] + 0.5, st: 'land', t: 0, until: 0, face: Math.random() < 0.5 ? 1 : -1, alt: 1.2, a: 0, fade: 1, leave: false, path: null, pi: 0, left: 3 + ((Math.random() * 3) | 0), bobN: 0, sx: null }); break; } }
+  if (DIP.birds.filter(o => !o.leave).length > want) for (const b of DIP.birds) if (!b.leave && DIP.birds.filter(o => !o.leave).length > want) b.leave = true;
+  const cp = T.cp, ow = T.ow, oh = T.oh, s = T.s, brn = litC(62, 44, 34), head = litC(92, 62, 44), chest = litC(128, 70, 40), wht = litC(244, 244, 238), stone = litC(118, 116, 110), stoneL = litC(158, 156, 148), bill = litC(25, 22, 20), foam = litC(236, 244, 250);
+  cx.save(); cx.lineCap = 'round'; cx.lineJoin = 'round';
+  let nFly = 0, nSt = 0;
+  for (let j = DIP.birds.length - 1; j >= 0; j--) { const b = DIP.birds[j]; b.t += dt; b.a = Math.min(1, b.a + dt * 4);
+    const ci = (b.y | 0) * N + (b.x | 0);
+    if (b.leave && b.st === 'stand') { b.st = 'away'; b.t = 0; dipZit(b); }
+    else if (b.leave && b.st !== 'away') { b.fade -= dt * 2.5; if (b.fade <= 0) { DIP.birds.splice(j, 1); continue; } }
+    if (b.st === 'land') { b.alt = Math.max(0, b.alt - dt * 2.4); if (b.alt <= 0) { b.st = 'stand'; b.t = 0; b.until = 2 + Math.random() * 3; } }
+    else if (b.st === 'fly') { const sp = (isPhone ? 90 : 115) * cpx; let mv = sp * dt;
+      while (mv > 0 && b.pi < b.path.length - 1) { const q = b.path[b.pi + 1], dx = q[0] - b.x, dy = q[1] - b.y, d = Math.hypot(dx, dy); if (Math.abs(dx) > 0.05) b.face = dx > 0 ? 1 : -1; if (d <= mv) { b.x = q[0]; b.y = q[1]; b.pi++; mv -= d; } else { b.x += dx / d * mv; b.y += dy / d * mv; mv = 0; } }
+      const k = b.path.length > 1 ? b.pi / (b.path.length - 1) : 1; b.alt = 0.45 * Math.sin(Math.min(1, k * 1.15 + 0.1) * Math.PI) + 0.12;
+      if (b.pi >= b.path.length - 1) { b.alt = 0; b.st = 'stand'; b.t = 0; b.until = 2 + Math.random() * 3; b.sx0 = b.x; b.sy0 = b.y; b.left--; } }
+    else if (b.st === 'away') { b.fade -= dt * 2.2; b.alt += dt * 2.5; b.x += b.face * dt * 60 * cpx; if (b.fade <= 0) { DIP.birds.splice(j, 1); continue; } }
+    else if (b.st === 'stand') { const bobN = Math.floor(b.t * 1.6); if (bobN > b.bobN) { b.bobN = bobN; DIP.bobs++; } if (bobN < b.bobN) b.bobN = bobN;
+      if (!dipFast(S, ci)) { b.leave = true; }
+      else if (b.t > b.until) { const r = Math.random(), w = r < 0.55 ? dipUnderTo(S, b) : null;
+        if (w) { b.st = 'under'; b.t = 0; b.wx = w[0]; b.wy = w[1]; b.ux = b.x; b.uy = b.y; b.ud = 1 + Math.random() * 1.2; DIP.dips++; if (Math.abs(w[0] - b.x) > 0.05) b.face = w[0] > b.x ? 1 : -1; }
+        else if (b.left > 0 && dipStartFly(S, b)) { b.bobN = 0; }
+        else b.leave = true; } }
+    else if (b.st === 'under') { const T1 = 0.4, T3 = T1 + b.ud, T4 = T3 + 0.45; // walks in and under, forages, comes back and pops up on the stone
+      if (b.t < T1) { const k = b.t / T1; b.x = b.ux + (b.wx - b.ux) * k; b.y = b.uy + (b.wy - b.uy) * k; b.alt = -0.35 * k; }
+      else if (b.t < T3) { const k = (b.t - T1) / b.ud; b.x = b.wx + 0.25 * Math.sin(k * 6.3); b.y = b.wy; b.alt = -0.35; }
+      else if (b.t < T4) { const k = (b.t - T3) / 0.45; b.x = b.wx + (b.ux - b.wx) * k; b.y = b.wy + (b.uy - b.wy) * k; b.alt = -0.35 * (1 - k); if (Math.abs(b.ux - b.wx) > 0.05) b.face = b.ux > b.wx ? 1 : -1; }
+      else { b.x = b.ux; b.y = b.uy; b.alt = 0; b.st = 'stand'; b.t = 0; b.until = 1.5 + Math.random() * 2.5; DIP.pops++; DIP.sp.push({ x: b.x, y: b.y, t: 0 }); if (Math.random() < 0.3) dipZit(b); } }
+    const gx = b.x, gy = b.y, x0 = Math.min(N - 2, gx | 0), y0 = Math.min(N - 2, gy | 0), fx = gx - x0, fy = gy - y0, k0 = y0 * N + x0;
+    const hs = surf[k0] * (1 - fx) * (1 - fy) + surf[k0 + 1] * fx * (1 - fy) + surf[k0 + N] * (1 - fx) * fy + surf[k0 + N + 1] * fx * fy;
+    const sc = persp(gy, N), ox = (gx - N / 2) * cp * sc + ow / 2, oyG = baseY(T, gy, N) - hs * cp * T.hEx * sc;
+    const px = Math.round(ox), py = Math.round(oyG); if (px < 0 || px >= ow || py < 0 || py >= oh) continue;
+    { const pc = T.pick[py * ow + px]; if (pc >= 0 && ((pc / N) | 0) > gy + 3) continue; }
+    b.sx = T.sx + ox * s;
+    const u = cp * sc * s, H = Math.max(isPhone ? 10 : 12, u * 1.3), X = b.sx, Yg = T.sy + oyG * s, f = b.face, al = Math.max(0, Math.min(1, b.a * Math.min(1, b.fade))); if (al <= 0.01) continue;
+    const sY = (b.st === 'under' ? T.sy + (baseY(T, b.uy, N) - surf[(b.uy | 0) * N + (b.ux | 0)] * cp * T.hEx * sc) * s : Yg), sX = b.st === 'under' ? T.sx + ((b.ux - N / 2) * cp * sc + ow / 2) * s : X;
+    if (b.st === 'stand' || b.st === 'under' || b.st === 'land') { // its stone in the current, with a little foam on the upstream side
+      cx.globalAlpha = al; cx.fillStyle = stone; cx.beginPath(); cx.ellipse(sX, sY + H * 0.02, H * 0.36, H * 0.16, 0, 0, 7); cx.fill();
+      cx.fillStyle = stoneL; cx.beginPath(); cx.ellipse(sX - H * 0.08, sY - H * 0.04, H * 0.18, H * 0.07, 0, 0, 7); cx.fill();
+      cx.globalAlpha = al * (0.55 + 0.25 * Math.sin(now * 7 + b.id)); cx.strokeStyle = foam; cx.lineWidth = 1; cx.beginPath(); cx.ellipse(sX, sY + H * 0.04, H * 0.44, H * 0.2, 0, 0.2, 2.9); cx.stroke(); }
+    if (b.st === 'stand' || b.st === 'land') { // plump and upright on the stone, tail cocked, bobbing (a quick curtsy) all the time
+      const ph = (b.t * 1.6) % 1, bob = b.st === 'stand' ? Math.max(0, Math.sin(ph * Math.PI * 2)) ** 2 * H * 0.09 : 0, Y = Yg - H * 0.3 - b.alt * u * 1.4 + bob;
+      cx.globalAlpha = al;
+      cx.strokeStyle = brn; cx.lineWidth = Math.max(1, H * 0.1); cx.beginPath(); cx.moveTo(X - f * H * 0.16, Y + H * 0.04); cx.lineTo(X - f * H * 0.3, Y - H * 0.1); cx.stroke(); // short cocked tail
+      cx.strokeStyle = bill; cx.lineWidth = Math.max(0.8, H * 0.04); cx.beginPath(); cx.moveTo(X - H * 0.03, Y + H * 0.14); cx.lineTo(X - H * 0.03, Yg - H * 0.02); cx.moveTo(X + H * 0.04, Y + H * 0.14); cx.lineTo(X + H * 0.04, Yg - H * 0.02); cx.stroke(); // legs
+      cx.fillStyle = brn; cx.beginPath(); cx.ellipse(X, Y, H * 0.21, H * 0.17, -f * 0.15, 0, 7); cx.fill(); // round body
+      cx.fillStyle = chest; cx.beginPath(); cx.ellipse(X + f * H * 0.06, Y + H * 0.07, H * 0.12, H * 0.08, 0, 0, 7); cx.fill(); // chestnut band below the bib
+      const hx = X + f * H * 0.12, hy = Y - H * 0.17; cx.fillStyle = head; cx.beginPath(); cx.arc(hx, hy, H * 0.12, 0, 7); cx.fill();
+      cx.fillStyle = wht; cx.beginPath(); cx.ellipse(X + f * H * 0.13, Y - H * 0.04, H * 0.1, H * 0.11, f * 0.3, 0, 7); cx.fill(); // the white bib
+      cx.strokeStyle = bill; cx.lineWidth = Math.max(0.8, H * 0.05); cx.beginPath(); cx.moveTo(hx + f * H * 0.1, hy); cx.lineTo(hx + f * H * 0.22, hy + H * 0.02); cx.stroke();
+      const blink = ((now + b.id * 0.7) % 2.3) < 0.12; cx.fillStyle = blink ? wht : bill; cx.fillRect(hx + f * H * 0.04 - 0.5, hy - H * 0.04, Math.max(1, H * 0.05), Math.max(1, H * 0.05)); // eye (white eyelid flash)
+    } else if (b.st === 'under') { // sunk in the current: a faint dark shape and a ring of ripples where it walks
+      const Y = Yg - H * 0.05; cx.globalAlpha = al * 0.3; cx.fillStyle = brn; cx.beginPath(); cx.ellipse(X, Y, H * 0.22, H * 0.1, 0, 0, 7); cx.fill();
+      cx.globalAlpha = al * 0.6; cx.strokeStyle = foam; cx.lineWidth = 1; const rr = H * (0.3 + 0.1 * Math.sin(now * 9 + b.id)); cx.beginPath(); cx.ellipse(X, Yg, rr, rr * 0.35, 0, 0, 7); cx.stroke();
+    } else { // flitting low and straight along the stream: a dark ball on whirring stubby wings, the white bib flashing
+      const Y = Yg - b.alt * u * 1.4 - H * 0.25, wb = Math.sin(now * 48 + b.id); cx.globalAlpha = al;
+      if (b.alt > 0.1) { cx.globalAlpha = 0.16 * al; cx.fillStyle = 'rgba(20,30,40,1)'; cx.beginPath(); cx.ellipse(X, Yg + 0.5, H * 0.22, H * 0.05, 0, 0, 7); cx.fill(); cx.globalAlpha = al; }
+      cx.fillStyle = brn; cx.beginPath(); cx.moveTo(X - f * H * 0.08, Y - H * 0.02); cx.lineTo(X + f * H * 0.02, Y - H * 0.02 - H * 0.28 * wb); cx.lineTo(X + f * H * 0.12, Y - H * 0.02); cx.fill(); // wing blur
+      cx.beginPath(); cx.ellipse(X, Y, H * 0.24, H * 0.12, 0, 0, 7); cx.fill();
+      cx.fillStyle = wht; cx.beginPath(); cx.ellipse(X + f * H * 0.14, Y + H * 0.02, H * 0.07, H * 0.06, 0, 0, 7); cx.fill();
+      cx.fillStyle = head; cx.beginPath(); cx.arc(X + f * H * 0.2, Y - H * 0.04, H * 0.08, 0, 7); cx.fill(); }
+    const stLab = b.st === 'land' ? 'stand' : b.st;
+    if (!st.dipDrawn) st.dipAt = [X, Yg]; st.dipDrawn++; st.dipStates.push(stLab); st.dipPts.push([X, Yg, b.id]); st.dipH = H;
+    if (b.st === 'fly') { nFly++; if (kfStream(S, ci)) st.dipOnStream++; }
+    if (stLab === 'stand') { nSt++; if (dipStone(S, ci)) st.dipOnStone++; }
+  }
+  for (let j = DIP.sp.length - 1; j >= 0; j--) { const q = DIP.sp[j]; q.t += dt; if (q.t > 0.5) { DIP.sp.splice(j, 1); continue; } // popping up: a small splash ring
+    const k0 = (q.y | 0) * N + (q.x | 0), sc = persp(q.y, N), ox = (q.x - N / 2) * cp * sc + ow / 2, oyG = baseY(T, q.y, N) - surf[k0] * cp * T.hEx * sc, X = T.sx + ox * s, Y = T.sy + oyG * s, u = cp * sc * s, r = Math.max(3, u * 0.8) * (0.5 + q.t * 2), a = 1 - q.t / 0.5;
+    cx.globalAlpha = 0.75 * a; cx.strokeStyle = 'rgba(235,245,255,1)'; cx.lineWidth = 1; cx.beginPath(); cx.ellipse(X, Y, r, r * 0.35, 0, 0, 7); cx.stroke(); }
+  cx.restore();
+  st.dipOnStream = nFly ? st.dipOnStream / nFly : 0; st.dipOnStone = nSt ? st.dipOnStone / nSt : 0;
+}
 function drawButterflies(t) {
   const T = tilt, S = st.S, N = S.N; st.butterfliesDrawn = 0; st.btfAt = null; st.btfPerched = 0; st.btfKinds = 0; st.btfPts = [];
   const amt = st.btfAmt = btfAmt(), dt = Math.max(0, Math.min(0.1, t - BTF.last)); BTF.last = t;
@@ -4281,7 +4395,7 @@ function frame(now) {
   const tc0 = performance.now(); computeColours(st.time); st.colMs = (st.colMs || 0) * 0.9 + (performance.now() - tc0) * 0.1;
   cx.setTransform(dpr, 0, 0, dpr, 0, 0);
   if (st.view === 'tilt') { tiltGeom(); drawSky(st.time, dtReal); renderTilt(st.time); }
-  else { drawSky(st.time, dtReal); renderTop(st.time); drawCottagesTop(); drawWindowGlowTop(st.time); st.heronsDrawn = 0; st.heronAt = null; st.heronStates = []; HER.birds = []; st.kfDrawn = 0; st.kfAt = null; st.kfStates = []; st.kfPts = []; KF.birds = []; KF.sp = []; st.websDrawn = 0; st.webAt = []; st.webCells = []; st.webGlints = 0; WEB.webs.forEach(w => { w.a = 0; }); st.frostTrees = 0; st.frostGlints = 0; st.frostGlintAt = []; FR.src = []; FR.gl.forEach(g => { g.age = g.life; }); st.foxTracks = 0; st.foxPrints = 0; st.foxPrintCells = []; st.foxDrawn = 0; st.foxAt = null; if (FOX.fox) { FOX.fox = null; FOX.rest = 5; } FOX.last = st.time; st.glowwormsDrawn = 0; st.glowwormAt = []; st.glowwormCells = []; st.glowwormLvl = []; GW.worms.forEach(w => { w.a = 0; }); st.petalsDrawn = 0; st.mistDrawn = 0; st.mistDrift = 0; st.puddlesDrawn = 0; st.icyPuddles = 0; st.puddleIcePx = 0; st.splashKids = 0; st.splashHopping = 0; st.splashDrops = 0; st.splashSpots = 0; st.splashPuds = []; KID.on = false; st.batsDrawn = 0; st.batAt = null; st.midgesDrawn = 0; st.midgeSpecks = 0; st.midgeGlints = 0; st.midgeCols = []; MID.last = st.time; st.dragonfliesDrawn = 0; st.dfAt = null; st.butterfliesDrawn = 0; st.btfAt = null; BTF.flies.forEach(f => { f.a = 0; }); st.dfHover = 0; DF.last = st.time; st.duckFams = 0; st.ducksDrawn = 0; st.ducklingsDrawn = 0; st.duckLine = null; DUCK.last = null; st.swallowsDrawn = 0; st.swallowRings = 0; st.swallowAt = null; SW.last = st.time; st.bfDrawn = 0; st.bfSit = 0; st.bfFlying = 0; st.bfAtFeeder = 0; st.bfFeeders = 0; st.bfAt = []; st.bfFeederAt = []; BF.birds = []; BF.feeders = []; BF.home = null; BF.crowns = []; } // no petals in the map view (seen from far above they would be specks of dust)
+  else { drawSky(st.time, dtReal); renderTop(st.time); drawCottagesTop(); drawWindowGlowTop(st.time); st.heronsDrawn = 0; st.heronAt = null; st.heronStates = []; HER.birds = []; st.kfDrawn = 0; st.kfAt = null; st.kfStates = []; st.kfPts = []; KF.birds = []; KF.sp = []; st.dipDrawn = 0; st.dipAt = null; st.dipStates = []; st.dipPts = []; DIP.birds = []; DIP.sp = []; st.websDrawn = 0; st.webAt = []; st.webCells = []; st.webGlints = 0; WEB.webs.forEach(w => { w.a = 0; }); st.frostTrees = 0; st.frostGlints = 0; st.frostGlintAt = []; FR.src = []; FR.gl.forEach(g => { g.age = g.life; }); st.foxTracks = 0; st.foxPrints = 0; st.foxPrintCells = []; st.foxDrawn = 0; st.foxAt = null; if (FOX.fox) { FOX.fox = null; FOX.rest = 5; } FOX.last = st.time; st.glowwormsDrawn = 0; st.glowwormAt = []; st.glowwormCells = []; st.glowwormLvl = []; GW.worms.forEach(w => { w.a = 0; }); st.petalsDrawn = 0; st.mistDrawn = 0; st.mistDrift = 0; st.puddlesDrawn = 0; st.icyPuddles = 0; st.puddleIcePx = 0; st.splashKids = 0; st.splashHopping = 0; st.splashDrops = 0; st.splashSpots = 0; st.splashPuds = []; KID.on = false; st.batsDrawn = 0; st.batAt = null; st.midgesDrawn = 0; st.midgeSpecks = 0; st.midgeGlints = 0; st.midgeCols = []; MID.last = st.time; st.dragonfliesDrawn = 0; st.dfAt = null; st.butterfliesDrawn = 0; st.btfAt = null; BTF.flies.forEach(f => { f.a = 0; }); st.dfHover = 0; DF.last = st.time; st.duckFams = 0; st.ducksDrawn = 0; st.ducklingsDrawn = 0; st.duckLine = null; DUCK.last = null; st.swallowsDrawn = 0; st.swallowRings = 0; st.swallowAt = null; SW.last = st.time; st.bfDrawn = 0; st.bfSit = 0; st.bfFlying = 0; st.bfAtFeeder = 0; st.bfFeeders = 0; st.bfAt = []; st.bfFeederAt = []; BF.birds = []; BF.feeders = []; BF.home = null; BF.crowns = []; } // no petals in the map view (seen from far above they would be specks of dust)
   floeStep(S, dtReal); drawFloes();
   drawCottageBadges(st.time);
   drawNaturalRain(st.time); drawOverlays(st.time); drawShower(st.time);
@@ -4324,7 +4438,7 @@ function adapt(dt) {
 // and thunder after lightning, wind (stronger in winter and storms), birds by day in the forest, crickets on
 // summer evenings, an owl at night, the creak and clack of turning mill wheels, cowbells near the village.
 // window.LV_AUDIO holds the levels (0..1) and gains so tests can check them without listening.
-const AU = { want: false, on: false, started: false, state: 'none', nodes: 0, live: 0, L: {}, G: {}, ev: { chirp: 0, cricket: 0, owl: 0, clack: 0, creak: 0, bell: 0, thunder: 0, plop: 0, slurp: 0, splash: 0, knock: 0, well: 0, rustle: 0, rumble: 0, drip: 0, squeak: 0, thump: 0, crunch: 0, skate: 0, icicle: 0, puddle: 0, peep: 0, twit: 0, bat: 0, pipe: 0, whirr: 0, honk: 0, crane: 0, frank: 0, tsee: 0, murmur: 0, spade: 0 }, flow: 0, riverPan: 0, veg: 0, ticks: 0, vol: 1, snowCover: 0, rainMuffle: 0, rainCut: 9000, masterT: 0, melt: 0, meltPan: 0 };
+const AU = { want: false, on: false, started: false, state: 'none', nodes: 0, live: 0, L: {}, G: {}, ev: { chirp: 0, cricket: 0, owl: 0, clack: 0, creak: 0, bell: 0, thunder: 0, plop: 0, slurp: 0, splash: 0, knock: 0, well: 0, rustle: 0, rumble: 0, drip: 0, squeak: 0, thump: 0, crunch: 0, skate: 0, icicle: 0, puddle: 0, peep: 0, twit: 0, bat: 0, pipe: 0, whirr: 0, honk: 0, crane: 0, frank: 0, tsee: 0, zit: 0, murmur: 0, spade: 0 }, flow: 0, riverPan: 0, veg: 0, ticks: 0, vol: 1, snowCover: 0, rainMuffle: 0, rainCut: 9000, masterT: 0, melt: 0, meltPan: 0 };
 window.LV_AUDIO = AU;
 const AU_KEY = 'lv-sound', AU_MASTER = 0.45, AU_DT = 0.25;
 const AU_MAX = { river: 0.55, rain: 0.42, wind: 0.2, birds: 0.42, crickets: 0.13, owl: 0.38, mill: 0.42, cows: 0.26, thunder: 0.85, melt: 0.3 }; // full-level gain per layer
@@ -4589,6 +4703,12 @@ function sndTsee(pan) { // a kingfisher darting off: a short, thin, high 'tseee'
     const o = osc('sine', f0, t, d + 0.03, g); o.frequency.linearRampToValueAtTime(f0 * 0.9, t + d);
     g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.016, t + 0.012); g.gain.linearRampToValueAtTime(0.01, t + d * 0.7); g.gain.linearRampToValueAtTime(0, t + d); }
   AU.ev.tsee++;
+}
+function sndZit(pan) { // a dipper flitting off: one short, sharp, buzzy 'zit' (a square wave at ~4.5 kHz dropping fast, bandpassed), fx bus
+  if (!fxOn()) return; const ac = AG.ac, t = ac.currentTime + 0.02, d = 0.05 + Math.random() * 0.02, g = auVoice('fx', t, d + 0.08, pan), fl = ac.createBiquadFilter(); fl.type = 'bandpass'; fl.frequency.value = 4300; fl.Q.value = 2.5; fl.connect(g);
+  const f0 = 4600 + Math.random() * 600, o = osc('square', f0, t, d + 0.03, fl); o.frequency.exponentialRampToValueAtTime(f0 * 0.7, t + d);
+  g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.02, t + 0.006); g.gain.linearRampToValueAtTime(0, t + d);
+  setTimeout(() => fl.disconnect(), (t - ac.currentTime + d) * 1000 + 300); AU.ev.zit++;
 }
 function sndFrank(pan) { // a grey heron taking off: one hoarse, harsh 'fraank' (a falling sawtooth through a lowpass), fx bus
   if (!fxOn()) return; const ac = AG.ac, t = ac.currentTime + 0.03, d = 0.32, g = auVoice('fx', t, d + 0.1, pan), fl = ac.createBiquadFilter(); fl.type = 'lowpass'; fl.frequency.value = 1500; fl.Q.value = 3; fl.connect(g);
@@ -4985,7 +5105,7 @@ addEventListener('pagehide', () => autoSave('pagehide'));
 window.LV_AUTO = { AS, save: autoSave, get: asGet, put: asPut, clear: asClear, restore: autoRestore };
 
 
-window.__lv = { st, FR, FOX, foxEvening, BF, GS, CR, HER, KF, MU, murmEvening, AU, SW, updSound, LV, LT, leaf: LS, clockText, wheelAng, get col() { return [colR, colG, colB]; }, get tilt() { return tilt; }, get area() { return area; }, setTool, newWorld, unproj, proj, get S() { return st.S; }, floes, breakup: sndBreakup, yearTurn, flourT, SACK_T, carts, CART_LOAD, cartTarget, bakeT, FLOUR, smokeRGB, HAY, HAY_T, PUD, KID, DUCK };
+window.__lv = { st, FR, FOX, foxEvening, BF, GS, CR, HER, KF, DIP, MU, murmEvening, AU, SW, updSound, LV, LT, leaf: LS, clockText, wheelAng, get col() { return [colR, colG, colB]; }, get tilt() { return tilt; }, get area() { return area; }, setTool, newWorld, unproj, proj, get S() { return st.S; }, floes, breakup: sndBreakup, yearTurn, flourT, SACK_T, carts, CART_LOAD, cartTarget, bakeT, FLOUR, smokeRGB, HAY, HAY_T, PUD, KID, DUCK };
 updUI(); updSound();
 const rawHash = (location.hash || '').slice(1);
 let fromHash = ''; try { fromHash = decodeURIComponent(rawHash); } catch (e) { fromHash = ''; }

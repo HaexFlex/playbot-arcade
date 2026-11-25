@@ -157,6 +157,13 @@ up with a fish), or darts on along the water. With the sound on you hear a high,
 Not at night, in storms or heavy rain, on frozen streams, or in the map view.
 (`screenshot-kingfisher.png`: a kingfisher perched on a stream bank.)
 
+**Dippers**: in winter and late autumn, by day, a small plump dark-brown bird with a bright white bib stands on a
+stone in a fast stream, bobbing up and down all the time and blinking its white eyelid. Now and then it walks right
+into the current and under the water, and pops up again on its stone with a little splash, or flits low and straight
+along the stream to the next stone. With the sound on you hear a short, sharp *zit* as it flits off. Not in summer,
+without seasons, at night, in storms, on frozen streams, or in the map view.
+(`screenshot-dipper.png`: a dipper on its stone in a winter stream.)
+
 **Snowmen**: when the snow reaches the village, little snowmen with red scarves and dark hats
 appear in the cottage gardens, and they melt with the snow in spring.
 
