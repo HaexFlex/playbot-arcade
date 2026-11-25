@@ -17,6 +17,8 @@ find its way: lakes fill, rivers spill over ridges, carve gullies and drop sand.
   soggy or up on the alp, and it keeps the forest out (sow into a wood and the trees thin away).
   A lasting river or lake washes the seed away, and a meadow fades after about two years unless
   you sow it again. Sowing makes a soft swish of seed (with sound on); it is saved with the valley.
+  Butterflies like sown meadows best, and a big one earns the "valley in bloom" wish.
+  (`screenshot-flowers.png`: a sown meadow in bloom beside a little village.)
 - **Cottage**: tap on land to build a little cottage. It is **happy** (heart) on dry ground
   with a lake or stream within a short walk, **sad** (thirsty drop) when it is dry and far from
   water, and **flooded** (blue waves) when water stands on it. A cottage that stays flooded
@@ -144,7 +146,8 @@ The map view marks the board with a little plank and a white spill line.
 bob along in a jittery little flight, settle on a flower for a few seconds with their wings slowly opening and
 closing, and then flutter on to the next one. There are cabbage whites with black wing tips, lemon-yellow
 brimstones, sky-blue common blues and orange tortoiseshells. They stay away in rain, storms and strong wind, at
-night and in late autumn and winter, and where there are no flowers. The more meadow in bloom, the more butterflies.
+night and in late autumn and winter, and where there are no flowers. The more meadow in bloom, the more butterflies,
+and they favour a sown wildflower meadow: each sown flower counts three times when a butterfly picks where to go next.
 (`screenshot-butterflies.png`: butterflies over a summer meadow.)
 
 **Cranes**: on fair autumn days around midday, a loose flock of common cranes glides in high over the valley,
@@ -235,14 +238,16 @@ freeze again at night). On winter days the bullfinches in the bare trees call no
 low, slightly wistful whistled *pew*, and when the fox or a skater sends them up you hear a quick whirr of small wings.
 
 ## Valley wishes
-Tap the **Wishes** star for a small panel of twelve gentle goals, each with three stars:
+Tap the **Wishes** star for a small panel of thirteen gentle goals, each with three stars:
 a lake to row on (one still lake covering 3.5%, 6% or 10% of the valley), a deep green forest
 (32%, 38%, 45% forest), a little village (3, 6, 10 cottages), the mill wheel turns (1, 2, 3 mills
 turning), dry feet in a storm (1, 3, 5 cottages kept dry until a storm has passed), rainbow hunter
 (1, 2, 3 rainbows seen), skaters on the ice (1, 2, 3 skating spots), a golden harvest (20, 80, 240
 field plots brought in by the village), snowmen in the gardens (1, 3, 6 snowmen), a well for a
 thirsty cottage (1, 3, 6 thirsty cottages saved by a well you dug; droughts make more of them), fresh
-bread for the village (3, 9, 18 sacks of flour carted from a mill to a cottage) and a
+bread for the village (3, 9, 18 sacks of flour carted from a mill to a cottage), a valley in bloom (a sown
+wildflower meadow in bloom on 2%, 5% or 10% of the valley; the wild flowers don't count, as they start lush and thin
+out by themselves) and a
 waterfall (the tallest fall right now, 12, 25 or 45 m: a strong stream pouring over a drop twice as steep as
 wet ground settles; dig a steep pit just below a fast stream, and catch it quickly, because the wet cliff
 slumps within seconds; storms on the steep slopes make wild ones too). Each line shows live
