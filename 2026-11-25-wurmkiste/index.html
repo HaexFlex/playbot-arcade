@@ -1,0 +1,1816 @@
+<!doctype html>
+<html lang="de-CH">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Wurmkiste</title>
+<meta name="description" content="Eine Wurmkiste im Glas. Lege Küchenreste hinein, sieh den Regenwürmern beim Fressen zu und ernte Humus.">
+<meta name="theme-color" content="#6b4428">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%236b4428'/%3E%3Cpath d='M6 18c3-6 6-6 8-2s4 6 7 2 5-6 6-4' fill='none' stroke='%23f0b8a4' stroke-width='3' stroke-linecap='round'/%3E%3C/svg%3E">
+<style>
+html{color-scheme:light;height:100%}
+html,body{margin:0;height:100%;overflow:hidden;overscroll-behavior:none;background:#f3e6cf;font-family:system-ui,-apple-system,"Segoe UI",sans-serif;color:#3a2616;-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent;-webkit-touch-callout:none}
+*,*::before,*::after{box-sizing:border-box}
+#c{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:none}
+button{font:inherit;cursor:pointer;touch-action:manipulation}
+button:focus-visible{outline:2px solid #f0d78c;outline-offset:2px}
+#top{position:fixed;z-index:3;left:max(8px,env(safe-area-inset-left));top:max(8px,env(safe-area-inset-top));max-width:calc(100% - 16px);pointer-events:none;color:#f8f1e4;background:rgba(62,38,22,.84);border:1px solid rgba(255,228,196,.16);border-radius:14px;padding:8px 12px 9px;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+#top strong{display:block;font-size:16px;font-weight:700;letter-spacing:.01em}
+#stats,#climate{font-size:14px;line-height:1.35;margin-top:2px}
+#bar{position:fixed;z-index:3;left:0;right:0;bottom:0;display:flex;flex-wrap:wrap;justify-content:center;align-items:center;gap:6px;max-width:100%;padding:8px 8px calc(8px + env(safe-area-inset-bottom));background:rgba(48,30,18,.9);border-top:1px solid rgba(255,220,180,.16);pointer-events:none}
+#bar button{pointer-events:auto;flex:0 0 auto;min-width:36px;min-height:40px;padding:6px 10px;font-size:14px;font-weight:650;line-height:1.1;white-space:nowrap;background:#f6efe2;color:#3a2616;border:1px solid #c8b08a;border-radius:12px}
+#bar button.on{background:#e7b23a;border-color:#a87410;color:#2a1c08}
+#toast{position:fixed;z-index:4;left:max(8px,env(safe-area-inset-left));top:calc(var(--top, 72px) + 8px);max-width:calc(100% - 16px);background:rgba(48,30,18,.94);color:#f8f1e4;border:1px solid rgba(240,212,138,.4);border-radius:12px;padding:8px 12px;font-size:14px;line-height:1.35}
+#toast[hidden]{display:none}
+#scrim{position:fixed;inset:0;z-index:6;background:rgba(36,20,10,.42)}
+#scrim[hidden],#card[hidden]{display:none}
+#card{position:fixed;z-index:7;left:50%;top:50%;transform:translate(-50%,-50%);width:min(440px,calc(100% - 20px));max-height:min(520px,calc(100% - 20px));overflow:auto;background:#fbf6ec;color:#3a2616;border:1px solid rgba(90,58,30,.18);border-radius:16px;padding:12px 14px 14px;box-shadow:0 16px 44px rgba(40,20,8,.32)}
+#card header{display:flex;align-items:center;gap:8px;position:sticky;top:-12px;background:#fbf6ec;padding:2px 0 8px}
+#card header b{font-size:18px;flex:1;line-height:1.25}
+#cardClose{min-width:36px;min-height:36px;border-radius:10px;border:1px solid #e0d2b8;background:#fff;color:#3a2616;font-size:16px}
+#card p{margin:0 0 10px;font-size:15.5px;line-height:1.4}
+#chips{display:flex;flex-wrap:wrap;gap:6px}
+#chips button{min-width:36px;min-height:36px;padding:6px 10px;border-radius:999px;border:1px solid #e0d2b8;background:#fff;color:#3a2616;font-size:14px;font-weight:600}
+#chips button.on{background:#e7b23a;border-color:#a87410}
+@media (max-height:430px){
+  #top{padding:3px 8px}
+  #top strong{font-size:14px}
+  #stats,#climate{font-size:12px}
+  #bar{gap:4px;padding:4px 4px calc(4px + env(safe-area-inset-bottom))}
+  #bar button{min-height:36px;padding:4px 7px;font-size:13px}
+  #card{max-height:calc(100% - 12px);padding:8px 10px}
+  #card p{font-size:14px}
+}
+</style>
+</head>
+<body>
+<canvas id="c" aria-label="Wurmkiste. Ein Glas mit Erde und Regenwürmern. Wähle einen Küchenrest und tippe oben ins Glas."></canvas>
+<div id="top">
+  <strong>Wurmkiste</strong>
+  <div id="stats">Würmer · Humus</div>
+  <div id="climate">20 °C · feucht · munter</div>
+</div>
+<div id="bar" role="toolbar" aria-label="Wurmkiste">
+  <button id="bSound" type="button" aria-pressed="false" aria-label="Ton einschalten" title="Ton (M)">Ton</button>
+  <button id="bInfo" type="button" aria-label="Info zur Wurmkiste" title="Info (I)">Info</button>
+  <button id="bSpray" type="button" aria-label="Feuchtigkeit sprühen" title="Sprühen (S)">Sprühen</button>
+  <button id="bHarvest" type="button" aria-label="Humus ernten" title="Ernten (E)">Ernten</button>
+  <button id="bCool" type="button" aria-label="Kühler machen" title="Kühler (−)">Kühler</button>
+  <button id="bWarm" type="button" aria-label="Wärmer machen" title="Wärmer (+)">Wärmer</button>
+  <button type="button" data-food="apfel" class="on" aria-pressed="true" aria-label="Apfel hineinlegen" title="Apfel (1)">Apfel</button>
+  <button type="button" data-food="banane" aria-pressed="false" aria-label="Bananenschale hineinlegen" title="Bananenschale (2)">Banane</button>
+  <button type="button" data-food="kaffee" aria-pressed="false" aria-label="Kaffeesatz hineinlegen" title="Kaffeesatz (3)">Kaffee</button>
+  <button type="button" data-food="ei" aria-pressed="false" aria-label="Eierschale hineinlegen" title="Eierschale (4)">Ei</button>
+  <button type="button" data-food="karton" aria-pressed="false" aria-label="Karton hineinlegen" title="Karton (5)">Karton</button>
+  <button type="button" data-food="salat" aria-pressed="false" aria-label="Salat hineinlegen" title="Salat (6)">Salat</button>
+</div>
+<div id="toast" hidden role="status" aria-live="polite"></div>
+<div id="scrim" hidden></div>
+<div id="card" hidden role="dialog" aria-modal="true" aria-labelledby="cardTitle">
+  <header>
+    <b id="cardTitle">Wurmkiste</b>
+    <button id="cardClose" type="button" aria-label="Schliessen">✕</button>
+  </header>
+  <p id="cardBody"></p>
+  <div id="chips"></div>
+</div>
+<script>
+'use strict';
+(function () {
+  const KEY = 'playbot-wurmkiste';
+  const SW = 100;
+  const SH = 68;
+  const SURFACE = 14.5;
+  const GW = 72;
+  const GH = 50;
+  const MAX_WORMS = 14;
+  const MAX_FOOD = 12;
+  const MAX_COCOONS = 4;
+  const OFFLINE_CAP_MS = 30 * 60 * 1000;
+  const HARVEST_MIN = 8;
+
+  const FOODS = [
+    { id: 'apfel', name: 'Apfel', acid: 0.16, yield: 2.8, eat: 0.16, rot: 0.014, wet: 0.012 },
+    { id: 'banane', name: 'Bananenschale', acid: 0.02, yield: 3.4, eat: 0.18, rot: 0.016, wet: 0.02 },
+    { id: 'kaffee', name: 'Kaffeesatz', acid: 0.08, yield: 1.7, eat: 0.14, rot: 0.018, wet: 0.028 },
+    { id: 'ei', name: 'Eierschale', acid: -0.22, yield: 1.15, eat: 0.055, rot: 0.006, wet: 0 },
+    { id: 'karton', name: 'Karton', acid: 0, yield: 2.3, eat: 0.09, rot: 0.008, wet: 0.04 },
+    { id: 'salat', name: 'Salat', acid: 0.02, yield: 3.1, eat: 0.22, rot: 0.02, wet: 0.05 }
+  ];
+
+  const CARDS = {
+    info: {
+      t: 'Wurmkiste',
+      b: 'Lege Küchenreste oben auf die Erde. Die Regenwürmer fressen sie und lassen dunkle Krümel zurück. Daraus wird Humus. Sprühen hält die Kiste feucht. Mit Ernten nimmst du den Humus heraus. Ist es zu trocken, zu heiss oder zu sauer, verkriechen sich die Würmer. Mild und feucht, um die 20 Grad, mögen sie am liebsten. Tippe einen Wurm an, dann liest du mehr.'
+    },
+    wurm: {
+      t: 'Regenwurm',
+      b: 'Ein Regenwurm ist in viele Ringe geteilt. Er hat keine Augen und keine Beine. Winzige Borsten schieben ihn glatt durch die Erde. Er frisst die Reste und macht daraus Humus. Hinter ihm bleiben dunkle Krümel liegen.'
+    },
+    kokon: {
+      t: 'Kokon',
+      b: 'Ein Kokon sieht aus wie ein kleines Zitronenkorn. Darin wachsen Babywürmer. Wenn die Erde feucht und mild ist, schlüpfen nach einer Weile zwei oder drei kleine Würmer.'
+    },
+    apfel: {
+      t: 'Apfel',
+      b: 'Apfelstücke mögen die Würmer gern. Viele Äpfel auf einmal machen die Kiste sauer, ähnlich wie Zitrusfrüchte. Dann ziehen sich die Würmer nach unten zurück. Eine Eierschale mildert das.'
+    },
+    banane: {
+      t: 'Bananenschale',
+      b: 'Die Schale wird zuerst braun, dann weich und matschig. Das mögen die Würmer sehr. Auf dem weichen Rest zeigen sich oft Springschwänze und Milben.'
+    },
+    kaffee: {
+      t: 'Kaffeesatz',
+      b: 'Kaffeesatz ist dunkel und fein. Ein bisschen davon ist ein Leckerbissen. Zu viel auf einmal macht die Erde etwas sauer.'
+    },
+    ei: {
+      t: 'Eierschale',
+      b: 'Eierschalen sind kalkig und zerfallen langsam. Sie helfen, wenn die Kiste zu sauer geworden ist. Die Würmer brauchen auch ein paar harte Krümel in der Erde.'
+    },
+    karton: {
+      t: 'Karton',
+      b: 'Karton ist das Bett in der Kiste. Er schluckt Feuchtigkeit und hält die Gänge luftig. Zerreisse ihn klein, dann schaffen es die Würmer leichter.'
+    },
+    salat: {
+      t: 'Salat',
+      b: 'Salatblätter sind nass und verschwinden schnell. Zuerst welken sie, dann werden sie braun. Springschwänze naschen gern daran mit.'
+    },
+    spring: {
+      t: 'Springschwanz',
+      b: 'Springschwänze sind winzig und weiss. Mit einer kleinen Gabel am Hinterleib können sie springen. Sie fressen an den Resten mit und tun den Würmern nichts.'
+    },
+    milbe: {
+      t: 'Milbe',
+      b: 'Milben sind kleine Punkte, die auf dem Kompost krabbeln. In einer gesunden Kiste gehören sie dazu. Sie helfen, die Reste zu zersetzen.'
+    },
+    humus: {
+      t: 'Humus',
+      b: 'Die dunklen Krümel hinter dem Wurm sind Wurmhumus. Unten in der Kiste wird er zu einer fast schwarzen Schicht. Pflanzen mögen ihn sehr. Der Knopf Ernten sammelt ihn ein.'
+    }
+  };
+  const CHIPS = [
+    ['info', 'Kiste'], ['wurm', 'Wurm'], ['kokon', 'Kokon'], ['apfel', 'Apfel'],
+    ['banane', 'Banane'], ['kaffee', 'Kaffee'], ['ei', 'Ei'], ['karton', 'Karton'],
+    ['salat', 'Salat'], ['spring', 'Springschwanz'], ['milbe', 'Milbe'], ['humus', 'Humus']
+  ];
+
+  const params = new URLSearchParams(location.search);
+  const canvas = document.getElementById('c');
+  const ctx = canvas.getContext('2d', { alpha: false });
+  const statsEl = document.getElementById('stats');
+  const climateEl = document.getElementById('climate');
+  const bar = document.getElementById('bar');
+  const topEl = document.getElementById('top');
+  const toastEl = document.getElementById('toast');
+  const scrim = document.getElementById('scrim');
+  const card = document.getElementById('card');
+  const cardTitle = document.getElementById('cardTitle');
+  const cardBody = document.getElementById('cardBody');
+  const cardClose = document.getElementById('cardClose');
+  const chipsEl = document.getElementById('chips');
+  const bSound = document.getElementById('bSound');
+
+  const baseC = document.createElement('canvas');
+  const trailC = document.createElement('canvas');
+  const baseCtx = baseC.getContext('2d', { alpha: true });
+  const trailCtx = trailC.getContext('2d', { alpha: true });
+
+  let dpr = 1;
+  let W = 800, H = 600;
+  let SX = 8, SY = 6;
+  const glass = { x: 40, y: 80, w: 640, h: 420 };
+  const frame = { x: 24, y: 64, w: 672, h: 456 };
+
+  let seed = 0xA11CE;
+  let moisture = 0.66;
+  let temp = 20;
+  let acid = 0.06;
+  let humus = 5;
+  let harvested = 0;
+  let tool = 'apfel';
+  let soundOn = false;
+  let unlocked = false;
+  let cardId = 'info';
+  let reduce = false;
+  try { reduce = matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (err) { reduce = false; }
+
+  const grid = new Float32Array(GW * GH);
+  const worms = [];
+  const foods = [];
+  const cocoons = [];
+  const springs = [];
+  const mites = [];
+  const pellets = [];
+  const drops = [];
+  const splashes = [];
+  const floaters = [];
+  const cond = [];
+
+  let hover = null;
+  let soilStamp = '';
+  let diffuseAcc = 0;
+  let saveTimer = 0;
+  let toastTimer = 0;
+  let lastStress = '';
+  let actx = null;
+  let master = null;
+  let lastCrunch = 0;
+  let lastTs = 0;
+  let hiddenAt = 0;
+  let ready = false;
+
+  function rnd() {
+    seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+    return seed / 4294967296;
+  }
+  function clamp(v, a, b) { return v < a ? a : v > b ? b : v; }
+  function wrap(a) {
+    const t = Math.PI * 2;
+    a = (a + Math.PI) % t;
+    if (a < 0) a += t;
+    return a - Math.PI;
+  }
+  function hash(ix, iy) {
+    let n = Math.imul(ix | 0, 374761393) + Math.imul(iy | 0, 668265263);
+    n = Math.imul(n ^ (n >>> 13), 1274126177);
+    return ((n ^ (n >>> 16)) >>> 0) / 4294967296;
+  }
+  function noise(x, y) {
+    const x0 = Math.floor(x), y0 = Math.floor(y);
+    const fx = x - x0, fy = y - y0;
+    const sx = fx * fx * (3 - 2 * fx);
+    const sy = fy * fy * (3 - 2 * fy);
+    const a = hash(x0, y0), b = hash(x0 + 1, y0), c = hash(x0, y0 + 1), d = hash(x0 + 1, y0 + 1);
+    return a + (b - a) * sx + (c - a) * sy + (a - b - c + d) * sx * sy;
+  }
+  function foodIndex(id) {
+    for (let i = 0; i < FOODS.length; i++) if (FOODS[i].id === id) return i;
+    return 0;
+  }
+  function num(v, d, a, b) {
+    const n = Number(v);
+    if (!isFinite(n)) return d;
+    return clamp(n, a, b);
+  }
+
+  function activity() {
+    let a = 1;
+    if (moisture < 0.34) a *= 0.32;
+    else if (moisture < 0.48) a *= 0.68;
+    else if (moisture > 0.9) a *= 0.78;
+    if (temp < 12) a *= 0.28;
+    else if (temp < 16) a *= 0.62;
+    else if (temp > 29) a *= 0.36;
+    else if (temp > 26) a *= 0.7;
+    if (acid > 0.58) a *= 0.32;
+    else if (acid > 0.4) a *= 0.62;
+    return a;
+  }
+  function stressed() {
+    if (moisture < 0.34) return 'dry';
+    if (acid > 0.4) return 'acid';
+    if (temp >= 30) return 'hot';
+    if (temp <= 10) return 'cold';
+    return '';
+  }
+  function moodWord() {
+    const s = stressed();
+    if (s === 'dry' || s === 'acid') return 'verkrochen';
+    if (activity() < 0.62) return 'träge';
+    return 'munter';
+  }
+  function climateWord() {
+    const bits = [];
+    if (moisture < 0.34) bits.push('trocken');
+    else if (moisture < 0.48) bits.push('halbtrocken');
+    else if (moisture > 0.88) bits.push('nass');
+    else bits.push('feucht');
+    if (acid > 0.4) bits.push('sauer');
+    if (temp >= 30) bits.push('heiss');
+    else if (temp <= 10) bits.push('kalt');
+    bits.push(moodWord());
+    return temp.toFixed(0) + ' °C · ' + bits.join(' · ');
+  }
+
+  function toast(msg) {
+    toastEl.textContent = msg;
+    toastEl.hidden = false;
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { toastEl.hidden = true; }, 2600);
+  }
+
+  function spacingPx(scale) {
+    const unit = Math.min(SX, SY);
+    return clamp(unit * 1.12, 4.2, 9.2) * (0.62 + 0.38 * scale);
+  }
+  function makeWorm(x, y, heading, scale) {
+    const segs = 14;
+    const spx = spacingPx(scale);
+    const trail = [];
+    let px = x, py = y, h = heading;
+    for (let i = 0; i < segs + 8; i++) {
+      trail.push({ x: px, y: py });
+      h += 0.28;
+      px -= Math.cos(h) * (spx / SX);
+      py -= Math.sin(h) * (spx / SY);
+      px = clamp(px, 3, SW - 3);
+      py = clamp(py, SURFACE - 0.4, SH - 2);
+    }
+    const w = {
+      trail: trail,
+      pts: [],
+      heading: heading,
+      scale: scale,
+      phase: rnd() * 6.28,
+      belly: rnd() * 0.25,
+      lay: 70 + rnd() * 140,
+      castAcc: rnd(),
+      hue: rnd(),
+      eating: false
+    };
+    for (let i = 0; i < segs; i++) w.pts.push({ x: x, y: y });
+    resample(w);
+    return w;
+  }
+  function resample(w) {
+    const tr = w.trail;
+    if (!tr.length) return;
+    const need0 = spacingPx(w.scale);
+    const pts = w.pts;
+    pts[0].x = tr[0].x;
+    pts[0].y = tr[0].y;
+    let idx = 0;
+    let ox = tr[0].x, oy = tr[0].y;
+    for (let p = 1; p < pts.length; p++) {
+      let need = need0;
+      let guard = 0;
+      while (need > 0 && guard++ < 80) {
+        if (idx >= tr.length - 1) break;
+        const b = tr[idx + 1];
+        const dx = (b.x - ox) * SX;
+        const dy = (b.y - oy) * SY;
+        const dist = Math.hypot(dx, dy);
+        if (dist < 1e-4) { idx++; ox = b.x; oy = b.y; continue; }
+        if (dist >= need) {
+          const t = need / dist;
+          ox += (b.x - ox) * t;
+          oy += (b.y - oy) * t;
+          need = 0;
+        } else {
+          need -= dist;
+          idx++;
+          ox = b.x;
+          oy = b.y;
+        }
+      }
+      pts[p].x = ox;
+      pts[p].y = oy;
+    }
+  }
+
+  function stamp(x, y, amt, draw) {
+    if (y < SURFACE - 0.2) return;
+    const gx = clamp(Math.round(x / SW * (GW - 1)), 1, GW - 2);
+    const gy = clamp(Math.round(y / SH * (GH - 1)), 1, GH - 2);
+    for (let oy = -1; oy <= 1; oy++) {
+      for (let ox = -1; ox <= 1; ox++) {
+        const fall = (ox === 0 && oy === 0) ? 1 : 0.42;
+        const i = (gy + oy) * GW + (gx + ox);
+        grid[i] = Math.min(1, grid[i] + amt * fall);
+      }
+    }
+    if (draw && trailC.width > 2) {
+      const px0 = (x / SW) * trailC.width;
+      const py0 = (y / SH) * trailC.height;
+      const rad = Math.max(6, trailC.width / GW * 1.6);
+      trailCtx.fillStyle = 'rgba(74,44,24,' + Math.min(0.22, 0.08 + amt * 0.2) + ')';
+      trailCtx.beginPath();
+      trailCtx.arc(px0, py0, rad, 0, Math.PI * 2);
+      trailCtx.fill();
+    }
+  }
+  function carve(x0, y0, x1, y1, wob) {
+    for (let i = 0; i <= 28; i++) {
+      const t = i / 28;
+      const x = x0 + (x1 - x0) * t + Math.sin(t * 9.5 + x0) * wob;
+      const y = y0 + (y1 - y0) * t + Math.cos(t * 7.2) * wob * 0.45;
+      stamp(clamp(x, 4, 96), clamp(y, SURFACE + 1, SH - 2), 0.2, false);
+    }
+  }
+  function sampleGrid(gx, gy) {
+    const x0 = Math.floor(gx);
+    const y0 = Math.floor(gy);
+    let acc = 0;
+    let wsum = 0;
+    for (let oy = -3; oy <= 3; oy++) {
+      const y = y0 + oy;
+      if (y < 0 || y >= GH) continue;
+      for (let ox = -3; ox <= 3; ox++) {
+        const x = x0 + ox;
+        if (x < 0 || x >= GW) continue;
+        const dx = gx - x;
+        const dy = gy - y;
+        const wgt = Math.exp(-(dx * dx + dy * dy) * 0.65);
+        acc += grid[y * GW + x] * wgt;
+        wsum += wgt;
+      }
+    }
+    return wsum ? acc / wsum : 0;
+  }
+  function redrawTrail() {
+    const w = trailC.width;
+    const h = trailC.height;
+    if (w < 2 || h < 2) return;
+    const img = trailCtx.createImageData(w, h);
+    const d = img.data;
+    for (let y = 0; y < h; y++) {
+      const gy = (y + 0.5) / h * (GH - 1);
+      for (let x = 0; x < w; x++) {
+        const v = sampleGrid((x + 0.5) / w * (GW - 1), gy);
+        if (v < 0.05) continue;
+        const a = Math.min(168, v * 250);
+        const i = (y * w + x) * 4;
+        d[i] = 62;
+        d[i + 1] = 36;
+        d[i + 2] = 18;
+        d[i + 3] = a;
+      }
+    }
+    trailCtx.putImageData(img, 0, 0);
+  }
+  function rebuildBase() {
+    const w = baseC.width, h = baseC.height;
+    if (w < 2 || h < 2) return;
+    const img = baseCtx.createImageData(w, h);
+    const d = img.data;
+    for (let y = 0; y < h; y++) {
+      const ny = y / h * SH;
+      for (let x = 0; x < w; x++) {
+        const nx = x / w * SW;
+        const surf = SURFACE + (noise(nx * 0.18, 1.7) - 0.5) * 1.3;
+        let r, g, b;
+        if (ny < surf) {
+          const shade = 118 + noise(nx * 0.07, ny * 0.1) * 18;
+          const depth = ny / Math.max(1, surf);
+          r = shade * 0.62 - depth * 18;
+          g = shade * 0.48 - depth * 16;
+          b = shade * 0.36 - depth * 10;
+        } else {
+          const t = clamp((ny - surf) / (SH - surf), 0, 1);
+          if (t < 0.16) {
+            const k = t / 0.16;
+            r = 204 - k * 42; g = 164 - k * 40; b = 96 - k * 24;
+          } else {
+            const k = (t - 0.16) / 0.84;
+            r = 156 - k * 74; g = 108 - k * 56; b = 62 - k * 32;
+          }
+          const n = noise(nx * 0.22, ny * 0.2);
+          const n2 = noise(nx * 0.55 + 4, ny * 0.5);
+          r += (n - 0.5) * 26 + (n2 - 0.5) * 10;
+          g += (n - 0.5) * 18 + (n2 - 0.5) * 8;
+          b += (n - 0.5) * 10;
+        }
+        const i = (y * w + x) * 4;
+        d[i] = clamp(r, 0, 255);
+        d[i + 1] = clamp(g, 0, 255);
+        d[i + 2] = clamp(b, 0, 255);
+        d[i + 3] = 255;
+      }
+    }
+    baseCtx.putImageData(img, 0, 0);
+  }
+
+  function packGrid() {
+    let s = '';
+    const chunk = [];
+    for (let i = 0; i < grid.length; i++) {
+      chunk.push(clamp(Math.round(grid[i] * 255), 0, 255));
+      if (chunk.length === 1800 || i === grid.length - 1) {
+        s += String.fromCharCode.apply(null, chunk);
+        chunk.length = 0;
+      }
+    }
+    return btoa(s);
+  }
+  function unpackGrid(str) {
+    if (typeof str !== 'string' || !str) return false;
+    let bin = '';
+    try { bin = atob(str); } catch (err) { return false; }
+    if (bin.length !== grid.length) return false;
+    for (let i = 0; i < grid.length; i++) grid[i] = bin.charCodeAt(i) / 255;
+    return true;
+  }
+
+  function save() {
+    if (!ready) return;
+    try {
+      const data = {
+        v: 1,
+        t: Date.now(),
+        seed: seed >>> 0,
+        moisture: Math.round(moisture * 1000) / 1000,
+        temp: temp,
+        acid: Math.round(acid * 1000) / 1000,
+        humus: Math.round(humus * 100) / 100,
+        harvested: harvested | 0,
+        sound: soundOn ? 1 : 0,
+        tool: tool,
+        grid: packGrid(),
+        worms: worms.map(function (w) {
+          const h = w.pts[0] || w.trail[0];
+          return [
+            Math.round(h.x * 100) / 100,
+            Math.round(h.y * 100) / 100,
+            Math.round(w.heading * 1000) / 1000,
+            Math.round(w.scale * 100) / 100,
+            Math.round(w.phase * 100) / 100,
+            Math.round(w.belly * 100) / 100,
+            Math.round(w.lay * 10) / 10,
+            Math.round(w.hue * 100) / 100
+          ];
+        }),
+        foods: foods.map(function (f) {
+          return [f.k, Math.round(f.x * 100) / 100, Math.round(f.rot * 1000) / 1000, Math.round(f.left * 1000) / 1000];
+        }),
+        cocoons: cocoons.map(function (c) {
+          return [Math.round(c.x * 100) / 100, Math.round(c.y * 100) / 100, Math.round(c.age * 1000) / 1000];
+        })
+      };
+      localStorage.setItem(KEY, JSON.stringify(data));
+    } catch (err) { /* storage off or full */ }
+  }
+  function saveSoon() {
+    if (saveTimer) return;
+    saveTimer = setTimeout(function () { saveTimer = 0; save(); }, 400);
+  }
+
+  function fastForward(ms) {
+    const sec = Math.min(Math.max(0, ms) / 1000, OFFLINE_CAP_MS / 1000);
+    if (sec < 3) return false;
+    const h0 = humus;
+    const m0 = moisture;
+    const w0 = worms.length;
+    let births = 0;
+    const steps = Math.ceil(sec / 0.5);
+    const dt = sec / steps;
+    for (let i = 0; i < steps; i++) tick(dt, true, births);
+    if (humus - h0 > 16) humus = h0 + 16;
+    if (m0 - moisture > 0.2) moisture = m0 - 0.2;
+    moisture = clamp(moisture, 0.16, 1);
+    while (worms.length > Math.min(MAX_WORMS, w0 + 4)) worms.pop();
+    while (cocoons.length > MAX_COCOONS) cocoons.pop();
+    redrawTrail();
+    syncCritters();
+    return true;
+  }
+
+  function restore() {
+    let raw = null;
+    try { raw = localStorage.getItem(KEY); } catch (err) { return false; }
+    if (!raw) return false;
+    let data = null;
+    try { data = JSON.parse(raw); } catch (err) { return false; }
+    if (!data || data.v !== 1) return false;
+    seed = (data.seed >>> 0) || 0xA11CE;
+    moisture = num(data.moisture, 0.66, 0, 1);
+    temp = num(data.temp, 20, 8, 32);
+    acid = num(data.acid, 0, 0, 1);
+    humus = num(data.humus, 0, 0, 80);
+    harvested = num(data.harvested, 0, 0, 99999) | 0;
+    soundOn = !!data.sound;
+    if (FOODS.some(function (f) { return f.id === data.tool; })) tool = data.tool;
+    worms.length = 0;
+    foods.length = 0;
+    cocoons.length = 0;
+    pellets.length = 0;
+    grid.fill(0);
+    if (!unpackGrid(data.grid)) carve(20, 24, 70, 40, 2.2);
+    if (Array.isArray(data.worms)) {
+      for (let i = 0; i < data.worms.length && worms.length < MAX_WORMS; i++) {
+        const r = data.worms[i];
+        if (!Array.isArray(r) || r.length < 8) continue;
+        const w = makeWorm(num(r[0], 40, 4, 96), num(r[1], 36, SURFACE, SH - 2), num(r[2], 0, -7, 7), num(r[3], 1, 0.35, 1));
+        w.phase = num(r[4], 0, 0, 40);
+        w.belly = num(r[5], 0, 0, 1);
+        w.lay = num(r[6], 90, 0, 400);
+        w.hue = num(r[7], 0.4, 0, 1);
+        worms.push(w);
+      }
+    }
+    if (Array.isArray(data.foods)) {
+      for (let i = 0; i < data.foods.length && foods.length < MAX_FOOD; i++) {
+        const r = data.foods[i];
+        if (!Array.isArray(r) || r.length < 4) continue;
+        const k = r[0] | 0;
+        if (k < 0 || k >= FOODS.length) continue;
+        foods.push({
+          k: k,
+          x: num(r[1], 50, 8, 92),
+          rot: num(r[2], 0, 0, 1),
+          left: num(r[3], 1, 0.05, 1),
+          pop: 1
+        });
+      }
+    }
+    if (Array.isArray(data.cocoons)) {
+      for (let i = 0; i < data.cocoons.length && cocoons.length < MAX_COCOONS; i++) {
+        const r = data.cocoons[i];
+        if (!Array.isArray(r) || r.length < 3) continue;
+        cocoons.push({ x: num(r[0], 40, 6, 94), y: num(r[1], 40, SURFACE, SH - 3), age: num(r[2], 0, 0, 1) });
+      }
+    }
+    if (!worms.length) worms.push(makeWorm(40, 36, 0.4, 1));
+    const gap = Date.now() - num(data.t, Date.now(), 0, Date.now() + 1000);
+    if (gap > 3000 && fastForward(gap) && gap > 20000) {
+      toast('Du warst weg. Die Würmer haben höchstens eine halbe Stunde weitergearbeitet.');
+    }
+    redrawTrail();
+    updateSoundButton();
+    markTools();
+    return true;
+  }
+
+  function fresh() {
+    seed = 0xA11CE;
+    moisture = 0.66;
+    temp = 20;
+    acid = 0.08;
+    humus = 5;
+    harvested = 0;
+    tool = 'apfel';
+    soundOn = false;
+    worms.length = 0;
+    foods.length = 0;
+    cocoons.length = 0;
+    pellets.length = 0;
+    grid.fill(0);
+    carve(18, 26, 48, 46, 2.4);
+    carve(62, 22, 30, 52, 2.1);
+    carve(40, 30, 82, 38, 1.6);
+    carve(24, 48, 70, 58, 1.4);
+    worms.push(makeWorm(28, 30, -0.4, 1));
+    worms.push(makeWorm(48, 36, 2.4, 0.92));
+    worms.push(makeWorm(70, 44, 3.4, 1));
+    worms.push(makeWorm(36, 52, 0.2, 0.84));
+    worms.push(makeWorm(58, 28, 1.2, 0.48));
+    foods.push({ k: 1, x: 34, rot: 0.42, left: 0.82, pop: 1 });
+    foods.push({ k: 5, x: 68, rot: 0.22, left: 0.9, pop: 1 });
+    foods.push({ k: 2, x: 50, rot: 0.58, left: 0.7, pop: 1 });
+    foods.push({ k: 0, x: 18, rot: 0.08, left: 1, pop: 1 });
+    cocoons.push({ x: 44, y: 48, age: 0.32 });
+    redrawTrail();
+    updateSoundButton();
+    markTools();
+  }
+
+  function nearestFood(pt) {
+    let best = null, bd = 1e9;
+    for (let i = 0; i < foods.length; i++) {
+      const f = foods[i];
+      const y = foodY(f);
+      const d = Math.hypot(f.x - pt.x, y - pt.y);
+      if (d < bd) { bd = d; best = f; }
+    }
+    return bd < 26 ? best : null;
+  }
+  function foodY(f) {
+    return SURFACE - 0.15 + f.rot * 4.2 + (1 - f.left) * 1.6;
+  }
+  function consume(f, amount, factor) {
+    const before = f.left;
+    f.left = Math.max(0, f.left - amount);
+    const d = before - f.left;
+    humus = Math.min(80, humus + d * FOODS[f.k].yield * factor);
+    return d;
+  }
+
+  function tick(dt, batch) {
+    const act = activity();
+    const stress = stressed();
+    const evap = 0.00085 * (batch ? 0.08 : 1);
+    moisture = clamp(moisture - evap * dt + 0, 0.12, 1);
+    acid = Math.max(0, acid - dt * 0.0016);
+
+    for (let i = 0; i < foods.length; i++) {
+      const f = foods[i];
+      const spec = FOODS[f.k];
+      f.rot = Math.min(1, f.rot + dt * spec.rot * (0.55 + moisture * 0.7));
+      f.pop = Math.min(1, f.pop + dt * 3.2);
+      const micro = dt * spec.rot * 0.55 * (0.35 + moisture);
+      if (micro > 0) consume(f, micro, 0.55);
+      if (f.left <= 0.03) f.left = 0;
+    }
+
+    for (let wi = 0; wi < worms.length; wi++) moveWorm(worms[wi], dt, batch, act, stress);
+
+    for (let i = cocoons.length - 1; i >= 0; i--) {
+      const c = cocoons[i];
+      const happy = act > 0.55 && moisture > 0.45 && temp > 14 && temp < 28;
+      c.age += dt / (happy ? 62 : 110);
+      if (c.age < 1) continue;
+      if (worms.length >= MAX_WORMS) { c.age = 1; continue; }
+      if (batch && worms.length >= MAX_WORMS) continue;
+      const n = rnd() < 0.3 ? 3 : 2;
+      let born = 0;
+      for (let k = 0; k < n && worms.length < MAX_WORMS; k++) {
+        worms.push(makeWorm(c.x + (rnd() - 0.5) * 3, c.y, rnd() * 6.28, 0.4 + rnd() * 0.08));
+        born++;
+      }
+      cocoons.splice(i, 1);
+      if (born && !batch) toast('Ein Kokon ist aufgegangen. Kleine Würmer schlüpfen.');
+    }
+
+    for (let fi = foods.length - 1; fi >= 0; fi--) {
+      if (foods[fi].left <= 0.03) foods.splice(fi, 1);
+    }
+
+    if (!batch) {
+      for (let i = worms.length - 1; i >= 0 && worms.length < MAX_WORMS; i--) {
+        const w = worms[i];
+        if (w.scale < 1) w.scale = Math.min(1, w.scale + dt * 0.004);
+      }
+      diffuseAcc += dt;
+      if (diffuseAcc > 2.4) {
+        diffuseAcc = 0;
+        diffuseGrid();
+        redrawTrail();
+      }
+      updateCritters(dt);
+      updateFx(dt);
+      noteStress(stress);
+    }
+  }
+
+  function moveWorm(w, dt, batch, act, stress) {
+    const head = w.pts[0];
+    const retreat = stress === 'dry' || stress === 'acid' || stress === 'hot';
+    let food = null;
+    if (!retreat) food = nearestFood(head);
+    let desired = w.heading;
+    w.eating = false;
+    if (retreat) {
+      desired = head.y < 46 ? Math.PI / 2 + Math.sin(w.phase) * 0.35 : Math.sin(w.phase * 0.4) * 1.2;
+    } else if (stress === 'cold') {
+      desired = w.heading + Math.sin(w.phase * 0.25) * 0.6;
+    } else if (food) {
+      const fy = foodY(food);
+      desired = Math.atan2(fy - head.y, food.x - head.x);
+      if (Math.hypot(food.x - head.x, fy - head.y) < 3.3) w.eating = true;
+    } else {
+      desired = w.heading + Math.sin(w.phase * 0.31) * 0.9;
+      if (head.y < SURFACE + 1.2) desired = 1.05;
+      if (head.y > SH - 6) desired = -1.1;
+      if (head.x < 8) desired = 0.35;
+      if (head.x > SW - 8) desired = Math.PI - 0.35;
+    }
+    const diff = wrap(desired - w.heading);
+    const maxTurn = (w.eating ? 1.4 : 2.35) * dt;
+    w.heading += clamp(diff, -maxTurn, maxTurn);
+    const sp = (retreat ? 2.3 : 6.4) * (0.45 + 0.55 * act) * (w.eating ? 0.28 : 1);
+    w.phase += dt * (w.eating ? 10 : 6.2) * (reduce ? 0.45 : 1) * (retreat ? 0.55 : 1);
+    const wig = Math.sin(w.phase) * (retreat ? 0.15 : 0.55) * (reduce ? 0.25 : 1);
+    const hx = Math.cos(w.heading), hy = Math.sin(w.heading);
+    let x = head.x + hx * sp * dt + (-hy) * wig * dt * 3.2;
+    let y = head.y + hy * sp * dt + hx * wig * dt * 3.2;
+    const minY = SURFACE - 0.6;
+    if (x < 3.2) { x = 3.2; w.heading = 0.4; }
+    if (x > SW - 3.2) { x = SW - 3.2; w.heading = Math.PI - 0.4; }
+    if (y < minY) { y = minY; if (hy < 0) w.heading = Math.abs(w.heading) * 0.25 + 0.8; }
+    if (y > SH - 2.2) { y = SH - 2.2; if (hy > 0) w.heading = -Math.abs(w.heading) * 0.4 - 0.4; }
+    w.trail.unshift({ x: x, y: y });
+    if (w.trail.length > 90) w.trail.length = 90;
+    resample(w);
+
+    if (w.eating && food && food.left > 0) {
+      const bite = FOODS[food.k].eat * dt * (0.55 + 0.45 * act);
+      const got = consume(food, bite, 1);
+      if (got > 0) {
+        w.belly = Math.min(1, w.belly + got);
+        if (!batch) playCrunch();
+      }
+    }
+    w.castAcc += dt * (0.35 + w.belly);
+    if (w.belly > 0.08 && w.castAcc > 0.28) {
+      w.castAcc = 0;
+      w.belly = Math.max(0, w.belly - 0.05);
+      const tail = w.pts[w.pts.length - 1];
+      stamp(tail.x, tail.y + 0.4, 0.2 + w.belly * 0.25, !batch);
+      if (!batch && pellets.length < 48) {
+        pellets.push({ x: tail.x, y: tail.y, life: 1, s: 0.7 + rnd() * 0.8 });
+      }
+    }
+    if (!retreat && w.scale > 0.82) {
+      w.lay -= dt * act;
+      if (w.lay <= 0) {
+        w.lay = 150 + rnd() * 80;
+        if (act > 0.72 && moisture > 0.5 && acid < 0.34 && temp > 15 && temp < 27 && cocoons.length < MAX_COCOONS && worms.length < MAX_WORMS - 1) {
+          const mid = w.pts[Math.min(5, w.pts.length - 1)];
+          cocoons.push({ x: clamp(mid.x, 6, 94), y: clamp(mid.y, SURFACE + 2, SH - 4), age: 0 });
+        }
+      }
+    }
+  }
+
+  function diffuseGrid() {
+    const next = new Float32Array(grid.length);
+    for (let y = 0; y < GH; y++) {
+      for (let x = 0; x < GW; x++) {
+        const i = y * GW + x;
+        let v = grid[i] * 0.9;
+        if (y > 0) v += grid[i - GW] * 0.07;
+        if (x > 0) v += grid[i - 1] * 0.015;
+        if (x < GW - 1) v += grid[i + 1] * 0.015;
+        next[i] = Math.min(1, v);
+      }
+    }
+    grid.set(next);
+  }
+
+  function syncCritters() {
+    let springTarget = 0, miteTarget = 0;
+    for (let i = 0; i < foods.length; i++) {
+      if (foods[i].rot > 0.34) springTarget += 3;
+      if (foods[i].rot > 0.6) miteTarget += 4;
+    }
+    springTarget = Math.min(16, springTarget);
+    miteTarget = Math.min(14, miteTarget);
+    while (springs.length < springTarget) {
+      springs.push({ x: 20 + rnd() * 60, y: SURFACE + rnd() * 6, vx: 0, vy: 0, hop: rnd() * 2, food: (rnd() * Math.max(1, foods.length)) | 0 });
+    }
+    while (springs.length > springTarget) springs.pop();
+    while (mites.length < miteTarget) {
+      mites.push({ x: 20 + rnd() * 60, y: SURFACE + rnd() * 4, a: rnd() * 6, food: (rnd() * Math.max(1, foods.length)) | 0 });
+    }
+    while (mites.length > miteTarget) mites.pop();
+  }
+  function anchorFood(i) {
+    if (!foods.length) return null;
+    return foods[Math.abs(i) % foods.length];
+  }
+  function updateCritters(dt) {
+    syncCritters();
+    for (let i = 0; i < springs.length; i++) {
+      const s = springs[i];
+      const f = anchorFood(s.food);
+      const tx = f ? f.x + Math.sin(s.hop) * 3.5 : s.x;
+      const ty = f ? foodY(f) + 0.8 : SURFACE + 2;
+      s.hop -= dt;
+      if (s.hop <= 0) {
+        s.hop = 0.8 + rnd() * 1.8;
+        s.vx = (rnd() - 0.5) * 7;
+        s.vy = -3.2 - rnd() * 2.4;
+      }
+      s.vy += dt * 8;
+      s.x += s.vx * dt + (tx - s.x) * dt * 0.4;
+      s.y += s.vy * dt;
+      if (s.y > ty) { s.y = ty; s.vy *= -0.1; }
+      s.x = clamp(s.x, 4, 96);
+    }
+    for (let i = 0; i < mites.length; i++) {
+      const m = mites[i];
+      const f = anchorFood(m.food);
+      m.a += dt * (1.4 + (i % 3) * 0.3);
+      if (f) {
+        m.x += Math.cos(m.a) * dt * 1.6 + (f.x - m.x) * dt * 0.5;
+        m.y += Math.sin(m.a * 1.3) * dt * 0.8 + (foodY(f) - m.y) * dt * 0.8;
+      }
+    }
+  }
+  function updateFx(dt) {
+    for (let i = pellets.length - 1; i >= 0; i--) {
+      const p = pellets[i];
+      p.life -= dt * 0.22;
+      p.y += dt * 0.8;
+      if (p.life <= 0) pellets.splice(i, 1);
+    }
+    for (let i = drops.length - 1; i >= 0; i--) {
+      const d = drops[i];
+      d.vy += dt * 46;
+      d.y += d.vy * dt;
+      d.life -= dt;
+      if (d.y > SURFACE + 0.3 || d.life <= 0) {
+        if (splashes.length < 30) splashes.push({ x: d.x, y: SURFACE, r: 0.4, a: 0.7 });
+        drops.splice(i, 1);
+      }
+    }
+    for (let i = splashes.length - 1; i >= 0; i--) {
+      const s = splashes[i];
+      s.r += dt * 6;
+      s.a -= dt * 1.4;
+      if (s.a <= 0) splashes.splice(i, 1);
+    }
+    for (let i = floaters.length - 1; i >= 0; i--) {
+      floaters[i].life -= dt;
+      floaters[i].y -= dt * 8;
+      if (floaters[i].life <= 0) floaters.splice(i, 1);
+    }
+  }
+  function noteStress(stress) {
+    if (stress === lastStress) return;
+    if (stress === 'dry') toast('Zu trocken. Die Würmer ziehen sich nach unten zurück.');
+    else if (stress === 'acid') toast('Zu sauer, fast wie Zitrus. Die Würmer verkriechen sich.');
+    else if (stress === 'hot') toast('Ganz schön heiss. Die Würmer werden langsam.');
+    else if (stress === 'cold') toast('Recht kühl. Die Würmer bewegen sich träge.');
+    lastStress = stress;
+  }
+
+  function dropFood(id, x) {
+    if (foods.length >= MAX_FOOD) {
+      toast('Genug Reste obenauf. Lass die Würmer erst fressen.');
+      return;
+    }
+    const k = foodIndex(id);
+    const spec = FOODS[k];
+    let px = clamp(x, 10, 90);
+    for (let n = 0; n < 6; n++) {
+      let crowded = false;
+      for (let i = 0; i < foods.length; i++) {
+        if (Math.abs(foods[i].x - px) < 6) { crowded = true; break; }
+      }
+      if (!crowded) break;
+      px = clamp(px + (n % 2 ? 7 : -7), 10, 90);
+    }
+    foods.push({ k: k, x: px, rot: 0, left: 1, pop: 0 });
+    acid = clamp(acid + spec.acid, 0, 1);
+    moisture = clamp(moisture + spec.wet, 0, 1);
+    if (spec.id === 'ei' && spec.acid < 0) toast('Die Eierschale mildert die Säure.');
+    else if (spec.id === 'apfel' && acid > 0.4) toast('Viele Äpfel machen die Kiste sauer.');
+    saveSoon();
+  }
+  function spray() {
+    moisture = clamp(moisture + 0.18, 0, 1);
+    const n = reduce ? 8 : 16;
+    for (let i = 0; i < n; i++) {
+      drops.push({
+        x: 8 + rnd() * 84,
+        y: 2 + rnd() * 4,
+        vy: 4 + rnd() * 6,
+        life: 1.4,
+        r: 0.35 + rnd() * 0.35
+      });
+    }
+    playSpray();
+    if (moisture > 0.97) toast('Die Kiste ist schon schön nass.');
+    saveSoon();
+  }
+  function harvest() {
+    const take = Math.floor(humus);
+    if (take < HARVEST_MIN) {
+      toast('Noch zu wenig Humus unten in der Kiste.');
+      return;
+    }
+    humus -= take;
+    harvested += take;
+    floaters.push({ text: '+' + take + ' Humus', x: 50, y: SH - 8, life: 1.6 });
+    toast('Geerntet: ' + take + ' Handvoll dunkler Humus.');
+    saveSoon();
+  }
+  function setTemp(next) {
+    const t = clamp(next, 8, 32);
+    if (t === temp) return;
+    const warmer = t > temp;
+    temp = t;
+    let msg = temp.toFixed(0) + ' °C';
+    if (temp >= 30) msg = 'Ganz schön heiss: ' + msg;
+    else if (temp <= 10) msg = 'Recht kühl: ' + msg;
+    else msg = (warmer ? 'Wärmer: ' : 'Kühler: ') + msg;
+    toast(msg);
+    saveSoon();
+  }
+
+  function ensureAudio() {
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return false;
+    if (!actx) {
+      actx = new AC();
+      master = actx.createGain();
+      master.gain.value = 0.42;
+      master.connect(actx.destination);
+    }
+    if (actx.state === 'suspended') {
+      actx.resume().catch(function () {});
+    }
+    return true;
+  }
+  function userGesture() {
+    if (unlocked) return;
+    unlocked = true;
+    if (soundOn) {
+      try { ensureAudio(); } catch (err) { soundOn = false; updateSoundButton(); }
+    }
+  }
+  function playCrunch() {
+    if (!soundOn || !unlocked) return;
+    try {
+      if (!ensureAudio()) return;
+      const t = actx.currentTime;
+      if (t - lastCrunch < 0.4) return;
+      lastCrunch = t;
+      const dur = 0.07;
+      const buf = actx.createBuffer(1, Math.floor(actx.sampleRate * dur), actx.sampleRate);
+      const data = buf.getChannelData(0);
+      for (let i = 0; i < data.length; i++) {
+        const e = 1 - i / data.length;
+        data[i] = (Math.random() * 2 - 1) * e * e;
+      }
+      const src = actx.createBufferSource();
+      src.buffer = buf;
+      const f = actx.createBiquadFilter();
+      f.type = 'lowpass';
+      f.frequency.value = 780;
+      const g = actx.createGain();
+      g.gain.setValueAtTime(0.18, t);
+      g.gain.linearRampToValueAtTime(0.0001, t + dur);
+      src.connect(f); f.connect(g); g.connect(master);
+      src.start(t); src.stop(t + dur + 0.02);
+      const o = actx.createOscillator();
+      o.type = 'sine';
+      o.frequency.setValueAtTime(168, t);
+      o.frequency.exponentialRampToValueAtTime(70, t + 0.06);
+      const og = actx.createGain();
+      og.gain.setValueAtTime(0.06, t);
+      og.gain.linearRampToValueAtTime(0.0001, t + 0.07);
+      o.connect(og); og.connect(master);
+      o.start(t); o.stop(t + 0.08);
+    } catch (err) { /* audio blocked */ }
+  }
+  function playSpray() {
+    if (!soundOn || !unlocked) return;
+    try {
+      if (!ensureAudio()) return;
+      const t = actx.currentTime;
+      const dur = 0.38;
+      const buf = actx.createBuffer(1, Math.floor(actx.sampleRate * dur), actx.sampleRate);
+      const data = buf.getChannelData(0);
+      for (let i = 0; i < data.length; i++) {
+        const e = Math.sin((i / data.length) * Math.PI);
+        data[i] = (Math.random() * 2 - 1) * e;
+      }
+      const src = actx.createBufferSource();
+      src.buffer = buf;
+      const bp = actx.createBiquadFilter();
+      bp.type = 'bandpass';
+      bp.frequency.value = 1800;
+      bp.Q.value = 0.7;
+      const g = actx.createGain();
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.linearRampToValueAtTime(0.16, t + 0.04);
+      g.gain.linearRampToValueAtTime(0.0001, t + dur);
+      src.connect(bp); bp.connect(g); g.connect(master);
+      src.start(t); src.stop(t + dur + 0.02);
+      for (let i = 0; i < 5; i++) {
+        const o = actx.createOscillator();
+        o.type = 'sine';
+        const st = t + 0.03 + i * 0.055;
+        o.frequency.setValueAtTime(980 + i * 160, st);
+        const og = actx.createGain();
+        og.gain.setValueAtTime(0.0001, st);
+        og.gain.linearRampToValueAtTime(0.045, st + 0.012);
+        og.gain.linearRampToValueAtTime(0.0001, st + 0.07);
+        o.connect(og); og.connect(master);
+        o.start(st); o.stop(st + 0.08);
+      }
+    } catch (err) { /* audio blocked */ }
+  }
+  function updateSoundButton() {
+    bSound.classList.toggle('on', soundOn);
+    bSound.setAttribute('aria-pressed', soundOn ? 'true' : 'false');
+    bSound.setAttribute('aria-label', soundOn ? 'Ton ausschalten' : 'Ton einschalten');
+    if (master && actx && !soundOn) master.gain.setTargetAtTime(0, actx.currentTime, 0.05);
+    else if (master && actx && soundOn) master.gain.setTargetAtTime(0.42, actx.currentTime, 0.05);
+  }
+  function toggleSound() {
+    userGesture();
+    soundOn = !soundOn;
+    if (soundOn) {
+      try {
+        if (!ensureAudio()) soundOn = false;
+      } catch (err) { soundOn = false; }
+    }
+    updateSoundButton();
+    saveSoon();
+  }
+  function markTools() {
+    const buttons = bar.querySelectorAll('button[data-food]');
+    for (let i = 0; i < buttons.length; i++) {
+      const on = buttons[i].dataset.food === tool;
+      buttons[i].classList.toggle('on', on);
+      buttons[i].setAttribute('aria-pressed', on ? 'true' : 'false');
+    }
+  }
+  function selectTool(id) {
+    tool = id;
+    markTools();
+  }
+
+  function openCard(id) {
+    if (!CARDS[id]) id = 'info';
+    cardId = id;
+    cardTitle.textContent = CARDS[id].t;
+    cardBody.textContent = CARDS[id].b;
+    const chips = chipsEl.children;
+    for (let i = 0; i < chips.length; i++) chips[i].classList.toggle('on', chips[i].dataset.card === id);
+    card.hidden = false;
+    scrim.hidden = false;
+    card.setAttribute('aria-label', CARDS[id].t);
+  }
+  function closeCard() {
+    card.hidden = true;
+    scrim.hidden = true;
+  }
+
+  function layout() {
+    dpr = Math.min(2, window.devicePixelRatio || 1);
+    W = window.innerWidth;
+    H = window.innerHeight;
+    canvas.width = Math.max(1, Math.round(W * dpr));
+    canvas.height = Math.max(1, Math.round(H * dpr));
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const topH = topEl.offsetHeight;
+    const barH = bar.offsetHeight;
+    document.documentElement.style.setProperty('--top', topH + 'px');
+    document.documentElement.style.setProperty('--bar', barH + 'px');
+    const pad = W < 420 ? 8 : 16;
+    const topY = topH + (H < 430 ? 6 : 12);
+    const availW = Math.max(80, W - pad * 2);
+    const availH = Math.max(80, H - topY - barH - 8);
+    frame.x = pad;
+    frame.y = topY;
+    frame.w = availW;
+    frame.h = availH;
+    const insetX = Math.max(12, Math.min(20, availW * 0.03));
+    const insetTop = Math.max(16, Math.min(26, availH * 0.06));
+    const insetBot = Math.max(12, Math.min(18, availH * 0.04));
+    glass.x = frame.x + insetX;
+    glass.y = frame.y + insetTop;
+    glass.w = Math.max(40, frame.w - insetX * 2);
+    glass.h = Math.max(40, frame.h - insetTop - insetBot);
+    SX = glass.w / SW;
+    SY = glass.h / SH;
+    const sig = glass.w + 'x' + glass.h + '@' + dpr;
+    if (sig !== soilStamp) {
+      soilStamp = sig;
+      const scale = Math.min(dpr, 1.35);
+      baseC.width = Math.max(2, Math.round(glass.w * scale));
+      baseC.height = Math.max(2, Math.round(glass.h * scale));
+      trailC.width = Math.max(2, Math.round(glass.w * 0.72));
+      trailC.height = Math.max(2, Math.round(glass.h * 0.72));
+      rebuildBase();
+      redrawTrail();
+      for (let i = 0; i < worms.length; i++) resample(worms[i]);
+    }
+    if (cond.length < 14) {
+      cond.length = 0;
+      for (let i = 0; i < 14; i++) {
+        cond.push({ x: 0.08 + rnd() * 0.84, y: 0.08 + rnd() * 0.8, r: 1.4 + rnd() * 2.2, v: rnd() });
+      }
+    }
+  }
+
+  function worldFromEvent(ev) {
+    const rect = canvas.getBoundingClientRect();
+    const x = (ev.clientX - rect.left - glass.x) / SX;
+    const y = (ev.clientY - rect.top - glass.y) / SY;
+    return { x: x, y: y, px: ev.clientX - rect.left, py: ev.clientY - rect.top };
+  }
+  function insideGlass(p) {
+    return p.x >= -1 && p.y >= -1 && p.x <= SW + 1 && p.y <= SH + 1;
+  }
+  function hitTest(p) {
+    const reach = 22;
+    for (let i = 0; i < worms.length; i++) {
+      const w = worms[i];
+      for (let k = 0; k < w.pts.length; k += 2) {
+        const dx = (w.pts[k].x - p.x) * SX;
+        const dy = (w.pts[k].y - p.y) * SY;
+        if (dx * dx + dy * dy < reach * reach) return { card: 'wurm' };
+      }
+    }
+    for (let i = 0; i < cocoons.length; i++) {
+      const dx = (cocoons[i].x - p.x) * SX;
+      const dy = (cocoons[i].y - p.y) * SY;
+      if (dx * dx + dy * dy < 26 * 26) return { card: 'kokon' };
+    }
+    for (let i = 0; i < springs.length; i++) {
+      const dx = (springs[i].x - p.x) * SX;
+      const dy = (springs[i].y - p.y) * SY;
+      if (dx * dx + dy * dy < 20 * 20) return { card: 'spring' };
+    }
+    for (let i = 0; i < mites.length; i++) {
+      const dx = (mites[i].x - p.x) * SX;
+      const dy = (mites[i].y - p.y) * SY;
+      if (dx * dx + dy * dy < 18 * 18) return { card: 'milbe' };
+    }
+    for (let i = 0; i < foods.length; i++) {
+      const f = foods[i];
+      const dx = (f.x - p.x) * SX;
+      const dy = (foodY(f) - p.y) * SY;
+      if (dx * dx + dy * dy < 28 * 28) return { card: FOODS[f.k].id };
+    }
+    return null;
+  }
+  function handleTap(ev) {
+    if (!card.hidden) return;
+    const p = worldFromEvent(ev);
+    if (!insideGlass(p)) return;
+    const hit = hitTest(p);
+    if (hit && p.y > SURFACE + 1.5) { openCard(hit.card); return; }
+    if (hit && p.y > SURFACE - 1 && hit.card !== 'apfel' && hit.card !== 'banane' && hit.card !== 'kaffee' && hit.card !== 'ei' && hit.card !== 'karton' && hit.card !== 'salat') {
+      openCard(hit.card);
+      return;
+    }
+    dropFood(tool, p.x);
+  }
+
+  function roundRect(x, y, w, h, r) {
+    const rr = Math.min(r, w * 0.5, h * 0.5);
+    ctx.beginPath();
+    ctx.moveTo(x + rr, y);
+    ctx.arcTo(x + w, y, x + w, y + h, rr);
+    ctx.arcTo(x + w, y + h, x, y + h, rr);
+    ctx.arcTo(x, y + h, x, y, rr);
+    ctx.arcTo(x, y, x + w, y, rr);
+    ctx.closePath();
+  }
+  function px(x) { return glass.x + x * SX; }
+  function py(y) { return glass.y + y * SY; }
+
+  function drawRoom() {
+    const g = ctx.createLinearGradient(0, 0, 0, H);
+    g.addColorStop(0, '#f7edd9');
+    g.addColorStop(0.45, '#f0e0c4');
+    g.addColorStop(1, '#e2c79a');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = 'rgba(120, 78, 40, 0.06)';
+    for (let y = 18; y < H; y += 28) ctx.fillRect(0, y, W, 1);
+    const tableY = frame.y + frame.h - 6;
+    const tg = ctx.createLinearGradient(0, tableY, 0, H);
+    tg.addColorStop(0, '#c4925a');
+    tg.addColorStop(0.2, '#a87440');
+    tg.addColorStop(1, '#8a5a30');
+    ctx.fillStyle = tg;
+    ctx.fillRect(0, tableY, W, H - tableY);
+    ctx.fillStyle = 'rgba(70, 36, 16, 0.18)';
+    ctx.fillRect(0, tableY, W, 3);
+  }
+  function drawFrame() {
+    ctx.save();
+    ctx.shadowColor = 'rgba(60, 30, 10, 0.28)';
+    ctx.shadowBlur = 18;
+    ctx.shadowOffsetY = 8;
+    const wood = ctx.createLinearGradient(frame.x, frame.y, frame.x, frame.y + frame.h);
+    wood.addColorStop(0, '#a86b3c');
+    wood.addColorStop(0.4, '#7b4a28');
+    wood.addColorStop(1, '#5c351c');
+    ctx.fillStyle = wood;
+    roundRect(frame.x, frame.y, frame.w, frame.h, 16);
+    ctx.fill();
+    ctx.restore();
+    ctx.save();
+    roundRect(glass.x, glass.y, glass.w, glass.h, 8);
+    ctx.clip();
+    ctx.imageSmoothingEnabled = true;
+    ctx.drawImage(baseC, glass.x, glass.y, glass.w, glass.h);
+    ctx.drawImage(trailC, glass.x, glass.y, glass.w, glass.h);
+    drawHumusBand();
+    drawVeils();
+    drawSplashes();
+    drawCocoons();
+    drawFoods();
+    drawPellets();
+    drawWorms();
+    drawCritters();
+    drawDrops();
+    if (hover && card.hidden) drawGhost(hover.x);
+    ctx.restore();
+    drawGlass();
+    drawLid();
+    if (glass.h > 200 && glass.w > 260) drawLabels();
+    drawFloaters();
+  }
+  function drawHumusBand() {
+    const frac = Math.min(0.34, humus / 92);
+    if (frac <= 0.01) return;
+    const h = glass.h * frac;
+    const y = glass.y + glass.h - h;
+    const g = ctx.createLinearGradient(0, y - 18, 0, glass.y + glass.h);
+    g.addColorStop(0, 'rgba(28,16,10,0)');
+    g.addColorStop(0.35, 'rgba(28,16,10,0.45)');
+    g.addColorStop(1, 'rgba(16,9,6,0.88)');
+    ctx.fillStyle = g;
+    ctx.fillRect(glass.x, y - 18, glass.w, h + 18);
+  }
+  function drawVeils() {
+    const soilTop = py(SURFACE);
+    if (moisture < 0.5) {
+      ctx.fillStyle = 'rgba(210, 184, 130,' + ((0.5 - moisture) * 0.45) + ')';
+      ctx.fillRect(glass.x, soilTop, glass.w, glass.y + glass.h - soilTop);
+    } else if (moisture > 0.75) {
+      ctx.fillStyle = 'rgba(16, 28, 36,' + ((moisture - 0.75) * 0.28) + ')';
+      ctx.fillRect(glass.x, soilTop, glass.w, glass.y + glass.h - soilTop);
+    }
+    if (acid > 0.32) {
+      ctx.fillStyle = 'rgba(176, 186, 46,' + ((acid - 0.32) * 0.28) + ')';
+      ctx.fillRect(glass.x, soilTop, glass.w, (glass.y + glass.h - soilTop) * 0.45);
+    }
+  }
+  function drawGlass() {
+    ctx.save();
+    roundRect(glass.x, glass.y, glass.w, glass.h, 8);
+    ctx.clip();
+    const sheen = ctx.createLinearGradient(glass.x, 0, glass.x + glass.w * 0.22, 0);
+    sheen.addColorStop(0, 'rgba(255,255,255,0.28)');
+    sheen.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = sheen;
+    ctx.fillRect(glass.x, glass.y, glass.w * 0.22, glass.h);
+    const topSheen = ctx.createLinearGradient(0, glass.y, 0, glass.y + 28);
+    topSheen.addColorStop(0, 'rgba(255,255,255,0.2)');
+    topSheen.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = topSheen;
+    ctx.fillRect(glass.x, glass.y, glass.w, 28);
+    const wet = clamp((moisture - 0.3) / 0.7, 0, 1);
+    for (let i = 0; i < cond.length; i++) {
+      const c = cond[i];
+      ctx.fillStyle = 'rgba(255,255,255,' + (0.18 + wet * 0.35) + ')';
+      ctx.beginPath();
+      ctx.ellipse(glass.x + c.x * glass.w, glass.y + c.y * glass.h, c.r, c.r * (1.3 + wet), 0.2, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+    ctx.strokeStyle = 'rgba(255, 244, 230, 0.45)';
+    ctx.lineWidth = 2;
+    roundRect(glass.x + 1, glass.y + 1, glass.w - 2, glass.h - 2, 8);
+    ctx.stroke();
+  }
+  function drawLid() {
+    const len = Math.min(glass.w * 0.42, 170);
+    ctx.save();
+    ctx.translate(glass.x + 12, frame.y + Math.min(16, (glass.y - frame.y) * 0.55));
+    ctx.rotate(-0.16);
+    ctx.fillStyle = '#8d5a32';
+    ctx.fillRect(0, -6, len, 11);
+    ctx.fillStyle = '#c48a52';
+    ctx.fillRect(0, -6, len, 3);
+    ctx.restore();
+    ctx.fillStyle = '#d9d2c6';
+    ctx.beginPath();
+    ctx.arc(glass.x + 10, glass.y + 1, 3.2, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  function drawLabels() {
+    ctx.font = '600 11px system-ui, sans-serif';
+    ctx.textAlign = 'left';
+    ctx.fillStyle = 'rgba(255,236,214,0.72)';
+    ctx.fillText('Streu', glass.x + 8, py(SURFACE + 3));
+    ctx.fillText('Erde', glass.x + 8, py(SURFACE + (SH - SURFACE) * 0.48));
+    ctx.fillStyle = 'rgba(255, 214, 170, 0.8)';
+    ctx.fillText('Humus', glass.x + 8, py(SH - 3.2));
+  }
+  function drawCocoons() {
+    for (let i = 0; i < cocoons.length; i++) {
+      const c = cocoons[i];
+      const x = px(c.x), y = py(c.y);
+      const s = Math.max(7, Math.min(SX, SY) * (1.7 + c.age * 0.35));
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.rotate(-0.4);
+      ctx.fillStyle = 'rgba(40,20,10,0.25)';
+      ctx.beginPath();
+      ctx.ellipse(1.5, 2, s * 1.05, s * 0.62, 0, 0, Math.PI * 2);
+      ctx.fill();
+      const g = ctx.createLinearGradient(-s, 0, s, 0);
+      g.addColorStop(0, '#e2b15a');
+      g.addColorStop(0.5, '#f3d48a');
+      g.addColorStop(1, '#c9843a');
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.ellipse(0, 0, s, s * 0.58, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(120,70,20,0.45)';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+      ctx.restore();
+    }
+  }
+  function drawFoods() {
+    for (let i = 0; i < foods.length; i++) drawFood(foods[i], 1);
+  }
+  function drawGhost(x) {
+    drawFood({ k: foodIndex(tool), x: x, rot: 0, left: 1, pop: 1 }, 0.38);
+  }
+  function drawFood(f, alpha) {
+    const spec = FOODS[f.k];
+    const y = foodY(f) - (1 - (f.pop || 1)) * 5;
+    const x = px(f.x), yy = py(y);
+    const u = Math.min(SX, SY);
+    const sc = u * (0.72 + 0.28 * f.left) * (0.9 + (f.pop || 1) * 0.1);
+    ctx.save();
+    ctx.translate(x, yy);
+    ctx.globalAlpha = alpha;
+    ctx.scale(sc, sc);
+    if (spec.id === 'apfel') drawApple(f.rot);
+    else if (spec.id === 'banane') drawBanana(f.rot);
+    else if (spec.id === 'kaffee') drawCoffee(f.rot);
+    else if (spec.id === 'ei') drawShell(f.rot);
+    else if (spec.id === 'karton') drawCard(f.rot);
+    else drawSalad(f.rot);
+    if (f.rot > 0.45) {
+      ctx.fillStyle = 'rgba(236,236,232,' + Math.min(0.8, (f.rot - 0.45) * 1.4) + ')';
+      for (let i = 0; i < 4; i++) {
+        ctx.beginPath();
+        ctx.arc(-1.6 + i * 1.1, -0.4 + (i % 2) * 1.2, 0.55 + (f.rot - 0.45), 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+    ctx.restore();
+  }
+  function rotBrown(rot, r, g, b) {
+    const k = clamp(rot, 0, 1);
+    return 'rgb(' + ((r + (92 - r) * k) | 0) + ',' + ((g + (62 - g) * k) | 0) + ',' + ((b + (36 - b) * k) | 0) + ')';
+  }
+  function drawApple(rot) {
+    ctx.fillStyle = 'rgba(40,16,8,0.2)';
+    ctx.beginPath();
+    ctx.ellipse(0.3, 1.6, 2.3, 0.7, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = rotBrown(rot, 214, 64, 52);
+    ctx.beginPath();
+    ctx.arc(0, 0, 2.5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = 'rgba(255,220,200,0.45)';
+    ctx.beginPath();
+    ctx.ellipse(-0.8, -0.8, 0.7, 0.45, -0.6, 0, Math.PI * 2);
+    ctx.fill();
+    if (rot > 0.2) {
+      ctx.fillStyle = 'rgba(90,48,24,' + Math.min(0.8, rot) + ')';
+      ctx.beginPath(); ctx.arc(0.8, 0.5, 0.55 + rot * 0.4, 0, 7); ctx.fill();
+      ctx.beginPath(); ctx.arc(-1.1, 0.7, 0.4, 0, 7); ctx.fill();
+    }
+    ctx.strokeStyle = '#6a4428';
+    ctx.lineWidth = 0.35;
+    ctx.beginPath();
+    ctx.moveTo(0.2, -2.3);
+    ctx.quadraticCurveTo(0.6, -3.3, 0.1, -3.6);
+    ctx.stroke();
+    ctx.fillStyle = rot > 0.55 ? '#6a7030' : '#3f8a32';
+    ctx.beginPath();
+    ctx.ellipse(1.1, -2.7, 1.1, 0.48, 0.6, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  function drawBanana(rot) {
+    ctx.strokeStyle = rotBrown(rot, 240, 206, 70);
+    ctx.lineWidth = 1.7;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(-3.2, 1.1);
+    ctx.quadraticCurveTo(0, -2.8, 3.3, 0.7);
+    ctx.stroke();
+    ctx.strokeStyle = rotBrown(rot * 0.8, 210, 170, 40);
+    ctx.lineWidth = 0.7;
+    ctx.beginPath();
+    ctx.moveTo(-2.6, 1.3);
+    ctx.quadraticCurveTo(0.1, -1.5, 2.8, 0.9);
+    ctx.stroke();
+    if (rot > 0.15) {
+      ctx.fillStyle = 'rgba(92,52,20,' + Math.min(0.85, rot) + ')';
+      ctx.beginPath(); ctx.arc(-0.4, -0.5, 0.38, 0, 7); ctx.fill();
+      ctx.beginPath(); ctx.arc(1.2, -0.2, 0.28, 0, 7); ctx.fill();
+      ctx.beginPath(); ctx.arc(-1.6, 0.4, 0.26, 0, 7); ctx.fill();
+    }
+  }
+  function drawCoffee(rot) {
+    ctx.fillStyle = 'rgba(40,20,10,0.25)';
+    ctx.beginPath();
+    ctx.ellipse(0, 1.3, 2.8, 0.7, 0, 0, Math.PI * 2);
+    ctx.fill();
+    for (let i = 0; i < 8; i++) {
+      const a = i * 0.8;
+      ctx.fillStyle = rot > 0.5 && i % 2 === 0 ? '#6a5844' : (i % 3 ? '#3a291e' : '#5a4030');
+      ctx.beginPath();
+      ctx.arc(Math.cos(a) * 1.5, Math.sin(a) * 0.7, 0.62, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+  function drawShell(rot) {
+    ctx.fillStyle = rotBrown(rot * 0.4, 244, 240, 230);
+    ctx.strokeStyle = 'rgba(120,110,96,0.7)';
+    ctx.lineWidth = 0.25;
+    for (let i = 0; i < 3; i++) {
+      ctx.beginPath();
+      ctx.moveTo(-2.2 + i * 1.6, 0.8);
+      ctx.lineTo(-1.2 + i * 1.5, -1.1);
+      ctx.lineTo(-0.2 + i * 1.4, 0.9);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+    }
+  }
+  function drawCard(rot) {
+    ctx.fillStyle = rotBrown(rot, 214, 176, 112);
+    ctx.fillRect(-3, -1.5, 6, 3.1);
+    ctx.strokeStyle = 'rgba(120,80,40,0.45)';
+    ctx.lineWidth = 0.2;
+    for (let i = -2; i <= 2; i++) {
+      ctx.beginPath();
+      ctx.moveTo(-3, i * 0.45);
+      ctx.lineTo(3, i * 0.45);
+      ctx.stroke();
+    }
+  }
+  function drawSalad(rot) {
+    const col = rotBrown(rot, 90, 168, 62);
+    ctx.fillStyle = col;
+    for (let i = 0; i < 3; i++) {
+      ctx.beginPath();
+      ctx.ellipse(-1.4 + i * 1.4, 0.3 + rot * 0.6, 1.5, 0.7 - rot * 0.15, -0.5 + i * 0.4, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.strokeStyle = 'rgba(40,90,30,0.35)';
+    ctx.lineWidth = 0.2;
+    ctx.beginPath();
+    ctx.moveTo(-1.2, 0.4);
+    ctx.quadraticCurveTo(0, -0.6, 1.6, 0.5);
+    ctx.stroke();
+  }
+  function drawPellets() {
+    for (let i = 0; i < pellets.length; i++) {
+      const p = pellets[i];
+      ctx.globalAlpha = clamp(p.life, 0, 1);
+      ctx.fillStyle = '#24160e';
+      ctx.beginPath();
+      ctx.ellipse(px(p.x), py(p.y), p.s * SX * 0.28, p.s * SY * 0.22, 0.4, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.globalAlpha = 1;
+    }
+  }
+  function wormRGB(hue) {
+    const r = 206 + hue * 18;
+    const g = 118 - hue * 16;
+    const b = 104 - hue * 10;
+    return 'rgb(' + (r | 0) + ',' + (g | 0) + ',' + (b | 0) + ')';
+  }
+  function drawWorms() {
+    for (let i = 0; i < worms.length; i++) drawWorm(worms[i]);
+  }
+  function drawWorm(w) {
+    const src = w.pts;
+    const n = src.length;
+    if (n < 3) return;
+    const pts = [];
+    for (let i = 0; i < n; i++) pts.push({ x: px(src[i].x), y: py(src[i].y) });
+    const base = spacingPx(w.scale) * 0.92;
+    function radAt(i) {
+      const taper = i === 0 ? 0.62 : i < 2 ? 0.82 : i > n - 3 ? 0.45 + (n - 1 - i) * 0.18 : 1;
+      const wave = 0.9 + 0.1 * Math.sin(w.phase * 1.45 - i * 0.72);
+      const clit = w.scale > 0.78 && i >= 4 && i <= 7 ? 1.08 : 1;
+      return Math.max(2.2, base * taper * wave * clit);
+    }
+    const left = [];
+    const right = [];
+    for (let i = 0; i < n; i++) {
+      const prev = pts[Math.max(0, i - 1)];
+      const next = pts[Math.min(n - 1, i + 1)];
+      const ang = Math.atan2(next.y - prev.y, next.x - prev.x);
+      const r = radAt(i);
+      left.push(pts[i].x + Math.cos(ang + 1.5708) * r, pts[i].y + Math.sin(ang + 1.5708) * r);
+      right.push(pts[i].x + Math.cos(ang - 1.5708) * r, pts[i].y + Math.sin(ang - 1.5708) * r);
+    }
+    ctx.beginPath();
+    ctx.moveTo(left[0], left[1]);
+    for (let i = 2; i < left.length; i += 2) ctx.lineTo(left[i], left[i + 1]);
+    for (let i = right.length - 2; i >= 0; i -= 2) ctx.lineTo(right[i], right[i + 1]);
+    ctx.closePath();
+    ctx.fillStyle = 'rgba(50,24,16,0.22)';
+    ctx.save();
+    ctx.translate(1.2, 2);
+    ctx.fill();
+    ctx.restore();
+    ctx.fillStyle = wormRGB(w.hue);
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(92,40,36,0.55)';
+    ctx.lineWidth = 1.4;
+    ctx.stroke();
+    ctx.strokeStyle = 'rgba(120,52,46,0.33)';
+    ctx.lineWidth = 1;
+    for (let i = 2; i < n - 2; i++) {
+      const prev = pts[Math.max(0, i - 1)];
+      const next = pts[Math.min(n - 1, i + 1)];
+      const ang = Math.atan2(next.y - prev.y, next.x - prev.x);
+      const r = radAt(i) * 0.9;
+      ctx.beginPath();
+      ctx.moveTo(pts[i].x + Math.cos(ang + 1.5708) * r, pts[i].y + Math.sin(ang + 1.5708) * r);
+      ctx.lineTo(pts[i].x + Math.cos(ang - 1.5708) * r, pts[i].y + Math.sin(ang - 1.5708) * r);
+      ctx.stroke();
+    }
+    if (w.scale > 0.78) {
+      ctx.strokeStyle = 'rgba(214,156,122,0.85)';
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      ctx.lineWidth = radAt(5) * 1.45;
+      ctx.beginPath();
+      ctx.moveTo(pts[4].x, pts[4].y);
+      ctx.lineTo(pts[5].x, pts[5].y);
+      ctx.lineTo(pts[6].x, pts[6].y);
+      ctx.lineTo(pts[7].x, pts[7].y);
+      ctx.stroke();
+      ctx.strokeStyle = 'rgba(120,52,46,0.28)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(pts[4].x, pts[4].y);
+      ctx.lineTo(pts[7].x, pts[7].y);
+      ctx.stroke();
+    }
+    ctx.strokeStyle = 'rgba(255,220,206,0.35)';
+    ctx.lineWidth = Math.max(1, base * 0.28);
+    ctx.beginPath();
+    ctx.moveTo(pts[1].x, pts[1].y);
+    for (let i = 2; i < n - 2; i++) ctx.lineTo(pts[i].x, pts[i].y);
+    ctx.stroke();
+    const angH = Math.atan2(pts[1].y - pts[0].y, pts[1].x - pts[0].x);
+    ctx.fillStyle = '#6a3030';
+    ctx.beginPath();
+    ctx.arc(pts[0].x - Math.cos(angH) * 1.4, pts[0].y - Math.sin(angH) * 1.4, Math.max(1.5, radAt(0) * 0.45), 0, Math.PI * 2);
+    ctx.fill();
+  }
+  function drawCritters() {
+    for (let i = 0; i < mites.length; i++) {
+      const m = mites[i];
+      ctx.fillStyle = i % 2 ? '#8a3a28' : '#a85a32';
+      ctx.beginPath();
+      ctx.ellipse(px(m.x), py(m.y), 2.8, 1.8, m.a, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    for (let i = 0; i < springs.length; i++) {
+      const s = springs[i];
+      const x = px(s.x), y = py(s.y);
+      ctx.strokeStyle = 'rgba(255,255,255,0.8)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(x - 3, y);
+      ctx.lineTo(x - 5, y + 2);
+      ctx.moveTo(x - 3, y);
+      ctx.lineTo(x - 5, y - 1);
+      ctx.stroke();
+      ctx.fillStyle = '#f7fbf6';
+      ctx.beginPath();
+      ctx.ellipse(x, y, 5.4, 2.3, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#243028';
+      ctx.beginPath();
+      ctx.arc(x + 2.4, y - 0.4, 0.7, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+  function drawDrops() {
+    for (let i = 0; i < drops.length; i++) {
+      const d = drops[i];
+      ctx.fillStyle = 'rgba(186, 220, 236, 0.8)';
+      ctx.beginPath();
+      ctx.ellipse(px(d.x), py(d.y), d.r * SX * 0.35, d.r * SY * 0.55, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+  function drawSplashes() {
+    for (let i = 0; i < splashes.length; i++) {
+      const s = splashes[i];
+      ctx.strokeStyle = 'rgba(200,230,240,' + s.a + ')';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.ellipse(px(s.x), py(s.y), s.r * SX * 0.25, s.r * SY * 0.12, 0, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+  }
+  function drawFloaters() {
+    ctx.font = '700 16px system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    for (let i = 0; i < floaters.length; i++) {
+      const f = floaters[i];
+      ctx.globalAlpha = clamp(f.life, 0, 1);
+      ctx.fillStyle = '#f6efe2';
+      ctx.strokeStyle = 'rgba(50,28,14,0.65)';
+      ctx.lineWidth = 3;
+      const x = px(f.x), y = py(f.y);
+      ctx.strokeText(f.text, x, y);
+      ctx.fillText(f.text, x, y);
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  function updateHud() {
+    const kok = cocoons.length ? ' · ' + cocoons.length + (cocoons.length === 1 ? ' Kokon' : ' Kokons') : '';
+    const line = worms.length + (worms.length === 1 ? ' Wurm' : ' Würmer') + kok + ' · Humus ' + Math.floor(humus) + ' · geerntet ' + harvested;
+    const climate = climateWord();
+    if (statsEl.textContent !== line) statsEl.textContent = line;
+    if (climateEl.textContent !== climate) climateEl.textContent = climate;
+  }
+
+  function loop(ts) {
+    const dt = Math.min(0.05, lastTs ? (ts - lastTs) / 1000 : 0.016);
+    lastTs = ts;
+    if (!params.has('pause') && !document.hidden && card.hidden) tick(dt, false);
+    drawRoom();
+    drawFrame();
+    updateHud();
+    requestAnimationFrame(loop);
+  }
+
+  function boot() {
+    for (let i = 0; i < CHIPS.length; i++) {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.dataset.card = CHIPS[i][0];
+      b.textContent = CHIPS[i][1];
+      b.addEventListener('click', function () { openCard(b.dataset.card); });
+      chipsEl.appendChild(b);
+    }
+    layout();
+    if (params.has('fresh')) {
+      try { localStorage.removeItem(KEY); } catch (err) {}
+      fresh();
+    } else if (!restore()) fresh();
+    syncCritters();
+    ready = true;
+    save();
+    requestAnimationFrame(loop);
+  }
+
+  document.addEventListener('pointerdown', userGesture, { capture: true });
+  document.addEventListener('keydown', function (ev) {
+    userGesture();
+    if (ev.key === 'Escape') { closeCard(); return; }
+    if (!card.hidden) return;
+    const map = { '1': 'apfel', '2': 'banane', '3': 'kaffee', '4': 'ei', '5': 'karton', '6': 'salat' };
+    if (map[ev.key]) selectTool(map[ev.key]);
+    else if (ev.key === 'm' || ev.key === 'M') toggleSound();
+    else if (ev.key === 'i' || ev.key === 'I') openCard('info');
+    else if (ev.key === 's' || ev.key === 'S') spray();
+    else if (ev.key === 'e' || ev.key === 'E') harvest();
+    else if (ev.key === '+' || ev.key === '=') setTemp(temp + 2);
+    else if (ev.key === '-' || ev.key === '_') setTemp(temp - 2);
+  });
+  bSound.addEventListener('click', toggleSound);
+  document.getElementById('bInfo').addEventListener('click', function () { openCard('info'); });
+  document.getElementById('bSpray').addEventListener('click', spray);
+  document.getElementById('bHarvest').addEventListener('click', harvest);
+  document.getElementById('bCool').addEventListener('click', function () { setTemp(temp - 2); });
+  document.getElementById('bWarm').addEventListener('click', function () { setTemp(temp + 2); });
+  const foodButtons = bar.querySelectorAll('button[data-food]');
+  for (let i = 0; i < foodButtons.length; i++) {
+    foodButtons[i].addEventListener('click', function () { selectTool(foodButtons[i].dataset.food); });
+  }
+  cardClose.addEventListener('click', closeCard);
+  scrim.addEventListener('click', closeCard);
+  canvas.addEventListener('pointerup', handleTap);
+  canvas.addEventListener('pointermove', function (ev) {
+    const p = worldFromEvent(ev);
+    hover = insideGlass(p) ? p : null;
+  });
+  canvas.addEventListener('pointerleave', function () { hover = null; });
+  window.addEventListener('resize', layout);
+  document.addEventListener('visibilitychange', function () {
+    if (document.hidden) {
+      save();
+      hiddenAt = Date.now();
+      lastTs = 0;
+    } else if (hiddenAt) {
+      const gap = Date.now() - hiddenAt;
+      hiddenAt = 0;
+      if (gap > 3000 && fastForward(gap) && gap > 20000) {
+        toast('Du warst weg. Die Würmer haben höchstens eine halbe Stunde weitergearbeitet.');
+      }
+      lastTs = 0;
+    }
+  });
+  window.addEventListener('pagehide', save);
+
+  if (params.has('test')) {
+    window.__wurm = {
+      snapshot: function () {
+        return {
+          moisture: Math.round(moisture * 1000) / 1000,
+          temp: temp,
+          acid: Math.round(acid * 1000) / 1000,
+          humus: Math.round(humus * 1000) / 1000,
+          harvested: harvested,
+          worms: worms.length,
+          foods: foods.length,
+          cocoons: cocoons.length,
+          mood: moodWord(),
+          activity: Math.round(activity() * 1000) / 1000,
+          soundOn: soundOn,
+          unlocked: unlocked
+        };
+      },
+      fastForward: function (ms) {
+        fastForward(ms);
+        return window.__wurm.snapshot();
+      }
+    };
+  }
+
+  boot();
+})();
+</script>
+</body>
+</html>
