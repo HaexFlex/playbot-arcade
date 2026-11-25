@@ -2414,6 +2414,7 @@ function drawSky(t, dt) {
     }
   }
   { const t0 = performance.now(); drawGeese(dt); st.geeseMs = (st.geeseMs || 0) * 0.9 + (performance.now() - t0) * 0.1; }
+  { const t0 = performance.now(); drawMurm(); st.murmMs = (st.murmMs || 0) * 0.9 + (performance.now() - t0) * 0.1; }
 }
 // wild geese: in autumn (yearFrac ~0.55-0.74) skeins of wild geese fly south over the valley, high in the sky: a V of
 // 7-13 birds (5-9 on a phone; now and then a long wavy line instead), slow deep wing beats a little out of step, the
@@ -2465,6 +2466,94 @@ function drawGeese(dtR) {
     cx.drawImage(spr[fr][k.dir < 0 ? 1 : 0], x - w / 2, y - hh / 2, w, hh); st.geeseDrawn++; st.geesePts.push([x, y, j]); if (j === 0) st.geeseAt = [x, y];
   }
   cx.restore(); st.geeseSkein = 1; st.geeseDir = k.dir; st.geeseLine = k.line; st.geeseX = k.x; st.geeseN = k.n;
+}
+// starling murmuration: in autumn (the geese's window, yearFrac ~0.55-0.74), on about 2 evenings in 3 around sunset
+// (it gathers 17:00-18:40), a big flock of starlings (380-460 on a desk, 170-230 on a phone) swirls in the sky above the
+// valley as one dark shape-shifting cloud. The shape is a twisting sheet laid along a cubic curve whose four control
+// points drift on slow independent paths, so it stretches, folds and turns; where the sheet turns edge-on it thickens
+// into a dark band, where it turns face-on it thins out. Every bird chases its own spot on the sheet with its own lag,
+// so the flock streams and ripples instead of moving rigidly. At nightfall (from 19:00) it pours down in a stream into
+// the reeds and trees behind the valley and is gone by full dark. None in rain, a storm, outside autumn, without
+// seasons, with "always day" or in the map view. With sound on a soft rushing whoosh of many wings, louder when the
+// flock turns tight (at most one per 1.1 s). Typed arrays, one path per frame, drawn in drawSky behind the valley.
+// Hooks: st.murmDrawn, st.murmOn (1 while a flock is up), st.murmN, st.murmBox ([minx, miny, maxx, maxy] of the drawn
+// birds), st.murmTight (0-1), st.murmPour (0-1 while it pours down), st.murmEve (today is a murmuration evening),
+// st.murmForce (test: one now), st.murmMs.
+const MURM_N = isPhone ? [170, 230] : [380, 460], MURM_MAX = MURM_N[1], MURM_K = 32;
+const MU = { on: null, next: -1, last: -1, day: -1, total: 0,
+  x: new Float32Array(MURM_MAX), y: new Float32Array(MURM_MAX), u: new Float32Array(MURM_MAX), v: new Float32Array(MURM_MAX), w: new Float32Array(MURM_MAX), k: new Float32Array(MURM_MAX), p: new Float32Array(MURM_MAX), g: new Uint8Array(MURM_MAX),
+  sx: new Float32Array(MURM_K + 1), sy: new Float32Array(MURM_K + 1), nx: new Float32Array(MURM_K + 1), ny: new Float32Array(MURM_K + 1), sw: new Float32Array(MURM_K + 1), st: new Float32Array(MURM_K + 1) };
+function murmEvening(d) { const v = Math.sin(d * 57.3 + 4.7) * 43758.5; return v - Math.floor(v) < 0.67; }
+function murmTerrainTop() { // the highest screen y of the valley (coarse samples of the tilt view), so the flock flies in the open sky above it
+  const N = st.S.N; let top = 1e9; for (let gy = 0; gy < N; gy += 6) for (let gx = 0; gx < N; gx += 6) { const q = projTilt(gx, gy); if (q && q[0] > 0 && q[0] < vw && q[1] < top) top = q[1]; } return top < 1e8 ? top : vh * 0.3;
+}
+function drawMurm() {
+  st.murmDrawn = 0; st.murmOn = 0;
+  const now = performance.now() / 1000, dt = Math.max(0, Math.min(0.1, MU.last < 0 ? 0 : now - MU.last)); MU.last = now;
+  const S = st.S, h = LT.h, y = S.P.seasons ? LV.yearFrac(S) : 0, day = Math.floor(S.time / (S.P.dayLen || 720));
+  const eve = st.murmEve = murmEvening(day), fair = S.P.seasons && y >= 0.55 && y < 0.74 && LT.rain < 0.3 && LT.storm < 0.02 && st.view === 'tilt' && !st.alwaysDay && tilt && tilt.s != null;
+  if (!fair || h < 16.5 || h >= 20.3) { MU.on = null; MU.next = -1; if (!st.murmForce) return; }
+  if (!MU.on && fair && h >= 16.5 && h < 20.3) {
+    const can = h >= 16.9 && h < 18.7 && eve && MU.day !== day;
+    if (can && MU.next < 0) MU.next = now + 1 + Math.random() * 3;
+    if (st.murmForce) { MU.next = now; st.murmForce = 0; }
+    if (MU.next >= 0 && now >= MU.next && (can || MU.next === now)) {
+      const n = MURM_N[0] + ((Math.random() * (MURM_N[1] - MURM_N[0] + 1)) | 0), side = Math.random() < 0.5 ? -1 : 1, ex = side < 0 ? -40 : vw + 40, ey = vh * (0.12 + Math.random() * 0.1);
+      for (let i = 0; i < n; i++) { const r0 = Math.random() * 2 - 1, g = Math.random() < 0.8 ? r0 : r0 * Math.random(); // fairly crisp edges, a little denser in the middle
+        MU.u[i] = Math.random(); MU.v[i] = g; MU.w[i] = Math.random() * 2 - 1; MU.k[i] = 2.6 + Math.random() * 2.4; MU.p[i] = Math.random() * 6.283;
+        MU.x[i] = ex + (Math.random() - 0.5) * 60; MU.y[i] = ey + (Math.random() - 0.5) * 30; }
+      MU.on = { n, age: 0, t: Math.random() * 100, pour: -1, side, rx: vw * (0.25 + Math.random() * 0.5), ph: [...Array(8)].map(() => Math.random() * 6.283), tight: 0 };
+      MU.day = day; MU.next = -1; MU.total++; st.murmTotal = MU.total; }
+  }
+  const F = MU.on; if (!F) { st.murmPour = 0; return; }
+  F.age += dt; F.t += dt;
+  if (F.pour < 0 && h >= 19.0) F.pour = 0;
+  if (F.pour >= 0) F.pour = Math.min(1.2, F.pour + dt / 6);
+  const hy = tilt.sy + tilt.top * tilt.s + 10, R = isPhone ? vw * 0.21 : Math.min(vw * 0.12, 150), t = F.t, P = F.ph, pr = F.pour < 0 ? 0 : Math.min(1, F.pour);
+  const ry = hy + vh * 0.05, sink = pr * pr * (3 - 2 * pr);
+  // the centre wanders slowly over the sky, and sinks towards the roost when it pours down
+  let cxc = vw * 0.5 + vw * (isPhone ? 0.1 : 0.24) * Math.sin(t * 0.07 + P[0]) + vw * 0.05 * Math.sin(t * 0.19 + P[1]);
+  if (!(now < F.topT) || F.topK !== tilt.key) F.top = murmTerrainTop(), F.topT = now + 3, F.topK = tilt.key; // keep it above the peaks
+  let cyc = Math.max(40 + R * 0.4, Math.min(vh * 0.16, F.top - R * 0.3)) + R * 0.12 * Math.sin(t * 0.11 + P[2]);
+  cxc += (F.rx - cxc) * sink; cyc += (ry - R * 0.6 - cyc) * sink * 0.8;
+  const Rr = R * (1 - 0.55 * sink);
+  // four drifting control points of the curve the sheet is laid along
+  const q = [0, 0, 0, 0, 0, 0, 0, 0];
+  for (let j = 0; j < 4; j++) { const a = t * (0.16 + 0.07 * j) * (j % 2 ? -1 : 1) + P[j + 3] + j * 1.6, b = t * (0.23 + 0.05 * j) + P[(j + 5) % 8];
+    q[j * 2] = cxc + Rr * (j < 2 ? -0.55 : 0.55) * (j % 3 ? 0.4 : 1) + Rr * 0.6 * Math.cos(a); q[j * 2 + 1] = cyc + Rr * 0.22 * Math.sin(b) + Rr * 0.08 * Math.sin(a * 1.7); }
+  const W0 = Rr * 0.34 * (0.75 + 0.35 * Math.sin(t * 0.13 + P[6]));
+  let tight = 0, len = 0;
+  for (let s = 0; s <= MURM_K; s++) { const u = s / MURM_K, iu = 1 - u, b0 = iu * iu * iu, b1 = 3 * iu * iu * u, b2 = 3 * iu * u * u, b3 = u * u * u;
+    MU.sx[s] = b0 * q[0] + b1 * q[2] + b2 * q[4] + b3 * q[6]; MU.sy[s] = b0 * q[1] + b1 * q[3] + b2 * q[5] + b3 * q[7];
+    const d0 = 3 * iu * iu, d1 = 6 * iu * u, d2 = 3 * u * u, tx = d0 * (q[2] - q[0]) + d1 * (q[4] - q[2]) + d2 * (q[6] - q[4]), ty = d0 * (q[3] - q[1]) + d1 * (q[5] - q[3]) + d2 * (q[7] - q[5]), tl = Math.hypot(tx, ty) || 1;
+    MU.nx[s] = -ty / tl; MU.ny[s] = tx / tl; len += tl / MURM_K;
+    const th = t * 0.45 + u * 2.6 + 1.4 * Math.sin(t * 0.21 + P[7] + u * 1.3), c = Math.cos(th); // the sheet twists along its length; |c| small = edge-on
+    MU.sw[s] = W0 * Math.pow(Math.sin(Math.PI * (0.06 + 0.88 * u)), 0.6) * (0.65 + 0.35 * Math.sin(t * 0.3 + u * 4 + P[5])) * c; MU.st[s] = W0 * 0.3 * (0.5 + 0.5 * Math.abs(Math.sin(th)));
+    tight += 1 - Math.abs(c); }
+  // a long stretched flock thins out, a short bunched one thickens (about the same area of birds)
+  { const kw = Math.max(0.75, Math.min(1.7, 2.1 * Rr / Math.max(1, len))); for (let s = 0; s <= MURM_K; s++) { MU.sw[s] *= kw; MU.st[s] *= kw; } }
+  F.tight += ((tight / (MURM_K + 1)) - F.tight) * Math.min(1, dt * 2); st.murmTight = F.tight;
+  // every bird chases its own spot on the sheet (its own lag); when it pours down they stream to the roost in order
+  const n = F.n, arr = Math.min(1, F.age / 3), kk = 0.35 + 0.65 * arr, sz = isPhone ? 1.7 : 2.1, wob = isPhone ? 1 : 1.6;
+  let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
+  cx.save(); cx.globalAlpha = Math.max(0, Math.min(0.85, (1 - 0.85 * LT.night) * (1 - 0.5 * LT.rain))); cx.fillStyle = '#1c1820';
+  for (let i = 0; i < n; i++) {
+    const fu = MU.u[i] * MURM_K, s = fu | 0, f = fu - s, s1 = s < MURM_K ? s + 1 : s;
+    const bx = MU.sx[s] + (MU.sx[s1] - MU.sx[s]) * f, by = MU.sy[s] + (MU.sy[s1] - MU.sy[s]) * f, nx = MU.nx[s] + (MU.nx[s1] - MU.nx[s]) * f, ny = MU.ny[s] + (MU.ny[s1] - MU.ny[s]) * f;
+    const off = MU.v[i] * (MU.sw[s] + (MU.sw[s1] - MU.sw[s]) * f) + MU.w[i] * (MU.st[s] + (MU.st[s1] - MU.st[s]) * f), ph = MU.p[i];
+    let tx = bx + nx * off + wob * Math.sin(t * 2.3 + ph), ty = by + ny * off + wob * Math.cos(t * 1.9 + ph * 1.3);
+    let k = MU.k[i] * kk, gone = false;
+    if (F.pour >= 0) { const pi = Math.max(0, Math.min(1, F.pour * 1.7 - MU.u[i] * 0.7)); // one end first, the rest streaming after it
+      if (pi > 0) { const e = pi * pi; tx += (F.rx + MU.w[i] * R * 0.12 - tx) * e; ty += (ry + 8 - ty) * e; k += 2 * pi; if (pi >= 1 && MU.y[i] > ry - 4) gone = true; } }
+    const a = 1 - Math.exp(-k * dt); MU.x[i] += (tx - MU.x[i]) * a; MU.y[i] += (ty - MU.y[i]) * a;
+    const X = MU.x[i], Y = MU.y[i]; MU.g[i] = gone || X < -4 || X > vw + 4 || Y < -4 ? 1 : 0; if (MU.g[i]) continue;
+    st.murmDrawn++; if (X < x0) x0 = X; if (X > x1) x1 = X; if (Y < y0) y0 = Y; if (Y > y1) y1 = Y;
+  }
+  // two depths: the far half of the flock in small dots, the near half a little bigger
+  const A = cx.globalAlpha; for (let L = 0; L < 2; L++) { const z = L ? sz * 1.2 : sz * 0.9; cx.globalAlpha = A * (L ? 1 : 0.6); cx.beginPath(); for (let i = L; i < n; i += 2) if (!MU.g[i]) cx.rect(MU.x[i], MU.y[i], z, z * 0.85); cx.fill(); }
+  cx.restore();
+  st.murmOn = 1; st.murmN = n; st.murmPour = pr; st.murmBox = st.murmDrawn ? [x0, y0, x1, y1] : null; st.murmAt = st.murmDrawn ? [(x0 + x1) / 2, (y0 + y1) / 2] : null;
+  if (F.pour >= 1.2 || (F.pour >= 0.9 && st.murmDrawn === 0)) { MU.on = null; st.murmOn = 0; }
 }
 // a rainbow after a rain when the sun is out: opposite the sun, its foot behind the far mountains
 const BOW = [[255, 70, 70], [255, 160, 50], [255, 236, 90], [90, 210, 100], [80, 150, 255], [150, 100, 230]];
@@ -3728,7 +3817,7 @@ function adapt(dt) {
 // and thunder after lightning, wind (stronger in winter and storms), birds by day in the forest, crickets on
 // summer evenings, an owl at night, the creak and clack of turning mill wheels, cowbells near the village.
 // window.LV_AUDIO holds the levels (0..1) and gains so tests can check them without listening.
-const AU = { want: false, on: false, started: false, state: 'none', nodes: 0, live: 0, L: {}, G: {}, ev: { chirp: 0, cricket: 0, owl: 0, clack: 0, creak: 0, bell: 0, thunder: 0, plop: 0, slurp: 0, splash: 0, knock: 0, well: 0, rustle: 0, rumble: 0, drip: 0, squeak: 0, thump: 0, crunch: 0, skate: 0, icicle: 0, puddle: 0, peep: 0, twit: 0, bat: 0, pipe: 0, whirr: 0, honk: 0 }, flow: 0, riverPan: 0, veg: 0, ticks: 0, vol: 1, snowCover: 0, rainMuffle: 0, rainCut: 9000, masterT: 0, melt: 0, meltPan: 0 };
+const AU = { want: false, on: false, started: false, state: 'none', nodes: 0, live: 0, L: {}, G: {}, ev: { chirp: 0, cricket: 0, owl: 0, clack: 0, creak: 0, bell: 0, thunder: 0, plop: 0, slurp: 0, splash: 0, knock: 0, well: 0, rustle: 0, rumble: 0, drip: 0, squeak: 0, thump: 0, crunch: 0, skate: 0, icicle: 0, puddle: 0, peep: 0, twit: 0, bat: 0, pipe: 0, whirr: 0, honk: 0, murmur: 0 }, flow: 0, riverPan: 0, veg: 0, ticks: 0, vol: 1, snowCover: 0, rainMuffle: 0, rainCut: 9000, masterT: 0, melt: 0, meltPan: 0 };
 window.LV_AUDIO = AU;
 const AU_KEY = 'lv-sound', AU_MASTER = 0.45, AU_DT = 0.25;
 const AU_MAX = { river: 0.55, rain: 0.42, wind: 0.2, birds: 0.42, crickets: 0.13, owl: 0.38, mill: 0.42, cows: 0.26, thunder: 0.85, melt: 0.3 }; // full-level gain per layer
@@ -3980,6 +4069,14 @@ function sndHonk(pan, k) { // wild geese high overhead: a faint, nasal double ho
     setTimeout(() => fl.disconnect(), (t - ac.currentTime + d) * 1000 + 300); }
   AU.ev.honk++;
 }
+function sndMurmur(pan, k) { // a starling murmuration turning: a soft rushing whoosh of many wings (pink noise swelling and fading through a moving band), fx bus
+  if (!fxOn()) return; const ac = AG.ac, t = ac.currentTime + 0.02, d = 0.9 + Math.random() * 0.6, s = ac.createBufferSource(), fl = ac.createBiquadFilter(), e = auVoice('fx', t, d + 0.1, pan), f0 = 600 + Math.random() * 300;
+  s.buffer = AG.pink; fl.type = 'bandpass'; fl.Q.value = 0.8; fl.frequency.setValueAtTime(f0, t); fl.frequency.linearRampToValueAtTime(f0 * 1.8, t + d * 0.45); fl.frequency.linearRampToValueAtTime(f0 * 0.9, t + d);
+  s.connect(fl); fl.connect(e); s.start(t, Math.random() * 1.5); s.stop(t + d + 0.05);
+  e.gain.setValueAtTime(0, t); e.gain.linearRampToValueAtTime(0.05 * k, t + d * 0.4); e.gain.linearRampToValueAtTime(0.035 * k, t + d * 0.65); e.gain.linearRampToValueAtTime(0, t + d);
+  setTimeout(() => fl.disconnect(), (t - ac.currentTime + d) * 1000 + 300);
+  AU.ev.murmur++;
+}
 function sndPeep(pan, k) { // a duckling: two or three tiny soft peeps (fx bus, so mute and volume apply)
   if (!fxOn()) return; const t0 = AG.ac.currentTime + 0.02 + Math.random() * 0.15, n = 2 + (Math.random() < 0.4 ? 1 : 0), f0 = 3000 + Math.random() * 600;
   for (let j = 0; j < n; j++) { const t = t0 + j * (0.13 + Math.random() * 0.05), g = auVoice('fx', t, 0.12, pan), o = osc('sine', f0 * 1.08, t, 0.12, g);
@@ -4074,6 +4171,8 @@ function auTick(dt) {
   AU.fled = st.bfFled || 0;
   // wild geese overhead (while a skein is drawn): a faint honk now and then, at most one per 1.6 s, panned to the lead goose
   if (st.geeseDrawn > 0 && t - (AU.honkT || -9) > 1.6 && R() < 0.35) { sndHonk(fxPan(st.geeseAt ? st.geeseAt[0] : st.geeseX), 0.7 + 0.3 * R()); AU.honkT = t; }
+  // a starling murmuration (while drawn): a soft whoosh of wings, more often and louder when the flock turns tight, at most one per 1.1 s
+  if (st.murmDrawn > 20 && t - (AU.murmT || -9) > 1.1 && R() < 0.3 + 0.6 * (st.murmTight || 0)) { sndMurmur(fxPan(st.murmAt ? st.murmAt[0] : null), Math.min(1, 0.35 + 0.8 * (st.murmTight || 0)) * Math.min(1, st.murmDrawn / 150)); AU.murmT = t; }
   if (st.ducklingsDrawn > 0 && st.duckPx && t - (AU.peepT || -9) > 1.4 && R() < 0.3) { sndPeep(fxPan(st.duckPx[0]), 0.7 + 0.3 * R()); AU.peepT = t; }
   // icicles dripping in the sun (while drawn): a soft plip now and then, at most one per 0.6 s, panned to a dripping cottage
   if (st.dripsDrawn > 0 && performance.now() - (st.dripsAt || 0) < 600 && t - (AU.icT || -9) > 0.6 && R() < Math.min(0.7, 0.3 + 0.04 * st.dripsDrawn)) {
@@ -4349,7 +4448,7 @@ addEventListener('pagehide', () => autoSave('pagehide'));
 window.LV_AUTO = { AS, save: autoSave, get: asGet, put: asPut, clear: asClear, restore: autoRestore };
 
 
-window.__lv = { st, FR, FOX, foxEvening, BF, GS, AU, SW, updSound, LV, LT, leaf: LS, clockText, wheelAng, get col() { return [colR, colG, colB]; }, get tilt() { return tilt; }, get area() { return area; }, setTool, newWorld, unproj, proj, get S() { return st.S; }, floes, breakup: sndBreakup, yearTurn, flourT, SACK_T, carts, CART_LOAD, cartTarget, bakeT, FLOUR, smokeRGB, HAY, HAY_T, PUD, KID, DUCK };
+window.__lv = { st, FR, FOX, foxEvening, BF, GS, MU, murmEvening, AU, SW, updSound, LV, LT, leaf: LS, clockText, wheelAng, get col() { return [colR, colG, colB]; }, get tilt() { return tilt; }, get area() { return area; }, setTool, newWorld, unproj, proj, get S() { return st.S; }, floes, breakup: sndBreakup, yearTurn, flourT, SACK_T, carts, CART_LOAD, cartTarget, bakeT, FLOUR, smokeRGB, HAY, HAY_T, PUD, KID, DUCK };
 updUI(); updSound();
 const rawHash = (location.hash || '').slice(1);
 let fromHash = ''; try { fromHash = decodeURIComponent(rawHash); } catch (e) { fromHash = ''; }

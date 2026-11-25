@@ -111,6 +111,12 @@ whistled *pew*) and fly up with a whirr of wings. (`screenshot-bullfinch.png`: b
 long wavy line) with slow, slightly out-of-step wing beats; in early spring they come back the other way. Only by
 day, not in heavy rain, storms or the map view. With the sound on you hear a faint, far-off honking.
 
+**Starling murmuration**: on most autumn evenings, around sunset, a huge flock of starlings swirls in the sky above
+the valley as one dark, shape-shifting cloud: it stretches into a streaming ribbon, folds over, bunches into a dark
+knot and thins out again, then at nightfall pours down in a stream into the trees and is gone by full dark. Not in
+rain, storms or the map view. With the sound on you hear the soft rush of their wings as the flock turns.
+(`screenshot-murmuration.png`: the murmuration at autumn dusk.)
+
 **Snowmen**: when the snow reaches the village, little snowmen with red scarves and dark hats
 appear in the cottage gardens, and they melt with the snow in spring.
 
