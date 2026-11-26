@@ -102,6 +102,14 @@ so the next morning brings fresh ones. Now and then at dusk the red fox itself t
 a small orange fox with a white-tipped bushy tail; it stops to sniff the snow and leaves its own prints as it
 goes. None in falling snow or storms, or in the map view. (`screenshot-fox.png`: fox tracks on a winter morning.)
 
+**Roe deer at the water**: on calm summer evenings and early mornings (spring to autumn, on about three days in
+five) a roe doe steps out of the forest edge and walks down to the nearest place to drink, a dry bank right
+beside open, unfrozen water. She stops now and then to look about with her big ears up, lowers her head to
+drink (little rings spread on the water at her muzzle; she lifts her head between sips) and then walks back
+into the trees. In early summer a white-spotted fawn trots a little behind her and drinks at her side. A shower
+sends them bounding back at once. None in winter (that is the fox's time), at midday or at night, in the
+always-day mode or in the map view. (`screenshot-deer.png`: a doe drinking at the river, her fawn beside her.)
+
 **Hoar frost**: after a clear, cold winter night the trees wake up white-rimed: the pine and leafy crowns
 (and the bare winter twigs) go frosty white with a bright rim on their edges and the open grass turns pale.
 When the sun is up, little sparkles wander over the frosted crowns, and the frost fades as the day warms

@@ -331,6 +331,19 @@ function springFlow(S, sp) { return sp.house || !(S.dryNow > 0) ? 1 : 1 - SPRING
 const HOUSE_MOSS_Y = 3, HOUSE_TROUGH_Y = 1;
 function houseAge(S, sp) { return sp.house && Number.isFinite(sp.houseT) ? Math.max(0, (S.time - sp.houseT) / yearLen(S)) : 0; }
 function houseMoss(S, sp) { return Math.min(1, houseAge(S, sp) / HOUSE_MOSS_Y); }
+// a place to drink (read-only, for the roe deer at dusk/dawn): the nearest dry bank cell (no water, no ice) within R cells
+// of (x, y) that has open water (deeper than DRINK_D, not frozen) right beside it (4 neighbours). Returns
+// { bx, by, wx, wy, dist } (bank cell, water cell) or null.
+const DRINK_D = 0.08;
+function drinkSpot(S, x, y, R) {
+  const N = S.N, d = S.d, ice = S.ice, x0 = Math.round(x), y0 = Math.round(y); let best = null, bd = 1e9;
+  for (let yy = Math.max(1, y0 - R); yy <= Math.min(N - 2, y0 + R); yy++) for (let xx = Math.max(1, x0 - R); xx <= Math.min(N - 2, x0 + R); xx++) {
+    const dist = Math.hypot(xx - x0, yy - y0); if (dist > R || dist >= bd) continue;
+    const i = yy * N + xx; if (d[i] >= 0.02 || (ice && ice[i] > 0.3)) continue;
+    for (const j of [i - 1, i + 1, i - N, i + N]) if (d[j] > DRINK_D && !(ice && ice[j] > 0.3)) { bd = dist; best = { bx: xx, by: yy, wx: j % N, wy: (j / N) | 0, dist }; break; }
+  }
+  return best;
+}
 function datedHouses(S) { for (const sp of S.springs) if (sp.house && !Number.isFinite(sp.houseT)) sp.houseT = S.time; }
 function digWell(S, gx, gy) {
   const N = S.N; let best = null, bd = Math.max(3, N * 0.03);
@@ -1415,7 +1428,7 @@ function unpackShare(bytes, seed, opts) {
   if (hasNaN(S)) throw new Error('share link has broken numbers');
   return S;
 }
-const API = { SPRING_LOW, springFlow, HOUSE_MOSS_Y, HOUSE_TROUGH_Y, houseAge, houseMoss, SOWN_YEARS, SOWN_SCYTHE, pondCells, POND_DEEP, WEIR_H, findRoute, ROUTE_CLIMB, waterfalls, FALL_DROP, FALL_Q, FALL_M, longRiver, RIVER_Q, packState, unpackState, packShare, unpackShare, initLife,  iceStep, iceJam, totalIce, ICE_HOLD, JAM_MIN, JAM_Y, FLOE_PTS, eventRain, droughtOf, droughtAt, weatherEvent, STORM_AMP, yearFrac, yearFracAt, yearLen, yearNum, season, snowLine, snowFalling, leafState, snowStep, totalSnow, SEASONS, clockHour, dayFrac, planRain, rainCell, weatherStep, mulberry32, hashStr, makeNoise, randomSeedName, generateTerrain, create, seedLife, step, applyTool, totalWater, totalTerrain, resample, lifeStep, countTrees, countLife, leafy, treeHappy, cottageMood, cottageCell, countVillage, waterNear, wellYield, WELL_MIN, WELL_HIGH, MILL_T, MILL_RIPEN, raceCells, raceR, RACE_T, RACE_DIG, RACE_SP, FLOOD_RUIN, GROW_MAX, KIDS_MAX, GROW_T, plotSize, plotOf, plotCrop, hasNaN, DEFAULTS };
+const API = { DRINK_D, drinkSpot, SPRING_LOW, springFlow, HOUSE_MOSS_Y, HOUSE_TROUGH_Y, houseAge, houseMoss, SOWN_YEARS, SOWN_SCYTHE, pondCells, POND_DEEP, WEIR_H, findRoute, ROUTE_CLIMB, waterfalls, FALL_DROP, FALL_Q, FALL_M, longRiver, RIVER_Q, packState, unpackState, packShare, unpackShare, initLife,  iceStep, iceJam, totalIce, ICE_HOLD, JAM_MIN, JAM_Y, FLOE_PTS, eventRain, droughtOf, droughtAt, weatherEvent, STORM_AMP, yearFrac, yearFracAt, yearLen, yearNum, season, snowLine, snowFalling, leafState, snowStep, totalSnow, SEASONS, clockHour, dayFrac, planRain, rainCell, weatherStep, mulberry32, hashStr, makeNoise, randomSeedName, generateTerrain, create, seedLife, step, applyTool, totalWater, totalTerrain, resample, lifeStep, countTrees, countLife, leafy, treeHappy, cottageMood, cottageCell, countVillage, waterNear, wellYield, WELL_MIN, WELL_HIGH, MILL_T, MILL_RIPEN, raceCells, raceR, RACE_T, RACE_DIG, RACE_SP, FLOOD_RUIN, GROW_MAX, KIDS_MAX, GROW_T, plotSize, plotOf, plotCrop, hasNaN, DEFAULTS };
 if (typeof module !== 'undefined' && module.exports) module.exports = API; else root.LV = API;
 })(typeof window !== 'undefined' ? window : globalThis);
 </script>
@@ -1885,6 +1898,7 @@ function renderTilt(t) {
   { const t0 = performance.now(); drawWebs(t); st.webMs = (st.webMs || 0) * 0.9 + (performance.now() - t0) * 0.1; }
   { const t0 = performance.now(); drawHoarFrost(t); st.frostMs = (st.frostMs || 0) * 0.9 + (performance.now() - t0) * 0.1; }
   { const t0 = performance.now(); drawFox(t); st.foxMs = (st.foxMs || 0) * 0.9 + (performance.now() - t0) * 0.1; }
+  { const t0 = performance.now(); drawDeer(t); st.deerMs = (st.deerMs || 0) * 0.9 + (performance.now() - t0) * 0.1; }
   { const t0 = performance.now(); drawBullfinches(t); st.bfMs = (st.bfMs || 0) * 0.9 + (performance.now() - t0) * 0.1; }
   { const t0 = performance.now(); drawGlowworms(t); st.glowwormMs = (st.glowwormMs || 0) * 0.9 + (performance.now() - t0) * 0.1; }
   drawLanterns(t);
@@ -4315,6 +4329,118 @@ function drawFox(t) {
       cx.drawImage(spr.fox[fr][left ? 1 : 0], p[0] - w / 2, p[1] - hh * 0.9, w, hh); st.foxDrawn = 1; st.foxAt = [p[0], p[1]]; void sy; } }
   cx.restore();
 }
+// roe deer at the water: on calm evenings (18:45-21:15) and early mornings (5:10-7:00) from spring to autumn, on about
+// 3 days in 5, a roe doe steps out of the forest edge and walks down to the nearest drinking place (LV.drinkSpot: a dry
+// bank cell beside open, unfrozen water, within DEER_R cells of the edge), stopping now and then to look about with her
+// big ears up; at the bank she lowers her head and drinks for a while (little rings spread on the water at her muzzle,
+// she lifts her head between sips), then walks back into the trees and the next visit comes 25-60 s later. In early
+// summer (year 0.30-0.60) a white-spotted fawn trots a little behind her and drinks too. Rain or a storm sends them
+// bounding back at once. None in winter (the fox has the snow), at midday or night, in the always-day mode or the map view.
+// Cheap: pre-rendered sprites (drawImage only), one bank search per visit. Hooks: st.deerDrawn (deer drawn, doe + fawn),
+// st.deerAt (screen px of the doe), st.deerState ('walk' | 'look' | 'drink' | 'back' | 'flee' | ''), st.deerDrinks (visits
+// that reached the water), st.deerSips (rings), st.deerBank ([x, y] of tonight's bank cell), st.deerBankOk (it is still a
+// dry bank by open water), st.deerFawn, st.deerFawnAt, st.deerEve, st.deerMoved (cells), st.deerVisits, st.deerForce (test: every day), st.deerMs.
+const DEER_R = 12, DEER_SPD = 0.75;
+const DEER = { S: null, N: 0, d: null, rest: 3, last: -1, spr: null, drinks: 0, sips: 0, moved: 0, visits: 0, rings: [] };
+function deerDay(d) { const v = Math.sin(d * 57.3 + 4.7) * 24634.6; return v - Math.floor(v) < 0.6; }
+function deerSea(S) { const y = S.P.seasons ? LV.yearFrac(S) : 0.42; return smooth(0.04, 0.08, y) * (1 - smooth(0.7, 0.735, y)); }
+function deerHourOk(h) { return (h > 18.75 && h < 21.25) || (h > 5.15 && h < 7); }
+function deerSprites() {
+  if (DEER.spr) return DEER.spr;
+  const mk = (fawn, fr, flip) => { const W = 40, Hh = 34, c = document.createElement('canvas'); c.width = W; c.height = Hh; const g = c.getContext('2d');
+    if (flip) { g.translate(W, 0); g.scale(-1, 1); }
+    const drink = fr === 2, look = fr === 3, leg = fr === 0 ? 2.4 : fr === 1 ? -2.4 : 0, coat = fawn ? '#b8723e' : '#9c5a2e', dark = '#3a2416';
+    g.strokeStyle = dark; g.lineWidth = 1.5; g.lineCap = 'round'; g.beginPath(); // long thin legs, bent a little at the hock
+    if (leg) { g.moveTo(13, 20); g.lineTo(12 - leg, 26); g.lineTo(13 - leg * 1.2, 32);
+      g.moveTo(15, 20); g.lineTo(15 + leg, 26); g.lineTo(15 + leg * 1.1, 32);
+      g.moveTo(24, 20); g.lineTo(24 + leg, 32); g.moveTo(26, 20); g.lineTo(26 - leg, 32); }
+    else { g.moveTo(12.5, 20); g.lineTo(11.5, 26); g.lineTo(12, 32); g.moveTo(15.5, 20); g.lineTo(15, 26); g.lineTo(15.8, 32); // standing still: legs apart
+      g.moveTo(23.5, 20); g.lineTo(23, 32); g.moveTo(27, 20); g.lineTo(27.6, 32); }
+    g.stroke();
+    g.fillStyle = coat; g.beginPath(); g.ellipse(19.5, 17, 9, 4.6, drink ? 0.12 : -0.03, 0, 6.283); g.fill(); // body
+    g.fillStyle = '#f3ece2'; g.beginPath(); g.ellipse(11.2, 16.4, 2.4, 3.2, 0, 0, 6.283); g.fill(); // white rump patch
+    g.fillStyle = fawn ? '#d9a878' : '#c58a5a'; g.beginPath(); g.ellipse(20, 19.8, 6.5, 1.4, 0, 0, 6.283); g.fill(); // paler belly
+    if (fawn) { g.fillStyle = '#f6efe4'; for (const [x, y] of [[15, 15], [18, 14], [21, 14.4], [24, 15.2], [16.5, 17.6], [19.6, 17], [22.8, 17.6]]) { g.beginPath(); g.arc(x, y, 0.85, 0, 6.283); g.fill(); } }
+    const hx = drink ? 32 : 31, hy = drink ? 27.5 : look ? 7.4 : 8; // head: down to the water, up high when she looks about
+    g.fillStyle = coat; g.beginPath(); g.moveTo(25, 14); g.lineTo(hx - 2, hy - 1.5); g.lineTo(hx + 1, hy + 1.5); g.lineTo(28, 19); g.fill(); // neck
+    g.beginPath(); g.ellipse(hx, hy, 2.8, 2.3, drink ? 1.1 : 0.15, 0, 6.283); g.fill();
+    const mx = drink ? hx + 1.6 : hx + 4.4, my = drink ? hy + 3.6 : hy + 1.2; // muzzle
+    g.beginPath(); g.moveTo(hx + 1, hy - 1.2); g.lineTo(mx, my); g.lineTo(hx - 0.4, hy + 1.8); g.fill();
+    g.fillStyle = '#1c120c'; g.beginPath(); g.arc(mx, my, 0.95, 0, 6.283); g.fill(); // black nose
+    g.fillStyle = '#f0e8de'; g.beginPath(); g.arc(mx - (drink ? 0.6 : 1.3), my + (drink ? -0.6 : 0.9), 0.8, 0, 6.283); g.fill(); // white chin
+    g.fillStyle = dark; g.beginPath(); g.arc(hx + (drink ? 1.2 : 1), hy - (drink ? 0.2 : 0.4), 0.55, 0, 6.283); g.fill(); // eye
+    g.fillStyle = coat; const ey = drink ? hy - 1 : hy - 1.6, ex = drink ? hx - 2 : hx - 1.2; // big ears
+    g.beginPath(); g.ellipse(ex - 1.4, ey - 2.4, 1.2, 2.8, drink ? -1.1 : -0.45, 0, 6.283); g.fill();
+    g.beginPath(); g.ellipse(ex + 0.9, ey - 2.6, 1.2, 2.8, drink ? -0.7 : 0.25, 0, 6.283); g.fill();
+    return c; };
+  return DEER.spr = [0, 1].map(fawn => [0, 1, 2, 3].map(fr => [mk(fawn, fr, false), mk(fawn, fr, true)]));
+}
+function deerFind(S, T, H) { // a visible forest-edge spot with a drinking place in reach
+  const src = glowSpotsSnow(S, T, H); if (!src.length) return null;
+  for (let k = 0; k < 24; k++) { const q = src[(Math.random() * src.length) | 0], b = LV.drinkSpot(S, q[0], q[1], DEER_R);
+    if (b && b.dist >= 2.5 && duckSeen(T, S, b.wx, b.wy)) return { q, b }; }
+  return null;
+}
+function deerStep(S, T, H, dt, on, fawnOk) {
+  const N = S.N; let f = DEER.d;
+  if (!f) { DEER.rest -= dt; if (!on) DEER.rest = Math.min(DEER.rest, 3); if (!on || DEER.rest > 0) return;
+    const w = deerFind(S, T, H); if (!w) { DEER.rest = 3; return; }
+    const b = w.b, tx = b.bx + 0.5 + (b.wx - b.bx) * 0.3, ty = b.by + 0.5 + (b.wy - b.by) * 0.3;
+    f = DEER.d = { x: w.q[0] + 0.5, y: w.q[1] + 0.5, x0: w.q[0] + 0.5, y0: w.q[1] + 0.5, tx, ty, b, st: 'walk', al: 0, t: 0, look: 2 + Math.random() * 3, drinkT: 7 + Math.random() * 4, sip: 0.6, head: 0, ph: 0, a: Math.atan2(ty - w.q[1] - 0.5, tx - w.q[0] - 0.5), trail: [], fawn: fawnOk, life: 70, drank: false };
+    DEER.visits++; }
+  f.life -= dt; f.t += dt;
+  if (f.st !== 'flee' && (LT.rain > 0.15 || LT.storm > 0.02)) f.st = 'flee'; // a shower: back to the trees at a bound
+  else if (!on && (f.st === 'walk' || f.st === 'look' || f.st === 'drink')) f.st = 'back';
+  if (f.life < 0 && f.st !== 'flee') f.st = 'back';
+  const home = f.st === 'back' || f.st === 'flee', gx = home ? f.x0 : f.tx, gy = home ? f.y0 : f.ty, dist = Math.hypot(gx - f.x, gy - f.y);
+  const out = home && (dist < 0.4 || (f.st === 'flee' && f.t > 30));
+  f.al += ((out ? 0 : 1) - f.al) * Math.min(1, dt * (out ? 3 : 1.6));
+  if (out && f.al < 0.03) { DEER.d = null; DEER.rest = f.drank ? 25 + Math.random() * 35 : 4; return; }
+  if (f.st === 'look') { f.look -= dt; if (f.look < 0) { f.st = 'walk'; f.look = 2.5 + Math.random() * 3.5; } return; }
+  if (f.st === 'drink') { f.drinkT -= dt; f.sip -= dt;
+    if (f.head > 0) f.head -= dt; else if (Math.random() < dt * 0.25) f.head = 0.9 + Math.random() * 0.6; // lifts her head between sips
+    if (f.sip < 0 && f.head <= 0) { f.sip = 1 + Math.random() * 0.6; DEER.sips++; const wx = f.b.wx + 0.5, wy = f.b.wy + 0.5; DEER.rings.push({ x: f.x + (wx - f.x) * 0.45, y: f.y + (wy - f.y) * 0.45, age: 0 });
+      if (f.fawn && Math.random() < 0.6) DEER.rings.push({ x: f.fx + (wx - f.fx) * 0.5, y: f.fy + (wy - f.fy) * 0.5, age: 0.2 }); }
+    if (f.drinkT < 0) f.st = 'back'; return; }
+  if (f.st === 'walk') { f.look -= dt; if (f.look < 0 && dist > 1.5) { f.st = 'look'; f.look = 0.8 + Math.random() * 0.9; return; }
+    if (dist < 0.15) { f.st = 'drink'; f.drank = true; DEER.drinks++; f.a = Math.atan2(f.b.wy - f.b.by, f.b.wx - f.b.bx); return; } }
+  const sp = Math.min(dist, (f.st === 'flee' ? DEER_SPD * 3.2 : DEER_SPD) * dt), a = Math.atan2(gy - f.y, gx - f.x);
+  f.a = a; f.x += Math.cos(a) * sp; f.y += Math.sin(a) * sp; f.ph += dt * (f.st === 'flee' ? 14 : 6.5); DEER.moved += sp;
+  const lt = f.trail[f.trail.length - 1]; if (!lt || Math.hypot(f.x - lt[0], f.y - lt[1]) > 0.1) { f.trail.push([f.x, f.y]); if (f.trail.length > 40) f.trail.shift(); } // points 0.1 cells apart
+}
+function drawDeer(t) {
+  const T = tilt, S = st.S; st.deerDrawn = 0; st.deerAt = null; st.deerState = ''; st.deerFawn = 0; st.deerFawnAt = null;
+  const dt = Math.max(0, Math.min(0.1, t - DEER.last)); DEER.last = t;
+  if (!T || T.s == null || !T.pick) return;
+  const N = S.N, H = N * 0.27, h = LT.h, sea = deerSea(S);
+  if (DEER.S !== S || DEER.N !== N) { DEER.S = S; DEER.N = N; DEER.d = null; DEER.rings = []; DEER.rest = 3; }
+  const day = Math.floor(S.time / (S.P.dayLen || 720)), y = S.P.seasons ? LV.yearFrac(S) : 0.42;
+  const on = st.deerEve = !!(st.deerForce || deerDay(day)) && sea > 0.5 && deerHourOk(h) && LT.rain < 0.15 && LT.storm < 0.02 && !st.alwaysDay;
+  deerStep(S, T, H, dt, on, y > 0.3 && y < 0.6);
+  st.deerDrinks = DEER.drinks; st.deerSips = DEER.sips; st.deerMoved = DEER.moved; st.deerVisits = DEER.visits;
+  const f = DEER.d; if (f) { const b = f.b, i = b.by * N + b.bx; st.deerBank = [b.bx, b.by]; st.deerBankOk = S.d[i] < 0.02 && [i - 1, i + 1, i - N, i + N].some(j => S.d[j] > LV.DRINK_D * 0.5 && !(S.ice && S.ice[j] > 0.3)); }
+  if (!f && !DEER.rings.length) return;
+  cx.save();
+  for (const r of DEER.rings) r.age += dt; DEER.rings = DEER.rings.filter(r => r.age < 1.6);
+  cx.lineWidth = 1; for (const r of DEER.rings) { const p = foxProj(T, S, r.x, r.y); if (!p) continue; const k = r.age / 1.6, R = (2 + k * 9) * Math.max(0.8, Math.min(1.4, p[2] / 5));
+    cx.strokeStyle = `rgba(225,240,255,${(0.75 * (1 - k)).toFixed(3)})`; cx.beginPath(); cx.ellipse(p[0], p[1], R, R * 0.4, 0, 0, 6.283); cx.stroke(); }
+  if (f && f.al > 0.03) {
+    const spr = deerSprites(), sc = Math.max(0.85, Math.min(1.35, (foxProj(T, S, f.x, f.y) || [0, 0, 5])[2] / 5)), w = (isPhone ? 20 : 27) * sc, hh = w * 34 / 40;
+    if (f.fawn) { const q = f.trail[Math.max(0, f.trail.length - 12)] || [f.x0, f.y0], side = f.st === 'drink' ? 1.4 : 0; // about 1.2 cells behind her, beside her at the water
+      f.fx = q[0] + Math.cos(f.a + 1.57) * side; f.fy = q[1] + Math.sin(f.a + 1.57) * side; }
+    const moving = f.st === 'walk' || f.st === 'back' || f.st === 'flee';
+    const one = (x, y, fawn, fr) => { const p = foxProj(T, S, x, y); if (!p) return null; const left = Math.cos(f.a) < 0, ww = fawn ? w * 0.68 : w, h2 = fawn ? hh * 0.68 : hh;
+      cx.globalAlpha = Math.min(1, f.al); cx.fillStyle = 'rgba(30,40,30,0.2)'; cx.beginPath(); cx.ellipse(p[0], p[1], ww * 0.34, h2 * 0.1, 0, 0, 6.283); cx.fill();
+      cx.drawImage(spr[fawn ? 1 : 0][fr][left ? 1 : 0], p[0] - ww / 2, p[1] - h2 * 0.94, ww, h2); st.deerDrawn++; return p; };
+    const fr = f.st === 'drink' ? (f.head > 0 ? 3 : 2) : f.st === 'look' ? 3 : (Math.sin(f.ph) > 0 ? 0 : 1);
+    const fawnFirst = f.fawn && f.fy < f.y; // draw the farther one first
+    if (fawnFirst) { st.deerFawnAt = one(f.fx, f.fy, true, f.st === 'drink' ? (f.head > 0 ? 2 : 3) : moving ? (Math.sin(f.ph + 1.3) > 0 ? 0 : 1) : 3); st.deerFawn = st.deerDrawn; }
+    const p = one(f.x, f.y, false, fr); if (p) st.deerAt = [p[0], p[1]];
+    if (f.fawn && !fawnFirst) { const n0 = st.deerDrawn; st.deerFawnAt = one(f.fx, f.fy, true, f.st === 'drink' ? (f.head > 0 ? 2 : 3) : moving ? (Math.sin(f.ph + 1.3) > 0 ? 0 : 1) : 3); st.deerFawn = st.deerDrawn - n0; }
+    st.deerState = f.st;
+  }
+  cx.restore();
+}
 // bullfinches: on winter days (the leafy crowns bare), a little flock of round rose-breasted bullfinches (7 desk / 4 phone;
 // cocks with a rose-red breast, black cap and grey back, about one hen in three in soft buff-grey) hops about in the bare
 // leafy crowns: they sit a while, hop to another twig of the same crown, flit to a neighbour crown in a bounding arc and
@@ -4799,7 +4925,7 @@ function frame(now) {
   const tc0 = performance.now(); computeColours(st.time); st.colMs = (st.colMs || 0) * 0.9 + (performance.now() - tc0) * 0.1;
   cx.setTransform(dpr, 0, 0, dpr, 0, 0);
   if (st.view === 'tilt') { tiltGeom(); drawSky(st.time, dtReal); renderTilt(st.time); }
-  else { drawSky(st.time, dtReal); renderTop(st.time); drawRiverTop(); drawRiverHint('top'); drawCottagesTop(); drawWindowGlowTop(st.time); st.heronsDrawn = 0; st.heronAt = null; st.heronStates = []; HER.birds = []; st.kfDrawn = 0; st.kfAt = null; st.kfStates = []; st.kfPts = []; KF.birds = []; KF.sp = []; st.dipDrawn = 0; st.dipAt = null; st.dipStates = []; st.dipPts = []; DIP.birds = []; DIP.sp = []; st.websDrawn = 0; st.webAt = []; st.webCells = []; st.webGlints = 0; WEB.webs.forEach(w => { w.a = 0; }); st.frostTrees = 0; st.frostGlints = 0; st.frostGlintAt = []; FR.src = []; FR.gl.forEach(g => { g.age = g.life; }); st.foxTracks = 0; st.foxPrints = 0; st.foxPrintCells = []; st.foxDrawn = 0; st.foxAt = null; if (FOX.fox) { FOX.fox = null; FOX.rest = 5; } FOX.last = st.time; st.glowwormsDrawn = 0; st.glowwormAt = []; st.glowwormCells = []; st.glowwormLvl = []; GW.worms.forEach(w => { w.a = 0; }); st.petalsDrawn = 0; st.mistDrawn = 0; st.mistDrift = 0; st.puddlesDrawn = 0; st.icyPuddles = 0; st.puddleIcePx = 0; st.splashKids = 0; st.splashHopping = 0; st.splashDrops = 0; st.splashSpots = 0; st.splashPuds = []; KID.on = false; st.batsDrawn = 0; st.batAt = null; st.midgesDrawn = 0; st.midgeSpecks = 0; st.midgeGlints = 0; st.midgeCols = []; MID.last = st.time; st.dragonfliesDrawn = 0; st.dfAt = null; st.butterfliesDrawn = 0; st.btfAt = null; BTF.flies.forEach(f => { f.a = 0; }); st.dfHover = 0; DF.last = st.time; st.duckFams = 0; st.ducksDrawn = 0; st.ducklingsDrawn = 0; st.duckLine = null; DUCK.last = null; st.swallowsDrawn = 0; st.swallowRings = 0; st.swallowAt = null; SW.last = st.time; st.bfDrawn = 0; st.bfSit = 0; st.bfFlying = 0; st.bfAtFeeder = 0; st.bfFeeders = 0; st.bfAt = []; st.bfFeederAt = []; BF.birds = []; BF.feeders = []; BF.home = null; BF.crowns = []; } // no petals in the map view (seen from far above they would be specks of dust)
+  else { drawSky(st.time, dtReal); renderTop(st.time); drawRiverTop(); drawRiverHint('top'); drawCottagesTop(); drawWindowGlowTop(st.time); st.heronsDrawn = 0; st.heronAt = null; st.heronStates = []; HER.birds = []; st.kfDrawn = 0; st.kfAt = null; st.kfStates = []; st.kfPts = []; KF.birds = []; KF.sp = []; st.dipDrawn = 0; st.dipAt = null; st.dipStates = []; st.dipPts = []; DIP.birds = []; DIP.sp = []; st.websDrawn = 0; st.webAt = []; st.webCells = []; st.webGlints = 0; WEB.webs.forEach(w => { w.a = 0; }); st.frostTrees = 0; st.frostGlints = 0; st.frostGlintAt = []; FR.src = []; FR.gl.forEach(g => { g.age = g.life; }); st.foxTracks = 0; st.foxPrints = 0; st.foxPrintCells = []; st.foxDrawn = 0; st.foxAt = null; if (FOX.fox) { FOX.fox = null; FOX.rest = 5; } FOX.last = st.time; st.deerDrawn = 0; st.deerAt = null; st.deerState = ''; st.deerFawn = 0; DEER.rings = []; if (DEER.d) { DEER.d = null; DEER.rest = 5; } DEER.last = st.time; st.glowwormsDrawn = 0; st.glowwormAt = []; st.glowwormCells = []; st.glowwormLvl = []; GW.worms.forEach(w => { w.a = 0; }); st.petalsDrawn = 0; st.mistDrawn = 0; st.mistDrift = 0; st.puddlesDrawn = 0; st.icyPuddles = 0; st.puddleIcePx = 0; st.splashKids = 0; st.splashHopping = 0; st.splashDrops = 0; st.splashSpots = 0; st.splashPuds = []; KID.on = false; st.batsDrawn = 0; st.batAt = null; st.midgesDrawn = 0; st.midgeSpecks = 0; st.midgeGlints = 0; st.midgeCols = []; MID.last = st.time; st.dragonfliesDrawn = 0; st.dfAt = null; st.butterfliesDrawn = 0; st.btfAt = null; BTF.flies.forEach(f => { f.a = 0; }); st.dfHover = 0; DF.last = st.time; st.duckFams = 0; st.ducksDrawn = 0; st.ducklingsDrawn = 0; st.duckLine = null; DUCK.last = null; st.swallowsDrawn = 0; st.swallowRings = 0; st.swallowAt = null; SW.last = st.time; st.bfDrawn = 0; st.bfSit = 0; st.bfFlying = 0; st.bfAtFeeder = 0; st.bfFeeders = 0; st.bfAt = []; st.bfFeederAt = []; BF.birds = []; BF.feeders = []; BF.home = null; BF.crowns = []; } // no petals in the map view (seen from far above they would be specks of dust)
   floeStep(S, dtReal); drawFloes();
   drawCottageBadges(st.time);
   drawNaturalRain(st.time); drawOverlays(st.time); drawShower(st.time);
@@ -5539,7 +5665,7 @@ addEventListener('pagehide', () => autoSave('pagehide'));
 window.LV_AUTO = { AS, save: autoSave, get: asGet, put: asPut, clear: asClear, restore: autoRestore };
 
 
-window.__lv = { st, FR, FOX, foxEvening, BF, GS, CR, HER, KF, DIP, MU, murmEvening, AU, SW, updSound, LV, LT, leaf: LS, clockText, wheelAng, get col() { return [colR, colG, colB]; }, get tilt() { return tilt; }, get area() { return area; }, setTool, newWorld, unproj, proj, get S() { return st.S; }, floes, breakup: sndBreakup, yearTurn, flourT, SACK_T, carts, CART_LOAD, cartTarget, bakeT, FLOUR, smokeRGB, HAY, HAY_T, PUD, KID, DUCK, BTF, BOAT, boatCourse, boatRestSnd, lowBareSprings, springNudgeOn, wishLine: id => wishLine(WISHES.find(w => w.id === id)) };
+window.__lv = { st, FR, FOX, foxEvening, DEER, deerDay, BF, GS, CR, HER, KF, DIP, MU, murmEvening, AU, SW, updSound, LV, LT, leaf: LS, clockText, wheelAng, get col() { return [colR, colG, colB]; }, get tilt() { return tilt; }, get area() { return area; }, setTool, newWorld, unproj, proj, get S() { return st.S; }, floes, breakup: sndBreakup, yearTurn, flourT, SACK_T, carts, CART_LOAD, cartTarget, bakeT, FLOUR, smokeRGB, HAY, HAY_T, PUD, KID, DUCK, BTF, BOAT, boatCourse, boatRestSnd, lowBareSprings, springNudgeOn, wishLine: id => wishLine(WISHES.find(w => w.id === id)) };
 updUI(); updSound();
 const rawHash = (location.hash || '').slice(1);
 let fromHash = ''; try { fromHash = decodeURIComponent(rawHash); } catch (e) { fromHash = ''; }
