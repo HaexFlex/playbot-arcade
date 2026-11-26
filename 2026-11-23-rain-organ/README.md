@@ -12,6 +12,12 @@ A calm musical toy by Playbot. Little clouds drop raindrops in time (84 bpm, one
 - Drops throw tiny droplets off the leaves they ring and ripple the puddle; notes ring in a soft, small room (a gentle reverb).
 - 🌗 (top right, or N): the sky follows your local time of day (dawn, day, dusk, night, with soft blends); tap for ☀️ always day or 🌙 always night. At night a few stars show and the leaves glow a little. The choice is kept.
 - Your drawing is kept on this device.
+- ⏺ (top right, under the tempo, or R): record up to 30 s of your rain as an audio file. Everything you hear goes in (notes, echo, room, puddle plips, the rain hiss), with a soft fade in and out. Tap again to stop early; then a small box lets you listen, ⬇ save the file (`rain-organ-<date>-<time>.webm`, or `.m4a` on iPhone/Safari) or 📤 share it straight to a chat on phones. Browsers without audio recording simply don't show the button.
+
+## v1.4 (2026-11-26)
+- ⏺ Record: a short audio file of your rain (up to 30 s), to keep or send, not only the link. Listen, save or share from the little box that appears.
+
+![Recording box on a phone](screenshot-record.png)
 
 ## v1.1 (2026-11-23)
 - On a portrait phone the built-in pieces now reach down the whole tall field (Waterwheel's lowest leaf at 87% of the height instead of 41%), still with 0 crossings; the melody pad lays the clouds out again if needed, keeping every tune.
@@ -29,6 +35,6 @@ A calm musical toy by Playbot. Little clouds drop raindrops in time (84 bpm, one
 - The melody pad composes in small slices, so even a hard tune never freezes the page.
 - Share links, autosave, phone/tablet/desktop layouts (toolbar fits from 360 px), keyboard keys (D, E, C, N, M, Space, Esc), labelled buttons for screen readers, first-run tips.
 
-One self-contained `index.html` built from `src/` with `node tools/build.js`. Tests: `node tools/test.js` (music mapping, bounce maths, the composer), `node tools/pad-check.js` (headless: the melody pad on desktop and phone), `node tools/mat-check.js` (materials, share/reload, puddle), `node tools/rhythm-check.js` (cloud rhythms), `node tools/clouds-check.js` (the third cloud), `node tools/fx-check.js` (droplets, puddle rings, reverb, and running without audio), `node tools/sky-check.js` (day/night skies, the saved sky toggle, toolbar fit at 360/844/1280, button labels, first-run tip), `node tools/spread-check.js` (every piece reaches down the field on 390x844 and 360x780 portrait, 844x390 landscape and desktop, 0 crossings, melodies in order, the pad on a tall field), `node tools/shot.js` (headless smoke check and screenshots).
+One self-contained `index.html` built from `src/` with `node tools/build.js`. Tests: `node tools/test.js` (music mapping, bounce maths, the composer), `node tools/pad-check.js` (headless: the melody pad on desktop and phone), `node tools/mat-check.js` (materials, share/reload, puddle), `node tools/rhythm-check.js` (cloud rhythms), `node tools/clouds-check.js` (the third cloud), `node tools/fx-check.js` (droplets, puddle rings, reverb, and running without audio), `node tools/sky-check.js` (day/night skies, the saved sky toggle, toolbar fit at 360/844/1280, button labels, first-run tip), `node tools/spread-check.js` (every piece reaches down the field on 390x844 and 360x780 portrait, 844x390 landscape and desktop, 0 crossings, melodies in order, the pad on a tall field), `node tools/rec-check.js` (the recorder on desktop, 844 landscape and a 360 phone: a real, decodable, non-silent file, the countdown, auto-stop at the limit, the box, and no button where MediaRecorder is missing), `node tools/shot.js` (headless smoke check and screenshots).
 
 ![Rain Organ](rain-organ.gif)
