@@ -1724,5 +1724,63 @@ button:focus-visible{outline:2px solid #ffd27a;outline-offset:2px}
   requestAnimationFrame(frame);
 })();
 </script>
+<!-- pb-i18n:begin --><script>
+(function(){
+var SRC=/*SRC*/'de'/*SRC*/,CORNER=/*CORNER*/'tr'/*CORNER*/,D=/*DICT*/{"von":"of","und":"and","oder":"or","· grösster":"· largest","grösster":"largest","· Igel im Laub":"· Hedgehog in the leaves","Igel im Laub":"Hedgehog in the leaves","· Rekord":"· Record","Rekord":"Record","Ahorn":"Maple","Baum":"Tree","Böe":"Gust","Buch":"Book","Buche":"Beech","Das Kind in den grössten Haufen springen lassen":"Let the child jump into the biggest pile","Das Kind ist schon unterwegs.":"The child is already on the way.","Das Kind springt in den Haufen.":"The child jumps into the pile.","Das Laub liegt wieder verstreut.":"The leaves lie scattered again.","Das Laub neu verteilen":"Redistribute the leaves","Den Hund in den grössten Haufen springen lassen":"Let the dog jump into the biggest pile","Der Hund ist schon unterwegs.":"The dog is already on the way.","Der Hund springt in den Haufen.":"The dog jumps into the pile.","Der Igel flitzt ins Gebüsch.":"The hedgehog dashes into the bushes.","Eiche":"Oak","Ein Igel versteckt sich im Laub.":"A hedgehog hides in the leaves.","Eine Böe wirbelt das Laub auf.":"A gust whirls the leaves up.","Eine Kastanie fällt vom Baum.":"A chestnut falls from the tree.","Eine Windböe auslösen":"Trigger a gust of wind","Grad":"Degree","Haufen":"Pile","Herbst":"Autumn","Hund":"Dog","Igel":"Hedgehog","Kastanie":"Chestnut","Kastanien":"Chestnuts","Kind":"Child","Laub":"Leaves","Laubhaufen":"Leaf Pile","Laubhaufen. Ein Herbstgarten. Ziehe durchs Laub, um Haufen zu rechen.":"Leaf pile. An autumn garden. Drag through the leaves to rake piles.","Neu":"New","Rechen":"Rake","Tipp":"Hint","Ton":"Sound","Ton ist an":"Sound is on","Ton ist an.":"Sound is on.","Ton ist an. Tippe, um ihn auszuschalten":"Sound is on. Tap to switch it off","Ton ist aus":"Sound is off","Ton ist aus.":"Sound is off.","Ton ist aus. Tippe, um ihn einzuschalten":"Sound is off. Tap to switch it on","Ziehe den Rechen durchs Laub und schiebe es zu Haufen.":"Drag the rake through the leaves and push them into piles.","Ton (M)":"Sound (M)","Böe (B)":"Gust (B)","Kind (K)":"Child (K)","Hund (H)":"Dog (H)","Neu (N)":"New (N)","lang":"long"}/*DICT*/;
+var KEY='playbot-lang',OTHER=SRC==='de'?'en':'de',lang=SRC;
+function pref(){try{var v=localStorage.getItem(KEY);if(v==='de'||v==='en')return v}catch(e){}return(navigator.language||'en').toLowerCase().indexOf('de')===0?'de':'en'}
+var NUM=/-?\d+(?:[.,]\d+)?/g,rec=new WeakMap(),nodes=[],attrRec=new WeakMap(),attrEls=[];
+var keys=Object.keys(D).filter(function(k){return k.length>=3&&k.indexOf('#')<0}).sort(function(a,b){return b.length-a.length});
+var FR=null;
+if(keys.length){try{FR=new RegExp('(?<![\\p{L}\\p{N}])(?:'+keys.map(function(k){return k.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')}).join('|')+')(?![\\p{L}\\p{N}])','gu')}catch(e){FR=null}}
+function tr(raw){
+ var m=/^(\s*)([\s\S]*?)(\s*)$/.exec(raw),s=m[2].replace(/\s+/g,' ');if(!s)return raw;
+ var t=D[s];
+ if(t==null){var nums=s.match(NUM);if(nums){var ns=s.replace(NUM,'#');t=D[ns];if(t!=null){var i=0;t=t.replace(/#/g,function(){return nums[i++]!=null?nums[i-1]:'#'})}}}
+ if(t==null&&FR&&s.length<500){var c=s.replace(FR,function(x){return D[x]});if(c!==s)t=c}
+ return t==null?raw:m[1]+t+m[3]}
+var cc=new Map();function ctr(t){if(lang===SRC||typeof t!=='string'||t.length<2||t.length>300)return t;var r=cc.get(t);if(r===undefined){r=tr(t);if(cc.size>2000)cc.clear();cc.set(t,r)}return r}
+try{var P2=CanvasRenderingContext2D.prototype;['fillText','strokeText'].forEach(function(n){var o=P2[n];P2[n]=function(t){arguments[0]=ctr(t);return o.apply(this,arguments)}});var mt=P2.measureText;P2.measureText=function(t){return mt.call(this,ctr(t))}}catch(e){}
+var ATTR=['title','aria-label','placeholder','alt'];
+function skip(n){var p=n.parentNode;return !p||p.nodeName==='SCRIPT'||p.nodeName==='STYLE'||p.nodeName==='TEXTAREA'||(p.closest&&p.closest('#pb-lang'))}
+function doText(n){if(skip(n))return;var v=n.nodeValue,r=rec.get(n);if(r&&v===r.out)return;var t=tr(v);if(t!==v){if(!r)nodes.push(n);rec.set(n,{orig:v,out:t});n.nodeValue=t}else if(r){rec.delete(n)}}
+function doAttrs(el){if(el.id==='pb-lang'||(el.closest&&el.closest('#pb-lang')))return;for(var i=0;i<ATTR.length;i++){var a=ATTR[i];if(!el.hasAttribute(a))continue;var v=el.getAttribute(a),m=attrRec.get(el)||{};if(m[a]&&m[a].out===v)continue;var t=tr(v);if(t!==v){if(!attrRec.has(el)){attrRec.set(el,m);attrEls.push(el)}m[a]={orig:v,out:t};el.setAttribute(a,t)}}}
+function walk(root){
+ if(root.nodeType===3){doText(root);return}
+ if(root.nodeType!==1)return;
+ doAttrs(root);
+ var w=document.createTreeWalker(root,5,null),n;while((n=w.nextNode())){if(n.nodeType===3)doText(n);else doAttrs(n)}}
+var obs=new MutationObserver(function(ms){if(lang===SRC)return;obs.disconnect();try{for(var i=0;i<ms.length;i++){var m=ms[i];if(m.type==='characterData')doText(m.target);else if(m.type==='attributes')doAttrs(m.target);else for(var j=0;j<m.addedNodes.length;j++)walk(m.addedNodes[j])}}finally{watch()}});
+function watch(){obs.observe(document.documentElement,{subtree:true,childList:true,characterData:true,attributes:true,attributeFilter:ATTR})}
+var titleOrig=document.title;
+function setTitle(){if(lang===SRC){if(document.title!==titleOrig&&titleOrig===document.title)return;document.title=titleOrig}else{var t=tr(titleOrig);document.title=t}}
+function restore(){obs.disconnect();for(var i=0;i<nodes.length;i++){var n=nodes[i],r=rec.get(n);if(r&&n.nodeValue===r.out)n.nodeValue=r.orig;rec.delete(n)}nodes=[];
+ for(var k=0;k<attrEls.length;k++){var el=attrEls[k],m=attrRec.get(el)||{};for(var a in m)if(el.getAttribute(a)===m[a].out)el.setAttribute(a,m[a].orig);attrRec.delete(el)}attrEls=[];watch()}
+function apply(l){
+ lang=l;cc.clear();document.documentElement.setAttribute('data-pb-lang',l);window.PB_LANG=l;
+ if(l===SRC){restore();document.title=titleOrig}else{obs.disconnect();walk(document.body);document.title=tr(titleOrig);watch()}
+ var b=document.getElementById('pb-lang');if(b){b.querySelector('[data-l=en]').className=l==='en'?'on':'';b.querySelector('[data-l=de]').className=l==='de'?'on':'';b.setAttribute('aria-label',l==='de'?'Sprache wechseln (Deutsch aktiv)':'Switch language (English active)');b.title=b.getAttribute('aria-label')}
+ try{window.dispatchEvent(new CustomEvent('pblangchange',{detail:l}))}catch(e){}}
+function ui(){
+ var st=document.createElement('style');var pos={tr:'top:8px;right:8px',tl:'top:8px;left:8px',br:'bottom:8px;right:8px',bl:'bottom:8px;left:8px'}[CORNER]||'top:8px;right:8px';
+ st.textContent='#pb-lang{position:fixed;'+pos+';z-index:2147483000;display:flex;align-items:center;height:36px;min-width:72px;padding:0;margin:0;border:1px solid rgba(255,255,255,.35);border-radius:10px;background:rgba(10,14,28,.72);color:#e8eeff;font:600 12px/1 system-ui,-apple-system,"Segoe UI",sans-serif;letter-spacing:.04em;cursor:pointer;overflow:hidden;-webkit-tap-highlight-color:transparent;touch-action:manipulation;opacity:.88}#pb-lang:hover,#pb-lang:focus-visible{opacity:1}#pb-lang span{flex:1;display:flex;align-items:center;justify-content:center;height:100%;min-width:36px;color:#e8eeff;opacity:.6}#pb-lang span.on{background:#ffe27a;color:#0b0f1e;opacity:1}';
+ document.head.appendChild(st);
+ var b=document.createElement('button');b.id='pb-lang';b.type='button';b.innerHTML='<span data-l="en">EN</span><span data-l="de">DE</span>';
+ b.addEventListener('click',function(e){e.stopPropagation();var n=lang==='en'?'de':'en';try{localStorage.setItem(KEY,n)}catch(_){}apply(n)});
+ b.addEventListener('pointerdown',function(e){e.stopPropagation()});b.addEventListener('keydown',function(e){e.stopPropagation()});
+ document.body.appendChild(b);
+ var cur=CORNER,INTER='button,a[href],input,select,textarea,summary,[role=button],[onclick],[tabindex]',pend=0;
+ function rectFor(c){var W=innerWidth,H=innerHeight,w=b.offsetWidth||72,h=b.offsetHeight||36;var x=c.charAt(1)==='l'?8:W-8-w,y=c.charAt(0)==='t'?8:H-8-h;return{x:x,y:y,w:w,h:h}}
+ function blocked(c){var r=rectFor(c),xs=[.1,.5,.9],ys=[.2,.8];for(var i=0;i<3;i++)for(var j=0;j<2;j++){var px=r.x+r.w*xs[i],py=r.y+r.h*ys[j];if(px<0||py<0||px>=innerWidth||py>=innerHeight)continue;var l=document.elementsFromPoint(px,py);for(var k=0;k<l.length;k++){var e=l[k];if(e===b||b.contains(e))continue;if(e.closest&&e.closest(INTER))return true}}return false}
+ function put(c){cur=c;var s=b.style;s.top=c.charAt(0)==='t'?'8px':'auto';s.bottom=c.charAt(0)==='b'?'8px':'auto';s.left=c.charAt(1)==='l'?'8px':'auto';s.right=c.charAt(1)==='r'?'8px':'auto'}
+ function place(){pend=0;if(!blocked(cur))return;var o=[CORNER,'tr','tl','br','bl'];for(var i=0;i<o.length;i++){if(o[i]!==cur&&!blocked(o[i])){put(o[i]);return}}}
+ function sched(){if(!pend){pend=1;requestAnimationFrame(place)}}
+ try{new MutationObserver(sched).observe(document.body,{subtree:true,childList:true,attributes:true,attributeFilter:['class','style','hidden','open']})}catch(_){}
+ addEventListener('resize',sched);setInterval(place,400);sched()}
+function init(){ui();watch();var p=pref();apply(p)}
+addEventListener('storage',function(e){if(e.key===KEY&&(e.newValue==='en'||e.newValue==='de'))apply(e.newValue)});
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init);else init();
+})();
+</script><!-- pb-i18n:end -->
 </body>
 </html>
