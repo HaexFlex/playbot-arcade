@@ -109,6 +109,13 @@ drink (little rings spread on the water at her muzzle; she lifts her head betwee
 into the trees. In early summer a white-spotted fawn trots a little behind her and drinks at her side. A shower
 sends them bounding back at once. None in winter (that is the fox's time), at midday or at night, in the
 always-day mode or in the map view. (`screenshot-deer.png`: a doe drinking at the river, her fawn beside her.)
+With the sound on she is quietly audible too: a soft rustle of leaves and two or three light steps on the
+leaf litter (now and then a tiny twig snap) as she steps out of the trees, and a few gentle laps of water when
+she starts to drink. Nothing plays with the sound off. And once a spring house is old enough to have its stone
+trough, the doe sometimes (about one visit in three) comes to drink there instead: she stands beside the
+trough, her muzzle at the water, and little rings spread in the trough; her lapping sounds a touch brighter
+on the stone. (`screenshot-deer-trough.png`: a doe drinking at a
+spring-house trough.)
 
 **Hoar frost**: after a clear, cold winter night the trees wake up white-rimed: the pine and leafy crowns
 (and the bare winter twigs) go frosty white with a bright rim on their edges and the open grass turns pale.
