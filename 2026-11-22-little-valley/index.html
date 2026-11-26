@@ -4342,7 +4342,7 @@ function drawFox(t) {
 // that reached the water), st.deerSips (rings), st.deerBank ([x, y] of tonight's bank cell), st.deerBankOk (it is still a
 // dry bank by open water), st.deerFawn, st.deerFawnAt, st.deerEve, st.deerMoved (cells), st.deerVisits, st.deerForce (test: every day), st.deerMs.
 const DEER_R = 12, DEER_SPD = 0.75;
-const DEER = { S: null, N: 0, d: null, rest: 3, last: -1, spr: null, drinks: 0, sips: 0, moved: 0, visits: 0, rings: [], troughs: 0, tSips: 0, rip: null, steps: 0, laps: 0 };
+const DEER = { S: null, N: 0, d: null, rest: 3, last: -1, spr: null, drinks: 0, sips: 0, moved: 0, visits: 0, rings: [], troughs: 0, tSips: 0, rip: null, steps: 0, laps: 0, barks: 0 };
 // the spring-house trough (sim LV.HOUSE_TROUGH_Y: a house a year old has a stone trough, drawn at a fixed screen offset right of the
 // spring): on about one visit in three (DEER_TROUGH_P) the doe drinks there instead of at the river, but only if it fits cleanly: the
 // trough is on screen, the ground where she stands (right of it, facing left, her muzzle at the water near its right lip) is dry, visible
@@ -4418,7 +4418,7 @@ function deerStep(S, T, H, dt, on, fawnOk) {
   if (!f) { DEER.rest -= dt; if (!on) DEER.rest = Math.min(DEER.rest, 3); if (!on || DEER.rest > 0) return;
     const w = deerFind(S, T, H); if (!w) { DEER.rest = 3; return; }
     const b = w.b, tx = b ? b.bx + 0.5 + (b.wx - b.bx) * 0.3 : w.ts.x, ty = b ? b.by + 0.5 + (b.wy - b.by) * 0.3 : w.ts.y;
-    f = DEER.d = { x: w.q[0] + 0.5, y: w.q[1] + 0.5, x0: w.q[0] + 0.5, y0: w.q[1] + 0.5, tx, ty, b, trough: w.trough || null, ts: w.ts || null, sndOut: false, sndLap: false, st: 'walk', al: 0, t: 0, look: 2 + Math.random() * 3, drinkT: 7 + Math.random() * 4, sip: 0.6, head: 0, ph: 0, a: Math.atan2(ty - w.q[1] - 0.5, tx - w.q[0] - 0.5), trail: [], fawn: fawnOk, life: 70, drank: false };
+    f = DEER.d = { x: w.q[0] + 0.5, y: w.q[1] + 0.5, x0: w.q[0] + 0.5, y0: w.q[1] + 0.5, tx, ty, b, trough: w.trough || null, ts: w.ts || null, sndOut: false, sndLap: false, sndBark: false, st: 'walk', al: 0, t: 0, look: 2 + Math.random() * 3, drinkT: 7 + Math.random() * 4, sip: 0.6, head: 0, ph: 0, a: Math.atan2(ty - w.q[1] - 0.5, tx - w.q[0] - 0.5), trail: [], fawn: fawnOk, life: 70, drank: false };
     DEER.visits++; }
   f.life -= dt; f.t += dt;
   if (f.trough && f.st !== 'back' && f.st !== 'flee') { const ts = troughStand(S, T, f.trough); if (ts) { f.ts = ts; f.tx = ts.x; f.ty = ts.y; } else f.st = 'back'; } // the view moved and it no longer fits: home
@@ -4451,7 +4451,7 @@ function drawDeer(t) {
   const day = Math.floor(S.time / (S.P.dayLen || 720)), y = S.P.seasons ? LV.yearFrac(S) : 0.42;
   const on = st.deerEve = !!(st.deerForce || deerDay(day)) && sea > 0.5 && deerHourOk(h) && LT.rain < 0.15 && LT.storm < 0.02 && !st.alwaysDay;
   deerStep(S, T, H, dt, on, y > 0.3 && y < 0.6);
-  st.deerDrinks = DEER.drinks; st.deerSips = DEER.sips; st.deerMoved = DEER.moved; st.deerVisits = DEER.visits; st.deerTroughs = DEER.troughs; st.deerTroughSips = DEER.tSips; st.deerSteps = DEER.steps; st.deerLaps = DEER.laps;
+  st.deerDrinks = DEER.drinks; st.deerSips = DEER.sips; st.deerMoved = DEER.moved; st.deerVisits = DEER.visits; st.deerTroughs = DEER.troughs; st.deerTroughSips = DEER.tSips; st.deerSteps = DEER.steps; st.deerLaps = DEER.laps; st.deerBarks = DEER.barks;
   st.deerAtTrough = !!(DEER.d && DEER.d.trough); st.deerTroughPx = DEER.d && DEER.d.ts ? DEER.d.ts.lip : null; if (DEER.rip) { DEER.rip.age += dt; if (DEER.rip.age > 1.2) DEER.rip = null; }
   const f = DEER.d; if (f && f.b) { const b = f.b, i = b.by * N + b.bx; st.deerBank = [b.bx, b.by]; st.deerBankOk = S.d[i] < 0.02 && [i - 1, i + 1, i - N, i + N].some(j => S.d[j] > LV.DRINK_D * 0.5 && !(S.ice && S.ice[j] > 0.3)); }
   if (!f && !DEER.rings.length) return;
@@ -4477,6 +4477,8 @@ function drawDeer(t) {
     // the trees (in her first 3 s), gentle lapping when she starts to drink (in the first 2 s at the water)
     if (!f.sndOut && f.t < 3 && f.al > 0.2 && p) { f.sndOut = true; if (AU.on) { DEER.steps++; sndDeerStep(fxPan(p[0])); } }
     if (f.st === 'drink' && !f.sndLap && p && f.al > 0.5) { f.sndLap = true; if (AU.on && f.drinkT > 0) { DEER.laps++; sndLap(fxPan(p[0]), !!f.trough); } }
+    // a shower sends her off: two or three hoarse alarm barks as she bounds back into the trees (once per visit, on screen, sound on)
+    if (f.st === 'flee' && !f.sndBark && p && f.al > 0.2) { f.sndBark = true; if (AU.on) { DEER.barks++; sndBark(fxPan(p[0])); } }
   }
   cx.restore();
 }
@@ -5008,7 +5010,7 @@ function adapt(dt) {
 // and thunder after lightning, wind (stronger in winter and storms), birds by day in the forest, crickets on
 // summer evenings, an owl at night, the creak and clack of turning mill wheels, cowbells near the village.
 // window.LV_AUDIO holds the levels (0..1) and gains so tests can check them without listening.
-const AU = { want: false, on: false, started: false, state: 'none', nodes: 0, live: 0, L: {}, G: {}, ev: { chirp: 0, cricket: 0, owl: 0, clack: 0, creak: 0, bell: 0, thunder: 0, plop: 0, slurp: 0, splash: 0, knock: 0, well: 0, rustle: 0, rumble: 0, drip: 0, squeak: 0, thump: 0, crunch: 0, skate: 0, icicle: 0, puddle: 0, peep: 0, twit: 0, bat: 0, pipe: 0, whirr: 0, honk: 0, crane: 0, frank: 0, tsee: 0, zit: 0, murmur: 0, spade: 0, sow: 0, canoe: 0, deerstep: 0, lap: 0 }, flow: 0, riverPan: 0, veg: 0, ticks: 0, vol: 1, snowCover: 0, rainMuffle: 0, rainCut: 9000, masterT: 0, melt: 0, meltPan: 0 };
+const AU = { want: false, on: false, started: false, state: 'none', nodes: 0, live: 0, L: {}, G: {}, ev: { chirp: 0, cricket: 0, owl: 0, clack: 0, creak: 0, bell: 0, thunder: 0, plop: 0, slurp: 0, splash: 0, knock: 0, well: 0, rustle: 0, rumble: 0, drip: 0, squeak: 0, thump: 0, crunch: 0, skate: 0, icicle: 0, puddle: 0, peep: 0, twit: 0, bat: 0, pipe: 0, whirr: 0, honk: 0, crane: 0, frank: 0, tsee: 0, zit: 0, murmur: 0, spade: 0, sow: 0, canoe: 0, deerstep: 0, lap: 0, bark: 0 }, flow: 0, riverPan: 0, veg: 0, ticks: 0, vol: 1, snowCover: 0, rainMuffle: 0, rainCut: 9000, masterT: 0, melt: 0, meltPan: 0 };
 window.LV_AUDIO = AU;
 const AU_KEY = 'lv-sound', AU_MASTER = 0.45, AU_DT = 0.25;
 const AU_MAX = { river: 0.55, rain: 0.42, wind: 0.2, birds: 0.42, crickets: 0.13, owl: 0.38, mill: 0.42, cows: 0.26, thunder: 0.85, melt: 0.3 }; // full-level gain per layer
@@ -5293,6 +5295,16 @@ function sndDeerStep(pan) { // a roe doe steps out of the trees: a soft rustle o
     noiseHit('fx', AG.pink, a + 0.012, 0.08, 'bandpass', 3200 + Math.random() * 1500, 1.4, 0.028 * g, pan, 0.014); } // dry leaves crackle under it
   if (Math.random() < 0.45) noiseHit('fx', AG.white, t + 0.3 + Math.random() * 0.35, 0.04, 'highpass', 2800, 0.8, 0.05, pan, 0.004); // a twig snaps
   AU.ev.deerstep++;
+}
+function sndBark(pan) { // a roe deer's alarm call: two or three short, hoarse, dog-like barks ('böh'), 0.6-1 s apart, each a little fainter as she bounds away, fx bus
+  if (!fxOn()) return; const ac = AG.ac, t0 = ac.currentTime + 0.05, n = 2 + (Math.random() < 0.5 ? 1 : 0);
+  for (let k = 0, t = t0; k < n; k++, t += 0.6 + Math.random() * 0.4) { const d = 0.16 + Math.random() * 0.05, g = 1 - k * 0.28, f0 = 330 + Math.random() * 50;
+    const e = auVoice('fx', t, d + 0.1, pan), bp = ac.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 850 + Math.random() * 150; bp.Q.value = 1.1; bp.connect(e);
+    const o = osc('sawtooth', f0, t, d + 0.04, bp); o.frequency.linearRampToValueAtTime(f0 * 1.08, t + 0.03); o.frequency.exponentialRampToValueAtTime(f0 * 0.62, t + d); // a quick rise, then the 'öh' drops
+    e.gain.setValueAtTime(0, t); e.gain.linearRampToValueAtTime(0.075 * g, t + 0.018); e.gain.setTargetAtTime(0, t + d * 0.45, d * 0.25);
+    setTimeout(() => bp.disconnect(), (t - ac.currentTime + d) * 1000 + 400);
+    noiseHit('fx', AG.pink, t, d, 'bandpass', 1300 + Math.random() * 300, 1.2, 0.035 * g, pan, d * 0.3); } // the hoarse, breathy edge
+  AU.ev.bark++;
 }
 function sndLap(pan, trough) { // the doe drinks: four to six gentle laps at the water, a soft wet 'tlp' each, slow and even, fx bus; at a stone trough a touch brighter
   if (!fxOn()) return; const t = AG.ac.currentTime + 0.03, n = 4 + (Math.random() * 3 | 0), gap = 0.3 + Math.random() * 0.06, fb = trough ? 1.25 : 1;
@@ -5722,7 +5734,7 @@ addEventListener('pagehide', () => autoSave('pagehide'));
 window.LV_AUTO = { AS, save: autoSave, get: asGet, put: asPut, clear: asClear, restore: autoRestore };
 
 
-window.__lv = { st, FR, FOX, foxEvening, DEER, deerDay, deerFind, troughStand, sndDeerStep, sndLap, BF, GS, CR, HER, KF, DIP, MU, murmEvening, AU, SW, updSound, LV, LT, leaf: LS, clockText, wheelAng, get col() { return [colR, colG, colB]; }, get tilt() { return tilt; }, get area() { return area; }, setTool, newWorld, unproj, proj, get S() { return st.S; }, floes, breakup: sndBreakup, yearTurn, flourT, SACK_T, carts, CART_LOAD, cartTarget, bakeT, FLOUR, smokeRGB, HAY, HAY_T, PUD, KID, DUCK, BTF, BOAT, boatCourse, boatRestSnd, lowBareSprings, springNudgeOn, wishLine: id => wishLine(WISHES.find(w => w.id === id)) };
+window.__lv = { st, FR, FOX, foxEvening, DEER, deerDay, deerFind, troughStand, sndDeerStep, sndLap, sndBark, BF, GS, CR, HER, KF, DIP, MU, murmEvening, AU, SW, updSound, LV, LT, leaf: LS, clockText, wheelAng, get col() { return [colR, colG, colB]; }, get tilt() { return tilt; }, get area() { return area; }, setTool, newWorld, unproj, proj, get S() { return st.S; }, floes, breakup: sndBreakup, yearTurn, flourT, SACK_T, carts, CART_LOAD, cartTarget, bakeT, FLOUR, smokeRGB, HAY, HAY_T, PUD, KID, DUCK, BTF, BOAT, boatCourse, boatRestSnd, lowBareSprings, springNudgeOn, wishLine: id => wishLine(WISHES.find(w => w.id === id)) };
 updUI(); updSound();
 const rawHash = (location.hash || '').slice(1);
 let fromHash = ''; try { fromHash = decodeURIComponent(rawHash); } catch (e) { fromHash = ''; }

@@ -116,6 +116,8 @@ trough, the doe sometimes (about one visit in three) comes to drink there instea
 trough, her muzzle at the water, and little rings spread in the trough; her lapping sounds a touch brighter
 on the stone. (`screenshot-deer-trough.png`: a doe drinking at a
 spring-house trough.)
+When a shower sends her bounding back into the trees she gives two or three short, hoarse alarm barks, the
+dog-like 'böh' of a startled roe deer, each a little fainter as she goes.
 
 **Hoar frost**: after a clear, cold winter night the trees wake up white-rimed: the pine and leafy crowns
 (and the bare winter twigs) go frosty white with a bright rim on their edges and the open grass turns pale.
