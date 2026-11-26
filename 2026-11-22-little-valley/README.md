@@ -287,13 +287,18 @@ With sound on you hear it come to rest: the paddle knocks softly on the gunwale 
 (`screenshot-boat-lake.png`: the canoe resting on a small lake.)
 Droughts hit the springs too: in a long dry summer spell a bare spring runs low (its drop shrinks and turns
 pale, down to 30% of its water at the drought's height), so a long river can fall short of the edge. Tap a spring
-with the **Well** tool to build it a **spring house**, a little stone chamber with a mossy roof that taps the
+with the **Well** tool to build it a **spring house**, a little stone chamber with a slab roof that taps the
 deeper water: that spring keeps going at full flow all summer, and the share link keeps it.
 (`screenshot-spring-house.png`: in a drought, a bare spring running low next to one with a spring house.)
 Which springs need one? In a drought, take the **Well** tool (or look right after the drought hint): every bare
 spring that runs low gets a sandy pulsing ring and a small dashed ghost house above it, the Well's tip counts them,
 and the long river wish line says how many springs run low. Once a spring house stands, its ring goes away.
 (`screenshot-spring-nudge.png`: two low springs marked while the Well tool is in hand.)
+A spring house weathers in over the years: a new one has a bare grey slab roof, then moss creeps over the roof
+and up the walls (all green after about three years), and after its first year the cottagers set a stone trough
+under its spout, with a thin overflow. Save files keep its age; a share link keeps the house but its moss starts
+fresh (so do houses from saves made before this).
+(`screenshot-spring-age.png`: a new spring house next to a five-year-old one with moss and its trough.)
 
 ## Save and share
 Tap **Share** (next to the wishes star) for a small panel with three buttons:

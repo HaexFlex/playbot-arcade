@@ -325,12 +325,19 @@ function wellYield(S, i) { const hn = S.h[i] / (S.N * 0.27); return hn > WELL_HI
 // so its river can still reach the valley's edge. springFlow(S, sp) is that share (1 outside droughts).
 const SPRING_LOW = 0.7;
 function springFlow(S, sp) { return sp.house || !(S.dryNow > 0) ? 1 : 1 - SPRING_LOW * S.dryNow; }
+// A spring house weathers in: sp.houseT is the sim time it was built. houseAge(S, sp) is its age in years; moss creeps
+// over the stones for HOUSE_MOSS_Y years and after HOUSE_TROUGH_Y the cottagers set a stone trough under its spout.
+// Old saves and share links carry no build time: their houses count as built when the valley is opened (age 0).
+const HOUSE_MOSS_Y = 3, HOUSE_TROUGH_Y = 1;
+function houseAge(S, sp) { return sp.house && Number.isFinite(sp.houseT) ? Math.max(0, (S.time - sp.houseT) / yearLen(S)) : 0; }
+function houseMoss(S, sp) { return Math.min(1, houseAge(S, sp) / HOUSE_MOSS_Y); }
+function datedHouses(S) { for (const sp of S.springs) if (sp.house && !Number.isFinite(sp.houseT)) sp.houseT = S.time; }
 function digWell(S, gx, gy) {
   const N = S.N; let best = null, bd = Math.max(3, N * 0.03);
   for (const c of S.cottages) { if (c.ruin) continue; const dd = Math.hypot(c.x * N - gx, c.y * N - gy); if (dd < bd) { bd = dd; best = c; } }
   if (!best) { // no cottage here: a spring nearby gets a spring house (see SPRING_LOW)
     const sp = S.springs.find(sp => Math.hypot(sp.x * N - gx, sp.y * N - gy) < Math.max(4, N * 0.03));
-    if (sp) { if (sp.house) return 'housed'; sp.house = true; return 'spring'; }
+    if (sp) { if (sp.house) return 'housed'; sp.house = true; sp.houseT = S.time; return 'spring'; }
     return 'nohouse'; }
   if (best.well) return 'has';
   const i = cottageCell(S, best);
@@ -1321,6 +1328,7 @@ function unpackState(head, blob) {
   if (o !== blob.length) throw new Error('save file size does not match');
   const m = head.meta || {}; checkPlaces(m.springs || [], m.cottages || []);
   for (const k of Object.keys(m)) if (!SAVE_META_SKIP[k] && k in S && !ArrayBuffer.isView(S[k])) S[k] = m[k];
+  datedHouses(S); // saves from before house ages
   if (hasNaN(S)) throw new Error('save file has broken numbers');
   return S;
 }
@@ -1401,12 +1409,13 @@ function unpackShare(bytes, seed, opts) {
     for (let i = 0; i < n; i++) S.d[i] = Math.max(wq[i] ? wq[i] / SH2_WQ - S.h[i] : 0, 0.25);
   }
   S.time = time; S.yearOff = yearOff; S.springs = sp; S.cottages = co;
+  datedHouses(S); // a share link keeps the house, not its age: it starts fresh
   initLife(S); // forests and meadows start fresh on the shared land
   for (const c of co) c.mood = c.ruin ? 'ruin' : cottageMood(S, c);
   if (hasNaN(S)) throw new Error('share link has broken numbers');
   return S;
 }
-const API = { SPRING_LOW, springFlow, SOWN_YEARS, SOWN_SCYTHE, pondCells, POND_DEEP, WEIR_H, findRoute, ROUTE_CLIMB, waterfalls, FALL_DROP, FALL_Q, FALL_M, longRiver, RIVER_Q, packState, unpackState, packShare, unpackShare, initLife,  iceStep, iceJam, totalIce, ICE_HOLD, JAM_MIN, JAM_Y, FLOE_PTS, eventRain, droughtOf, droughtAt, weatherEvent, STORM_AMP, yearFrac, yearFracAt, yearLen, yearNum, season, snowLine, snowFalling, leafState, snowStep, totalSnow, SEASONS, clockHour, dayFrac, planRain, rainCell, weatherStep, mulberry32, hashStr, makeNoise, randomSeedName, generateTerrain, create, seedLife, step, applyTool, totalWater, totalTerrain, resample, lifeStep, countTrees, countLife, leafy, treeHappy, cottageMood, cottageCell, countVillage, waterNear, wellYield, WELL_MIN, WELL_HIGH, MILL_T, MILL_RIPEN, raceCells, raceR, RACE_T, RACE_DIG, RACE_SP, FLOOD_RUIN, GROW_MAX, KIDS_MAX, GROW_T, plotSize, plotOf, plotCrop, hasNaN, DEFAULTS };
+const API = { SPRING_LOW, springFlow, HOUSE_MOSS_Y, HOUSE_TROUGH_Y, houseAge, houseMoss, SOWN_YEARS, SOWN_SCYTHE, pondCells, POND_DEEP, WEIR_H, findRoute, ROUTE_CLIMB, waterfalls, FALL_DROP, FALL_Q, FALL_M, longRiver, RIVER_Q, packState, unpackState, packShare, unpackShare, initLife,  iceStep, iceJam, totalIce, ICE_HOLD, JAM_MIN, JAM_Y, FLOE_PTS, eventRain, droughtOf, droughtAt, weatherEvent, STORM_AMP, yearFrac, yearFracAt, yearLen, yearNum, season, snowLine, snowFalling, leafState, snowStep, totalSnow, SEASONS, clockHour, dayFrac, planRain, rainCell, weatherStep, mulberry32, hashStr, makeNoise, randomSeedName, generateTerrain, create, seedLife, step, applyTool, totalWater, totalTerrain, resample, lifeStep, countTrees, countLife, leafy, treeHappy, cottageMood, cottageCell, countVillage, waterNear, wellYield, WELL_MIN, WELL_HIGH, MILL_T, MILL_RIPEN, raceCells, raceR, RACE_T, RACE_DIG, RACE_SP, FLOOD_RUIN, GROW_MAX, KIDS_MAX, GROW_T, plotSize, plotOf, plotCrop, hasNaN, DEFAULTS };
 if (typeof module !== 'undefined' && module.exports) module.exports = API; else root.LV = API;
 })(typeof window !== 'undefined' ? window : globalThis);
 </script>
@@ -2967,12 +2976,12 @@ function mix(a, b, k) { const pa = parseInt(a.slice(1), 16), pb = parseInt(b.sli
 // ---------- overlays: springs, brush, rain ----------
 function drawOverlays(t) {
   const S = st.S, N = S.N;
-  st.springHouses = 0; st.springsLow = 0; st.springNudges = 0; st.springNudgePx = null;
+  st.springHouses = 0; st.springTroughs = 0; st.springMoss = 0; st.springsLow = 0; st.springNudges = 0; st.springNudgePx = null;
   const nudge = springNudgeOn(); st.springNudgeOn = nudge;
   for (const sp of S.springs) {
     const p = proj(sp.x * N, sp.y * N); if (!p) continue;
     const bob = Math.sin(t * 4 + sp.x * 20) * 1.5, fl = LV.springFlow(S, sp), low = fl < 0.95; // in a drought a bare spring runs low: a smaller, paler drop, fewer sparkles
-    if (sp.house) { st.springHouses++; drawSpringHouse(p[0] + 11, p[1] + 2); } // beside the spring, so the drop stays in view
+    if (sp.house) { const moss = LV.houseMoss(S, sp), tr = LV.houseAge(S, sp) >= LV.HOUSE_TROUGH_Y; st.springHouses++; st.springMoss = Math.max(st.springMoss, moss); if (tr) st.springTroughs++; drawSpringHouse(p[0] + 11, p[1] + 2, moss, tr, sp.x * 97 + sp.y * 31); } // beside the spring, so the drop stays in view
     if (low) st.springsLow++;
     if (low && nudge && !sp.house) { drawRiverHintRing(p[0], p[1], isPhone ? 15 : 17, SPRING_NUDGE_COL, 0.9, 0.6); drawNudgeHouse(p[0] + 12, p[1] - 14, t); st.springNudges++; if (!st.springNudgePx) st.springNudgePx = [p[0], p[1]]; }
     cx.save(); cx.translate(p[0], p[1] - 4 + bob);
@@ -3010,13 +3019,29 @@ function drawNudgeHouse(x, y, t) { // a dashed outline of a little house that bo
 }
 // a spring house (Brunnstube): a little grey stone chamber with a mossy roof and a dark arched doorway, set into
 // the slope just behind the spring (drawn at a fixed size like the spring marker, in both views)
-function drawSpringHouse(x, y) {
+// a spring house weathers in over the years (LV.houseMoss 0..1): the stone-slab roof greens over, moss creeps up the walls
+// in clumps; from LV.HOUSE_TROUGH_Y on a stone trough stands below its spout with a thin overflow. Hooks st.springMoss, st.springTroughs.
+const mixHex = (a, b, k) => '#' + [0, 2, 4].map(o => Math.round(parseInt(a.substr(1 + o, 2), 16) * (1 - k) + parseInt(b.substr(1 + o, 2), 16) * k).toString(16).padStart(2, '0')).join('');
+function drawSpringHouse(x, y, moss = 1, trough = false, seed = 0) {
   cx.save(); cx.translate(x, y - 7);
+  if (trough) { // the trough: a long stone basin right of the house (the spring's drop is on the left), a short spout from the chamber, water and a trickle over its lip
+    cx.fillStyle = '#7f7b73'; cx.strokeStyle = '#4f4b45'; cx.lineWidth = 1;
+    cx.beginPath(); cx.rect(7, 3.5, 10, 4.5); cx.fill(); cx.stroke();
+    cx.fillStyle = '#5aa9d6'; cx.fillRect(8, 4.2, 8, 1.4);
+    cx.strokeStyle = '#6d6962'; cx.lineWidth = 1.4; cx.beginPath(); cx.moveTo(8, 1.5); cx.lineTo(11, 2.5); cx.stroke(); // the spout
+    cx.strokeStyle = 'rgba(120,190,235,.85)'; cx.lineWidth = 0.9; cx.beginPath(); cx.moveTo(11, 2.6); cx.lineTo(11.3, 4.3); cx.moveTo(17.3, 4.4); cx.quadraticCurveTo(18.3, 6, 18, 8); cx.stroke();
+    if (moss > 0.5) { cx.fillStyle = 'rgba(80,125,55,.8)'; cx.beginPath(); cx.ellipse(15, 8, 2.2, 0.9, 0, 0, 7); cx.fill(); }
+  }
   cx.fillStyle = '#8d8a82'; cx.strokeStyle = '#4f4b45'; cx.lineWidth = 1;
   cx.beginPath(); cx.moveTo(-8, 6); cx.lineTo(-8, -3); cx.lineTo(0, -9); cx.lineTo(8, -3); cx.lineTo(8, 6); cx.closePath(); cx.fill(); cx.stroke();
-  cx.fillStyle = '#5f8a3e'; cx.beginPath(); cx.moveTo(-10, -2); cx.lineTo(0, -10.5); cx.lineTo(10, -2); cx.lineTo(8, -1); cx.lineTo(0, -7.5); cx.lineTo(-8, -1); cx.closePath(); cx.fill(); // mossy roof
+  cx.fillStyle = mixHex('#86807a', '#5f8a3e', 0.2 + 0.8 * moss); cx.beginPath(); cx.moveTo(-10, -2); cx.lineTo(0, -10.5); cx.lineTo(10, -2); cx.lineTo(8, -1); cx.lineTo(0, -7.5); cx.lineTo(-8, -1); cx.closePath(); cx.fill(); cx.strokeStyle = mixHex('#55504a', '#34462a', moss); cx.lineWidth = 0.8; cx.stroke(); // the roof: bare slabs, greening over the years
+  if (moss < 0.4) { cx.strokeStyle = 'rgba(60,55,50,.45)'; cx.lineWidth = 0.6; cx.beginPath(); cx.moveTo(-5, -4.6); cx.lineTo(-3.6, -3.3); cx.moveTo(5, -4.6); cx.lineTo(3.6, -3.3); cx.stroke(); } // slab joints while the roof is new
   cx.fillStyle = '#2b2622'; cx.beginPath(); cx.moveTo(-3, 6); cx.lineTo(-3, 0.5); cx.arc(0, 0.5, 3, Math.PI, 0); cx.lineTo(3, 6); cx.closePath(); cx.fill(); // the doorway
   cx.strokeStyle = 'rgba(255,255,255,.25)'; cx.beginPath(); cx.moveTo(-7, 2); cx.lineTo(-4.5, 2); cx.moveTo(4.5, -1); cx.lineTo(7, -1); cx.stroke(); // stone joints
+  const clumps = Math.round(moss * 5); // moss clumps on the wall foot and up the corners, each house its own pattern
+  for (let k = 0; k < clumps; k++) { const r = ((seed * 13 + k * 7.31) % 1 + 1) % 1, side = k % 2 ? 1 : -1, px = side * (4 + r * 4), py = 5.5 - (k >> 1) * 2.2 - r;
+    cx.fillStyle = k % 3 ? '#4f7a32' : '#76a040'; cx.beginPath(); cx.ellipse(px, py, 1.8 + r, 1.3, 0, 0, 7); cx.fill(); }
+  if (moss > 0.66) { cx.fillStyle = '#8fbf4e'; for (const [a, b] of [[-6, -3.4], [2.5, -7.6], [7, -2.6], [-2, -7]]) { cx.beginPath(); cx.arc(a, b, 1.2, 0, 7); cx.fill(); } } // tufts on the old roof
   cx.restore();
 }
 function drawRainCloud(g, rad, t) {
