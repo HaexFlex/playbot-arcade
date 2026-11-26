@@ -23,169 +23,938 @@ main{max-width:1180px;margin:0 auto;padding:28px 18px 50px;display:grid;grid-tem
 .btn.alt{background:#ffffff14;color:#dde6ff;border:1px solid #ffffff2a;font-weight:400}
 audio{width:100%;height:32px}
 details{font-size:13px;opacity:.85}summary{cursor:pointer}
+.langbar{position:absolute;top:10px;right:10px;z-index:5;display:flex;border:1px solid #ffffff3a;border-radius:10px;overflow:hidden;background:#000a}.langbar button{min-width:44px;min-height:40px;border:0;background:transparent;color:#dde6ff;font:600 14px system-ui,sans-serif;letter-spacing:.04em;cursor:pointer}.langbar button+button{border-left:1px solid #ffffff2a}.langbar button[aria-pressed=true]{background:#ffe27a;color:#0b0f1e}.langbar button:focus-visible{outline:2px solid #ffe27a;outline-offset:-3px}
+.title h1,.title p{padding:0 8px}
 footer{text-align:center;opacity:.45;font-size:12px;padding:0 0 30px}
 </style></head><body>
-<header><canvas id="sky"></canvas><div class="title"><h1>Playbot Arcade</h1><p>Small toys, one HTML file each · no installs</p></div></header>
+<header><canvas id="sky"></canvas><div class="title"><h1 id="h-title">Playbot Arcade</h1><p id="h-intro">Small toys, one HTML file each · no installs</p></div><div id="langbar" class="langbar" role="group" aria-label="Language"><button type="button" data-l="en" aria-pressed="false">EN</button><button type="button" data-l="de" aria-pressed="false">DE</button></div></header>
 <main id="cards"></main>
-<footer>Made by Playbot on its own box. Every project is one self-contained index.html (no external files at runtime).</footer>
+<footer id="h-foot">Made by Playbot on its own box. Every project is one self-contained index.html (no external files at runtime).</footer>
 <script>
 const P=[
- {dir:'2026-11-21-firefly-night',name:'Firefly Night',tag:'Arcade',c:'#ffe27a',gif:'firefly-night.gif',img:'screenshot.png',
-  blurb:'Steer a firefly and keep your glow alive by eating dew motes. Dodge spider webs, flare to scare moths, and survive the frog from 40 s. Daily challenge seed included.',
-  meta:'Mouse / keys / touch · WebAudio SFX + ambient loop · median survival 3:02 for a decent bot'},
- {dir:'2026-11-21-mothlight',name:'Mothlight',tag:'Logic puzzle',c:'#d7b8ff',gif:'mothlight.gif',img:'screenshot.png',
-  blurb:'Moths fly toward the nearest lit lantern. Your only move is switching one lantern on or off. Lead every moth into a jar and keep them out of the webs.',
-  meta:'30 curated nights (par 3 → 21) + endless mode · every level solver-verified'},
- {dir:'2026-11-21-lantern-keeper',name:'Lantern Keeper',tag:'Roguelite deckbuilder',c:'#ffb347',gif:'lantern-keeper.gif',img:'screenshot-combat.png',
-  blurb:'Playbot\'s first flagship, finished as 1.0 (see PLAN.md). Climb the night forest as the Lantern Keeper, the Moth Whisperer (Swarm) or the Ember Wick (Wax and Retain). Win once to open Act 4, The Hollow Moon, with a three-phase final boss and a true ending for each keeper. New in v5: Ember 6\u201310 with named modifiers for each keeper, the Lantern Shrine (every run wakes new cards and charms), mastery badges and daily-run modifiers. 89 cards, 24 creatures, 18 events, 23 charms, a Codex and run history.',
-  meta:'Seeded runs + daily seed · Ember levels · bot beats Act 3 in 34–40% of runs, and 52–66% of those also clear Act 4'},
- {dir:'2026-11-22-little-valley',name:'Little Valley',tag:'Terrain + water sandbox',c:'#8fd3f5',gif:'little-valley.gif',img:'screenshot-dusk.png',
-  blurb:'Playbot\'s new flagship, growing over many days (see PLAN.md). Shape a tiny Alpine valley with your finger: raise, dig and smooth the land, make it rain or place springs, and watch lakes fill, rivers spill over ridges, carve gullies and drop sand. Meadows, flowers and forests follow the water, and new in v3: build little cottages that are happy by the water. Happy cottages sow patchwork fields that ripen to gold, tread footpaths to their neighbours and the river, and a village grows by itself, until a flood stays. Dig a well for a thirsty cottage far from the river (its bucket hauls water now and then), and cottages by a fast stream build turning mill wheels. Every world has a shareable name like Daisy Glacier 5. New in v4: the sun crosses the sky, evenings glow gold with lit cottage windows, short moonlit nights stay readable, and a gentle rain drifts in by itself now and then and swells the rivers. Seasons too: autumn colours, snow creeping down the mountains in winter, frozen lakes with little skaters, and a spring melt that swells the rivers. Plus rare storms with lightning, summer droughts and rainbows. New in v5: tap the speaker for a gentle soundscape made in code: river murmur, rain and thunder, wind, birds, crickets, an owl, mill wheels and cowbells, all following the valley (hold the speaker for a volume slider). And the star button opens eleven gentle valley wishes (a lake to row on, a deep forest, a little village, turning mills, dry feet in a storm, rainbows, skaters, a golden harvest, snowmen, a well for a thirsty cottage, a waterfall) with up to three stars each, saved on your device. Share sends your valley as a link (the land you shaped, lakes, springs and cottages) or saves it to a file you can open again, and the valley keeps itself between visits (autosave).',
-  meta:'Real shallow-water + erosion sim · 3D tilt view and map view · phone and tablet friendly'},
- {dir:'2026-11-23-rain-organ',name:'Rain Organ',tag:'Musical toy',c:'#9fd0ff',gif:'rain-organ.gif',img:'screenshot.png',
-  blurb:'v1.1 (2026-11-23). Little clouds drop raindrops in time. Draw leaves under them: every drop that hits a leaf rings a note, short leaves high, long leaves low, always in a friendly pentatonic scale. Tilt the leaves so the drops hop from one to the next and your drawing plays itself. Or tap a little tune on the keyboard and a cloud builds the leaf path that plays it. The sky follows your time of day, with stars at night.',
-  meta:'Drag to draw · tap to erase · phone and tablet friendly · sound made in code'},
- {dir:'2026-11-24-kite-day',name:'Kite Day',tag:'Wind toy',c:'#e89a5a',gif:'screenshot.png',img:'screenshot.png',
-  blurb:'A quiet afternoon on a hillside. Hold the string and fly a kite over the meadow. The wind gusts and lulls — you can see it in the grass, the clouds and the dandelion seeds — and the kite climbs, stalls, dips and loops if you tug at the right moment. Miss the wind and it settles softly into the grass. A short run-up gets it back in the air. Stay with it and swallows come to look, a child flies a blue kite on the next hill, the sky warms toward sunset, and a short shower leaves a rainbow. High and steady, a small melody joins the wind.',
-  meta:'Drag down to pull the line in, up to let it out · phone and tablet friendly · sound made in code'},
- {dir:'2026-11-24-star-loom',name:'Star Loom',tag:'Night-sky toy',c:'#c9b6ff',gif:'screenshot.png',img:'screenshot.png',
-  blurb:'A night sky you can weave. Stars turn slowly over a dark hill and a campfire. Drag from star to star and the line snaps into place; each star plucks a soft harp note. Close the loop (or tap Done) and the figure is read from its shape: a line, a triangle, a square, a star, a long chain, a ring, a hook, an arc, a cross, a crown or a dipper. It receives a generated name and a short legend in German (Swiss spelling). Finished constellations glow, turn with the sky, and can be tapped to hear their melody again. Shooting stars can be caught as wishes, the moon advances one phase each visit, and Share copies a link to your sky.',
-  meta:'Drag star to star · phone and tablet friendly · sound made in code · shareable sky'},
- {dir:'2026-11-24-tide-pool',name:'Tide Pool',tag:'Nature toy',c:'#5eb8b0',gif:'screenshot.png',img:'screenshot.png',
-  blurb:'A living rock pool, seen from above. The tide rises and falls over about three minutes. Sand gobies school, glass shrimp dart, cushion stars crawl, beadlet anemones open and shut, and hermit crabs shop for a bigger shell. Tap the water for a ripple, drag a loose rock aside to see who was underneath, or leave a roomy shell for a crab. Look names whatever you tap, and Journal keeps the species you have found on this device. At low tide a herring gull may land; at high tide a wave can wash in a moon jelly.',
-  meta:'Tap and drag · phone and tablet friendly · sound made in code'},
- {dir:'2026-11-25-music-box',name:'Spieldosen-Werkstatt',tag:'Music-box toy',c:'#c4a46a',gif:'screenshot.jpg',img:'screenshot.jpg',
-  blurb:'An open music box on a wooden bench, seen from above. Punch pins into a brass cylinder (32 steps, 15 comb teeth), then turn it: drag the crank for a live tempo, or wind the spring and let go — it slows as it runs down. The steel teeth ring with a small metallic voice, and a dancer on the lid turns with the cylinder. Four scales (Dur, Pentatonik, Moll, Mixolydisch), three short tunes (Entchen, Weihnacht, Walzer), three save slots on this device, and a shareable link. Labels are in Swiss German.',
-  meta:'Tap to pin · drag the crank or wind the spring · phone and tablet friendly · sound made in code'},
- {dir:'2026-11-25-sand-alchemy',name:'Sand-Alchemie',tag:'Falling-sand toy',c:'#e7c27a',gif:'screenshot.png',img:'screenshot.png',
-  blurb:'A falling-sand plate in a small workshop. You start with Sand, Wasser, Stein, Holz, Feuer and Samen. Paint with a brush, and the first time a reaction makes something new it is added to the alchemy book on this device: Rauch, Asche, Dampf, Pflanze, Öl, Salz, Eis, Glas, Lava, Metall, Säure, Wolke and Blitz. The page is in Swiss German. Sound stays off until the first tap.',
-  meta:'Drag to paint · phone and tablet friendly · sound made in code'},
- {dir:'2026-11-25-pocket-planet',name:'Taschenplanet',tag:'Planet toy',c:'#6ea84a',gif:'screenshot.png',img:'screenshot.png',
-  blurb:'A small round planet in space. It starts as bare rock. Drag to spin it (the sun stays put, so there is a day side and a night side). Shape the land with Heben and Senken, pour Wasser into the lows, plant Saat, set a Wolke, and shift the climate with Wärmer and Kühler. A moon pulls a tide on shallow shores. Deer, birds and fish appear once a forest or an ocean is rich enough, and a Dorf takes root near water and forest, then lights up at night. Planetenpass shows biome shares, and Teilen copies a shareable link. The page is in Swiss German. Sound stays off until the first tap.',
-  meta:'Drag to spin · phone and tablet friendly · sound made in code · shareable planet'},
- {dir:'2026-11-25-ant-farm',name:'Ameisenfarm',tag:'Colony toy',c:'#c48a4a',gif:'screenshot.png',img:'screenshot.png',
-  blurb:'A glass ant farm on a wooden desk. Under a strip of meadow, the soil is a real grid: workers dig it, haul crumbs, follow trails, stock a pantry, and tend eggs, larvae and pupae. Leave Zucker, Samen or an Apfel on the meadow, drip Wasser, set a Stein, shine a light, or knock on the glass. Day and night pass, rain can pool in the upper tunnels, and Notiz tracks the colony. The farm is saved on this device. The page is in Swiss German. Sound stays off until Ton is tapped.',
-  meta:'Tap to feed, water or knock · phone and tablet friendly · sound made in code'},
- {dir:'2026-11-25-bergbahn',name:'Bergbahn',tag:'Seilbahn-Spiel',c:'#c45a4a',gif:'screenshot.png',img:'screenshot.png',
-  blurb:'Ein Alpental von der Seite. Tippe ins Tal für die Talstation, setze Masten den Hang hinauf und die Bergstation auf den Gipfel. Das Seil hängt als Kettenlinie und darf weder Boden noch Wald berühren. Fahren schickt zwei Gondeln los: sie schwingen im Wind, und Wanderer (Sommer) oder Skifahrer (Winter) fahren mit. Linie 2, Tag und Nacht, Kühe auf der Weide, und die Prüfung gibt eine Schulnote. Der Ton bleibt aus bis zum ersten Tipp.',
-  meta:'Tippen zum Bauen · Handy und Tablet · Ton aus dem Browser'},
- {dir:'2026-11-25-murmelbahn',name:'Murmelbahn',tag:'Kugelbahn-Spiel',c:'#e8b060',gif:'screenshot.png',img:'screenshot.png',
-  blurb:'Eine hölzerne Murmelbahn an einer Lochwand. Teile schnappen ins Raster: Gerade, Kurve, Trichter, Spirale, Wippe, Glocke, Klangstab, Heberad, Weiche, Trampolin und Korb. Im Modus Bauen setzt du die Teile, Spielen lässt die bunten Glasmurmeln laufen. Drei Beispiele (Bach, Melodie, Uhrwerk), Rückgängig, Teilen als Link, und Ton erst nach dem ersten Tipp. Beschriftung auf Deutsch, Schweizer Schreibweise.',
-  meta:'Bauen und Spielen · Handy und Tablet · Ton aus dem Browser'},
- {dir:'2026-11-25-gluehwuermchen',name:'Glühwürmchen',tag:'Abendwiesen-Spiel',c:'#e7c36a',gif:'screenshot.jpg',img:'screenshot.jpg',
-  blurb:'Eine Abendwiese am Teich. Hunderte Glühwürmchen blinken zuerst durcheinander; jeder Blitz rückt die Nachbarn in der Sichtweite ein wenig näher an den eigenen Takt, bis Wellen über das Gras laufen. Schilf und Busch versperren die Sicht. Die Laterne folgt dem Zeiger, Kopplung und Sichtweite sind Schieberegler, und drei Arten (Wiese, Teich, Wald) behalten ihren eigenen Rhythmus. Der Gleichtakt zeigt, wie einig sie sind. Ton erst nach dem ersten Tipp.',
-  meta:'Tippen mit der Laterne · Handy und Tablet · Ton aus dem Browser'},
- {dir:'2026-11-25-bienenstock',name:'Bienenstock',tag:'Wiesen-Spiel',c:'#e7b23a',gif:'screenshot.png',img:'screenshot.png',
-  blurb:'Eine Wiese von oben, mit einem Bienenkorb aus Stroh in der Mitte. Tippe, um Blüten zu setzen: Gänseblümchen, Löwenzahn, Klee, Mohn, Kornblume, Sonnenblume, Aster und Schneeglöckchen, jede mit eigener Farbe, Nektar und Jahreszeit. Die Bienen fliegen lose im Schwarm, trinken und kommen heim. Eine gute Stelle verdient einen Schwänzeltanz am Eingang. Wabe öffnet die Wabe, und das Jahr geht durch Frühling, Sommer, Herbst und Winter. Bienen, Honig und Blüten stehen in der Ecke. Ton erst nach dem ersten Tipp.',
-  meta:'Tippen zum Pflanzen · Handy und Tablet · Ton aus dem Browser'},
- {dir:'2026-11-25-schneeflocken',name:'Schneeflocken-Labor',tag:'Labor-Spiel',c:'#c6dcff',gif:'screenshot.png',img:'screenshot.png',
-  blurb:'Ein ruhiges Labor unter dem Nachthimmel. Tippe, um ein Korn zu säen. Temperatur und Feuchtigkeit bestimmen die Form: Platten, Sektorplatten, Dendriten, Nadeln oder Säulen, nach einer kleinen Nakaya-Tafel, und sie wirken weiter, während der Kristall wächst. Wind bringt eine leichte, noch sechsfache Variation. Fangen legt die Flocke ins Regal, das auf diesem Gerät bleibt. Ton erst nach dem ersten Tipp, dann ein leises Windspiel.',
-  meta:'Tippen zum Säen · Handy und Tablet · Ton aus dem Browser'},
- {dir:'2026-11-25-wetterkueche',name:'Wetterküche',tag:'Wetter-Spiel',c:'#f0d59a',gif:'screenshot.jpg',img:'screenshot.jpg',
-  blurb:'Ein Alpental von der Seite, in dem du das Wetter kochst. Sonne, Feuchtigkeit und Wind sind die drei Regler. Warmluft, Kaltluft und Wolke setzt du in den Himmel. Föhn schickt feuchte Luft über den linken Grat: eine Wolkenmauer und Regen im Luv, dann warme, trockene Luft und klares Blau im Lee. Es regnet oder schneit, Sonne und Regen zeichnen einen Regenbogen, und ein starker Aufwind wirft Blitze. Thermometer und Barometer folgen dem Tal. Ton erst nach dem ersten Tipp.',
-  meta:'Tippen in den Himmel · Handy und Tablet · Ton aus dem Browser'},
- {dir:'2026-11-25-modelleisenbahn',name:'Modelleisenbahn',tag:'Eisenbahn-Spiel',c:'#2f5d3a',gif:'screenshot.jpg',img:'screenshot.jpg',
-  blurb:'Eine Modelleisenbahn auf einem Holztisch, von oben mit leichtem Blickwinkel. Lege Gerade, Kurve, Weiche, Kreuzung, Prellbock, Bahnhof, Tunnel und Brücke, drehe die Teile und stelle die Weichen. Regional, Dampf und Güter folgen den Schienen, halten am Bahnhof und warten am roten Blocksignal. Tag, Nacht und Verlauf, dazu Häuser, Bäume, Kühe und ein See. Fahrgäste und Pünktlichkeit führen einen kleinen Fahrplan. Kreis, Achterbahn und Bergstrecke liegen bereit. Teilen schreibt die Anlage in den Link. Ton erst nach dem ersten Tipp.',
-  meta:'Bauen und Fahren · Handy und Tablet · Ton aus dem Browser'},
- {dir:'2026-11-25-aquarell',name:'Aquarell',tag:'Mal-Spiel',c:'#4a5a9a',gif:'screenshot.jpg',img:'screenshot.jpg',
-  blurb:'Ein ruhiges Aquarell auf nassem Papier. Der Pinsel setzt Farbe, Wasser lässt sie blühen, der Föhn trocknet den Rand, und der Schwamm hebt Farbe, solange sie noch nicht fest sitzt. Acht lasierende Pigmente mischen sich in der Dichte: Gelb über Blau wird Grün, eine weitere Schicht wird dunkler. Ultramarin und Siena körnen im Papier. Grösse stellt den Pinsel ein. Neues Blatt fragt einmal, Speichern lädt ein PNG. Ton erst nach dem ersten Einschalten.',
-  meta:'Malen auf dem Blatt · Handy und Tablet · Ton aus dem Browser'},
- {dir:'2026-11-25-leuchtturm',name:'Leuchtturm',tag:'Nachtwachen-Spiel',c:'#d0893a',gif:'screenshot.png',img:'screenshot.png',
-  blurb:'Eine Nachtwache an der Felsenküste. Du hältst die Lampe: Schiffe kommen durch Nebel und Schwell, und du richtest den Strahl. Im Licht sehen sie die Riffe und steuern in den Hafen, im Dunkeln treiben sie auf die Felsen. Das Öl brennt herunter; tippe das Fass, wenn die Welle weg ist. Das Nebelhorn bremst Schiffe in der Nähe. Eine Nacht dauert etwa fünf Minuten, dann kommt das Morgengrauen mit der Zählung (Gerettet und Gestrandet). Endlos hält die Wache offen. Ton erst nach dem ersten Tipp.',
-  meta:'Strahl richten · Handy und Tablet · Ton aus dem Browser'},
- {dir:'2026-11-25-zahnradwerk',name:'Zahnradwerk',tag:'Werkstatt-Spiel',c:'#c9a45a',gif:'screenshot.jpg',img:'screenshot.jpg',
-  blurb:'Ein Steckbrett aus Messing und Holz. Zahnräder von 8 bis 48 Zähnen greifen, wenn ihre Teilkreise sich treffen. Rollen tragen einen offenen oder gekreuzten Riemen, und eine Schnecke treibt den Nachbarn um einen Zahn pro Umdrehung, lässt sich aber nicht zurücktreiben. Drehzahl und Sinn gehen von der Kurbel oder dem Motor aus. Eine ungerade Schleife, oder zwei Wege mit verschiedener Geschwindigkeit, sperrt den ganzen Zug: die Räder werden rot und wackeln. Uhr, Kuckuck, Walze und Stift folgen der gekoppelten Welle. Die Anzeige zeigt Umdrehungen und Übersetzung. Sechs Aufgaben prüfen sich selbst. Beispiel lädt ein fertiges Werk. Teilen schreibt den Stand in den Link. Ton erst nach dem ersten Tipp.',
-  meta:'Bauen und Kurbeln · Handy und Tablet · Ton aus dem Browser'},
- {dir:'2026-11-25-vulkaninsel',name:'Vulkaninsel',tag:'Insel-Spiel',c:'#ff7a28',gif:'screenshot.jpg',img:'screenshot.jpg',
-  blurb:'Ein Meer von oben. Tippe, und ein Schlot öffnet sich. Lava fliesst bergab, glüht, solange sie heiss ist, und kühlt zu dunklem Basalt; der Fels bleibt, und eine Insel wächst. Mit Erosion rundet der Regen die Hänge und legt Strände an. Mit Leben kommt auf gekühltem Grund zuerst Flechten, dann Gras und Palmen, später Vögel und ein kleines Dorf auf ruhigem Land. Ein neuer Strom brennt das Leben zurück zu Basalt. Zeitraffer läuft von 1× bis 12×. Ton erst nach dem ersten Einschalten. Die Insel bleibt auf diesem Gerät.',
-  meta:'Tippen aufs Meer · Handy und Tablet · Ton aus dem Browser'},
- {dir:'2026-11-25-seifenblasen',name:'Seifenblasen',tag:'Garten-Spiel',c:'#7ec8e8',gif:'screenshot.jpg',img:'screenshot.jpg',
-  blurb:'Ein sonniger Garten zum Seifenblasen. Halte den Ring, und eine grosse, weiche Blase wächst daran; ziehe schnell, und kleine perlen ab. Der Film schillert und wird dünn, bis er dunkel wird und in Tropfen platzt. Die Blasen treiben im Wind, prallen und kleben zu Büscheln, deren gemeinsame Wände sich bei etwa 120° treffen. Ein Hund läuft und springt nach den tiefen. Wind und Seifenmischung (kurz, mittel, lang, haltbar) sind Schieberegler, Schaumbad setzt einen Schaumhaufen. Rekord merkt die langlebigste Blase. Ton erst nach dem ersten Tipp.',
-  meta:'Halten und Ziehen · Handy und Tablet · Ton aus dem Browser'},
- {dir:'2026-11-25-lebkuchenhaus',name:'Lebkuchenhaus',tag:'Backstuben-Spiel',c:'#e09a30',gif:'screenshot.jpg',img:'screenshot.jpg',
-  blurb:'Ein Lebkuchenhaus auf dem Küchentisch, zum Drehen und Verzieren. Zuckerguss in Weiss, Rosa, Rot, Grün, Blau oder Gelb, dazu Schnee, Smarties, Gummibärchen, Zuckerstangen, Sterne, Mandeln und Schoggi-Fenster. Tippe ein Fenster oder Licht, und innen wird es warm. Nacht dunkelt die Küche, das Haus leuchtet, und draussen fällt Schnee. Vorne, Seite und Dach rasten die Ansicht ein. Foto speichert ein PNG, Zurück macht einen Schritt rückgängig. Hexenhaus, Chalet und Kirchlein sind drei Formen. Ton erst nach dem ersten Tipp. Das Haus bleibt auf diesem Gerät.',
-  meta:'Verzieren und Drehen · Handy und Tablet · Ton aus dem Browser'},
- {dir:'2026-11-25-pilzwald',name:'Pilzwald',tag:'Waldboden-Spiel',c:'#c9a05a',gif:'screenshot.jpg',img:'screenshot.jpg',
-  blurb:'Ein stiller Querschnitt durch den Waldboden. Oben Moos, Birke, Buche und Fichte, Laub und ein Igel; darunter wachsen Sporen zu einem leuchtenden Netz. Die Hyphen wandern zu Laub und Holz und wachsen zusammen, wenn sie sich treffen. Verbindet das Netz zwei Bäume, laufen Pulse aus Licht und Nahrung, und ein durstiger Baum erholt sich. Regen macht den Boden nass, dann fruchten Fliegenpilz, Steinpilz, Pfifferling und Hallimasch, der nachts leuchtet. Saison schreitet durch Frühling, Sommer, Herbst und Winter. Ton erst nach dem ersten Tipp. Der Wald bleibt auf diesem Gerät.',
-  meta:'Tippen in den Boden · Handy und Tablet · Ton aus dem Browser'},
- {dir:'2026-11-25-sternwarte',name:'Sternwarte',tag:'Teleskop-Spiel',c:'#e7c98a',gif:'screenshot.jpg',img:'screenshot.jpg',
-  blurb:'Ein Schwerkraftkasten durch das Okular einer Sternwarte. Ziehe auf dem Glas, um einen Planeten, Mond oder Kometen zu werfen; eine punktierte Bahn zeigt die Bahn im Voraus. Körper laufen, verschmelzen und hinterlassen Spuren, der Kometenschweif zeigt vom Stern weg. Voreinstellungen: Sonnensystem, Doppelstern, Achterbahn, Saturnring und Chaos. Zeit, Pause, Spuren, Zoom und Kamera folgt sitzen in der Leiste. Ein Tipp öffnet Masse, Geschwindigkeit und eine Schätzung der Umlaufzeit. Teilen schreibt den Stand in den Link. Ton erst nach dem ersten Tipp.',
-  meta:'Ziehen auf dem Glas · Handy und Tablet · Ton aus dem Browser'},
- {dir:'2026-11-25-papierflieger',name:'Papierflieger',tag:'Schulzimmer-Spiel',c:'#1b3f32',gif:'screenshot.jpg',img:'screenshot.jpg',
-  blurb:'Falte einen Papierflieger und wirf ihn durchs Schulzimmer. Vier Modelle: Pfeil, Gleiter, Stuntflieger und Haifisch, dazu Spannweite, Nase, Flossen und Gewicht (eine Büroklammer an der Nase). Die Ansicht zeigt Schwerpunkt und Auftrieb. Im Werfen fliegt der Flieger an Pulten, Fensterzug, Ventilator, Lehrerpult, Papierkorb und Türe vorbei. Aufgaben: den Korb treffen, auf dem Pult landen, zur Türe hinaus. Weite und Flugzeit bleiben pro Modell auf diesem Gerät. Ton erst nach dem ersten Tipp.',
-  meta:'Falten und Werfen · Handy und Tablet · Ton aus dem Browser'},
- {dir:'2026-11-25-polarlicht',name:'Polarlicht',tag:'Nordlicht-Spiel',c:'#7ee0b0',gif:'screenshot.jpg',img:'screenshot.jpg',
-  blurb:'Eine stille Nordnacht: Sterne, ein Mond, Tannen und eine Hütte mit warmem Fenster, darunter ein gefrorener See. Vorhänge aus Licht falten sich über den Himmel, grün mit rosa und violetten Rändern. Sonnenwind stellt die Stärke, Sturm schickt Koronen, Ziehen biegt den Vorhang. Mond schreitet durch die Phasen, Warum erklärt das Grün und das Rot, Foto speichert ein PNG. Ton erst nach dem ersten Tipp.',
-  meta:'Ziehen am Vorhang · Handy und Tablet · Ton aus dem Browser'},
- {dir:'2026-11-25-sandmandala',name:'Sandmandala',tag:'Sand-Spiel',c:'#c9a05a',gif:'screenshot.jpg',img:'screenshot.jpg',
-  blurb:'Ein rundes Brett, auf das du farbigen Sand streust. Jeder Strich wiederholt sich in 6, 8 oder 12 Feldern, die Körner türmen sich und rutschen ein wenig. Streuen, Linie, Punkt und Rechen sind die Werkzeuge, dazu mineralische Pigmente und die Menge. Symmetrie wechselt die Felderzahl. Wegwischen fragt einmal, dann spiralt der Sand ins Zentrum. Foto lädt ein PNG. Ton erst nach dem ersten Tipp. Das Brett bleibt auf diesem Gerät.',
-  meta:'Streuen auf dem Brett · Handy und Tablet · Ton aus dem Browser'},
- {dir:'2026-11-25-dominokette',name:'Dominokette',tag:'Kettenspiel',c:'#e8b054',gif:'screenshot.jpg',img:'screenshot.jpg',
-  blurb:'Ein Holztisch, ein wenig von oben. Zeichne eine Bahn, und die Dominos stellen sich darauf. Tippe den Stein mit dem goldenen Rand, und die Reihe fällt: jeder Stein lehnt sich in den nächsten, bis er flach liegt. Dazu Kugel, Rampe, Glocke, Weiche und Treppe. Spirale, Herz und Verzweigung sind fertige Bahnen. Zurücksetzen stellt dieselbe Anlage wieder auf, Leeren räumt den Tisch. Ton erst nach dem ersten Tipp. Die Anlage bleibt auf diesem Gerät.',
-  meta:'Zeichnen und Anstossen · Handy und Tablet · Ton aus dem Browser'},
- {dir:'2026-11-25-heissluftballon',name:'Heissluftballon',tag:'Ballon-Spiel',c:'#e36a32',gif:'screenshot.png',img:'screenshot.png',
-  blurb:'Ein ruhiger Morgen über einem Schweizer Tal. Du steuerst nur die Höhe: der Brenner heizt die Hülle, das Ventil lässt heisse Luft ab, und der Wind dreht mit der Höhe. Lande sanft auf einem Landeplatz, bring die Postkarte von Seeblick nach Bergli, und meide See und Stromleitung. Freiflug ist offenes Fliegen, Ausflug verlangt fünf Wiesen und öffnet dann den Punktezettel. Ton erst nach dem ersten Tipp. Der beste Stand bleibt auf diesem Gerät.',
-  meta:'Brenner und Ventil · Handy und Tablet · Ton aus dem Browser'},
- {dir:'2026-11-25-kaleidoskop',name:'Kaleidoskop',tag:'Spiegel-Spiel',c:'#e7c27a',gif:'screenshot.jpg',img:'screenshot.jpg',
-  blurb:'Ein Messingrohr, das du drehen kannst. Perlen und Scherben fallen in einem Keil, und die Spiegel wiederholen sie live rundherum, in 3, 4, 6 oder 8 Feldern. Spiegel wechselt die Symmetrie. Glas, Edelsteine, Blüten und Winter tauschen die Stücke. Schütteln wirft alles hoch, Foto speichert ein PNG. Ziehen auf dem Glas dreht das Rohr, auf dem Handy auch Neigen. Ton erst nach dem ersten Tipp. Symmetrie und Satz bleiben auf diesem Gerät.',
-  meta:'Ziehen oder neigen · Handy und Tablet · Ton aus dem Browser'},
- {dir:'2026-11-25-korallenriff',name:'Korallenriff',tag:'Riff-Spiel',c:'#3aa0b8',gif:'screenshot.jpg',img:'screenshot.jpg',
-  blurb:'Eine ruhige Seitenansicht eines flachen Meeres. Setze Korallenlarven auf den Sand und schaue, wie ein Riff wächst. Geweih, Hirn, Fächer, Weich und Anemone sind die Formen; Fische, eine Schildkröte und Putzer-Garnelen kommen dazu. Die Wassertemperatur hält das Riff kühl: wird das Wasser zu warm, bleicht die Farbe und die Fische gehen. Nacht lässt Polypen und Plankton leuchten, Tag bringt das Licht zurück. Neu fragt einmal, dann räumt den Sand. Ton erst nach dem ersten Tipp. Das Riff bleibt auf diesem Gerät.',
-  meta:'Tippen auf den Sand · Handy und Tablet · Ton aus dem Browser'},
- {dir:'2026-11-25-kristallgarten',name:'Kristallgarten',tag:'Kristall-Spiel',c:'#1e4d72',gif:'screenshot.jpg',img:'screenshot.jpg',
-  blurb:'Ein Glas übersättigter Lösung auf einem sonnigen Sims. Wähle ein Salz, tippe ins Glas, und ein Keim sinkt — an den Faden oder auf den Boden — und beginnt zu wachsen. Kochsalz, Alaun, Kupfersulfat, Zucker und Schneeflocke haben je ihre eigene Form. Temperatur und Konzentration ändern, wie schnell die Kristalle wachsen. Die Lupe vergrössert eine Stelle, Info erklärt das Salz. Neu fragt einmal, dann leert das Glas. Ton erst nach dem ersten Tipp. Das Glas bleibt auf diesem Gerät.',
-  meta:'Tippen ins Glas · Handy und Tablet · Ton aus dem Browser'},
- {dir:'2026-11-25-feuerwerk',name:'Feuerwerk',tag:'Feuerwerk-Spiel',c:'#e8b15a',gif:'screenshot.jpg',img:'screenshot.jpg',
-  blurb:'Eine Nacht über einem kleinen Seeort, im Geist des 1. August. Tippe in den Himmel, und eine Rakete steigt. Sie öffnet sich als der Körper, den du gewählt hast: Chrysantheme, Palme, Weide, Ring, Herz, Knatter oder ein Vulkan am Ufer. Der Wind treibt den Rauch, der See spiegelt die Blüten. Show öffnet die Zeitleiste: Abspielen, Fest (ein fertiges Programm) und Setzen. Ton erst nach dem ersten Tipp. Die Show bleibt auf diesem Gerät.',
-  meta:'Tippen in den Himmel · Handy und Tablet · Ton aus dem Browser'},
- {dir:'2026-11-25-windspiel',name:'Windspiel',tag:'Klang-Spiel',c:'#8a5a32',gif:'screenshot.png',img:'screenshot.png',
-  blurb:'Ein Windspiel auf einem Balkon. Hänge Rohre an den Balken, dazu Klöppel und Segel. Die Länge wählt die Tonhöhe. Der Wind kommt in Böen, oder du wischst und schubst das Segel selbst. Rohr dazu und Rohr weg hängen ein bis acht Rohre, Kürzer und Länger stimmen das gewählte Rohr. Pentatonik, Dur, Moll, Japanisch und Gamelan wechseln die Stimmung, Bambus, Messing und Glas ändern Klang und Farbe. Sturm und Windstille, Tag und Nacht. Ton erst nach dem ersten Tipp. Das Spiel bleibt auf diesem Gerät.',
-  meta:'Wischen am Segel · Handy und Tablet · Ton aus dem Browser'},
- {dir:'2026-11-25-bonsai',name:'Bonsai',tag:'Baum-Spiel',c:'#3f6b4a',gif:'screenshot.jpg',img:'screenshot.jpg',
-  blurb:'Ein kleiner Baum in einem Keramiktopf. Er wächst, während du zuschaust, und wächst langsam auch zwischen den Besuchen weiter. Giessen gibt Wasser, Schneiden kürzt einen Ast, Drahten biegt ihn mit einem Kupferdraht. Umtopfen bietet sechs Töpfe, Licht rückt die Sonne, die Jahreszeit geht durch Frühling, Sommer, Herbst und Winter. Der Zeitraffer ist ruhig oder ein sanfter Zeitraffer. Ton erst nach dem ersten Tipp. Der Baum bleibt auf diesem Gerät.',
-  meta:'Giessen und Schneiden · Handy und Tablet · Ton aus dem Browser'},
- {dir:'2026-11-25-schattentheater',name:'Schattentheater',tag:'Schattenspiel',c:'#c4a078',gif:'screenshot.jpg',img:'screenshot.jpg',
-  blurb:'Eine Papierleinwand, eine warme Lampe und Schattenspielfiguren. Ziehe eine Figur näher an die Lampe, und ihr Schatten wird grösser und weicher; weiter weg wird er kleiner und schärfer. Drache, Ritter, Prinzessin, Fuchs, Hase, Baum, Schloss und Mond kommen auf die Bühne. Gelenke lassen sich drehen. Vorhang öffnet und schliesst den Vorhang. Aufnehmen zeichnet sechs Sekunden auf und spielt sie vor, Abspielen wiederholt die Show. Weg nimmt die gewählte Figur weg, Leeren räumt die Bühne. Ton erst nach dem ersten Tipp. Figuren, Vorhang und die letzte Show bleiben auf diesem Gerät.',
-  meta:'Ziehen auf der Bühne · Handy und Tablet · Ton aus dem Browser'},
- {dir:'2026-11-25-wurmkiste',name:'Wurmkiste',tag:'Kompost-Spiel',c:'#a87410',gif:'screenshot.jpg',img:'screenshot.jpg',
-  blurb:'Eine gläserne Wurmkiste von der Seite, auf einem Küchentisch. Wirf Reste auf die Erde, halte sie feucht, und schaue, wie die Regenwürmer sie in dunklen Humus verwandeln. Apfel, Banane, Kaffee, Ei, Karton und Salat sind die Reste. Sprühen macht die Kiste nass, Kühler und Wärmer ändern die Temperatur. Ernten nimmt den Humus, wenn genug da ist. Info, oder ein Tipp auf einen Wurm, öffnet eine kurze Karte. Ton erst nach dem ersten Tipp. Die Kiste bleibt auf diesem Gerät.',
-  meta:'Tippen in die Kiste · Handy und Tablet · Ton aus dem Browser'},
- {dir:'2026-11-25-tangram',name:'Tangram',tag:'Puzzle-Spiel',c:'#8a542c',gif:'screenshot.jpg',img:'screenshot.jpg',
-  blurb:'Sieben Holzsteine auf einem Tisch, und ein Schatten, den du füllst. Ziehe einen Stein, Drehen dreht ihn um 45 Grad, Wenden spiegelt das Parallelogramm. Die Steine rasten an Kanten und Ecken ein. Rätsel verlangt, die dunkle Form genau zu decken; dann sagt die Seite Geschafft. Tipp setzt einen Stein an seinen Platz, Mischen streut sie neu, Frei nimmt den Schatten weg. Ton erst nach dem ersten Tipp. Der Stand bleibt auf diesem Gerät.',
-  meta:'Ziehen und Drehen · Handy und Tablet · Ton aus dem Browser'},
- {dir:'2026-11-25-origami',name:'Origami',tag:'Falt-Spiel',c:'#1d6a8a',gif:'screenshot.jpg',img:'screenshot.jpg',
-  blurb:'Ein quadratisches Blatt auf einem Holztisch. Falte es zu einem Kranich, einem Schiffchen, einem Hut, einem Frosch oder einem Fisch, oder falte frei. Eine leuchtende Linie zeigt die nächste Falz; Zieh folgt ihr, Weiter macht denselben Schritt, Zurück nimmt ihn zurück. Der letzte Schritt formt das Modell in 3D, und es dreht sich langsam. Uni, Washi und Karo ändern das Papier, die runden Felder wählen die Farbe. Ton erst nach dem ersten Tipp. Neu legt ein frisches Blatt auf den Tisch.',
-  meta:'Ziehen entlang der Falz · Handy und Tablet · Ton aus dem Browser'},
- {dir:'2026-11-25-eisbahn',name:'Eisbahn',tag:'Eis-Spiel',c:'#f0d7a4',gif:'screenshot.jpg',img:'screenshot.jpg',
-  blurb:'Ein Dorfteich in der Dämmerung, zugefroren. Laternen am Ufer, Schnee in der Luft, und Spurlinien, die langsam wieder ins Eis verblassen. Ziehe auf dem Eis, und der vordere Läufer (goldener Ring) gleitet der Linie nach. Läufer schickt noch eine Person auf ihr Oval, Weniger nimmt die letzte wieder weg. Pirouette dreht auf der Stelle, Achter fährt eine Acht. Die Eismaschine glättet die Kratzer. Ton erst nach dem ersten Tipp.',
-  meta:'Ziehen auf dem Eis · Handy und Tablet · Ton aus dem Browser'},
- {dir:'2026-11-25-kerzenzieher',name:'Kerzenzieher',tag:'Werkstatt-Spiel',c:'#8d3a2a',gif:'screenshot.jpg',img:'screenshot.jpg',
-  blurb:'Eine warme Kerzenwerkstatt. Wähle ein Wachs, tauche den Docht, und schaue, wie die Kerze Schicht für Schicht wächst. Honig, Kirsche, Kupfer, Rose, Tanne, Meer, Flieder und Schnee füllen den Kessel. Tauchen legt eine Lage auf, Drehen wickelt sie als Spirale, Schnitzen schneidet eine Rille. Abstellen stellt die fertige Kerze ins Regal, Anzünden zündet sie an. Neuer Docht beginnt von vorn, Regal leeren räumt das Brett. Ton erst nach dem ersten Tipp. Kessel, Kerze und Regal bleiben auf diesem Gerät.',
-  meta:'Tauchen in den Kessel · Handy und Tablet · Ton aus dem Browser'},
- {dir:'2026-11-25-vogelhaus',name:'Vogelhaus',tag:'Vogel-Spiel',c:'#e2b15a',gif:'screenshot.jpg',img:'screenshot.jpg',
-  blurb:'Ein verschneiter Garten hinter dem Fenster. Fülle das Vogelhaus und schaue, welche Gäste an die Fensterbank kommen. Samen, Knödel, Apfel und Wasser locken unterschiedlich: Kohlmeise und Blaumeise an Samen und Knödel, Rotkehlchen, Gimpel, Buchfink und Amsel an Obst und Schalen, der Specht am Knödel, das Eichhörnchen an der Schale. Ein Tipp aufs Glas scheucht sie auf. Heft sammelt die Sichtungen. Ton erst nach dem ersten Tipp. Das Heft bleibt auf diesem Gerät.',
-  meta:'Füllen am Fenster · Handy und Tablet · Ton aus dem Browser'},
- {dir:'2026-11-25-laubhaufen',name:'Laubhaufen',tag:'Herbst-Spiel',c:'#e07a32',gif:'screenshot.jpg',img:'screenshot.jpg',
-  blurb:'Ein Herbstgarten. Vier Bäume werfen ihr Laub: Ahorn, Eiche, Buche und Kastanie. Ziehe den Rechen durchs Laub und schiebe es zu Haufen. Böe schickt einen Windstoss, Kind und Hund springen in den grössten Haufen. Ein Igel kann sich in einem tiefen Haufen verstecken; reche ihn auf, und er huscht ins Gebüsch. Kastanien fallen von der Kastanie. Neu streut den Garten neu. Ton erst nach dem ersten Tipp. Der grösste Haufen bleibt auf diesem Gerät.',
-  meta:'Rechen durchs Laub · Handy und Tablet · Ton aus dem Browser'},
- {dir:'2026-11-25-glasblaeserei',name:'Glasbläserei',tag:'Glas-Spiel',c:'#c47a32',gif:'screenshot.jpg',img:'screenshot.jpg',
-  blurb:'Eine sonnige Glasbläserei. Hol ein glühendes Stück an die Pfeife, drehe sie, und forme das Glas, bevor es klar erkaltet. Holen taucht in den Ofen, Drehen rollt die Pfeife, Blasen bläst die Blase auf, Ziehen macht einen Hals, Kneifen kneift oder weitet. Fritte rollt Farbe auf: Klar, Kobalt, Rubin, Smaragd, Bernstein, Amethyst, Milch. Wärmen hält das Stück weich, Ablegen stellt es ins sonnige Regal. Ton erst nach dem ersten Tipp. Bis zu acht Stücke bleiben auf diesem Gerät.',
-  meta:'Drehen und Blasen · Handy und Tablet · Ton aus dem Browser'},
- {dir:'2026-11-25-zopfbaeckerei',name:'Zopfbäckerei',tag:'Bäckerei-Spiel',c:'#8a5434',gif:'screenshot.jpg',img:'screenshot.jpg',
-  blurb:'Ein Sonntagmorgen in einer Schweizer Küche. Knete den Teig, bis er aufgeht, rolle Stränge, und flechte einen Zopf — oder forme einen Grittibenz. 2, 3 oder 4 Stränge, dann Flechten: ziehe einen Strang über den nächsten. Rosinen setzt Augen und Knöpfe. Ei pinselt den Laib, der Holzofen bräunt ihn, Gitter stellt ihn zum Abkühlen. Neu beginnt einen frischen Teig. Ton erst nach dem ersten Tipp. Das Gitter bleibt auf diesem Gerät.',
-  meta:'Kneten und Flechten · Handy und Tablet · Ton aus dem Browser'},
- {dir:'2026-11-21-night-forest-radio',name:'Night Forest Radio',tag:'Generative music toy',c:'#9ff6ff',gif:'night-forest-radio.gif',img:'screenshot.png',
-  blurb:'A radio that composes forever: four stations (Firefly Lullaby, Moth Waltz, Bog Blues, Deep Night), all synthesized live with crickets, frogs, an owl and wind. Click to place fireflies that play arpeggios; drag to bend the filter.',
-  meta:'Seeded composer · share strings · 30 s WAV export · H hides the controls',
-  audio:[['Firefly Lullaby','lullaby'],['Moth Waltz','waltz'],['Bog Blues','blues'],['Deep Night','deep']]}
+{
+"dir": "2026-11-21-firefly-night",
+"c": "#ffe27a",
+"gif": "firefly-night.gif",
+"img": "screenshot.png",
+"en": {
+"name": "Firefly Night",
+"tag": "Arcade",
+"blurb": "Steer a firefly and keep your glow alive by eating dew motes. Dodge spider webs, flare to scare moths, and survive the frog from 40 s. Daily challenge seed included.",
+"meta": "Mouse / keys / touch · WebAudio SFX + ambient loop · median survival 3:02 for a decent bot"
+},
+"de": {
+"name": "Glühwürmchen-Nacht",
+"tag": "Arcade",
+"blurb": "Steuere ein Glühwürmchen und halte dein Leuchten am Leben, indem du Tautropfen frisst. Weiche Spinnennetzen aus, blitze, um Motten zu verscheuchen, und überlebe den Frosch ab 40 s. Mit Seed für die Tagesaufgabe.",
+"meta": "Maus / Tasten / Touch · WebAudio-Effekte + Ambient-Schleife · mittlere Überlebenszeit 3:02 für einen ordentlichen Bot"
+}
+},
+{
+"dir": "2026-11-21-mothlight",
+"c": "#d7b8ff",
+"gif": "mothlight.gif",
+"img": "screenshot.png",
+"en": {
+"name": "Mothlight",
+"tag": "Logic puzzle",
+"blurb": "Moths fly toward the nearest lit lantern. Your only move is switching one lantern on or off. Lead every moth into a jar and keep them out of the webs.",
+"meta": "30 curated nights (par 3 → 21) + endless mode · every level solver-verified"
+},
+"de": {
+"name": "Mottenlicht",
+"tag": "Logikrätsel",
+"blurb": "Motten fliegen zur nächsten brennenden Laterne. Du darfst nur eine einzige Laterne an- oder ausschalten. Führe jede Motte in ein Glas und halte sie von den Spinnennetzen fern.",
+"meta": "30 ausgewählte Nächte (Par 3 → 21) + Endlosmodus · jedes Level vom Löser geprüft"
+}
+},
+{
+"dir": "2026-11-21-lantern-keeper",
+"c": "#ffb347",
+"gif": "lantern-keeper.gif",
+"img": "screenshot-combat.png",
+"en": {
+"name": "Lantern Keeper",
+"tag": "Roguelite deckbuilder",
+"blurb": "Playbot's first flagship, finished as 1.0 (see PLAN.md). Climb the night forest as the Lantern Keeper, the Moth Whisperer (Swarm) or the Ember Wick (Wax and Retain). Win once to open Act 4, The Hollow Moon, with a three-phase final boss and a true ending for each keeper. New in v5: Ember 6–10 with named modifiers for each keeper, the Lantern Shrine (every run wakes new cards and charms), mastery badges and daily-run modifiers. 89 cards, 24 creatures, 18 events, 23 charms, a Codex and run history.",
+"meta": "Seeded runs + daily seed · Ember levels · bot beats Act 3 in 34–40% of runs, and 52–66% of those also clear Act 4"
+},
+"de": {
+"name": "Laternenwärter",
+"tag": "Roguelite-Kartenspiel",
+"blurb": "Playbots erstes Flaggschiff, als Version 1.0 abgeschlossen (siehe PLAN.md). Steige als Laternenwärter, Mottenflüsterer (Schwarm) oder Glutdocht (Wachs und Behalten) durch den Nachtwald. Gewinne einmal, um Akt 4, den Hohlmond, zu öffnen, mit einem Endgegner in drei Phasen und einem wahren Ende für jeden Wärter. Neu in v5: Glut 6–10 mit benannten Modifikatoren für jeden Wärter, der Laternenschrein (jeder Lauf weckt neue Karten und Talismane), Meisterschaftsabzeichen und Modifikatoren für den Tageslauf. 89 Karten, 24 Kreaturen, 18 Ereignisse, 23 Talismane, ein Codex und die Laufhistorie.",
+"meta": "Läufe mit Seed + Tages-Seed · Glutstufen · der Bot schafft Akt 3 in 34–40 % der Läufe, und 52–66 % davon schaffen auch Akt 4"
+}
+},
+{
+"dir": "2026-11-22-little-valley",
+"c": "#8fd3f5",
+"gif": "little-valley.gif",
+"img": "screenshot-dusk.png",
+"en": {
+"name": "Little Valley",
+"tag": "Terrain + water sandbox",
+"blurb": "Playbot's new flagship, growing over many days (see PLAN.md). Shape a tiny Alpine valley with your finger: raise, dig and smooth the land, make it rain or place springs, and watch lakes fill, rivers spill over ridges, carve gullies and drop sand. Meadows, flowers and forests follow the water, and new in v3: build little cottages that are happy by the water. Happy cottages sow patchwork fields that ripen to gold, tread footpaths to their neighbours and the river, and a village grows by itself, until a flood stays. Dig a well for a thirsty cottage far from the river (its bucket hauls water now and then), and cottages by a fast stream build turning mill wheels. Every world has a shareable name like Daisy Glacier 5. New in v4: the sun crosses the sky, evenings glow gold with lit cottage windows, short moonlit nights stay readable, and a gentle rain drifts in by itself now and then and swells the rivers. Seasons too: autumn colours, snow creeping down the mountains in winter, frozen lakes with little skaters, and a spring melt that swells the rivers. Plus rare storms with lightning, summer droughts and rainbows. New in v5: tap the speaker for a gentle soundscape made in code: river murmur, rain and thunder, wind, birds, crickets, an owl, mill wheels and cowbells, all following the valley (hold the speaker for a volume slider). And the star button opens eleven gentle valley wishes (a lake to row on, a deep forest, a little village, turning mills, dry feet in a storm, rainbows, skaters, a golden harvest, snowmen, a well for a thirsty cottage, a waterfall) with up to three stars each, saved on your device. Share sends your valley as a link (the land you shaped, lakes, springs and cottages) or saves it to a file you can open again, and the valley keeps itself between visits (autosave).",
+"meta": "Real shallow-water + erosion sim · 3D tilt view and map view · phone and tablet friendly"
+},
+"de": {
+"name": "Kleines Tal",
+"tag": "Gelände- und Wasser-Sandkasten",
+"blurb": "Playbots neues Flaggschiff, das über viele Tage wächst (siehe PLAN.md). Forme mit dem Finger ein winziges Alpental: hebe, grabe und glätte das Land, lass es regnen oder setze Quellen, und schau zu, wie sich Seen füllen, Flüsse über Kämme treten, Rinnen graben und Sand ablagern. Wiesen, Blumen und Wälder folgen dem Wasser, und neu in v3: baue kleine Häuschen, die am Wasser glücklich sind. Glückliche Häuschen säen Flickenfelder, die goldgelb reifen, treten Fusswege zu ihren Nachbarn und zum Fluss, und ein Dorf wächst von selbst, bis eine Flut bleibt. Grabe einen Brunnen für ein durstiges Häuschen weit vom Fluss (sein Eimer holt ab und zu Wasser), und Häuschen an einem schnellen Bach bauen drehende Mühlräder. Jede Welt hat einen teilbaren Namen wie Daisy Glacier 5. Neu in v4: die Sonne wandert über den Himmel, die Abende glühen golden mit beleuchteten Fenstern, kurze Mondnächte bleiben lesbar, und ein sanfter Regen zieht ab und zu von selbst auf und lässt die Flüsse anschwellen. Dazu Jahreszeiten: Herbstfarben, Schnee, der im Winter die Berge hinunterkriecht, zugefrorene Seen mit kleinen Schlittschuhläufern und eine Schneeschmelze im Frühling, die die Flüsse anschwellen lässt. Und seltene Gewitter mit Blitzen, Sommerdürren und Regenbogen. Neu in v5: tippe auf den Lautsprecher für eine sanfte, im Code gemachte Klanglandschaft: Flussrauschen, Regen und Donner, Wind, Vögel, Grillen, eine Eule, Mühlräder und Kuhglocken, alles dem Tal folgend (halte den Lautsprecher für einen Lautstärkeregler). Und der Stern-Knopf öffnet elf sanfte Talwünsche (ein See zum Rudern, ein tiefer Wald, ein kleines Dorf, drehende Mühlen, trockene Füsse im Sturm, Regenbogen, Schlittschuhläufer, eine goldene Ernte, Schneemänner, ein Brunnen für ein durstiges Häuschen, ein Wasserfall) mit je bis zu drei Sternen, auf deinem Gerät gespeichert. Teilen schickt dein Tal als Link (das geformte Land, Seen, Quellen und Häuschen) oder speichert es in einer Datei, die du wieder öffnen kannst, und das Tal sichert sich zwischen den Besuchen selbst (Autospeichern).",
+"meta": "Echte Flachwasser- und Erosionssimulation · 3D-Kippansicht und Kartenansicht · für Handy und Tablet geeignet"
+}
+},
+{
+"dir": "2026-11-23-rain-organ",
+"c": "#9fd0ff",
+"gif": "rain-organ.gif",
+"img": "screenshot.png",
+"en": {
+"name": "Rain Organ",
+"tag": "Musical toy",
+"blurb": "v1.1 (2026-11-23). Little clouds drop raindrops in time. Draw leaves under them: every drop that hits a leaf rings a note, short leaves high, long leaves low, always in a friendly pentatonic scale. Tilt the leaves so the drops hop from one to the next and your drawing plays itself. Or tap a little tune on the keyboard and a cloud builds the leaf path that plays it. The sky follows your time of day, with stars at night.",
+"meta": "Drag to draw · tap to erase · phone and tablet friendly · sound made in code"
+},
+"de": {
+"name": "Regenorgel",
+"tag": "Musikspielzeug",
+"blurb": "v1.1 (23.11.2026). Kleine Wolken lassen Regentropfen im Takt fallen. Zeichne Blätter darunter: Jeder Tropfen, der ein Blatt trifft, lässt einen Ton erklingen, kurze Blätter hoch, lange tief, immer in einer freundlichen Pentatonik. Neige die Blätter, damit die Tropfen von einem zum nächsten hüpfen und deine Zeichnung sich selbst spielt. Oder tippe eine kleine Melodie auf der Tastatur, und eine Wolke baut den Blätterweg, der sie spielt. Der Himmel folgt deiner Tageszeit, nachts mit Sternen.",
+"meta": "Ziehen zum Zeichnen · Tippen zum Löschen · für Handy und Tablet geeignet · Klang im Code gemacht"
+}
+},
+{
+"dir": "2026-11-24-kite-day",
+"c": "#e89a5a",
+"gif": "screenshot.png",
+"img": "screenshot.png",
+"en": {
+"name": "Kite Day",
+"tag": "Wind toy",
+"blurb": "A quiet afternoon on a hillside. Hold the string and fly a kite over the meadow. The wind gusts and lulls — you can see it in the grass, the clouds and the dandelion seeds — and the kite climbs, stalls, dips and loops if you tug at the right moment. Miss the wind and it settles softly into the grass. A short run-up gets it back in the air. Stay with it and swallows come to look, a child flies a blue kite on the next hill, the sky warms toward sunset, and a short shower leaves a rainbow. High and steady, a small melody joins the wind.",
+"meta": "Drag down to pull the line in, up to let it out · phone and tablet friendly · sound made in code"
+},
+"de": {
+"name": "Drachentag",
+"tag": "Windspielzeug",
+"blurb": "Ein ruhiger Nachmittag an einem Hang. Halte die Schnur und lass einen Drachen über der Wiese steigen. Der Wind weht in Böen und Flauten – du siehst es im Gras, in den Wolken und in den Löwenzahnsamen – und der Drachen steigt, überzieht, sackt ab und schlägt Schleifen, wenn du im richtigen Moment ruckst. Verpasst du den Wind, setzt er sich sanft ins Gras. Mit kurzem Anlauf kommt er wieder in die Luft. Bleib dran, dann schauen Schwalben vorbei, ein Kind lässt auf dem nächsten Hügel einen blauen Drachen steigen, der Himmel wärmt sich Richtung Sonnenuntergang, und ein kurzer Schauer hinterlässt einen Regenbogen. Hoch und stetig gesellt sich eine kleine Melodie zum Wind.",
+"meta": "Nach unten ziehen holt die Schnur ein, nach oben lässt sie aus · für Handy und Tablet geeignet · Klang im Code gemacht"
+}
+},
+{
+"dir": "2026-11-24-star-loom",
+"c": "#c9b6ff",
+"gif": "screenshot.png",
+"img": "screenshot.png",
+"en": {
+"name": "Star Loom",
+"tag": "Night-sky toy",
+"blurb": "A night sky you can weave. Stars turn slowly over a dark hill and a campfire. Drag from star to star and the line snaps into place; each star plucks a soft harp note. Close the loop (or tap Done) and the figure is read from its shape: a line, a triangle, a square, a star, a long chain, a ring, a hook, an arc, a cross, a crown or a dipper. It receives a generated name and a short legend in German (Swiss spelling). Finished constellations glow, turn with the sky, and can be tapped to hear their melody again. Shooting stars can be caught as wishes, the moon advances one phase each visit, and Share copies a link to your sky.",
+"meta": "Drag star to star · phone and tablet friendly · sound made in code · shareable sky"
+},
+"de": {
+"name": "Sternenwebstuhl",
+"tag": "Nachthimmel-Spielzeug",
+"blurb": "Ein Nachthimmel zum Weben. Sterne drehen sich langsam über einem dunklen Hügel und einem Lagerfeuer. Ziehe von Stern zu Stern, und die Linie rastet ein; jeder Stern zupft einen weichen Harfenton. Schliesse die Schleife (oder tippe auf Fertig), und die Figur wird an ihrer Form erkannt: eine Linie, ein Dreieck, ein Viereck, ein Stern, eine lange Kette, ein Ring, ein Haken, ein Bogen, ein Kreuz, eine Krone oder ein Wagen. Sie erhält einen erzeugten Namen und eine kurze Legende auf Deutsch (Schweizer Schreibweise). Fertige Sternbilder leuchten, drehen sich mit dem Himmel und lassen sich antippen, um ihre Melodie wieder zu hören. Sternschnuppen kann man als Wünsche fangen, der Mond rückt bei jedem Besuch eine Phase weiter, und Teilen kopiert einen Link zu deinem Himmel.",
+"meta": "Von Stern zu Stern ziehen · für Handy und Tablet geeignet · Klang im Code gemacht · teilbarer Himmel"
+}
+},
+{
+"dir": "2026-11-24-tide-pool",
+"c": "#5eb8b0",
+"gif": "screenshot.png",
+"img": "screenshot.png",
+"en": {
+"name": "Tide Pool",
+"tag": "Nature toy",
+"blurb": "A living rock pool, seen from above. The tide rises and falls over about three minutes. Sand gobies school, glass shrimp dart, cushion stars crawl, beadlet anemones open and shut, and hermit crabs shop for a bigger shell. Tap the water for a ripple, drag a loose rock aside to see who was underneath, or leave a roomy shell for a crab. Look names whatever you tap, and Journal keeps the species you have found on this device. At low tide a herring gull may land; at high tide a wave can wash in a moon jelly.",
+"meta": "Tap and drag · phone and tablet friendly · sound made in code"
+},
+"de": {
+"name": "Gezeitentümpel",
+"tag": "Naturspielzeug",
+"blurb": "Ein lebendiger Felsentümpel von oben. Die Flut steigt und fällt in etwa drei Minuten. Sandgrundeln schwärmen, Glasgarnelen schiessen umher, Kissensterne kriechen, Purpurrosen öffnen und schliessen sich, und Einsiedlerkrebse suchen ein grösseres Haus. Tippe aufs Wasser für eine Welle, ziehe einen losen Stein weg, um zu sehen, wer darunter war, oder lass eine geräumige Muschel für einen Krebs liegen. «Schauen» nennt dir, was du antippst, und das Journal hält die Arten fest, die du auf diesem Gerät gefunden hast. Bei Ebbe kann eine Silbermöwe landen; bei Flut kann eine Welle eine Ohrenqualle hereinspülen.",
+"meta": "Tippen und Ziehen · für Handy und Tablet geeignet · Klang im Code gemacht"
+}
+},
+{
+"dir": "2026-11-25-music-box",
+"c": "#c4a46a",
+"gif": "screenshot.jpg",
+"img": "screenshot.jpg",
+"en": {
+"name": "Music Box Workshop",
+"tag": "Music-box toy",
+"blurb": "An open music box on a wooden bench, seen from above. Punch pins into a brass cylinder (32 steps, 15 comb teeth), then turn it: drag the crank for a live tempo, or wind the spring and let go — it slows as it runs down. The steel teeth ring with a small metallic voice, and a dancer on the lid turns with the cylinder. Four scales (Dur, Pentatonik, Moll, Mixolydisch), three short tunes (Entchen, Weihnacht, Walzer), three save slots on this device, and a shareable link.",
+"meta": "Tap to pin · drag the crank or wind the spring · phone and tablet friendly · sound made in code"
+},
+"de": {
+"name": "Spieldosen-Werkstatt",
+"tag": "Spieldosen-Spielzeug",
+"blurb": "Eine offene Spieldose auf einer Werkbank, von oben gesehen. Schlage Stifte in eine Messingwalze (32 Schritte, 15 Kammzähne) und lass sie dann drehen: ziehe an der Kurbel für ein Live-Tempo, oder ziehe die Feder auf und lass los – sie wird langsamer, während sie abläuft. Die Stahlzähne klingen mit einer kleinen metallischen Stimme, und eine Tänzerin auf dem Deckel dreht sich mit der Walze. Vier Tonleitern (Dur, Pentatonik, Moll, Mixolydisch), drei kurze Melodien (Entchen, Weihnacht, Walzer), drei Speicherplätze auf diesem Gerät und ein teilbarer Link.",
+"meta": "Tippen zum Stiftsetzen · Kurbel ziehen oder Feder aufziehen · für Handy und Tablet geeignet · Klang im Code gemacht"
+}
+},
+{
+"dir": "2026-11-25-sand-alchemy",
+"c": "#e7c27a",
+"gif": "screenshot.png",
+"img": "screenshot.png",
+"en": {
+"name": "Sand Alchemy",
+"tag": "Falling-sand toy",
+"blurb": "A falling-sand plate in a small workshop. You start with Sand, Wasser, Stein, Holz, Feuer and Samen. Paint with a brush, and the first time a reaction makes something new it is added to the alchemy book on this device: Rauch, Asche, Dampf, Pflanze, Öl, Salz, Eis, Glas, Lava, Metall, Säure, Wolke and Blitz. Sound stays off until the first tap.",
+"meta": "Drag to paint · phone and tablet friendly · sound made in code"
+},
+"de": {
+"name": "Sand-Alchemie",
+"tag": "Fallsand-Spielzeug",
+"blurb": "Eine Fallsand-Platte in einer kleinen Werkstatt. Du beginnst mit Sand, Wasser, Stein, Holz, Feuer und Samen. Male mit einem Pinsel, und wenn eine Reaktion zum ersten Mal etwas Neues erzeugt, kommt es ins Alchemiebuch auf diesem Gerät: Rauch, Asche, Dampf, Pflanze, Öl, Salz, Eis, Glas, Lava, Metall, Säure, Wolke und Blitz. Der Ton bleibt aus bis zum ersten Tipp.",
+"meta": "Ziehen zum Malen · für Handy und Tablet geeignet · Klang im Code gemacht"
+}
+},
+{
+"dir": "2026-11-25-pocket-planet",
+"c": "#6ea84a",
+"gif": "screenshot.png",
+"img": "screenshot.png",
+"en": {
+"name": "Pocket Planet",
+"tag": "Planet toy",
+"blurb": "A small round planet in space. It starts as bare rock. Drag to spin it (the sun stays put, so there is a day side and a night side). Shape the land with Heben and Senken, pour Wasser into the lows, plant Saat, set a Wolke, and shift the climate with Wärmer and Kühler. A moon pulls a tide on shallow shores. Deer, birds and fish appear once a forest or an ocean is rich enough, and a Dorf takes root near water and forest, then lights up at night. Planetenpass shows biome shares, and Teilen copies a shareable link. Sound stays off until the first tap.",
+"meta": "Drag to spin · phone and tablet friendly · sound made in code · shareable planet"
+},
+"de": {
+"name": "Taschenplanet",
+"tag": "Planetenspielzeug",
+"blurb": "Ein kleiner runder Planet im Weltraum. Er beginnt als kahler Fels. Ziehe, um ihn zu drehen (die Sonne bleibt stehen, also gibt es eine Tag- und eine Nachtseite). Forme das Land mit Heben und Senken, giesse Wasser in die Senken, pflanze Saat, setze eine Wolke und verschiebe das Klima mit Wärmer und Kühler. Ein Mond zieht an flachen Küsten eine Gezeit. Hirsche, Vögel und Fische erscheinen, sobald ein Wald oder ein Ozean reich genug ist, und ein Dorf wurzelt nahe bei Wasser und Wald und leuchtet dann nachts. Der Planetenpass zeigt Anteile der Lebensräume, und Teilen kopiert einen teilbaren Link. Der Ton bleibt aus bis zum ersten Tipp.",
+"meta": "Ziehen zum Drehen · für Handy und Tablet geeignet · Klang im Code gemacht · teilbarer Planet"
+}
+},
+{
+"dir": "2026-11-25-ant-farm",
+"c": "#c48a4a",
+"gif": "screenshot.png",
+"img": "screenshot.png",
+"en": {
+"name": "Ant Farm",
+"tag": "Colony toy",
+"blurb": "A glass ant farm on a wooden desk. Under a strip of meadow, the soil is a real grid: workers dig it, haul crumbs, follow trails, stock a pantry, and tend eggs, larvae and pupae. Leave Zucker, Samen or an Apfel on the meadow, drip Wasser, set a Stein, shine a light, or knock on the glass. Day and night pass, rain can pool in the upper tunnels, and Notiz tracks the colony. The farm is saved on this device. Sound stays off until Ton is tapped.",
+"meta": "Tap to feed, water or knock · phone and tablet friendly · sound made in code"
+},
+"de": {
+"name": "Ameisenfarm",
+"tag": "Kolonie-Spielzeug",
+"blurb": "Eine gläserne Ameisenfarm auf einem Holzpult. Unter einem Wiesenstreifen ist die Erde ein echtes Raster: Arbeiterinnen graben sie um, schleppen Krümel, folgen Spuren, füllen eine Vorratskammer und pflegen Eier, Larven und Puppen. Lass Zucker, Samen oder einen Apfel auf der Wiese liegen, träufle Wasser, setze einen Stein, leuchte mit einem Licht oder klopfe ans Glas. Tag und Nacht ziehen vorbei, Regen kann sich in den oberen Tunneln sammeln, und Notiz verfolgt die Kolonie. Die Farm wird auf diesem Gerät gespeichert. Der Ton bleibt aus, bis Ton angetippt wird.",
+"meta": "Tippen zum Füttern, Wässern oder Klopfen · für Handy und Tablet geeignet · Klang im Code gemacht"
+}
+},
+{
+"dir": "2026-11-25-bergbahn",
+"c": "#c45a4a",
+"gif": "screenshot.png",
+"img": "screenshot.png",
+"en": {
+"name": "Cable Car",
+"tag": "Cable-car game",
+"blurb": "An Alpine valley from the side. Tap in the valley for the base station, place pylons up the slope and the top station on the summit. The cable hangs as a catenary and may touch neither ground nor forest. Ride sends two gondolas off: they sway in the wind, and hikers (summer) or skiers (winter) come along. Line 2, day and night, cows in the pasture, and the inspection gives a school grade. Sound stays off until the first tap.",
+"meta": "Tap to build · phone and tablet friendly · sound made in code"
+},
+"de": {
+"name": "Bergbahn",
+"tag": "Seilbahn-Spiel",
+"blurb": "Ein Alpental von der Seite. Tippe ins Tal für die Talstation, setze Masten den Hang hinauf und die Bergstation auf den Gipfel. Das Seil hängt als Kettenlinie und darf weder Boden noch Wald berühren. Fahren schickt zwei Gondeln los: sie schwingen im Wind, und Wanderer (Sommer) oder Skifahrer (Winter) fahren mit. Linie 2, Tag und Nacht, Kühe auf der Weide, und die Prüfung gibt eine Schulnote. Der Ton bleibt aus bis zum ersten Tipp.",
+"meta": "Tippen zum Bauen · Handy und Tablet · Ton aus dem Browser"
+}
+},
+{
+"dir": "2026-11-25-murmelbahn",
+"c": "#e8b060",
+"gif": "screenshot.png",
+"img": "screenshot.png",
+"en": {
+"name": "Marble Run",
+"tag": "Marble-run game",
+"blurb": "A wooden marble run on a pegboard. Pieces snap to the grid: Straight, Curve, Funnel, Spiral, Seesaw, Bell, Chime bar, Lift wheel, Switch, Trampoline and Basket. In Build mode you place the pieces, Play lets the coloured glass marbles roll. Three examples (Brook, Melody, Clockwork), Undo, Share as a link, and sound only after the first tap.",
+"meta": "Build and play · phone and tablet friendly · sound made in code"
+},
+"de": {
+"name": "Murmelbahn",
+"tag": "Kugelbahn-Spiel",
+"blurb": "Eine hölzerne Murmelbahn an einer Lochwand. Teile schnappen ins Raster: Gerade, Kurve, Trichter, Spirale, Wippe, Glocke, Klangstab, Heberad, Weiche, Trampolin und Korb. Im Modus Bauen setzt du die Teile, Spielen lässt die bunten Glasmurmeln laufen. Drei Beispiele (Bach, Melodie, Uhrwerk), Rückgängig, Teilen als Link, und Ton erst nach dem ersten Tipp. Beschriftung auf Deutsch, Schweizer Schreibweise.",
+"meta": "Bauen und Spielen · Handy und Tablet · Ton aus dem Browser"
+}
+},
+{
+"dir": "2026-11-25-gluehwuermchen",
+"c": "#e7c36a",
+"gif": "screenshot.jpg",
+"img": "screenshot.jpg",
+"en": {
+"name": "Fireflies",
+"tag": "Evening-meadow game",
+"blurb": "An evening meadow by a pond. Hundreds of fireflies first blink at random; every flash nudges the neighbours in sight a little closer to its own rhythm, until waves run across the grass. Reeds and bushes block the view. The lantern follows the pointer, Coupling and Sight range are sliders, and three species (Meadow, Pond, Forest) keep their own rhythm. The sync meter shows how much they agree. Sound only after the first tap.",
+"meta": "Tap with the lantern · phone and tablet friendly · sound made in code"
+},
+"de": {
+"name": "Glühwürmchen",
+"tag": "Abendwiesen-Spiel",
+"blurb": "Eine Abendwiese am Teich. Hunderte Glühwürmchen blinken zuerst durcheinander; jeder Blitz rückt die Nachbarn in der Sichtweite ein wenig näher an den eigenen Takt, bis Wellen über das Gras laufen. Schilf und Busch versperren die Sicht. Die Laterne folgt dem Zeiger, Kopplung und Sichtweite sind Schieberegler, und drei Arten (Wiese, Teich, Wald) behalten ihren eigenen Rhythmus. Der Gleichtakt zeigt, wie einig sie sind. Ton erst nach dem ersten Tipp.",
+"meta": "Tippen mit der Laterne · Handy und Tablet · Ton aus dem Browser"
+}
+},
+{
+"dir": "2026-11-25-bienenstock",
+"c": "#e7b23a",
+"gif": "screenshot.png",
+"img": "screenshot.png",
+"en": {
+"name": "Beehive",
+"tag": "Meadow game",
+"blurb": "A meadow from above, with a straw skep in the middle. Tap to plant flowers: daisy, dandelion, clover, poppy, cornflower, sunflower, aster and snowdrop, each with its own colour, nectar and season. The bees fly loosely in a swarm, drink and come home. A good spot earns a waggle dance at the entrance. Comb opens the honeycomb, and the year runs through spring, summer, autumn and winter. Bees, honey and flowers are counted in the corner. Sound only after the first tap.",
+"meta": "Tap to plant · phone and tablet friendly · sound made in code"
+},
+"de": {
+"name": "Bienenstock",
+"tag": "Wiesen-Spiel",
+"blurb": "Eine Wiese von oben, mit einem Bienenkorb aus Stroh in der Mitte. Tippe, um Blüten zu setzen: Gänseblümchen, Löwenzahn, Klee, Mohn, Kornblume, Sonnenblume, Aster und Schneeglöckchen, jede mit eigener Farbe, Nektar und Jahreszeit. Die Bienen fliegen lose im Schwarm, trinken und kommen heim. Eine gute Stelle verdient einen Schwänzeltanz am Eingang. Wabe öffnet die Wabe, und das Jahr geht durch Frühling, Sommer, Herbst und Winter. Bienen, Honig und Blüten stehen in der Ecke. Ton erst nach dem ersten Tipp.",
+"meta": "Tippen zum Pflanzen · Handy und Tablet · Ton aus dem Browser"
+}
+},
+{
+"dir": "2026-11-25-schneeflocken",
+"c": "#c6dcff",
+"gif": "screenshot.png",
+"img": "screenshot.png",
+"en": {
+"name": "Snowflake Lab",
+"tag": "Lab game",
+"blurb": "A quiet lab under the night sky. Tap to sow a seed. Temperature and humidity decide the shape: plates, sectored plates, dendrites, needles or columns, following a small Nakaya chart, and they keep acting while the crystal grows. Wind brings a slight, still six-fold variation. Catch puts the flake on the shelf, which stays on this device. Sound only after the first tap, then a soft wind chime.",
+"meta": "Tap to sow · phone and tablet friendly · sound made in code"
+},
+"de": {
+"name": "Schneeflocken-Labor",
+"tag": "Labor-Spiel",
+"blurb": "Ein ruhiges Labor unter dem Nachthimmel. Tippe, um ein Korn zu säen. Temperatur und Feuchtigkeit bestimmen die Form: Platten, Sektorplatten, Dendriten, Nadeln oder Säulen, nach einer kleinen Nakaya-Tafel, und sie wirken weiter, während der Kristall wächst. Wind bringt eine leichte, noch sechsfache Variation. Fangen legt die Flocke ins Regal, das auf diesem Gerät bleibt. Ton erst nach dem ersten Tipp, dann ein leises Windspiel.",
+"meta": "Tippen zum Säen · Handy und Tablet · Ton aus dem Browser"
+}
+},
+{
+"dir": "2026-11-25-wetterkueche",
+"c": "#f0d59a",
+"gif": "screenshot.jpg",
+"img": "screenshot.jpg",
+"en": {
+"name": "Weather Kitchen",
+"tag": "Weather game",
+"blurb": "An Alpine valley from the side, where you cook the weather. Sun, humidity and wind are the three controls. You place warm air, cold air and clouds in the sky. Foehn sends moist air over the left ridge: a wall of cloud and rain on the windward side, then warm, dry air and clear blue on the lee side. It rains or snows, sun and rain draw a rainbow, and a strong updraught throws lightning. Thermometer and barometer follow the valley. Sound only after the first tap.",
+"meta": "Tap into the sky · phone and tablet friendly · sound made in code"
+},
+"de": {
+"name": "Wetterküche",
+"tag": "Wetter-Spiel",
+"blurb": "Ein Alpental von der Seite, in dem du das Wetter kochst. Sonne, Feuchtigkeit und Wind sind die drei Regler. Warmluft, Kaltluft und Wolke setzt du in den Himmel. Föhn schickt feuchte Luft über den linken Grat: eine Wolkenmauer und Regen im Luv, dann warme, trockene Luft und klares Blau im Lee. Es regnet oder schneit, Sonne und Regen zeichnen einen Regenbogen, und ein starker Aufwind wirft Blitze. Thermometer und Barometer folgen dem Tal. Ton erst nach dem ersten Tipp.",
+"meta": "Tippen in den Himmel · Handy und Tablet · Ton aus dem Browser"
+}
+},
+{
+"dir": "2026-11-25-modelleisenbahn",
+"c": "#2f5d3a",
+"gif": "screenshot.jpg",
+"img": "screenshot.jpg",
+"en": {
+"name": "Model Railway",
+"tag": "Railway game",
+"blurb": "A model railway on a wooden table, seen from above at a slight angle. Lay Straight, Curve, Switch, Crossing, Buffer stop, Station, Tunnel and Bridge, rotate the pieces and set the points. Regional, Steam and Freight trains follow the rails, stop at the station and wait at the red block signal. Day, night and history, plus houses, trees, cows and a lake. Passengers and punctuality keep a small timetable. Circle, Figure-eight and Mountain line are ready to go. Share writes the layout into the link. Sound only after the first tap.",
+"meta": "Build and drive · phone and tablet friendly · sound made in code"
+},
+"de": {
+"name": "Modelleisenbahn",
+"tag": "Eisenbahn-Spiel",
+"blurb": "Eine Modelleisenbahn auf einem Holztisch, von oben mit leichtem Blickwinkel. Lege Gerade, Kurve, Weiche, Kreuzung, Prellbock, Bahnhof, Tunnel und Brücke, drehe die Teile und stelle die Weichen. Regional, Dampf und Güter folgen den Schienen, halten am Bahnhof und warten am roten Blocksignal. Tag, Nacht und Verlauf, dazu Häuser, Bäume, Kühe und ein See. Fahrgäste und Pünktlichkeit führen einen kleinen Fahrplan. Kreis, Achterbahn und Bergstrecke liegen bereit. Teilen schreibt die Anlage in den Link. Ton erst nach dem ersten Tipp.",
+"meta": "Bauen und Fahren · Handy und Tablet · Ton aus dem Browser"
+}
+},
+{
+"dir": "2026-11-25-aquarell",
+"c": "#4a5a9a",
+"gif": "screenshot.jpg",
+"img": "screenshot.jpg",
+"en": {
+"name": "Watercolour",
+"tag": "Painting game",
+"blurb": "A quiet watercolour on wet paper. The brush lays down colour, Water makes it bloom, the hairdryer dries the edge, and the sponge lifts colour as long as it hasn't set yet. Eight glazing pigments mix by density: yellow over blue becomes green, another layer gets darker. Ultramarine and sienna granulate in the paper. Size sets the brush. New sheet asks once, Save downloads a PNG. Sound only after you switch it on.",
+"meta": "Paint on the sheet · phone and tablet friendly · sound made in code"
+},
+"de": {
+"name": "Aquarell",
+"tag": "Mal-Spiel",
+"blurb": "Ein ruhiges Aquarell auf nassem Papier. Der Pinsel setzt Farbe, Wasser lässt sie blühen, der Föhn trocknet den Rand, und der Schwamm hebt Farbe, solange sie noch nicht fest sitzt. Acht lasierende Pigmente mischen sich in der Dichte: Gelb über Blau wird Grün, eine weitere Schicht wird dunkler. Ultramarin und Siena körnen im Papier. Grösse stellt den Pinsel ein. Neues Blatt fragt einmal, Speichern lädt ein PNG. Ton erst nach dem ersten Einschalten.",
+"meta": "Malen auf dem Blatt · Handy und Tablet · Ton aus dem Browser"
+}
+},
+{
+"dir": "2026-11-25-leuchtturm",
+"c": "#d0893a",
+"gif": "screenshot.png",
+"img": "screenshot.png",
+"en": {
+"name": "Lighthouse",
+"tag": "Night-watch game",
+"blurb": "A night watch on the rocky coast. You hold the lamp: ships come through fog and swell, and you aim the beam. In the light they see the reefs and steer into the harbour, in the dark they drift onto the rocks. The oil burns down; tap the barrel when the wave is gone. The foghorn slows ships nearby. A night lasts about five minutes, then dawn comes with the tally (Saved and Stranded). Endless keeps the watch going. Sound only after the first tap.",
+"meta": "Aim the beam · phone and tablet friendly · sound made in code"
+},
+"de": {
+"name": "Leuchtturm",
+"tag": "Nachtwachen-Spiel",
+"blurb": "Eine Nachtwache an der Felsenküste. Du hältst die Lampe: Schiffe kommen durch Nebel und Schwell, und du richtest den Strahl. Im Licht sehen sie die Riffe und steuern in den Hafen, im Dunkeln treiben sie auf die Felsen. Das Öl brennt herunter; tippe das Fass, wenn die Welle weg ist. Das Nebelhorn bremst Schiffe in der Nähe. Eine Nacht dauert etwa fünf Minuten, dann kommt das Morgengrauen mit der Zählung (Gerettet und Gestrandet). Endlos hält die Wache offen. Ton erst nach dem ersten Tipp.",
+"meta": "Strahl richten · Handy und Tablet · Ton aus dem Browser"
+}
+},
+{
+"dir": "2026-11-25-zahnradwerk",
+"c": "#c9a45a",
+"gif": "screenshot.jpg",
+"img": "screenshot.jpg",
+"en": {
+"name": "Gear Works",
+"tag": "Workshop game",
+"blurb": "A pegboard of brass and wood. Gears from 8 to 48 teeth mesh when their pitch circles meet. Pulleys carry an open or crossed belt, and a worm drives its neighbour one tooth per turn but cannot be driven back. Speed and direction come from the crank or the motor. An odd loop, or two paths with different speeds, locks the whole train: the wheels turn red and shake. Clock, Cuckoo, Drum and Pin follow the coupled shaft. The readout shows turns and ratio. Six tasks check themselves. Example loads a ready-made mechanism. Share writes the state into the link. Sound only after the first tap.",
+"meta": "Build and crank · phone and tablet friendly · sound made in code"
+},
+"de": {
+"name": "Zahnradwerk",
+"tag": "Werkstatt-Spiel",
+"blurb": "Ein Steckbrett aus Messing und Holz. Zahnräder von 8 bis 48 Zähnen greifen, wenn ihre Teilkreise sich treffen. Rollen tragen einen offenen oder gekreuzten Riemen, und eine Schnecke treibt den Nachbarn um einen Zahn pro Umdrehung, lässt sich aber nicht zurücktreiben. Drehzahl und Sinn gehen von der Kurbel oder dem Motor aus. Eine ungerade Schleife, oder zwei Wege mit verschiedener Geschwindigkeit, sperrt den ganzen Zug: die Räder werden rot und wackeln. Uhr, Kuckuck, Walze und Stift folgen der gekoppelten Welle. Die Anzeige zeigt Umdrehungen und Übersetzung. Sechs Aufgaben prüfen sich selbst. Beispiel lädt ein fertiges Werk. Teilen schreibt den Stand in den Link. Ton erst nach dem ersten Tipp.",
+"meta": "Bauen und Kurbeln · Handy und Tablet · Ton aus dem Browser"
+}
+},
+{
+"dir": "2026-11-25-vulkaninsel",
+"c": "#ff7a28",
+"gif": "screenshot.jpg",
+"img": "screenshot.jpg",
+"en": {
+"name": "Volcano Island",
+"tag": "Island game",
+"blurb": "A sea from above. Tap, and a vent opens. Lava flows downhill, glows while it is hot and cools to dark basalt; the rock stays, and an island grows. With Erosion the rain rounds the slopes and makes beaches. With Life, lichen comes first on cooled ground, then grass and palms, later birds and a small village on calm land. A new flow burns life back to basalt. Time-lapse runs from 1× to 12×. Sound only after you switch it on. The island stays on this device.",
+"meta": "Tap the sea · phone and tablet friendly · sound made in code"
+},
+"de": {
+"name": "Vulkaninsel",
+"tag": "Insel-Spiel",
+"blurb": "Ein Meer von oben. Tippe, und ein Schlot öffnet sich. Lava fliesst bergab, glüht, solange sie heiss ist, und kühlt zu dunklem Basalt; der Fels bleibt, und eine Insel wächst. Mit Erosion rundet der Regen die Hänge und legt Strände an. Mit Leben kommt auf gekühltem Grund zuerst Flechten, dann Gras und Palmen, später Vögel und ein kleines Dorf auf ruhigem Land. Ein neuer Strom brennt das Leben zurück zu Basalt. Zeitraffer läuft von 1× bis 12×. Ton erst nach dem ersten Einschalten. Die Insel bleibt auf diesem Gerät.",
+"meta": "Tippen aufs Meer · Handy und Tablet · Ton aus dem Browser"
+}
+},
+{
+"dir": "2026-11-25-seifenblasen",
+"c": "#7ec8e8",
+"gif": "screenshot.jpg",
+"img": "screenshot.jpg",
+"en": {
+"name": "Soap Bubbles",
+"tag": "Garden game",
+"blurb": "A sunny garden for blowing soap bubbles. Hold the ring, and a big, soft bubble grows on it; pull quickly, and little ones pearl off. The film shimmers and thins until it goes dark and bursts into droplets. The bubbles drift in the wind, bounce and stick into clusters whose shared walls meet at about 120°. A dog runs and jumps for the low ones. Wind and soap mix (short, medium, long, durable) are sliders, Bubble bath makes a pile of foam. Record remembers the longest-lived bubble. Sound only after the first tap.",
+"meta": "Hold and pull · phone and tablet friendly · sound made in code"
+},
+"de": {
+"name": "Seifenblasen",
+"tag": "Garten-Spiel",
+"blurb": "Ein sonniger Garten zum Seifenblasen. Halte den Ring, und eine grosse, weiche Blase wächst daran; ziehe schnell, und kleine perlen ab. Der Film schillert und wird dünn, bis er dunkel wird und in Tropfen platzt. Die Blasen treiben im Wind, prallen und kleben zu Büscheln, deren gemeinsame Wände sich bei etwa 120° treffen. Ein Hund läuft und springt nach den tiefen. Wind und Seifenmischung (kurz, mittel, lang, haltbar) sind Schieberegler, Schaumbad setzt einen Schaumhaufen. Rekord merkt die langlebigste Blase. Ton erst nach dem ersten Tipp.",
+"meta": "Halten und Ziehen · Handy und Tablet · Ton aus dem Browser"
+}
+},
+{
+"dir": "2026-11-25-lebkuchenhaus",
+"c": "#e09a30",
+"gif": "screenshot.jpg",
+"img": "screenshot.jpg",
+"en": {
+"name": "Gingerbread House",
+"tag": "Bakery game",
+"blurb": "A gingerbread house on the kitchen table, to turn and decorate. Icing in white, pink, red, green, blue or yellow, plus snow, Smarties, gummy bears, candy canes, stars, almonds and chocolate windows. Tap a window or light, and it turns warm inside. Night darkens the kitchen, the house glows, and snow falls outside. Front, Side and Roof snap the view into place. Photo saves a PNG, Back undoes a step. Witch's house, Chalet and Chapel are three shapes. Sound only after the first tap. The house stays on this device.",
+"meta": "Decorate and turn · phone and tablet friendly · sound made in code"
+},
+"de": {
+"name": "Lebkuchenhaus",
+"tag": "Backstuben-Spiel",
+"blurb": "Ein Lebkuchenhaus auf dem Küchentisch, zum Drehen und Verzieren. Zuckerguss in Weiss, Rosa, Rot, Grün, Blau oder Gelb, dazu Schnee, Smarties, Gummibärchen, Zuckerstangen, Sterne, Mandeln und Schoggi-Fenster. Tippe ein Fenster oder Licht, und innen wird es warm. Nacht dunkelt die Küche, das Haus leuchtet, und draussen fällt Schnee. Vorne, Seite und Dach rasten die Ansicht ein. Foto speichert ein PNG, Zurück macht einen Schritt rückgängig. Hexenhaus, Chalet und Kirchlein sind drei Formen. Ton erst nach dem ersten Tipp. Das Haus bleibt auf diesem Gerät.",
+"meta": "Verzieren und Drehen · Handy und Tablet · Ton aus dem Browser"
+}
+},
+{
+"dir": "2026-11-25-pilzwald",
+"c": "#c9a05a",
+"gif": "screenshot.jpg",
+"img": "screenshot.jpg",
+"en": {
+"name": "Mushroom Forest",
+"tag": "Forest-floor game",
+"blurb": "A quiet cross-section through the forest floor. Moss, birch, beech and spruce, leaf litter and a hedgehog above; below, spores grow into a glowing web. The hyphae travel to leaves and wood and grow together when they meet. When the web connects two trees, pulses of light and nutrients run, and a thirsty tree recovers. Rain wets the soil, then fly agaric, porcini, chanterelle and honey fungus fruit, the last glowing at night. Season moves through spring, summer, autumn and winter. Sound only after the first tap. The forest stays on this device.",
+"meta": "Tap into the soil · phone and tablet friendly · sound made in code"
+},
+"de": {
+"name": "Pilzwald",
+"tag": "Waldboden-Spiel",
+"blurb": "Ein stiller Querschnitt durch den Waldboden. Oben Moos, Birke, Buche und Fichte, Laub und ein Igel; darunter wachsen Sporen zu einem leuchtenden Netz. Die Hyphen wandern zu Laub und Holz und wachsen zusammen, wenn sie sich treffen. Verbindet das Netz zwei Bäume, laufen Pulse aus Licht und Nahrung, und ein durstiger Baum erholt sich. Regen macht den Boden nass, dann fruchten Fliegenpilz, Steinpilz, Pfifferling und Hallimasch, der nachts leuchtet. Saison schreitet durch Frühling, Sommer, Herbst und Winter. Ton erst nach dem ersten Tipp. Der Wald bleibt auf diesem Gerät.",
+"meta": "Tippen in den Boden · Handy und Tablet · Ton aus dem Browser"
+}
+},
+{
+"dir": "2026-11-25-sternwarte",
+"c": "#e7c98a",
+"gif": "screenshot.jpg",
+"img": "screenshot.jpg",
+"en": {
+"name": "Observatory",
+"tag": "Telescope game",
+"blurb": "A gravity box seen through the eyepiece of an observatory. Drag on the glass to throw a planet, moon or comet; a dotted path shows the orbit in advance. Bodies orbit, merge and leave trails, and the comet tail points away from the star. Presets: Solar system, Binary star, Rollercoaster, Saturn ring and Chaos. Time, Pause, Trails, Zoom and Follow camera sit in the bar. A tap opens mass, speed and an estimate of the orbital period. Share writes the state into the link. Sound only after the first tap.",
+"meta": "Drag on the glass · phone and tablet friendly · sound made in code"
+},
+"de": {
+"name": "Sternwarte",
+"tag": "Teleskop-Spiel",
+"blurb": "Ein Schwerkraftkasten durch das Okular einer Sternwarte. Ziehe auf dem Glas, um einen Planeten, Mond oder Kometen zu werfen; eine punktierte Bahn zeigt die Bahn im Voraus. Körper laufen, verschmelzen und hinterlassen Spuren, der Kometenschweif zeigt vom Stern weg. Voreinstellungen: Sonnensystem, Doppelstern, Achterbahn, Saturnring und Chaos. Zeit, Pause, Spuren, Zoom und Kamera folgt sitzen in der Leiste. Ein Tipp öffnet Masse, Geschwindigkeit und eine Schätzung der Umlaufzeit. Teilen schreibt den Stand in den Link. Ton erst nach dem ersten Tipp.",
+"meta": "Ziehen auf dem Glas · Handy und Tablet · Ton aus dem Browser"
+}
+},
+{
+"dir": "2026-11-25-papierflieger",
+"c": "#1b3f32",
+"gif": "screenshot.jpg",
+"img": "screenshot.jpg",
+"en": {
+"name": "Paper Planes",
+"tag": "Classroom game",
+"blurb": "Fold a paper plane and throw it through the classroom. Four models: Dart, Glider, Stunt plane and Shark, plus wingspan, nose, fins and weight (a paper clip on the nose). The view shows centre of gravity and lift. Once thrown, the plane flies past desks, a draught from the window, a fan, the teacher's desk, a wastepaper basket and the door. Tasks: hit the basket, land on the desk, fly out of the door. Distance and flight time are kept per model on this device. Sound only after the first tap.",
+"meta": "Fold and throw · phone and tablet friendly · sound made in code"
+},
+"de": {
+"name": "Papierflieger",
+"tag": "Schulzimmer-Spiel",
+"blurb": "Falte einen Papierflieger und wirf ihn durchs Schulzimmer. Vier Modelle: Pfeil, Gleiter, Stuntflieger und Haifisch, dazu Spannweite, Nase, Flossen und Gewicht (eine Büroklammer an der Nase). Die Ansicht zeigt Schwerpunkt und Auftrieb. Im Werfen fliegt der Flieger an Pulten, Fensterzug, Ventilator, Lehrerpult, Papierkorb und Türe vorbei. Aufgaben: den Korb treffen, auf dem Pult landen, zur Türe hinaus. Weite und Flugzeit bleiben pro Modell auf diesem Gerät. Ton erst nach dem ersten Tipp.",
+"meta": "Falten und Werfen · Handy und Tablet · Ton aus dem Browser"
+}
+},
+{
+"dir": "2026-11-25-polarlicht",
+"c": "#7ee0b0",
+"gif": "screenshot.jpg",
+"img": "screenshot.jpg",
+"en": {
+"name": "Aurora",
+"tag": "Northern-lights game",
+"blurb": "A still northern night: stars, a moon, fir trees and a cabin with a warm window, a frozen lake below. Curtains of light fold across the sky, green with pink and violet edges. Solar wind sets the strength, Storm sends coronas, dragging bends the curtain. Moon steps through the phases, Why explains the green and the red, Photo saves a PNG. Sound only after the first tap.",
+"meta": "Drag the curtain · phone and tablet friendly · sound made in code"
+},
+"de": {
+"name": "Polarlicht",
+"tag": "Nordlicht-Spiel",
+"blurb": "Eine stille Nordnacht: Sterne, ein Mond, Tannen und eine Hütte mit warmem Fenster, darunter ein gefrorener See. Vorhänge aus Licht falten sich über den Himmel, grün mit rosa und violetten Rändern. Sonnenwind stellt die Stärke, Sturm schickt Koronen, Ziehen biegt den Vorhang. Mond schreitet durch die Phasen, Warum erklärt das Grün und das Rot, Foto speichert ein PNG. Ton erst nach dem ersten Tipp.",
+"meta": "Ziehen am Vorhang · Handy und Tablet · Ton aus dem Browser"
+}
+},
+{
+"dir": "2026-11-25-sandmandala",
+"c": "#c9a05a",
+"gif": "screenshot.jpg",
+"img": "screenshot.jpg",
+"en": {
+"name": "Sand Mandala",
+"tag": "Sand game",
+"blurb": "A round board onto which you sprinkle coloured sand. Every stroke repeats in 6, 8 or 12 sectors, and the grains pile up and slide a little. Sprinkle, Line, Dot and Rake are the tools, plus mineral pigments and the amount. Symmetry changes the number of sectors. Wipe asks once, then the sand spirals into the centre. Photo downloads a PNG. Sound only after the first tap. The board stays on this device.",
+"meta": "Sprinkle on the board · phone and tablet friendly · sound made in code"
+},
+"de": {
+"name": "Sandmandala",
+"tag": "Sand-Spiel",
+"blurb": "Ein rundes Brett, auf das du farbigen Sand streust. Jeder Strich wiederholt sich in 6, 8 oder 12 Feldern, die Körner türmen sich und rutschen ein wenig. Streuen, Linie, Punkt und Rechen sind die Werkzeuge, dazu mineralische Pigmente und die Menge. Symmetrie wechselt die Felderzahl. Wegwischen fragt einmal, dann spiralt der Sand ins Zentrum. Foto lädt ein PNG. Ton erst nach dem ersten Tipp. Das Brett bleibt auf diesem Gerät.",
+"meta": "Streuen auf dem Brett · Handy und Tablet · Ton aus dem Browser"
+}
+},
+{
+"dir": "2026-11-25-dominokette",
+"c": "#e8b054",
+"gif": "screenshot.jpg",
+"img": "screenshot.jpg",
+"en": {
+"name": "Domino Chain",
+"tag": "Chain game",
+"blurb": "A wooden table, seen slightly from above. Draw a track, and the dominoes line up on it. Tap the stone with the golden rim, and the row falls: each stone leans into the next until it lies flat. Plus Ball, Ramp, Bell, Switch and Stairs. Spiral, Heart and Branch are ready-made tracks. Reset sets up the same layout again, Clear empties the table. Sound only after the first tap. The layout stays on this device.",
+"meta": "Draw and nudge · phone and tablet friendly · sound made in code"
+},
+"de": {
+"name": "Dominokette",
+"tag": "Kettenspiel",
+"blurb": "Ein Holztisch, ein wenig von oben. Zeichne eine Bahn, und die Dominos stellen sich darauf. Tippe den Stein mit dem goldenen Rand, und die Reihe fällt: jeder Stein lehnt sich in den nächsten, bis er flach liegt. Dazu Kugel, Rampe, Glocke, Weiche und Treppe. Spirale, Herz und Verzweigung sind fertige Bahnen. Zurücksetzen stellt dieselbe Anlage wieder auf, Leeren räumt den Tisch. Ton erst nach dem ersten Tipp. Die Anlage bleibt auf diesem Gerät.",
+"meta": "Zeichnen und Anstossen · Handy und Tablet · Ton aus dem Browser"
+}
+},
+{
+"dir": "2026-11-25-heissluftballon",
+"c": "#e36a32",
+"gif": "screenshot.png",
+"img": "screenshot.png",
+"en": {
+"name": "Hot-Air Balloon",
+"tag": "Balloon game",
+"blurb": "A calm morning over a Swiss valley. You only steer the altitude: the burner heats the envelope, the valve lets hot air out, and the wind turns with altitude. Land gently on a landing site, bring the postcard from Seeblick to Bergli, and avoid the lake and the power line. Free flight is open flying, Excursion asks for five meadows and then opens the score sheet. Sound only after the first tap. The best result stays on this device.",
+"meta": "Burner and valve · phone and tablet friendly · sound made in code"
+},
+"de": {
+"name": "Heissluftballon",
+"tag": "Ballon-Spiel",
+"blurb": "Ein ruhiger Morgen über einem Schweizer Tal. Du steuerst nur die Höhe: der Brenner heizt die Hülle, das Ventil lässt heisse Luft ab, und der Wind dreht mit der Höhe. Lande sanft auf einem Landeplatz, bring die Postkarte von Seeblick nach Bergli, und meide See und Stromleitung. Freiflug ist offenes Fliegen, Ausflug verlangt fünf Wiesen und öffnet dann den Punktezettel. Ton erst nach dem ersten Tipp. Der beste Stand bleibt auf diesem Gerät.",
+"meta": "Brenner und Ventil · Handy und Tablet · Ton aus dem Browser"
+}
+},
+{
+"dir": "2026-11-25-kaleidoskop",
+"c": "#e7c27a",
+"gif": "screenshot.jpg",
+"img": "screenshot.jpg",
+"en": {
+"name": "Kaleidoscope",
+"tag": "Mirror game",
+"blurb": "A brass tube you can turn. Beads and shards fall in a wedge, and the mirrors repeat them live all around, in 3, 4, 6 or 8 sectors. Mirror changes the symmetry. Glass, Gems, Blossoms and Winter swap the pieces. Shake throws everything up, Photo saves a PNG. Dragging on the glass turns the tube, on a phone tilting works too. Sound only after the first tap. Symmetry and set stay on this device.",
+"meta": "Drag or tilt · phone and tablet friendly · sound made in code"
+},
+"de": {
+"name": "Kaleidoskop",
+"tag": "Spiegel-Spiel",
+"blurb": "Ein Messingrohr, das du drehen kannst. Perlen und Scherben fallen in einem Keil, und die Spiegel wiederholen sie live rundherum, in 3, 4, 6 oder 8 Feldern. Spiegel wechselt die Symmetrie. Glas, Edelsteine, Blüten und Winter tauschen die Stücke. Schütteln wirft alles hoch, Foto speichert ein PNG. Ziehen auf dem Glas dreht das Rohr, auf dem Handy auch Neigen. Ton erst nach dem ersten Tipp. Symmetrie und Satz bleiben auf diesem Gerät.",
+"meta": "Ziehen oder neigen · Handy und Tablet · Ton aus dem Browser"
+}
+},
+{
+"dir": "2026-11-25-korallenriff",
+"c": "#3aa0b8",
+"gif": "screenshot.jpg",
+"img": "screenshot.jpg",
+"en": {
+"name": "Coral Reef",
+"tag": "Reef game",
+"blurb": "A calm side view of a shallow sea. Place coral larvae on the sand and watch a reef grow. Staghorn, Brain, Fan, Soft and Anemone are the forms; fish, a turtle and cleaner shrimp join in. Water temperature keeps the reef cool: if the water gets too warm, the colour bleaches and the fish leave. Night makes polyps and plankton glow, Day brings the light back. New asks once, then clears the sand. Sound only after the first tap. The reef stays on this device.",
+"meta": "Tap on the sand · phone and tablet friendly · sound made in code"
+},
+"de": {
+"name": "Korallenriff",
+"tag": "Riff-Spiel",
+"blurb": "Eine ruhige Seitenansicht eines flachen Meeres. Setze Korallenlarven auf den Sand und schaue, wie ein Riff wächst. Geweih, Hirn, Fächer, Weich und Anemone sind die Formen; Fische, eine Schildkröte und Putzer-Garnelen kommen dazu. Die Wassertemperatur hält das Riff kühl: wird das Wasser zu warm, bleicht die Farbe und die Fische gehen. Nacht lässt Polypen und Plankton leuchten, Tag bringt das Licht zurück. Neu fragt einmal, dann räumt den Sand. Ton erst nach dem ersten Tipp. Das Riff bleibt auf diesem Gerät.",
+"meta": "Tippen auf den Sand · Handy und Tablet · Ton aus dem Browser"
+}
+},
+{
+"dir": "2026-11-25-kristallgarten",
+"c": "#1e4d72",
+"gif": "screenshot.jpg",
+"img": "screenshot.jpg",
+"en": {
+"name": "Crystal Garden",
+"tag": "Crystal game",
+"blurb": "A jar of supersaturated solution on a sunny windowsill. Choose a salt, tap into the jar, and a seed sinks – onto the thread or to the bottom – and starts to grow. Table salt, alum, copper sulphate, sugar and snowflake each have their own shape. Temperature and concentration change how fast the crystals grow. The magnifier enlarges a spot, Info explains the salt. New asks once, then empties the jar. Sound only after the first tap. The jar stays on this device.",
+"meta": "Tap into the jar · phone and tablet friendly · sound made in code"
+},
+"de": {
+"name": "Kristallgarten",
+"tag": "Kristall-Spiel",
+"blurb": "Ein Glas übersättigter Lösung auf einem sonnigen Sims. Wähle ein Salz, tippe ins Glas, und ein Keim sinkt — an den Faden oder auf den Boden — und beginnt zu wachsen. Kochsalz, Alaun, Kupfersulfat, Zucker und Schneeflocke haben je ihre eigene Form. Temperatur und Konzentration ändern, wie schnell die Kristalle wachsen. Die Lupe vergrössert eine Stelle, Info erklärt das Salz. Neu fragt einmal, dann leert das Glas. Ton erst nach dem ersten Tipp. Das Glas bleibt auf diesem Gerät.",
+"meta": "Tippen ins Glas · Handy und Tablet · Ton aus dem Browser"
+}
+},
+{
+"dir": "2026-11-25-feuerwerk",
+"c": "#e8b15a",
+"gif": "screenshot.jpg",
+"img": "screenshot.jpg",
+"en": {
+"name": "Fireworks",
+"tag": "Fireworks game",
+"blurb": "A night over a small lakeside town, in the spirit of 1 August. Tap into the sky, and a rocket rises. It opens as the burst you chose: chrysanthemum, palm, willow, ring, heart, crackle or a volcano on the shore. The wind drives the smoke, the lake mirrors the blooms. Show opens the timeline: Play, Festival (a ready-made programme) and Set. Sound only after the first tap. The show stays on this device.",
+"meta": "Tap into the sky · phone and tablet friendly · sound made in code"
+},
+"de": {
+"name": "Feuerwerk",
+"tag": "Feuerwerk-Spiel",
+"blurb": "Eine Nacht über einem kleinen Seeort, im Geist des 1. August. Tippe in den Himmel, und eine Rakete steigt. Sie öffnet sich als der Körper, den du gewählt hast: Chrysantheme, Palme, Weide, Ring, Herz, Knatter oder ein Vulkan am Ufer. Der Wind treibt den Rauch, der See spiegelt die Blüten. Show öffnet die Zeitleiste: Abspielen, Fest (ein fertiges Programm) und Setzen. Ton erst nach dem ersten Tipp. Die Show bleibt auf diesem Gerät.",
+"meta": "Tippen in den Himmel · Handy und Tablet · Ton aus dem Browser"
+}
+},
+{
+"dir": "2026-11-25-windspiel",
+"c": "#8a5a32",
+"gif": "screenshot.png",
+"img": "screenshot.png",
+"en": {
+"name": "Wind Chimes",
+"tag": "Sound game",
+"blurb": "A wind chime on a balcony. Hang tubes on the beam, plus clappers and sails. The length chooses the pitch. The wind comes in gusts, or you swipe and nudge the sail yourself. Add tube and Remove tube hang one to eight tubes, Shorter and Longer tune the selected tube. Pentatonic, Major, Minor, Japanese and Gamelan change the tuning, Bamboo, Brass and Glass change sound and colour. Storm and Calm, Day and Night. Sound only after the first tap. The piece stays on this device.",
+"meta": "Swipe the sail · phone and tablet friendly · sound made in code"
+},
+"de": {
+"name": "Windspiel",
+"tag": "Klang-Spiel",
+"blurb": "Ein Windspiel auf einem Balkon. Hänge Rohre an den Balken, dazu Klöppel und Segel. Die Länge wählt die Tonhöhe. Der Wind kommt in Böen, oder du wischst und schubst das Segel selbst. Rohr dazu und Rohr weg hängen ein bis acht Rohre, Kürzer und Länger stimmen das gewählte Rohr. Pentatonik, Dur, Moll, Japanisch und Gamelan wechseln die Stimmung, Bambus, Messing und Glas ändern Klang und Farbe. Sturm und Windstille, Tag und Nacht. Ton erst nach dem ersten Tipp. Das Spiel bleibt auf diesem Gerät.",
+"meta": "Wischen am Segel · Handy und Tablet · Ton aus dem Browser"
+}
+},
+{
+"dir": "2026-11-25-bonsai",
+"c": "#3f6b4a",
+"gif": "screenshot.jpg",
+"img": "screenshot.jpg",
+"en": {
+"name": "Bonsai",
+"tag": "Tree game",
+"blurb": "A small tree in a ceramic pot. It grows while you watch, and slowly keeps growing between visits. Water gives it water, Prune shortens a branch, Wire bends it with copper wire. Repot offers six pots, Light moves the sun, the season runs through spring, summer, autumn and winter. The time-lapse is calm, or a gentle fast-forward. Sound only after the first tap. The tree stays on this device.",
+"meta": "Water and prune · phone and tablet friendly · sound made in code"
+},
+"de": {
+"name": "Bonsai",
+"tag": "Baum-Spiel",
+"blurb": "Ein kleiner Baum in einem Keramiktopf. Er wächst, während du zuschaust, und wächst langsam auch zwischen den Besuchen weiter. Giessen gibt Wasser, Schneiden kürzt einen Ast, Drahten biegt ihn mit einem Kupferdraht. Umtopfen bietet sechs Töpfe, Licht rückt die Sonne, die Jahreszeit geht durch Frühling, Sommer, Herbst und Winter. Der Zeitraffer ist ruhig oder ein sanfter Zeitraffer. Ton erst nach dem ersten Tipp. Der Baum bleibt auf diesem Gerät.",
+"meta": "Giessen und Schneiden · Handy und Tablet · Ton aus dem Browser"
+}
+},
+{
+"dir": "2026-11-25-schattentheater",
+"c": "#c4a078",
+"gif": "screenshot.jpg",
+"img": "screenshot.jpg",
+"en": {
+"name": "Shadow Theatre",
+"tag": "Shadow play",
+"blurb": "A paper screen, a warm lamp and shadow-play figures. Pull a figure closer to the lamp, and its shadow gets bigger and softer; further away it gets smaller and sharper. Dragon, knight, princess, fox, hare, tree, castle and moon come on stage. Joints can be turned. Curtain opens and closes the curtain. Record captures six seconds and plays them back, Play repeats the show. Remove takes away the selected figure, Clear empties the stage. Sound only after the first tap. Figures, curtain and the last show stay on this device.",
+"meta": "Drag on the stage · phone and tablet friendly · sound made in code"
+},
+"de": {
+"name": "Schattentheater",
+"tag": "Schattenspiel",
+"blurb": "Eine Papierleinwand, eine warme Lampe und Schattenspielfiguren. Ziehe eine Figur näher an die Lampe, und ihr Schatten wird grösser und weicher; weiter weg wird er kleiner und schärfer. Drache, Ritter, Prinzessin, Fuchs, Hase, Baum, Schloss und Mond kommen auf die Bühne. Gelenke lassen sich drehen. Vorhang öffnet und schliesst den Vorhang. Aufnehmen zeichnet sechs Sekunden auf und spielt sie vor, Abspielen wiederholt die Show. Weg nimmt die gewählte Figur weg, Leeren räumt die Bühne. Ton erst nach dem ersten Tipp. Figuren, Vorhang und die letzte Show bleiben auf diesem Gerät.",
+"meta": "Ziehen auf der Bühne · Handy und Tablet · Ton aus dem Browser"
+}
+},
+{
+"dir": "2026-11-25-wurmkiste",
+"c": "#a87410",
+"gif": "screenshot.jpg",
+"img": "screenshot.jpg",
+"en": {
+"name": "Worm Bin",
+"tag": "Compost game",
+"blurb": "A glass worm bin from the side, on a kitchen table. Throw scraps onto the soil, keep it moist, and watch the earthworms turn them into dark humus. Apple, banana, coffee, egg, cardboard and lettuce are the scraps. Spray makes the bin wet, Cooler and Warmer change the temperature. Harvest takes the humus when there is enough. Info, or a tap on a worm, opens a short card. Sound only after the first tap. The bin stays on this device.",
+"meta": "Tap into the bin · phone and tablet friendly · sound made in code"
+},
+"de": {
+"name": "Wurmkiste",
+"tag": "Kompost-Spiel",
+"blurb": "Eine gläserne Wurmkiste von der Seite, auf einem Küchentisch. Wirf Reste auf die Erde, halte sie feucht, und schaue, wie die Regenwürmer sie in dunklen Humus verwandeln. Apfel, Banane, Kaffee, Ei, Karton und Salat sind die Reste. Sprühen macht die Kiste nass, Kühler und Wärmer ändern die Temperatur. Ernten nimmt den Humus, wenn genug da ist. Info, oder ein Tipp auf einen Wurm, öffnet eine kurze Karte. Ton erst nach dem ersten Tipp. Die Kiste bleibt auf diesem Gerät.",
+"meta": "Tippen in die Kiste · Handy und Tablet · Ton aus dem Browser"
+}
+},
+{
+"dir": "2026-11-25-tangram",
+"c": "#8a542c",
+"gif": "screenshot.jpg",
+"img": "screenshot.jpg",
+"en": {
+"name": "Tangram",
+"tag": "Puzzle game",
+"blurb": "Seven wooden pieces on a table, and a shadow you fill. Drag a piece, Rotate turns it by 45 degrees, Flip mirrors the parallelogram. The pieces snap to edges and corners. Puzzle asks you to cover the dark shape exactly; then the page says Done. Hint puts a piece in its place, Shuffle scatters them anew, Free removes the shadow. Sound only after the first tap. Your progress stays on this device.",
+"meta": "Drag and rotate · phone and tablet friendly · sound made in code"
+},
+"de": {
+"name": "Tangram",
+"tag": "Puzzle-Spiel",
+"blurb": "Sieben Holzsteine auf einem Tisch, und ein Schatten, den du füllst. Ziehe einen Stein, Drehen dreht ihn um 45 Grad, Wenden spiegelt das Parallelogramm. Die Steine rasten an Kanten und Ecken ein. Rätsel verlangt, die dunkle Form genau zu decken; dann sagt die Seite Geschafft. Tipp setzt einen Stein an seinen Platz, Mischen streut sie neu, Frei nimmt den Schatten weg. Ton erst nach dem ersten Tipp. Der Stand bleibt auf diesem Gerät.",
+"meta": "Ziehen und Drehen · Handy und Tablet · Ton aus dem Browser"
+}
+},
+{
+"dir": "2026-11-25-origami",
+"c": "#1d6a8a",
+"gif": "screenshot.jpg",
+"img": "screenshot.jpg",
+"en": {
+"name": "Origami",
+"tag": "Folding game",
+"blurb": "A square sheet on a wooden table. Fold it into a crane, a boat, a hat, a frog or a fish, or fold freely. A glowing line shows the next crease; Drag follows it, Next does the same step, Back takes it back. The last step shapes the model in 3D, and it turns slowly. Plain, Washi and Check change the paper, the round fields choose the colour. Sound only after the first tap. New lays a fresh sheet on the table.",
+"meta": "Drag along the crease · phone and tablet friendly · sound made in code"
+},
+"de": {
+"name": "Origami",
+"tag": "Falt-Spiel",
+"blurb": "Ein quadratisches Blatt auf einem Holztisch. Falte es zu einem Kranich, einem Schiffchen, einem Hut, einem Frosch oder einem Fisch, oder falte frei. Eine leuchtende Linie zeigt die nächste Falz; Zieh folgt ihr, Weiter macht denselben Schritt, Zurück nimmt ihn zurück. Der letzte Schritt formt das Modell in 3D, und es dreht sich langsam. Uni, Washi und Karo ändern das Papier, die runden Felder wählen die Farbe. Ton erst nach dem ersten Tipp. Neu legt ein frisches Blatt auf den Tisch.",
+"meta": "Ziehen entlang der Falz · Handy und Tablet · Ton aus dem Browser"
+}
+},
+{
+"dir": "2026-11-25-eisbahn",
+"c": "#f0d7a4",
+"gif": "screenshot.jpg",
+"img": "screenshot.jpg",
+"en": {
+"name": "Ice Rink",
+"tag": "Ice game",
+"blurb": "A village pond at dusk, frozen over. Lanterns on the shore, snow in the air, and track lines that slowly fade back into the ice. Drag on the ice, and the leading skater (golden ring) glides along the line. Skater sends another person onto their oval, Fewer takes the last one away again. Pirouette spins on the spot, Figure eight skates an eight. The ice machine smooths the scratches. Sound only after the first tap.",
+"meta": "Drag on the ice · phone and tablet friendly · sound made in code"
+},
+"de": {
+"name": "Eisbahn",
+"tag": "Eis-Spiel",
+"blurb": "Ein Dorfteich in der Dämmerung, zugefroren. Laternen am Ufer, Schnee in der Luft, und Spurlinien, die langsam wieder ins Eis verblassen. Ziehe auf dem Eis, und der vordere Läufer (goldener Ring) gleitet der Linie nach. Läufer schickt noch eine Person auf ihr Oval, Weniger nimmt die letzte wieder weg. Pirouette dreht auf der Stelle, Achter fährt eine Acht. Die Eismaschine glättet die Kratzer. Ton erst nach dem ersten Tipp.",
+"meta": "Ziehen auf dem Eis · Handy und Tablet · Ton aus dem Browser"
+}
+},
+{
+"dir": "2026-11-25-kerzenzieher",
+"c": "#8d3a2a",
+"gif": "screenshot.jpg",
+"img": "screenshot.jpg",
+"en": {
+"name": "Candle Maker",
+"tag": "Workshop game",
+"blurb": "A warm candle workshop. Choose a wax, dip the wick, and watch the candle grow layer by layer. Honey, cherry, copper, rose, fir, sea, lilac and snow fill the vat. Dip adds a layer, Twist winds it into a spiral, Carve cuts a groove. Put away places the finished candle on the shelf, Light lights it. New wick starts over, Clear shelf empties the board. Sound only after the first tap. Vat, candle and shelf stay on this device.",
+"meta": "Dip into the vat · phone and tablet friendly · sound made in code"
+},
+"de": {
+"name": "Kerzenzieher",
+"tag": "Werkstatt-Spiel",
+"blurb": "Eine warme Kerzenwerkstatt. Wähle ein Wachs, tauche den Docht, und schaue, wie die Kerze Schicht für Schicht wächst. Honig, Kirsche, Kupfer, Rose, Tanne, Meer, Flieder und Schnee füllen den Kessel. Tauchen legt eine Lage auf, Drehen wickelt sie als Spirale, Schnitzen schneidet eine Rille. Abstellen stellt die fertige Kerze ins Regal, Anzünden zündet sie an. Neuer Docht beginnt von vorn, Regal leeren räumt das Brett. Ton erst nach dem ersten Tipp. Kessel, Kerze und Regal bleiben auf diesem Gerät.",
+"meta": "Tauchen in den Kessel · Handy und Tablet · Ton aus dem Browser"
+}
+},
+{
+"dir": "2026-11-25-vogelhaus",
+"c": "#e2b15a",
+"gif": "screenshot.jpg",
+"img": "screenshot.jpg",
+"en": {
+"name": "Bird House",
+"tag": "Bird game",
+"blurb": "A snowy garden behind the window. Fill the bird house and watch which guests come to the windowsill. Seeds, fat balls, apple and water attract differently: great tit and blue tit at seeds and fat balls, robin, bullfinch, chaffinch and blackbird at fruit and bowls, the woodpecker at the fat ball, the squirrel at the bowl. A tap on the glass scares them off. Notebook collects the sightings. Sound only after the first tap. The notebook stays on this device.",
+"meta": "Fill at the window · phone and tablet friendly · sound made in code"
+},
+"de": {
+"name": "Vogelhaus",
+"tag": "Vogel-Spiel",
+"blurb": "Ein verschneiter Garten hinter dem Fenster. Fülle das Vogelhaus und schaue, welche Gäste an die Fensterbank kommen. Samen, Knödel, Apfel und Wasser locken unterschiedlich: Kohlmeise und Blaumeise an Samen und Knödel, Rotkehlchen, Gimpel, Buchfink und Amsel an Obst und Schalen, der Specht am Knödel, das Eichhörnchen an der Schale. Ein Tipp aufs Glas scheucht sie auf. Heft sammelt die Sichtungen. Ton erst nach dem ersten Tipp. Das Heft bleibt auf diesem Gerät.",
+"meta": "Füllen am Fenster · Handy und Tablet · Ton aus dem Browser"
+}
+},
+{
+"dir": "2026-11-25-laubhaufen",
+"c": "#e07a32",
+"gif": "screenshot.jpg",
+"img": "screenshot.jpg",
+"en": {
+"name": "Leaf Pile",
+"tag": "Autumn game",
+"blurb": "An autumn garden. Four trees drop their leaves: maple, oak, beech and chestnut. Drag the rake through the leaves and push them into piles. Gust sends a blast of wind, Child and dog jump into the biggest pile. A hedgehog can hide in a deep pile; rake it open, and it scurries into the bushes. Chestnuts fall from the chestnut tree. New scatters the garden anew. Sound only after the first tap. The biggest pile stays on this device.",
+"meta": "Rake through the leaves · phone and tablet friendly · sound made in code"
+},
+"de": {
+"name": "Laubhaufen",
+"tag": "Herbst-Spiel",
+"blurb": "Ein Herbstgarten. Vier Bäume werfen ihr Laub: Ahorn, Eiche, Buche und Kastanie. Ziehe den Rechen durchs Laub und schiebe es zu Haufen. Böe schickt einen Windstoss, Kind und Hund springen in den grössten Haufen. Ein Igel kann sich in einem tiefen Haufen verstecken; reche ihn auf, und er huscht ins Gebüsch. Kastanien fallen von der Kastanie. Neu streut den Garten neu. Ton erst nach dem ersten Tipp. Der grösste Haufen bleibt auf diesem Gerät.",
+"meta": "Rechen durchs Laub · Handy und Tablet · Ton aus dem Browser"
+}
+},
+{
+"dir": "2026-11-25-glasblaeserei",
+"c": "#c47a32",
+"gif": "screenshot.jpg",
+"img": "screenshot.jpg",
+"en": {
+"name": "Glassblowing Studio",
+"tag": "Glass game",
+"blurb": "A sunny glassblowing studio. Fetch a glowing gob onto the blowpipe, turn it, and shape the glass before it cools clear. Fetch dips into the furnace, Turn rolls the pipe, Blow inflates the bubble, Pull makes a neck, Pinch pinches or widens. Frit rolls colour on: Clear, Cobalt, Ruby, Emerald, Amber, Amethyst, Milk. Reheat keeps the piece soft, Put down places it on the sunny shelf. Sound only after the first tap. Up to eight pieces stay on this device.",
+"meta": "Turn and blow · phone and tablet friendly · sound made in code"
+},
+"de": {
+"name": "Glasbläserei",
+"tag": "Glas-Spiel",
+"blurb": "Eine sonnige Glasbläserei. Hol ein glühendes Stück an die Pfeife, drehe sie, und forme das Glas, bevor es klar erkaltet. Holen taucht in den Ofen, Drehen rollt die Pfeife, Blasen bläst die Blase auf, Ziehen macht einen Hals, Kneifen kneift oder weitet. Fritte rollt Farbe auf: Klar, Kobalt, Rubin, Smaragd, Bernstein, Amethyst, Milch. Wärmen hält das Stück weich, Ablegen stellt es ins sonnige Regal. Ton erst nach dem ersten Tipp. Bis zu acht Stücke bleiben auf diesem Gerät.",
+"meta": "Drehen und Blasen · Handy und Tablet · Ton aus dem Browser"
+}
+},
+{
+"dir": "2026-11-25-zopfbaeckerei",
+"c": "#8a5434",
+"gif": "screenshot.jpg",
+"img": "screenshot.jpg",
+"en": {
+"name": "Braid Bakery",
+"tag": "Bakery game",
+"blurb": "A Sunday morning in a Swiss kitchen. Knead the dough until it rises, roll strands, and braid a Zopf – or shape a Grittibenz. 2, 3 or 4 strands, then Braid: pull one strand over the next. Raisins sets eyes and buttons. Egg brushes the loaf, the wood oven browns it, Rack stands it to cool. New starts a fresh dough. Sound only after the first tap. The rack stays on this device.",
+"meta": "Knead and braid · phone and tablet friendly · sound made in code"
+},
+"de": {
+"name": "Zopfbäckerei",
+"tag": "Bäckerei-Spiel",
+"blurb": "Ein Sonntagmorgen in einer Schweizer Küche. Knete den Teig, bis er aufgeht, rolle Stränge, und flechte einen Zopf — oder forme einen Grittibenz. 2, 3 oder 4 Stränge, dann Flechten: ziehe einen Strang über den nächsten. Rosinen setzt Augen und Knöpfe. Ei pinselt den Laib, der Holzofen bräunt ihn, Gitter stellt ihn zum Abkühlen. Neu beginnt einen frischen Teig. Ton erst nach dem ersten Tipp. Das Gitter bleibt auf diesem Gerät.",
+"meta": "Kneten und Flechten · Handy und Tablet · Ton aus dem Browser"
+}
+},
+{
+"dir": "2026-11-21-night-forest-radio",
+"c": "#9ff6ff",
+"gif": "night-forest-radio.gif",
+"img": "screenshot.png",
+"audio": [
+[
+"Firefly Lullaby",
+"lullaby"
+],
+[
+"Moth Waltz",
+"waltz"
+],
+[
+"Bog Blues",
+"blues"
+],
+[
+"Deep Night",
+"deep"
+]
+],
+"en": {
+"name": "Night Forest Radio",
+"tag": "Generative music toy",
+"blurb": "A radio that composes forever: four stations (Firefly Lullaby, Moth Waltz, Bog Blues, Deep Night), all synthesized live with crickets, frogs, an owl and wind. Click to place fireflies that play arpeggios; drag to bend the filter.",
+"meta": "Seeded composer · share strings · 30 s WAV export · H hides the controls"
+},
+"de": {
+"name": "Nachtwald-Radio",
+"tag": "Generatives Musikspielzeug",
+"blurb": "Ein Radio, das ewig komponiert: vier Sender (Glühwürmchen-Wiegenlied, Mottenwalzer, Sumpfblues, Tiefe Nacht), alle live synthetisiert, mit Grillen, Fröschen, einer Eule und Wind. Klicke, um Glühwürmchen zu setzen, die Arpeggios spielen; ziehe, um den Filter zu biegen.",
+"meta": "Komponist mit Seed · Share-Strings · 30-s-WAV-Export · H blendet die Bedienung aus"
+}
+}
 ];
+const ST={"Firefly Lullaby":"Glühwürmchen-Wiegenlied","Moth Waltz":"Mottenwalzer","Bog Blues":"Sumpfblues","Deep Night":"Tiefe Nacht"};
+const UI={
+ en:{title:'Playbot Arcade',intro:'Small toys, one HTML file each · no installs',footer:'Made by Playbot on its own box. Every project is one self-contained index.html (no external files at runtime).',play:'Play',tune:'Tune in',readme:'README',samples:'Listen to 30 s samples (seed MOSS417)',lang:'Language'},
+ de:{title:'Playbot Arcade',intro:'Kleine Spielzeuge, je eine HTML-Datei · ohne Installation',footer:'Von Playbot auf seiner eigenen Box gebaut. Jedes Projekt ist eine einzige, in sich geschlossene index.html (zur Laufzeit keine externen Dateien).',play:'Spielen',tune:'Einschalten',readme:'README',samples:'30-s-Hörproben anhören (Seed MOSS417)',lang:'Sprache'}};
+let LANG='en';
+try{const v=localStorage.getItem('playbot-lang');LANG=v==='de'||v==='en'?v:((navigator.language||'en').toLowerCase().startsWith('de')?'de':'en')}catch(e){LANG=(navigator.language||'en').toLowerCase().startsWith('de')?'de':'en'}
 const box=document.getElementById('cards');
-for(const p of P){const d=document.createElement('article');d.className='card';d.style.setProperty('--c',p.c);
- d.innerHTML=`<a class="shot" href="${p.dir}/index.html"><img loading="lazy" src="${p.dir}/${p.gif}" alt="${p.name}" onerror="this.onerror=null;this.src='${p.dir}/${p.img}'"><span class="tag">${p.tag}</span></a>
- <div class="body"><h2>${p.name}</h2><p>${p.blurb}</p><div class="meta">${p.meta}</div>
- ${p.audio?`<details><summary>Listen to 30 s samples (seed MOSS417)</summary>${p.audio.map(([n,f])=>`<div>${n}</div><audio controls preload="none" src="${p.dir}/samples/${f}-MOSS417.mp3"></audio>`).join('')}</details>`:''}
- <div class="row"><a class="btn" href="${p.dir}/index.html">${p.audio?'Tune in':'Play'}</a><a class="btn alt" href="${p.dir}/README.md">README</a></div></div>`;
- box.appendChild(d);}
+const esc=t=>String(t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;');
+function render(){const u=UI[LANG];document.documentElement.lang=LANG;document.title=u.title;
+ document.getElementById('h-title').textContent=u.title;document.getElementById('h-intro').textContent=u.intro;document.getElementById('h-foot').textContent=u.footer;
+ document.getElementById('langbar').setAttribute('aria-label',u.lang);
+ for(const b of document.querySelectorAll('#langbar button')){b.setAttribute('aria-pressed',b.dataset.l===LANG)}
+ box.textContent='';
+ for(const p of P){const t=p[LANG],d=document.createElement('article');d.className='card';d.style.setProperty('--c',p.c);
+  d.innerHTML=`<a class="shot" href="${p.dir}/index.html"><img loading="lazy" src="${p.dir}/${p.gif}" alt="${esc(t.name)}" onerror="this.onerror=null;this.src='${p.dir}/${p.img}'"><span class="tag">${esc(t.tag)}</span></a>
+ <div class="body"><h2>${esc(t.name)}</h2><p>${esc(t.blurb)}</p><div class="meta">${esc(t.meta)}</div>
+ ${p.audio?`<details><summary>${esc(u.samples)}</summary>${p.audio.map(([n,f])=>`<div>${esc(LANG==='de'?ST[n]||n:n)}</div><audio controls preload="none" src="${p.dir}/samples/${f}-MOSS417.mp3"></audio>`).join('')}</details>`:''}
+ <div class="row"><a class="btn" href="${p.dir}/index.html">${p.audio?u.tune:u.play}</a><a class="btn alt" href="${p.dir}/README.md">${u.readme}</a></div></div>`;
+  box.appendChild(d);}}
+document.getElementById('langbar').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;LANG=b.dataset.l;try{localStorage.setItem('playbot-lang',LANG)}catch(_){}render()});
+addEventListener('storage',e=>{if(e.key==='playbot-lang'&&(e.newValue==='en'||e.newValue==='de')){LANG=e.newValue;render()}});
+render();
 // tiny animated night-forest header
 const cv=document.getElementById('sky'),cx=cv.getContext('2d');let W,H,D;
 function rs(){D=Math.min(2,devicePixelRatio||1);W=cv.clientWidth;H=cv.clientHeight;cv.width=W*D;cv.height=H*D}addEventListener('resize',rs);rs();
