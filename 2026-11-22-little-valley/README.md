@@ -146,6 +146,14 @@ are in view. Light rain makes them call a little more, a storm silences them, an
 five at a time (three on a phone). None in autumn or winter, by day, in the always-day mode or in the map
 view. (`screenshot-frogs.png`: frogs at a pond edge on a spring evening, with ripple rings.)
 
+**A woodpecker drums in the spring woods**: in spring, by day (half past seven until half past five), a great
+spotted woodpecker clings to the trunk of a tree in a wooded patch in view, black and white with a red nape and
+red under the tail. Every few seconds it drums a short roll on the bark: its head jabs at the wood and a few pale
+chips flick off and fall. After half a minute or so it flies on to another trunk. With the sound on each roll is
+a soft, quick wooden "trrrrr", panned to the bird. Rain or a storm sends it off, and none comes while it rains.
+None in summer, autumn or winter, at night or in the map view. (`screenshot-woodpecker.png`: a woodpecker
+drumming among the spring blossom, wood chips flying.)
+
 **Hoar frost**: after a clear, cold winter night the trees wake up white-rimed: the pine and leafy crowns
 (and the bare winter twigs) go frosty white with a bright rim on their edges and the open grass turns pale.
 When the sun is up, little sparkles wander over the frosted crowns, and the frost fades as the day warms
