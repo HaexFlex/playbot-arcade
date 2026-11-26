@@ -290,6 +290,10 @@ pale, down to 30% of its water at the drought's height), so a long river can fal
 with the **Well** tool to build it a **spring house**, a little stone chamber with a mossy roof that taps the
 deeper water: that spring keeps going at full flow all summer, and the share link keeps it.
 (`screenshot-spring-house.png`: in a drought, a bare spring running low next to one with a spring house.)
+Which springs need one? In a drought, take the **Well** tool (or look right after the drought hint): every bare
+spring that runs low gets a sandy pulsing ring and a small dashed ghost house above it, the Well's tip counts them,
+and the long river wish line says how many springs run low. Once a spring house stands, its ring goes away.
+(`screenshot-spring-nudge.png`: two low springs marked while the Well tool is in hand.)
 
 ## Save and share
 Tap **Share** (next to the wishes star) for a small panel with three buttons:

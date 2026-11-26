@@ -1510,7 +1510,9 @@ function digWell(g) {
 // first sowing ever (remembered in localStorage): one short hint on what the meadow does
 const SOW_KEY = 'lv-sow-hint'; let sowHinted = false; try { sowHinted = localStorage.getItem(SOW_KEY) === '1'; } catch (e) { /* private mode */ }
 function sowHint(n) { if (sowHinted || !(n > 0)) return; sowHinted = true; st.sowHintT = st.time; try { localStorage.setItem(SOW_KEY, '1'); } catch (e) { /* private mode */ } setTimeout(() => hint('🌼 Sown! It blooms in a while. Rivers wash it away, and it fades after two years unless you sow again'), 900); }
-function setTool(id) { st.tool = id; updUI(); hint(TOOLS.find(t => t[0] === id)[2]); }
+function setTool(id) { st.tool = id; updUI(); hint(id === 'well' && lowBareSprings() ? (st.wellNudgeHint = wellNudgeText(lowBareSprings())) : TOOLS.find(t => t[0] === id)[2]); }
+function lowBareSprings() { const S = st.S; if (!S || !(S.dryNow > 0.05)) return 0; let n = 0; for (const sp of S.springs) if (!sp.house && LV.springFlow(S, sp) < 0.95) n++; return n; }
+function wellNudgeText(n) { return `${n === 1 ? 'A bare spring runs' : n + ' bare springs run'} low in the drought (marked ◎): tap ${n === 1 ? 'it' : 'one'} to build a spring house, or a thirsty cottage for a well`; }
 function updUI() {
   for (const [id] of TOOLS) $('t-' + id).classList.toggle('on', st.tool === id);
   bPlay.innerHTML = svg(st.paused ? 'play' : 'pause') + `<span>${st.paused ? 'Play' : 'Pause'}</span>`; bPlay.classList.toggle('on', st.paused);
@@ -2965,12 +2967,14 @@ function mix(a, b, k) { const pa = parseInt(a.slice(1), 16), pb = parseInt(b.sli
 // ---------- overlays: springs, brush, rain ----------
 function drawOverlays(t) {
   const S = st.S, N = S.N;
-  st.springHouses = 0; st.springsLow = 0;
+  st.springHouses = 0; st.springsLow = 0; st.springNudges = 0; st.springNudgePx = null;
+  const nudge = springNudgeOn(); st.springNudgeOn = nudge;
   for (const sp of S.springs) {
     const p = proj(sp.x * N, sp.y * N); if (!p) continue;
     const bob = Math.sin(t * 4 + sp.x * 20) * 1.5, fl = LV.springFlow(S, sp), low = fl < 0.95; // in a drought a bare spring runs low: a smaller, paler drop, fewer sparkles
     if (sp.house) { st.springHouses++; drawSpringHouse(p[0] + 11, p[1] + 2); } // beside the spring, so the drop stays in view
     if (low) st.springsLow++;
+    if (low && nudge && !sp.house) { drawRiverHintRing(p[0], p[1], isPhone ? 15 : 17, SPRING_NUDGE_COL, 0.9, 0.6); drawNudgeHouse(p[0] + 12, p[1] - 14, t); st.springNudges++; if (!st.springNudgePx) st.springNudgePx = [p[0], p[1]]; }
     cx.save(); cx.translate(p[0], p[1] - 4 + bob);
     cx.fillStyle = 'rgba(255,255,255,.9)'; cx.beginPath(); cx.arc(0, 4 - bob, 6, 0, 7); cx.fill();
     if (low) { const k = 0.55 + 0.45 * fl; cx.scale(k, k); }
@@ -2990,6 +2994,18 @@ function drawOverlays(t) {
   for (let k = 0; k <= 32; k++) { const a = k / 32 * 6.283; const q = proj(Math.max(0, Math.min(N - 1, g[0] + Math.cos(a) * rad)), Math.max(0, Math.min(N - 1, g[1] + Math.sin(a) * rad))); if (!q) continue; k ? cx.lineTo(q[0], q[1]) : cx.moveTo(q[0], q[1]); }
   cx.stroke();
   if (st.tool === 'drain' && P.down) { const c = proj(g[0], g[1]); if (c) { cx.setLineDash([]); cx.strokeStyle = '#3a9be0'; for (let k = 0; k < 3; k++) { cx.beginPath(); cx.arc(c[0], c[1], 6 + k * 6, t * 6 + k, t * 6 + k + 3); cx.stroke(); } } }
+  cx.restore();
+}
+// spring-house nudge: in a drought a bare spring that runs low gets a sandy pulsing ring and a small ghostly house
+// outline above it while the Well tool is in hand, and for SPRING_NUDGE_S s after the drought hint, so the player sees
+// which springs a spring house would save. Hooks: st.springNudgeOn, st.springNudges, st.springNudgePx.
+const SPRING_NUDGE_S = 12, SPRING_NUDGE_COL = [226, 160, 70];
+function springNudgeOn() { const S = st.S; if (!(S.dryNow > 0.05)) return false; return st.tool === 'well' || (st.dryAt != null && performance.now() - st.dryAt < SPRING_NUDGE_S * 1000); }
+function drawNudgeHouse(x, y, t) { // a dashed outline of a little house that bobs gently: "a house could go here"
+  const a = 0.55 + 0.35 * Math.sin(t * 3); cx.save(); cx.globalAlpha = a; cx.translate(x, y + Math.sin(t * 2) * 1.2);
+  cx.setLineDash([2.5, 2]); cx.lineWidth = 1.4; cx.strokeStyle = 'rgba(255,236,190,0.95)'; cx.fillStyle = 'rgba(150,140,128,0.35)';
+  cx.beginPath(); cx.moveTo(-6, 0); cx.lineTo(-6, -6); cx.lineTo(0, -11); cx.lineTo(6, -6); cx.lineTo(6, 0); cx.closePath(); cx.fill(); cx.stroke();
+  cx.setLineDash([]); cx.fillStyle = 'rgba(60,50,40,0.7)'; cx.beginPath(); cx.moveTo(-2, 0); cx.lineTo(-2, -3); cx.arc(0, -3, 2, Math.PI, 0); cx.lineTo(2, 0); cx.closePath(); cx.fill();
   cx.restore();
 }
 // a spring house (Brunnstube): a little grey stone chamber with a mossy roof and a dark arched doorway, set into
@@ -4652,7 +4668,7 @@ function skyHints() {
   const now = { ice: st.iceN > 25, dry: (S.dryNow || 0) > 0.05, storm: LV.weatherEvent(S) === 'storm', rain: (S.rainNow || 0) > 0.05, eve: LT.glow > 0.5 && LT.h > 12, morn: LT.h >= 6.5 && LT.h < 12, sea: S.P.seasons ? LV.season(S) : '' };
   if (skyPrev && st.wake <= 0) {
     if (jam) { st.jams = (st.jams || 0) + 1; hint(st.iceHint = st.jamHint = 'The ice breaks up! A spring flood rushes down the river'); }
-    else if (now.dry && !skyPrev.dry) hint(st.dryHint = 'Drought: a long dry spell. Rivers and bare springs run low; a well helps a cottage, a spring house a spring');
+    else if (now.dry && !skyPrev.dry) { st.dryAt = performance.now(); hint(st.dryHint = 'Drought: a long dry spell. Rivers and bare springs run low; a well helps a cottage, a spring house a spring'); }
     else if (!now.dry && skyPrev.dry) hint(st.dryHint = 'The drought is over: rain will come again');
     else if (now.sea !== skyPrev.sea && now.sea) { st.seasonHint = SEASON_HINT[now.sea]; hint(st.seasonHint); }
     else if (firstSnow) { st.firstSnows = (st.firstSnows || 0) + 1; hint(st.snowHint = 'First snow! The peaks turn white ❄ Winter is on its way'); }
@@ -5339,7 +5355,7 @@ function wishLine(w) {
   if (s >= 3) return 'All three stars!' + (v >= w.tiers[0] ? ' Now ' + fmtW(w, v) + ' ' + w.unit : ' ✨');
   const next = w.tiers[Math.max(s, cur)] != null ? w.tiers[Math.max(s, cur)] : w.tiers[2];
   const rb = w.id === 'river' && st.river && st.river.best; // the river that got furthest, for a hint where it stops
-  return `${fmtW(w, v)} ${w.unit} · next ★ at ${fmtW(w, next)}` + (rb && !rb.reached && rb.m > 50 ? ` (longest stream ${fmtW(w, rb.m)}, ${rb.end === 'lake' ? 'stops in a lake' : rb.end === 'dry' ? 'dries out' : 'spreads out'}, marked ◎ in the valley)` : '') + (w.id === 'storm' && W.storm.last === -1 ? ' (last storm: wet feet)' : '');
+  return `${fmtW(w, v)} ${w.unit} · next ★ at ${fmtW(w, next)}` + (rb && !rb.reached && rb.m > 50 ? ` (longest stream ${fmtW(w, rb.m)}, ${rb.end === 'lake' ? 'stops in a lake' : rb.end === 'dry' ? 'dries out' : 'spreads out'}, marked ◎ in the valley)` : '') + (w.id === 'river' && s < 3 && lowBareSprings() ? ` · ${lowBareSprings() === 1 ? 'a spring runs' : lowBareSprings() + ' springs run'} low: give ${lowBareSprings() === 1 ? 'it' : 'them'} a spring house (Well tool)` : '') + (w.id === 'storm' && W.storm.last === -1 ? ' (last storm: wet feet)' : '');
 }
 function renderWishes() {
   const n = wishTotal();
@@ -5498,7 +5514,7 @@ addEventListener('pagehide', () => autoSave('pagehide'));
 window.LV_AUTO = { AS, save: autoSave, get: asGet, put: asPut, clear: asClear, restore: autoRestore };
 
 
-window.__lv = { st, FR, FOX, foxEvening, BF, GS, CR, HER, KF, DIP, MU, murmEvening, AU, SW, updSound, LV, LT, leaf: LS, clockText, wheelAng, get col() { return [colR, colG, colB]; }, get tilt() { return tilt; }, get area() { return area; }, setTool, newWorld, unproj, proj, get S() { return st.S; }, floes, breakup: sndBreakup, yearTurn, flourT, SACK_T, carts, CART_LOAD, cartTarget, bakeT, FLOUR, smokeRGB, HAY, HAY_T, PUD, KID, DUCK, BTF, BOAT, boatCourse, boatRestSnd };
+window.__lv = { st, FR, FOX, foxEvening, BF, GS, CR, HER, KF, DIP, MU, murmEvening, AU, SW, updSound, LV, LT, leaf: LS, clockText, wheelAng, get col() { return [colR, colG, colB]; }, get tilt() { return tilt; }, get area() { return area; }, setTool, newWorld, unproj, proj, get S() { return st.S; }, floes, breakup: sndBreakup, yearTurn, flourT, SACK_T, carts, CART_LOAD, cartTarget, bakeT, FLOUR, smokeRGB, HAY, HAY_T, PUD, KID, DUCK, BTF, BOAT, boatCourse, boatRestSnd, lowBareSprings, springNudgeOn, wishLine: id => wishLine(WISHES.find(w => w.id === id)) };
 updUI(); updSound();
 const rawHash = (location.hash || '').slice(1);
 let fromHash = ''; try { fromHash = decodeURIComponent(rawHash); } catch (e) { fromHash = ''; }
