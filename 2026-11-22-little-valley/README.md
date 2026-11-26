@@ -129,6 +129,15 @@ a few quick little sniffs and a tiny huff, the first time it snuffles in view. N
 valley without cottages, in the always-day mode or in the map view. (`screenshot-hedgehog.png`: a hedgehog
 snuffling by the cottages on a summer night.)
 
+**A barn owl over the meadows**: on some calm, dry evenings from spring to autumn (about one evening in two,
+from eight until half past ten) a pale barn owl glides in low over the open meadows and quarters them: long,
+slow legs back and forth across a patch of open grass, each one a step further along, only a little above
+the grass. Now and then it hangs in the air with quick wingbeats, and at least once a visit it drops into
+the grass after a vole, sits a moment and rises again; after a few legs it drifts off. Rain or a storm sends
+it home. With the sound on you hear one soft screech, a long, hoarse, breathy shriek, the first time it is
+seen in view. None in winter, by day, in the always-day mode or in the map view. (`screenshot-barn-owl.png`:
+a barn owl hovering over the meadow at dusk.)
+
 **Hoar frost**: after a clear, cold winter night the trees wake up white-rimed: the pine and leafy crowns
 (and the bare winter twigs) go frosty white with a bright rim on their edges and the open grass turns pale.
 When the sun is up, little sparkles wander over the frosted crowns, and the frost fades as the day warms
