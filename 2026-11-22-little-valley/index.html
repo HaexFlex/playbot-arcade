@@ -1910,6 +1910,7 @@ function renderTilt(t) {
   { const t0 = performance.now(); drawWebs(t); st.webMs = (st.webMs || 0) * 0.9 + (performance.now() - t0) * 0.1; }
   { const t0 = performance.now(); drawHoarFrost(t); st.frostMs = (st.frostMs || 0) * 0.9 + (performance.now() - t0) * 0.1; }
   { const t0 = performance.now(); drawFox(t); st.foxMs = (st.foxMs || 0) * 0.9 + (performance.now() - t0) * 0.1; }
+  { const t0 = performance.now(); drawHedgehog(t); st.hogMs = (st.hogMs || 0) * 0.9 + (performance.now() - t0) * 0.1; }
   { const t0 = performance.now(); drawDeer(t); st.deerMs = (st.deerMs || 0) * 0.9 + (performance.now() - t0) * 0.1; }
   { const t0 = performance.now(); drawBullfinches(t); st.bfMs = (st.bfMs || 0) * 0.9 + (performance.now() - t0) * 0.1; }
   { const t0 = performance.now(); drawGlowworms(t); st.glowwormMs = (st.glowwormMs || 0) * 0.9 + (performance.now() - t0) * 0.1; }
@@ -4342,6 +4343,106 @@ function drawFox(t) {
       cx.drawImage(spr.fox[fr][left ? 1 : 0], p[0] - w / 2, p[1] - hh * 0.9, w, hh); st.foxDrawn = 1; st.foxAt = [p[0], p[1]]; void sy; } }
   cx.restore();
 }
+// a hedgehog in the village gardens: on some summer nights (late spring to early autumn, year 0.19-0.60, about 3 nights
+// in 5, 21:50-3:30, dry and calm) a hedgehog trundles out of a cottage garden, wanders from garden to garden (dry open
+// ground 2-4 cells around a standing cottage, the next house's garden when one is near), stops now and then to snuffle
+// with its nose down, and after a few gardens slips away under a hedge; the next one may come 30-70 s later. Rain or a
+// storm startles it: it curls into a spiny ball, uncurls when the rain passes, or slips away if it keeps raining.
+// With the sound on, one soft snuffle (quick little sniffs and a tiny huff, fx bus) the first time it snuffles in view,
+// once per visit. None in winter, by day, without a village, in the always-day mode or the map view.
+// Cheap: pre-rendered sprites (drawImage only), the gardens are looked up once per visit. Hooks: st.hogDrawn, st.hogAt
+// (screen px), st.hogState ('walk' | 'snuffle' | 'curl' | ''), st.hogCell ([x, y]), st.hogNear (cells to the nearest
+// standing cottage), st.hogVisits, st.hogSnuffles, st.hogCurls, st.hogGardens (houses with a garden spot), st.hogHouses
+// (houses visited this visit), st.hogOn, st.hogForce (test: every night), st.hogMs; AU.ev.snuffle.
+const HOG_P = 0.6, HOG_SPD = 0.55;
+const HOG = { S: null, N: 0, h: null, rest: 0, last: -1, spr: null, visits: 0, snuffles: 0, curls: 0, moved: 0 };
+function hogNight(d) { const v = Math.sin(d * 57.3 + 4.7) * 43758.5; return v - Math.floor(v) < HOG_P; }
+function hogSea(S) { const y = S.P.seasons ? LV.yearFrac(S) : 0.36; return smooth(0.17, 0.2, y) * (1 - smooth(0.58, 0.61, y)); }
+function hogHourOk(h) { return h >= 21.8 || h < 3.5; }
+function hogGroundOk(S, i, H) { return S.d[i] < 0.02 && S.snow[i] < 0.05 && !(S.ice && S.ice[i] > 0.3) && S.tree[i] < 0.5 && S.h[i] / H < 0.55; }
+function hogGardens(S, T, H) { // per standing cottage: a few visible garden spots on dry open ground around it
+  const N = S.N, out = [], cells = S.cottages.map(o => LV.cottageCell(S, o));
+  S.cottages.forEach((c, k) => { if (c.mood === 'ruin' || c.ruin) return; const ci = cells[k], x0 = ci % N, y0 = (ci / N) | 0, g = [];
+    for (const [dx, dy] of [[3, 2], [-3, 2], [2, 3], [-2, 3], [0, 3], [3, 0], [-3, 0], [4, 1], [-4, 1], [3, -2], [-3, -2]]) { const x = x0 + dx, y = y0 + dy; if (x < 3 || y < 3 || x > N - 4 || y > N - 4) continue;
+      const i = y * N + x; if (!hogGroundOk(S, i, H) || cells.includes(i) || !foxProj(T, S, x + 0.5, y + 0.5)) continue; g.push([x + 0.5, y + 0.5]); }
+    if (g.length) out.push({ k, x: x0, y: y0, g }); });
+  return out;
+}
+function hogSprites() {
+  if (HOG.spr) return HOG.spr;
+  const mk = (fr, flip) => { const W = 26, Hh = 16, c = document.createElement('canvas'); c.width = W; c.height = Hh; const g = c.getContext('2d');
+    if (flip) { g.translate(W, 0); g.scale(-1, 1); }
+    g.lineCap = 'round';
+    if (fr === 3) { // curled up: a round spiny ball
+      g.fillStyle = '#4a3c31'; g.beginPath(); g.arc(13, 10, 5.6, 0, 6.283); g.fill();
+      g.strokeStyle = '#a48f72'; g.lineWidth = 0.9; g.beginPath();
+      for (let k = 0; k < 16; k++) { const a = k / 16 * 6.283, r0 = 3 + (k % 2) * 1.2; g.moveTo(13 + Math.cos(a) * r0, 10 + Math.sin(a) * r0); g.lineTo(13 + Math.cos(a + 0.35) * 6.6, 10 + Math.sin(a + 0.35) * 6.6); }
+      g.stroke(); return c; }
+    const sn = fr === 2, lg = fr === 0 ? 1.2 : -1.2;
+    g.strokeStyle = '#2e241d'; g.lineWidth = 1.5; g.beginPath(); // little legs
+    g.moveTo(8, 12.5); g.lineTo(8 + (sn ? 0 : lg), 15); g.moveTo(16, 12.5); g.lineTo(16 - (sn ? 0 : lg), 15); g.stroke();
+    g.fillStyle = '#b39b7c'; g.beginPath(); g.moveTo(16, 8.2); g.quadraticCurveTo(21, 9, sn ? 24 : 24.5, sn ? 13.6 : 11.2); g.quadraticCurveTo(20, 13.6, 15.5, 13); g.fill(); // pale face and snout
+    g.fillStyle = '#17110d'; g.beginPath(); g.arc(sn ? 24 : 24.5, sn ? 13.6 : 11.2, 1, 0, 6.283); g.fill(); // nose
+    g.beginPath(); g.arc(19.4, sn ? 10.6 : 9.9, 0.7, 0, 6.283); g.fill(); // eye
+    g.fillStyle = '#4a3c31'; g.beginPath(); g.moveTo(2, 13); g.quadraticCurveTo(2.5, 3.2, 11, 3); g.quadraticCurveTo(17.5, 3, 18.4, 10.4); g.quadraticCurveTo(17, 13.4, 13, 13.2); g.lineTo(3.5, 13.4); g.fill(); // spiny back
+    g.strokeStyle = '#a48f72'; g.lineWidth = 0.9; g.beginPath(); // spine tips, sweeping back
+    for (let k = 0; k < 11; k++) { const u = k / 10, x = 3.6 + u * 13.4, y = 12.4 - Math.sin(u * 3.1) * 8.6 + (u > 0.85 ? 1 : 0); g.moveTo(x + 1.2, y + 1.6); g.lineTo(x - 1.6, y - 0.6); }
+    for (let k = 0; k < 7; k++) { const u = (k + 0.5) / 7, x = 5 + u * 10, y = 12 - Math.sin(u * 3.1) * 5.6; g.moveTo(x + 1, y + 1.2); g.lineTo(x - 1.4, y - 0.4); }
+    g.stroke(); return c; };
+  return HOG.spr = [0, 1, 2, 3].map(f => [mk(f, false), mk(f, true)]);
+}
+function hogStart(S, T, H) {
+  const gs = hogGardens(S, T, H); st.hogGardens = gs.length; if (!gs.length) return null;
+  const g0 = gs[(Math.random() * gs.length) | 0], route = [], used = [g0.k];
+  const pick = g => g.g[(Math.random() * g.g.length) | 0];
+  const s0 = pick(g0); route.push(pick(g0)); let cur = g0;
+  for (let n = 0; n < 3; n++) { const nb = gs.filter(o => !used.includes(o.k) && Math.hypot(o.x - cur.x, o.y - cur.y) < 26).sort((a, b) => Math.hypot(a.x - cur.x, a.y - cur.y) - Math.hypot(b.x - cur.x, b.y - cur.y))[0];
+    if (!nb) break; used.push(nb.k); route.push(pick(nb)); if (Math.random() < 0.6) route.push(pick(nb)); cur = nb; }
+  if (route.length < 3) route.push(pick(g0));
+  return { x: s0[0], y: s0[1], route, ri: 0, st: 'walk', sn: 0, next: 1.5 + Math.random() * 2, ph: 0, al: 0, out: false, curl: 0, wet: 0, a: 0, snd: false, houses: [g0.k], hk: used, life: 70, stuck: 0 };
+}
+function hogStep(S, H, dt, on, wet) {
+  const N = S.N, f = HOG.h;
+  if (!on && !wet) f.out = true; f.life -= dt; if (f.life < 0) f.out = true;
+  f.al += ((f.out ? 0 : 1) - f.al) * Math.min(1, dt * (f.out ? 2.5 : 1.6));
+  if (f.out && f.al < 0.03) { HOG.h = null; HOG.rest = 30 + Math.random() * 40; return; }
+  if (wet) { if (f.st !== 'curl') { f.st = 'curl'; HOG.curls++; } f.curl = 1.6; f.wet += dt; if (f.wet > 7) f.out = true; return; } // startled by the rain: curled up
+  if (f.st === 'curl') { f.curl -= dt; if (f.curl > 0) return; f.st = 'walk'; f.wet = 0; }
+  if (f.st === 'snuffle') { f.sn -= dt; if (f.sn <= 0) { f.st = 'walk'; f.next = 2.5 + Math.random() * 3.5; } return; }
+  if (f.out) return;
+  const tg = f.route[f.ri]; if (!tg) { f.out = true; return; }
+  const dx = tg[0] - f.x, dy = tg[1] - f.y, d = Math.hypot(dx, dy);
+  if (d < 0.3) { f.ri++; f.st = 'snuffle'; f.sn = 2 + Math.random() * 1.6; HOG.snuffles++; const k = f.hk[Math.min(f.hk.length - 1, f.houses.length)]; void k; return; }
+  f.next -= dt; if (f.next < 0) { f.st = 'snuffle'; f.sn = 1 + Math.random() * 0.9; HOG.snuffles++; return; }
+  const a = Math.atan2(dy, dx) + Math.sin(f.ph * 0.37) * 0.35, sp = Math.min(d, HOG_SPD * dt), nx = f.x + Math.cos(a) * sp, ny = f.y + Math.sin(a) * sp;
+  if (!hogGroundOk(S, (ny | 0) * N + (nx | 0), H)) { if (++f.stuck > 20) { f.stuck = 0; f.ri++; } f.ph += 1.7; return; } // a wet or wooded patch: try round it, then the next garden
+  f.stuck = 0; f.a = a; f.x = nx; f.y = ny; f.ph += dt * 11; HOG.moved += sp;
+}
+function drawHedgehog(t) {
+  const T = tilt, S = st.S; st.hogDrawn = 0; st.hogAt = null; st.hogState = ''; st.hogCell = null; st.hogNear = -1;
+  const dt = Math.max(0, Math.min(0.1, t - HOG.last)); HOG.last = t;
+  if (!T || T.s == null || !T.pick) return;
+  const N = S.N, H = N * 0.27, h = LT.h, sea = hogSea(S);
+  if (HOG.S !== S || HOG.N !== N) { HOG.S = S; HOG.N = N; HOG.h = null; HOG.rest = 0; }
+  const day = Math.floor(S.time / (S.P.dayLen || 720) + 0.1); // the clock day (DAY_START 0.1) runs 6:00 to 6:00, so one night is one draw
+  const wet = LT.rain > 0.06 || LT.storm > 0.02;
+  const on = st.hogOn = !!(st.hogForce || hogNight(day)) && sea > 0.5 && hogHourOk(h) && !st.alwaysDay && S.cottages.length > 0;
+  if (!HOG.h) { HOG.rest -= dt; if (!on) HOG.rest = Math.min(HOG.rest, 3); if (!on || wet || HOG.rest > 0) return;
+    HOG.h = hogStart(S, T, H); if (!HOG.h) { HOG.rest = 3; return; } HOG.visits++; }
+  hogStep(S, H, dt, on, wet); st.hogVisits = HOG.visits; st.hogSnuffles = HOG.snuffles; st.hogCurls = HOG.curls; st.hogMoved = HOG.moved;
+  const f = HOG.h; if (!f || f.al < 0.03) return;
+  st.hogState = f.st; st.hogCell = [f.x | 0, f.y | 0];
+  { let m = 1e9; for (const c of S.cottages) { if (c.ruin || c.mood === 'ruin') continue; const ci = LV.cottageCell(S, c); m = Math.min(m, Math.hypot((ci % N) + 0.5 - f.x, ((ci / N) | 0) + 0.5 - f.y)); } st.hogNear = m;
+    S.cottages.forEach((c, k) => { const ci = LV.cottageCell(S, c); if (!f.houses.includes(k) && Math.hypot((ci % N) + 0.5 - f.x, ((ci / N) | 0) + 0.5 - f.y) < 4.6) f.houses.push(k); }); st.hogHouses = f.houses.length; }
+  const p = foxProj(T, S, f.x, f.y); if (!p) return;
+  if (f.st === 'snuffle' && !f.snd && f.al > 0.5) { f.snd = true; if (AU.on) sndSnuffle(fxPan(p[0])); }
+  const spr = hogSprites(), left = Math.cos(f.a) < 0, fr = f.st === 'curl' ? 3 : f.st === 'snuffle' ? 2 : (Math.sin(f.ph) > 0 ? 0 : 1);
+  const w = (isPhone ? 12 : 15) * Math.max(0.85, Math.min(1.3, p[2] / 5)), hh = w * 16 / 26, bob = f.st === 'snuffle' ? Math.sin(t * 22) * 0.35 : 0;
+  cx.save(); cx.globalAlpha = Math.min(1, f.al);
+  cx.fillStyle = 'rgba(20,24,40,0.28)'; cx.beginPath(); cx.ellipse(p[0], p[1], w * 0.34, hh * 0.14, 0, 0, 6.283); cx.fill(); // soft shadow
+  cx.drawImage(spr[fr][left ? 1 : 0], p[0] - w / 2, p[1] - hh * 0.92 + bob, w, hh); cx.restore();
+  st.hogDrawn = 1; st.hogAt = [p[0], p[1]];
+}
 // roe deer at the water: on calm evenings (18:45-21:15) and early mornings (5:10-7:00) from spring to autumn, on about
 // 3 days in 5, a roe doe steps out of the forest edge and walks down to the nearest drinking place (LV.drinkSpot: a dry
 // bank cell beside open, unfrozen water, within DEER_R cells of the edge), stopping now and then to look about with her
@@ -4978,7 +5079,7 @@ function frame(now) {
   const tc0 = performance.now(); computeColours(st.time); st.colMs = (st.colMs || 0) * 0.9 + (performance.now() - tc0) * 0.1;
   cx.setTransform(dpr, 0, 0, dpr, 0, 0);
   if (st.view === 'tilt') { tiltGeom(); drawSky(st.time, dtReal); renderTilt(st.time); }
-  else { drawSky(st.time, dtReal); renderTop(st.time); drawRiverTop(); drawRiverHint('top'); drawCottagesTop(); drawWindowGlowTop(st.time); st.heronsDrawn = 0; st.heronAt = null; st.heronStates = []; HER.birds = []; st.kfDrawn = 0; st.kfAt = null; st.kfStates = []; st.kfPts = []; KF.birds = []; KF.sp = []; st.dipDrawn = 0; st.dipAt = null; st.dipStates = []; st.dipPts = []; DIP.birds = []; DIP.sp = []; st.websDrawn = 0; st.webAt = []; st.webCells = []; st.webGlints = 0; WEB.webs.forEach(w => { w.a = 0; }); st.frostTrees = 0; st.frostGlints = 0; st.frostGlintAt = []; FR.src = []; FR.gl.forEach(g => { g.age = g.life; }); st.foxTracks = 0; st.foxPrints = 0; st.foxPrintCells = []; st.foxDrawn = 0; st.foxAt = null; if (FOX.fox) { FOX.fox = null; FOX.rest = 5; } FOX.last = st.time; st.deerDrawn = 0; st.deerAt = null; st.deerState = ''; st.deerFawn = 0; DEER.rings = []; if (DEER.d) { DEER.d = null; DEER.rest = 5; } DEER.last = st.time; st.glowwormsDrawn = 0; st.glowwormAt = []; st.glowwormCells = []; st.glowwormLvl = []; GW.worms.forEach(w => { w.a = 0; }); st.petalsDrawn = 0; st.mistDrawn = 0; st.mistDrift = 0; st.puddlesDrawn = 0; st.icyPuddles = 0; st.puddleIcePx = 0; st.splashKids = 0; st.splashHopping = 0; st.splashDrops = 0; st.splashSpots = 0; st.splashPuds = []; KID.on = false; st.batsDrawn = 0; st.batAt = null; st.midgesDrawn = 0; st.midgeSpecks = 0; st.midgeGlints = 0; st.midgeCols = []; MID.last = st.time; st.dragonfliesDrawn = 0; st.dfAt = null; st.butterfliesDrawn = 0; st.btfAt = null; BTF.flies.forEach(f => { f.a = 0; }); st.dfHover = 0; DF.last = st.time; st.duckFams = 0; st.ducksDrawn = 0; st.ducklingsDrawn = 0; st.duckLine = null; DUCK.last = null; st.swallowsDrawn = 0; st.swallowRings = 0; st.swallowAt = null; SW.last = st.time; st.bfDrawn = 0; st.bfSit = 0; st.bfFlying = 0; st.bfAtFeeder = 0; st.bfFeeders = 0; st.bfAt = []; st.bfFeederAt = []; BF.birds = []; BF.feeders = []; BF.home = null; BF.crowns = []; } // no petals in the map view (seen from far above they would be specks of dust)
+  else { drawSky(st.time, dtReal); renderTop(st.time); drawRiverTop(); drawRiverHint('top'); drawCottagesTop(); drawWindowGlowTop(st.time); st.heronsDrawn = 0; st.heronAt = null; st.heronStates = []; HER.birds = []; st.kfDrawn = 0; st.kfAt = null; st.kfStates = []; st.kfPts = []; KF.birds = []; KF.sp = []; st.dipDrawn = 0; st.dipAt = null; st.dipStates = []; st.dipPts = []; DIP.birds = []; DIP.sp = []; st.websDrawn = 0; st.webAt = []; st.webCells = []; st.webGlints = 0; WEB.webs.forEach(w => { w.a = 0; }); st.frostTrees = 0; st.frostGlints = 0; st.frostGlintAt = []; FR.src = []; FR.gl.forEach(g => { g.age = g.life; }); st.foxTracks = 0; st.foxPrints = 0; st.foxPrintCells = []; st.foxDrawn = 0; st.foxAt = null; if (FOX.fox) { FOX.fox = null; FOX.rest = 5; } FOX.last = st.time; st.deerDrawn = 0; st.deerAt = null; st.deerState = ''; st.deerFawn = 0; DEER.rings = []; if (DEER.d) { DEER.d = null; DEER.rest = 5; } DEER.last = st.time; st.hogDrawn = 0; st.hogAt = null; st.hogState = ''; if (HOG.h) { HOG.h = null; HOG.rest = 5; } HOG.last = st.time; st.glowwormsDrawn = 0; st.glowwormAt = []; st.glowwormCells = []; st.glowwormLvl = []; GW.worms.forEach(w => { w.a = 0; }); st.petalsDrawn = 0; st.mistDrawn = 0; st.mistDrift = 0; st.puddlesDrawn = 0; st.icyPuddles = 0; st.puddleIcePx = 0; st.splashKids = 0; st.splashHopping = 0; st.splashDrops = 0; st.splashSpots = 0; st.splashPuds = []; KID.on = false; st.batsDrawn = 0; st.batAt = null; st.midgesDrawn = 0; st.midgeSpecks = 0; st.midgeGlints = 0; st.midgeCols = []; MID.last = st.time; st.dragonfliesDrawn = 0; st.dfAt = null; st.butterfliesDrawn = 0; st.btfAt = null; BTF.flies.forEach(f => { f.a = 0; }); st.dfHover = 0; DF.last = st.time; st.duckFams = 0; st.ducksDrawn = 0; st.ducklingsDrawn = 0; st.duckLine = null; DUCK.last = null; st.swallowsDrawn = 0; st.swallowRings = 0; st.swallowAt = null; SW.last = st.time; st.bfDrawn = 0; st.bfSit = 0; st.bfFlying = 0; st.bfAtFeeder = 0; st.bfFeeders = 0; st.bfAt = []; st.bfFeederAt = []; BF.birds = []; BF.feeders = []; BF.home = null; BF.crowns = []; } // no petals in the map view (seen from far above they would be specks of dust)
   floeStep(S, dtReal); drawFloes();
   drawCottageBadges(st.time);
   drawNaturalRain(st.time); drawOverlays(st.time); drawShower(st.time);
@@ -5022,7 +5123,7 @@ function adapt(dt) {
 // and thunder after lightning, wind (stronger in winter and storms), birds by day in the forest, crickets on
 // summer evenings, an owl at night, the creak and clack of turning mill wheels, cowbells near the village.
 // window.LV_AUDIO holds the levels (0..1) and gains so tests can check them without listening.
-const AU = { want: false, on: false, started: false, state: 'none', nodes: 0, live: 0, L: {}, G: {}, ev: { chirp: 0, cricket: 0, owl: 0, clack: 0, creak: 0, bell: 0, thunder: 0, plop: 0, slurp: 0, splash: 0, knock: 0, well: 0, rustle: 0, rumble: 0, drip: 0, squeak: 0, thump: 0, crunch: 0, skate: 0, icicle: 0, puddle: 0, peep: 0, twit: 0, bat: 0, pipe: 0, whirr: 0, honk: 0, crane: 0, frank: 0, tsee: 0, zit: 0, murmur: 0, spade: 0, sow: 0, canoe: 0, deerstep: 0, lap: 0, bark: 0 }, flow: 0, riverPan: 0, veg: 0, ticks: 0, vol: 1, snowCover: 0, rainMuffle: 0, rainCut: 9000, masterT: 0, melt: 0, meltPan: 0 };
+const AU = { want: false, on: false, started: false, state: 'none', nodes: 0, live: 0, L: {}, G: {}, ev: { chirp: 0, cricket: 0, owl: 0, clack: 0, creak: 0, bell: 0, thunder: 0, plop: 0, slurp: 0, splash: 0, knock: 0, well: 0, rustle: 0, rumble: 0, drip: 0, squeak: 0, thump: 0, crunch: 0, skate: 0, icicle: 0, puddle: 0, peep: 0, twit: 0, bat: 0, pipe: 0, whirr: 0, honk: 0, crane: 0, frank: 0, tsee: 0, zit: 0, murmur: 0, spade: 0, sow: 0, canoe: 0, deerstep: 0, lap: 0, bark: 0, snuffle: 0 }, flow: 0, riverPan: 0, veg: 0, ticks: 0, vol: 1, snowCover: 0, rainMuffle: 0, rainCut: 9000, masterT: 0, melt: 0, meltPan: 0 };
 window.LV_AUDIO = AU;
 const AU_KEY = 'lv-sound', AU_MASTER = 0.45, AU_DT = 0.25;
 const AU_MAX = { river: 0.55, rain: 0.42, wind: 0.2, birds: 0.42, crickets: 0.13, owl: 0.38, mill: 0.42, cows: 0.26, thunder: 0.85, melt: 0.3 }; // full-level gain per layer
@@ -5317,6 +5418,14 @@ function sndBark(pan) { // a roe deer's alarm call: two or three short, hoarse, 
     setTimeout(() => bp.disconnect(), (t - ac.currentTime + d) * 1000 + 400);
     noiseHit('fx', AG.pink, t, d, 'bandpass', 1300 + Math.random() * 300, 1.2, 0.035 * g, pan, d * 0.3); } // the hoarse, breathy edge
   AU.ev.bark++;
+}
+function sndSnuffle(pan) { // a hedgehog snuffling in the grass: quick little sniffs in twos and threes and a tiny low huff, fx bus
+  if (!fxOn()) return; const t = AG.ac.currentTime + 0.03; let a = t;
+  for (let j = 0; j < 3; j++) { const n = 2 + (Math.random() * 2 | 0);
+    for (let k = 0; k < n; k++) { noiseHit('fx', AG.pink, a, 0.045, 'bandpass', 2200 + Math.random() * 900, 3, 0.032, pan, 0.014); a += 0.075 + Math.random() * 0.02; }
+    a += 0.16 + Math.random() * 0.12; }
+  noiseHit('fx', AG.pink, a, 0.12, 'bandpass', 420 + Math.random() * 80, 1.6, 0.04, pan, 0.05); // the huff
+  AU.ev.snuffle++;
 }
 function sndLap(pan, trough) { // the doe drinks: four to six gentle laps at the water, a soft wet 'tlp' each, slow and even, fx bus; at a stone trough a touch brighter
   if (!fxOn()) return; const t = AG.ac.currentTime + 0.03, n = 4 + (Math.random() * 3 | 0), gap = 0.3 + Math.random() * 0.06, fb = trough ? 1.25 : 1;
@@ -5748,7 +5857,7 @@ addEventListener('pagehide', () => autoSave('pagehide'));
 window.LV_AUTO = { AS, save: autoSave, get: asGet, put: asPut, clear: asClear, restore: autoRestore };
 
 
-window.__lv = { st, FR, FOX, foxEvening, DEER, deerDay, deerFind, troughStand, sndDeerStep, sndLap, sndBark, BF, GS, CR, HER, KF, DIP, MU, murmEvening, AU, SW, updSound, LV, LT, leaf: LS, clockText, wheelAng, get col() { return [colR, colG, colB]; }, get tilt() { return tilt; }, get area() { return area; }, setTool, newWorld, unproj, proj, get S() { return st.S; }, floes, breakup: sndBreakup, yearTurn, flourT, SACK_T, carts, CART_LOAD, cartTarget, bakeT, FLOUR, smokeRGB, HAY, HAY_T, PUD, KID, DUCK, BTF, BOAT, boatCourse, boatRestSnd, lowBareSprings, springNudgeOn, wishLine: id => wishLine(WISHES.find(w => w.id === id)) };
+window.__lv = { st, FR, FOX, foxEvening, HOG, hogNight, hogSea, hogGardens, sndSnuffle, DEER, deerDay, deerFind, troughStand, sndDeerStep, sndLap, sndBark, BF, GS, CR, HER, KF, DIP, MU, murmEvening, AU, SW, updSound, LV, LT, leaf: LS, clockText, wheelAng, get col() { return [colR, colG, colB]; }, get tilt() { return tilt; }, get area() { return area; }, setTool, newWorld, unproj, proj, get S() { return st.S; }, floes, breakup: sndBreakup, yearTurn, flourT, SACK_T, carts, CART_LOAD, cartTarget, bakeT, FLOUR, smokeRGB, HAY, HAY_T, PUD, KID, DUCK, BTF, BOAT, boatCourse, boatRestSnd, lowBareSprings, springNudgeOn, wishLine: id => wishLine(WISHES.find(w => w.id === id)) };
 updUI(); updSound();
 const rawHash = (location.hash || '').slice(1);
 let fromHash = ''; try { fromHash = decodeURIComponent(rawHash); } catch (e) { fromHash = ''; }

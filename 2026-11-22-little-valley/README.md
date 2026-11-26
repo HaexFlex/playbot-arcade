@@ -119,6 +119,16 @@ spring-house trough.)
 When a shower sends her bounding back into the trees she gives two or three short, hoarse alarm barks, the
 dog-like 'böh' of a startled roe deer, each a little fainter as she goes.
 
+**A hedgehog in the gardens**: on some summer nights (late spring to early autumn, about three nights in five,
+from about ten in the evening until half past three) a little hedgehog trundles out of a cottage garden. It
+wanders from garden to garden around the village, keeping to the dry grass close to the houses, and stops now
+and then to snuffle with its nose down before it trots on; after a few gardens it slips away under a hedge,
+and a while later another one may come by. When rain starts it curls up into a spiny ball and only uncurls
+once the rain has passed (if it keeps raining, it slips away). With the sound on you hear one soft snuffle,
+a few quick little sniffs and a tiny huff, the first time it snuffles in view. None in winter, by day, in a
+valley without cottages, in the always-day mode or in the map view. (`screenshot-hedgehog.png`: a hedgehog
+snuffling by the cottages on a summer night.)
+
 **Hoar frost**: after a clear, cold winter night the trees wake up white-rimed: the pine and leafy crowns
 (and the bare winter twigs) go frosty white with a bright rim on their edges and the open grass turns pale.
 When the sun is up, little sparkles wander over the frosted crowns, and the frost fades as the day warms
