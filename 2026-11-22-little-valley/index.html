@@ -1556,7 +1556,8 @@ function updUI() {
   bShower.classList.toggle('on', st.shower > 0);
 }
 let hintTimer = 0;
-function hint(t) { const h = $('hint'); h.textContent = t; h.classList.add('show'); clearTimeout(hintTimer); hintTimer = setTimeout(() => h.classList.remove('show'), 2600); }
+function hint(t) { const h = $('hint'); h.textContent = t; const hl = st.hints || (st.hints = []); hl.push(t); if (hl.length > 8) hl.shift(); // st.hints: the last few hints (test hook: a later hint can replace one within a frame)
+  h.classList.add('show'); clearTimeout(hintTimer); hintTimer = setTimeout(() => h.classList.remove('show'), 2600); }
 setTimeout(() => $('hint').classList.remove('show'), 4000);
 
 // ---------- world ----------
