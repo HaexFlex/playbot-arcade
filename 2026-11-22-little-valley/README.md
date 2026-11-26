@@ -291,7 +291,7 @@ freeze again at night). On winter days the bullfinches in the bare trees call no
 low, slightly wistful whistled *pew*, and when the fox or a skater sends them up you hear a quick whirr of small wings.
 
 ## Valley wishes
-Tap the **Wishes** star for a small panel of eighteen gentle goals, each with three stars:
+Tap the **Wishes** star for a small panel of twenty gentle goals, each with three stars:
 a lake to row on (one still lake covering 3.5%, 6% or 10% of the valley), a deep green forest
 (32%, 38%, 45% forest), a little village (3, 6, 10 cottages), the mill wheel turns (1, 2, 3 mills
 turning), dry feet in a storm (1, 3, 5 cottages kept dry until a storm has passed), rainbow hunter
@@ -304,12 +304,13 @@ out by themselves) and a
 waterfall (the tallest fall right now, 12, 25 or 45 m: a strong stream pouring over a drop twice as steep as
 wet ground settles; dig a steep pit just below a fast stream, and catch it quickly, because the wet cliff
 slumps within seconds; storms on the steep slopes make wild ones too) and a long river (1.6, 2 or 2.5 km
-from a spring all the way to the valley's edge; see below). Five more are for the valley's quiet
+from a spring all the way to the valley's edge; see below). Six more are for the valley's quiet
 animals, counted when you see them on screen: a doe at the spring house (1, 2, 4 visits where the roe doe
 drinks at a spring-house trough), a hedgehog in the gardens (1, 3, 6 summer-night visits where it snuffles
-in view), a startled doe barks (1, 2, 3 alarm barks heard with the sound on when a shower sends her off)
-a barn owl at dusk (1, 3, 6 evening visits where the owl is seen quartering the meadows)
-and frogs at the ponds (1, 3, 6 spring evenings where the frogs are seen calling at the water).
+in view), a startled doe barks (1, 2, 3 alarm barks heard with the sound on when a shower sends her off),
+a barn owl at dusk (1, 3, 6 evening visits where the owl is seen quartering the meadows),
+frogs at the ponds (1, 3, 6 spring evenings where the frogs are seen calling at the water)
+and a woodpecker drumming (🪶, 1, 3, 6 spring-day visits where the woodpecker is seen drumming on a trunk in the woods; one per bird visit).
 Like rainbows, sightings count from when the page opened; the stars are kept. Each line shows live
 progress, the next goal and a short tip. Wishes are checked against the real valley twice a
 second (they only read it; the simulation is unchanged). Reaching a goal gives a star with a
