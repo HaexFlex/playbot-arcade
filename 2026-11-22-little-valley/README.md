@@ -32,7 +32,8 @@ find its way: lakes fill, rivers spill over ridges, carve gullies and drop sand.
 - **Well**: tap a thirsty cottage to dig a well. In the lowland (or where water soaked the ground
   recently) the well finds groundwater and the cottage is happy even far from any river: it sows
   fields and its village grows, each new cottage digging its own well. Up on the high rock there
-  is no groundwater.
+  is no groundwater. Tapped on a spring (away from cottages), the Well tool builds a spring house
+  that keeps the spring going in a drought (see the long river below).
   Now and then a happy well hauls water: the crank turns, the bucket goes down the shaft and comes
   back up full and dripping. A dry well's bucket hangs still.
 - **Mill wheels** come by themselves: a cottage right beside a fast river that keeps running
@@ -284,6 +285,11 @@ in the middle (paddle laid across the boat, a gentle bob, small ripple rings) an
 With sound on you hear it come to rest: the paddle knocks softly on the gunwale and water laps at the hull
 (only when the canoe is on screen).
 (`screenshot-boat-lake.png`: the canoe resting on a small lake.)
+Droughts hit the springs too: in a long dry summer spell a bare spring runs low (its drop shrinks and turns
+pale, down to 30% of its water at the drought's height), so a long river can fall short of the edge. Tap a spring
+with the **Well** tool to build it a **spring house**, a little stone chamber with a mossy roof that taps the
+deeper water: that spring keeps going at full flow all summer, and the share link keeps it.
+(`screenshot-spring-house.png`: in a drought, a bare spring running low next to one with a spring house.)
 
 ## Save and share
 Tap **Share** (next to the wishes star) for a small panel with three buttons:

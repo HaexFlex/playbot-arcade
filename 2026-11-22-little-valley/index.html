@@ -319,10 +319,19 @@ function cottageMood(S, c) {
 // happy even far from a lake or stream, tends fields, and its village can grow (new cottages dig their own well).
 const WELL_MIN = 0.12, WELL_HIGH = 0.5, MILL_D = 0.25, MILL_SP = 1, MILL_T = 30;
 function wellYield(S, i) { const hn = S.h[i] / (S.N * 0.27); return hn > WELL_HIGH ? 0 : Math.max(groundWater(hn), S.moist[i]); }
+// A spring house (Brunnstube): the Well tool tapped on a spring (away from cottages) walls in a little stone
+// chamber that catches the deeper groundwater. In a drought (P.events) a bare spring runs low, down to
+// 1 - SPRING_LOW of its flow at the drought's height; a spring with a house keeps going at full flow all summer,
+// so its river can still reach the valley's edge. springFlow(S, sp) is that share (1 outside droughts).
+const SPRING_LOW = 0.7;
+function springFlow(S, sp) { return sp.house || !(S.dryNow > 0) ? 1 : 1 - SPRING_LOW * S.dryNow; }
 function digWell(S, gx, gy) {
   const N = S.N; let best = null, bd = Math.max(3, N * 0.03);
   for (const c of S.cottages) { if (c.ruin) continue; const dd = Math.hypot(c.x * N - gx, c.y * N - gy); if (dd < bd) { bd = dd; best = c; } }
-  if (!best) return 'nohouse';
+  if (!best) { // no cottage here: a spring nearby gets a spring house (see SPRING_LOW)
+    const sp = S.springs.find(sp => Math.hypot(sp.x * N - gx, sp.y * N - gy) < Math.max(4, N * 0.03));
+    if (sp) { if (sp.house) return 'housed'; sp.house = true; return 'spring'; }
+    return 'nohouse'; }
   if (best.well) return 'has';
   const i = cottageCell(S, best);
   if (wellYield(S, i) < WELL_MIN) return S.h[i] / (N * 0.27) > WELL_HIGH ? 'rock' : 'dry';
@@ -833,7 +842,7 @@ function applyTool(S, tool, gx, gy, rad, dtReal, strength) {
     }
     return n;
   } else if (tool === 'well') {
-    return digWell(S, gx, gy); // 'dug' | 'has' | 'dry' | 'rock' | 'nohouse'
+    return digWell(S, gx, gy); // 'dug' | 'has' | 'dry' | 'rock' | 'spring' (a spring house) | 'housed' | 'nohouse'
   } else if (tool === 'cottage') {
     return placeCottage(S, gx, gy); // 'built' | 'rebuilt' | 'taken' | 'water' | 'steep' | 'snow' | 'edge' | 'full'
   } else if (tool === 'spring') {
@@ -1121,8 +1130,8 @@ function stepOnce(S) {
   const n = N * N;
   // 1. sources
   if (P.rain > 0) { const r = P.rain * dt; for (let i = 0; i < n; i++) d[i] += r; }
-  for (const sp of S.springs) addKernel(S, d, sp.x * N, sp.y * N, 2.2, P.springRate * sp.rate * dt * 0.5);
   S.dryNow = P.events ? droughtAt(S, S.time) : 0;
+  for (const sp of S.springs) addKernel(S, d, sp.x * N, sp.y * N, 2.2, P.springRate * sp.rate * springFlow(S, sp) * dt * 0.5);
   if (P.weather) weatherStep(S); else S.rainNow = 0;
   if (P.seasons && (S.steps % SNOW_EVERY) === 0) snowStep(S, SNOW_EVERY * dt);
   // 2. outflow flux (virtual pipes, cross-section/length = 1)
@@ -1338,7 +1347,7 @@ function packHead(S, V) {
   const buf = new ArrayBuffer(14 + sp.length * 5 + co.length * 5), dv = new DataView(buf); let o = 0;
   dv.setUint8(o++, 0x4c); dv.setUint8(o++, V); dv.setUint16(o, S.N, true); o += 2; dv.setFloat32(o, S.time || 0, true); o += 4; dv.setFloat32(o, S.yearOff || 0, true); o += 4;
   const u16 = v => Math.max(0, Math.min(65535, Math.round(v * 65535)));
-  dv.setUint8(o++, sp.length); for (const p of sp) { dv.setUint16(o, u16(p.x), true); dv.setUint16(o + 2, u16(p.y), true); dv.setUint8(o + 4, Math.max(0, Math.min(255, Math.round((p.rate || 1) * 16)))); o += 5; }
+  dv.setUint8(o++, sp.length); for (const p of sp) { dv.setUint16(o, u16(p.x), true); dv.setUint16(o + 2, u16(p.y), true); dv.setUint8(o + 4, Math.max(0, Math.min(127, Math.round((p.rate || 1) * 16))) | (p.house ? 128 : 0)); o += 5; } // high bit: a spring house
   dv.setUint8(o++, co.length); for (const c of co) { dv.setUint16(o, u16(c.x), true); dv.setUint16(o + 2, u16(c.y), true); dv.setUint8(o + 4, (c.ruin ? 1 : 0) | (c.well ? 2 : 0)); o += 5; }
   return new Uint8Array(buf);
 }
@@ -1373,7 +1382,7 @@ function unpackShare(bytes, seed, opts) {
   if (!Number.isFinite(time) || !Number.isFinite(yearOff) || time < 0 || time > 1e9 || Math.abs(yearOff) > 1e9) throw new Error('bad clock');
   const need = k => { if (o + k > bytes.length) throw new Error('share link cut short'); };
   need(1); const ns = dv.getUint8(o++), sp = []; need(ns * 5);
-  for (let k = 0; k < ns; k++) { sp.push({ x: dv.getUint16(o, true) / 65535, y: dv.getUint16(o + 2, true) / 65535, rate: dv.getUint8(o + 4) / 16 }); o += 5; }
+  for (let k = 0; k < ns; k++) { const f = dv.getUint8(o + 4); sp.push(Object.assign({ x: dv.getUint16(o, true) / 65535, y: dv.getUint16(o + 2, true) / 65535, rate: (f & 127) / 16 }, f & 128 ? { house: true } : {})); o += 5; }
   need(1); const nc = dv.getUint8(o++), co = []; need(nc * 5);
   for (let k = 0; k < nc; k++) { const f = dv.getUint8(o + 4); co.push({ x: dv.getUint16(o, true) / 65535, y: dv.getUint16(o + 2, true) / 65535, ruin: !!(f & 1), well: !!(f & 2), flood: 0 }); o += 5; }
   const n = N * N;
@@ -1397,7 +1406,7 @@ function unpackShare(bytes, seed, opts) {
   if (hasNaN(S)) throw new Error('share link has broken numbers');
   return S;
 }
-const API = { SOWN_YEARS, SOWN_SCYTHE, pondCells, POND_DEEP, WEIR_H, findRoute, ROUTE_CLIMB, waterfalls, FALL_DROP, FALL_Q, FALL_M, longRiver, RIVER_Q, packState, unpackState, packShare, unpackShare, initLife,  iceStep, iceJam, totalIce, ICE_HOLD, JAM_MIN, JAM_Y, FLOE_PTS, eventRain, droughtOf, droughtAt, weatherEvent, STORM_AMP, yearFrac, yearFracAt, yearLen, yearNum, season, snowLine, snowFalling, leafState, snowStep, totalSnow, SEASONS, clockHour, dayFrac, planRain, rainCell, weatherStep, mulberry32, hashStr, makeNoise, randomSeedName, generateTerrain, create, seedLife, step, applyTool, totalWater, totalTerrain, resample, lifeStep, countTrees, countLife, leafy, treeHappy, cottageMood, cottageCell, countVillage, waterNear, wellYield, WELL_MIN, WELL_HIGH, MILL_T, MILL_RIPEN, raceCells, raceR, RACE_T, RACE_DIG, RACE_SP, FLOOD_RUIN, GROW_MAX, KIDS_MAX, GROW_T, plotSize, plotOf, plotCrop, hasNaN, DEFAULTS };
+const API = { SPRING_LOW, springFlow, SOWN_YEARS, SOWN_SCYTHE, pondCells, POND_DEEP, WEIR_H, findRoute, ROUTE_CLIMB, waterfalls, FALL_DROP, FALL_Q, FALL_M, longRiver, RIVER_Q, packState, unpackState, packShare, unpackShare, initLife,  iceStep, iceJam, totalIce, ICE_HOLD, JAM_MIN, JAM_Y, FLOE_PTS, eventRain, droughtOf, droughtAt, weatherEvent, STORM_AMP, yearFrac, yearFracAt, yearLen, yearNum, season, snowLine, snowFalling, leafState, snowStep, totalSnow, SEASONS, clockHour, dayFrac, planRain, rainCell, weatherStep, mulberry32, hashStr, makeNoise, randomSeedName, generateTerrain, create, seedLife, step, applyTool, totalWater, totalTerrain, resample, lifeStep, countTrees, countLife, leafy, treeHappy, cottageMood, cottageCell, countVillage, waterNear, wellYield, WELL_MIN, WELL_HIGH, MILL_T, MILL_RIPEN, raceCells, raceR, RACE_T, RACE_DIG, RACE_SP, FLOOD_RUIN, GROW_MAX, KIDS_MAX, GROW_T, plotSize, plotOf, plotCrop, hasNaN, DEFAULTS };
 if (typeof module !== 'undefined' && module.exports) module.exports = API; else root.LV = API;
 })(typeof window !== 'undefined' ? window : globalThis);
 </script>
@@ -1444,7 +1453,7 @@ const TOOLS = [
   ['plant', 'Plant', 'Hold to plant trees: they love moist ground below the snow'],
   ['flowers', 'Flowers', 'Hold to sow wildflowers: the cottagers scythe the meadow, so it blooms and keeps the forest out'],
   ['cottage', 'Cottage', 'Tap on land to build a cottage: it loves water nearby and dry feet'],
-  ['well', 'Well', 'Tap a thirsty cottage to dig a well (lowland groundwater, not on the rock)']
+  ['well', 'Well', 'Tap a thirsty cottage to dig a well (lowland groundwater, not on the rock), or a spring for a spring house that keeps it going in a drought']
 ];
 const SIZES = [['S', 0.03], ['M', 0.055], ['L', 0.095]];
 // [label, sim steps per frame, erosion/growth boost]; 8x is the time-lapse: as many steps as 4x
@@ -1485,14 +1494,14 @@ function buildCottage(g) {
   if (res === 'built' || res === 'rebuilt') sndKnock(st.ptr && st.ptr.x);
   hint(m); statT = 0;
 }
-const WELL_MSG = { dug: 'A well! Fresh groundwater makes the cottage happy', has: 'This cottage already has a well', dry: 'The well stays dry here: too little groundwater', rock: 'Solid rock up here: no groundwater for a well', nohouse: 'Tap a cottage to dig its well' };
+const WELL_MSG = { dug: 'A well! Fresh groundwater makes the cottage happy', has: 'This cottage already has a well', dry: 'The well stays dry here: too little groundwater', rock: 'Solid rock up here: no groundwater for a well', nohouse: 'Tap a cottage to dig its well, or a spring for a spring house', spring: 'A spring house! Its stone chamber taps deep water: this spring keeps going in a drought', housed: 'This spring already has a spring house' };
 // a well for a thirsty cottage: a cottage that was dry and far from water (not soggy, not flooded) and turns
 // happy with its new well counts as a rescue (per valley seed; read by the 'thirsty' wish)
 const RESCUE = { seed: null, n: 0 };
 function thirsty(S, c) { if (c.ruin || c.well) return false; const i = LV.cottageCell(S, c); return S.d[i] < 0.05 && LV.cottageMood(S, c) === 'sad'; }
 function digWell(g) {
   const S = st.S, was = new Set(S.cottages.filter(c => thirsty(S, c)));
-  const res = LV.applyTool(S, 'well', g[0], g[1], 0, 0); st.lastWell = res; if (res === 'dug' || res === 'dry' || res === 'rock') sndWell(st.ptr && st.ptr.x, res === 'dug');
+  const res = LV.applyTool(S, 'well', g[0], g[1], 0, 0); st.lastWell = res; if (res === 'dug' || res === 'dry' || res === 'rock' || res === 'spring') sndWell(st.ptr && st.ptr.x, res === 'dug' || res === 'spring');
   let msg = WELL_MSG[res] || res;
   if (res === 'dug') { const c = S.cottages.find(c => c.well && was.has(c)); if (c) bucketPh.set(c, 0.02); // the first bucket goes down at once
     if (c && LV.cottageMood(S, c) === 'happy') { if (RESCUE.seed !== S.seed) { RESCUE.seed = S.seed; RESCUE.n = 0; } RESCUE.n++; st.rescues = RESCUE.n; msg = 'A well for a thirsty cottage! It drinks fresh water and is happy again'; } }
@@ -2956,14 +2965,18 @@ function mix(a, b, k) { const pa = parseInt(a.slice(1), 16), pb = parseInt(b.sli
 // ---------- overlays: springs, brush, rain ----------
 function drawOverlays(t) {
   const S = st.S, N = S.N;
+  st.springHouses = 0; st.springsLow = 0;
   for (const sp of S.springs) {
     const p = proj(sp.x * N, sp.y * N); if (!p) continue;
-    const bob = Math.sin(t * 4 + sp.x * 20) * 1.5;
+    const bob = Math.sin(t * 4 + sp.x * 20) * 1.5, fl = LV.springFlow(S, sp), low = fl < 0.95; // in a drought a bare spring runs low: a smaller, paler drop, fewer sparkles
+    if (sp.house) { st.springHouses++; drawSpringHouse(p[0] + 11, p[1] + 2); } // beside the spring, so the drop stays in view
+    if (low) st.springsLow++;
     cx.save(); cx.translate(p[0], p[1] - 4 + bob);
     cx.fillStyle = 'rgba(255,255,255,.9)'; cx.beginPath(); cx.arc(0, 4 - bob, 6, 0, 7); cx.fill();
-    cx.fillStyle = '#4fb6ee'; cx.strokeStyle = '#1f6fa8'; cx.lineWidth = 1.5;
+    if (low) { const k = 0.55 + 0.45 * fl; cx.scale(k, k); }
+    cx.fillStyle = low ? '#9cc7de' : '#4fb6ee'; cx.strokeStyle = low ? '#6f8fa3' : '#1f6fa8'; cx.lineWidth = 1.5;
     cx.beginPath(); cx.moveTo(0, -12); cx.bezierCurveTo(6, -4, 6, 3, 0, 3); cx.bezierCurveTo(-6, 3, -6, -4, 0, -12); cx.fill(); cx.stroke();
-    for (let k = 0; k < 3; k++) { const a = t * 3 + k * 2.1, rr = 8 + 3 * Math.sin(a * 1.3); cx.fillStyle = `rgba(255,230,120,${0.5 + 0.5 * Math.sin(a * 2)})`; cx.beginPath(); cx.arc(Math.cos(a) * rr, -4 + Math.sin(a) * rr * 0.6, 1.6, 0, 7); cx.fill(); }
+    for (let k = 0; k < (low ? 1 : 3); k++) { const a = t * 3 + k * 2.1, rr = 8 + 3 * Math.sin(a * 1.3); cx.fillStyle = `rgba(255,230,120,${0.5 + 0.5 * Math.sin(a * 2)})`; cx.beginPath(); cx.arc(Math.cos(a) * rr, -4 + Math.sin(a) * rr * 0.6, 1.6, 0, 7); cx.fill(); }
     cx.restore();
   }
   const P = st.ptr; if (!P) return;
@@ -2977,6 +2990,17 @@ function drawOverlays(t) {
   for (let k = 0; k <= 32; k++) { const a = k / 32 * 6.283; const q = proj(Math.max(0, Math.min(N - 1, g[0] + Math.cos(a) * rad)), Math.max(0, Math.min(N - 1, g[1] + Math.sin(a) * rad))); if (!q) continue; k ? cx.lineTo(q[0], q[1]) : cx.moveTo(q[0], q[1]); }
   cx.stroke();
   if (st.tool === 'drain' && P.down) { const c = proj(g[0], g[1]); if (c) { cx.setLineDash([]); cx.strokeStyle = '#3a9be0'; for (let k = 0; k < 3; k++) { cx.beginPath(); cx.arc(c[0], c[1], 6 + k * 6, t * 6 + k, t * 6 + k + 3); cx.stroke(); } } }
+  cx.restore();
+}
+// a spring house (Brunnstube): a little grey stone chamber with a mossy roof and a dark arched doorway, set into
+// the slope just behind the spring (drawn at a fixed size like the spring marker, in both views)
+function drawSpringHouse(x, y) {
+  cx.save(); cx.translate(x, y - 7);
+  cx.fillStyle = '#8d8a82'; cx.strokeStyle = '#4f4b45'; cx.lineWidth = 1;
+  cx.beginPath(); cx.moveTo(-8, 6); cx.lineTo(-8, -3); cx.lineTo(0, -9); cx.lineTo(8, -3); cx.lineTo(8, 6); cx.closePath(); cx.fill(); cx.stroke();
+  cx.fillStyle = '#5f8a3e'; cx.beginPath(); cx.moveTo(-10, -2); cx.lineTo(0, -10.5); cx.lineTo(10, -2); cx.lineTo(8, -1); cx.lineTo(0, -7.5); cx.lineTo(-8, -1); cx.closePath(); cx.fill(); // mossy roof
+  cx.fillStyle = '#2b2622'; cx.beginPath(); cx.moveTo(-3, 6); cx.lineTo(-3, 0.5); cx.arc(0, 0.5, 3, Math.PI, 0); cx.lineTo(3, 6); cx.closePath(); cx.fill(); // the doorway
+  cx.strokeStyle = 'rgba(255,255,255,.25)'; cx.beginPath(); cx.moveTo(-7, 2); cx.lineTo(-4.5, 2); cx.moveTo(4.5, -1); cx.lineTo(7, -1); cx.stroke(); // stone joints
   cx.restore();
 }
 function drawRainCloud(g, rad, t) {
@@ -4628,7 +4652,7 @@ function skyHints() {
   const now = { ice: st.iceN > 25, dry: (S.dryNow || 0) > 0.05, storm: LV.weatherEvent(S) === 'storm', rain: (S.rainNow || 0) > 0.05, eve: LT.glow > 0.5 && LT.h > 12, morn: LT.h >= 6.5 && LT.h < 12, sea: S.P.seasons ? LV.season(S) : '' };
   if (skyPrev && st.wake <= 0) {
     if (jam) { st.jams = (st.jams || 0) + 1; hint(st.iceHint = st.jamHint = 'The ice breaks up! A spring flood rushes down the river'); }
-    else if (now.dry && !skyPrev.dry) hint(st.dryHint = 'Drought: a long dry spell. Rivers shrink; cottages need a well');
+    else if (now.dry && !skyPrev.dry) hint(st.dryHint = 'Drought: a long dry spell. Rivers and bare springs run low; a well helps a cottage, a spring house a spring');
     else if (!now.dry && skyPrev.dry) hint(st.dryHint = 'The drought is over: rain will come again');
     else if (now.sea !== skyPrev.sea && now.sea) { st.seasonHint = SEASON_HINT[now.sea]; hint(st.seasonHint); }
     else if (firstSnow) { st.firstSnows = (st.firstSnows || 0) + 1; hint(st.snowHint = 'First snow! The peaks turn white ❄ Winter is on its way'); }
@@ -5254,7 +5278,7 @@ const WISHES = [
   { id: 'waterfall', icon: '💦', name: 'A waterfall', tip: 'Dig a steep drop right below a fast stream: the water pours over the edge (storms make wild ones)', tiers: [12, 25, 45], unit: 'm tall waterfall' },
   { id: 'bread', icon: '🍞', name: 'Fresh bread for the village', tip: 'A turning mill fills flour sacks; the miller carts them to a cottage along a dry road', tiers: [3, 9, 18], unit: 'sacks of flour delivered' },
   { id: 'bloom', icon: '🌼', name: 'A valley in bloom', tip: 'Sow wildflowers (Flowers tool) on dry meadows below the alp: the cottagers scythe them and they bloom for two years', tiers: [0.02, 0.05, 0.1], pct: true, unit: 'of the valley is a sown meadow in bloom' },
-  { id: 'river', icon: '🛶', name: 'A long river', tip: "Lead a spring's stream all the way to the valley's edge: more springs keep it flowing, dig the lakes an outlet and the river a winding bed", tiers: [1600, 2000, 2500], km: true, unit: "long river from a spring to the valley's edge" }
+  { id: 'river', icon: '🛶', name: 'A long river', tip: "Lead a spring's stream all the way to the valley's edge: more springs keep it flowing (a spring house keeps one going in a drought), dig the lakes an outlet and the river a winding bed", tiers: [1600, 2000, 2500], km: true, unit: "long river from a spring to the valley's edge" }
 ];
 const W = { stars: {}, val: {}, live: {}, forced: {}, granted: 0, toasts: [], evals: 0, ms: 0, open: false, storm: { on: false, set: null, wet: false, S: null, best: 0 }, rainbows0: 0 };
 for (const w of WISHES) { W.stars[w.id] = 0; W.val[w.id] = 0; }
