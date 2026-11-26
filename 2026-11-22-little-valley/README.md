@@ -317,6 +317,19 @@ under its spout, with a thin overflow. Save files keep its age; a share link kee
 fresh (so do houses from saves made before this).
 (`screenshot-spring-age.png`: a new spring house next to a five-year-old one with moss and its trough.)
 
+## English / Deutsch
+The small **EN | DE** button beside the wishes and share buttons switches the whole valley between
+English and Swiss German (with "ss", never "ß"): tools, buttons, hints, tooltips, the wishes and their
+toasts, the calendar, the stats pill and the save/share panel. The choice is kept in the browser
+(`playbot-lang`, shared with the other Playbot arcade toys; the first visit follows the browser
+language). Valley names stay as they are, since they are also the seed. German hints wrap to a second
+line instead of being cut off. The language layer is the shared Playbot runtime (Little Valley keeps
+its own copy in `src/i18n-runtime.js`, with patterns for sentences that carry names and numbers and a
+cache so the busy stats pill costs nothing); the German text lives in `src/i18n-de.json` and
+`node tools/build.js` puts both into `index.html`. `node tools/lang-check.js` switches to German and
+back at desktop, phone portrait (360x740) and landscape (844x390) size.
+(`screenshot-de.png`: the valley in German on a phone.)
+
 ## Save and share
 Tap **Share** (next to the wishes star) for a small panel with three buttons:
 - **Copy link** makes a link that opens your valley for anyone: the seed name plus the land you
