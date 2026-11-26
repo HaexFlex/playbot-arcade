@@ -1905,6 +1905,7 @@ function renderTilt(t) {
   { const t0 = performance.now(); drawHerons(t); st.heronMs = (st.heronMs || 0) * 0.9 + (performance.now() - t0) * 0.1; }
   { const t0 = performance.now(); drawKingfishers(t); st.kfMs = (st.kfMs || 0) * 0.9 + (performance.now() - t0) * 0.1; }
   { const t0 = performance.now(); drawDippers(t); st.dipMs = (st.dipMs || 0) * 0.9 + (performance.now() - t0) * 0.1; }
+  if (FROG_ON) { const t0 = performance.now(); drawFrogs(t); st.frogMs = (st.frogMs || 0) * 0.9 + (performance.now() - t0) * 0.1; }
   drawBoat(t);
   drawRiverHint('tilt');
   { const t0 = performance.now(); drawWebs(t); st.webMs = (st.webMs || 0) * 0.9 + (performance.now() - t0) * 0.1; }
@@ -4444,6 +4445,72 @@ function drawHedgehog(t) {
   cx.drawImage(spr[fr][left ? 1 : 0], p[0] - w / 2, p[1] - hh * 0.92 + bob, w, hh); cx.restore();
   st.hogDrawn = 1; st.hogAt = [p[0], p[1]];
 }
+// frogs at the ponds on spring evenings: from spring into early summer (year 0.03-0.32), 19:30-23:00, frogs sit at a few
+// still, shallow water edges (lakes, ponds, the millpond: open water 0.02-0.35 deep, still within 2 cells, not iced, with dry
+// bank next to it, in view). Each frog is a tiny dark-green sprite on the bank, and every croak sends a small ripple ring
+// out over the water in front of it. With the sound on a soft chorus plays on the fx bus: short croak pulses ("rrrek",
+// two to four rough little pulses), each panned to the frog that calls, louder and a little busier the more frog spots
+// are in view; light rain makes them call a touch more, a storm silences them (they fade away), and the ice keeps them
+// away. None in autumn or winter, by day, in the always-day mode or the map view.
+// Cheap: the spot search runs once every 3 s (a coarse grid, the same as the herons'), at most FROG_MAX frogs (desk 5,
+// phone 3), rings are a few stroked ellipses. Hooks: st.frogOn, st.frogsDrawn, st.frogRings (rings drawn), st.frogSpots
+// (candidate spots in view), st.frogAt ([[x, y] screen px]), st.frogCells ([[x, y] water cells]), st.frogRate (calls/s),
+// st.frogCroaks (calls so far), st.frogForce (test: ignore the season), st.frogMs; __lv.FROG, frogSea, frogHourOk,
+// frogEdge, sndCroak; AU.ev.croak.
+const FROG_ON = true, FROG_MAX = isPhone ? 3 : 5; // FROG_ON: the frogs feature flag
+const FROG = { S: null, src: [], rt: -1e9, frogs: [], rings: [], last: -1, acc: 0, croaks: 0, spr: null, al: 0 };
+function frogSea(S) { const y = S.P.seasons ? LV.yearFrac(S) : 0.1; return smooth(0.02, 0.05, y) * (1 - smooth(0.3, 0.33, y)); }
+function frogHourOk(h) { return h >= 19.5 && h < 23; }
+function frogEdge(S, i) { const N = S.N, d = S.d, x = i % N, y = (i / N) | 0;
+  if (x < 3 || y < 3 || x >= N - 3 || y >= N - 4 || !(d[i] > 0.02 && d[i] < 0.35) || (S.ice && S.ice[i] > 0.2) || Math.abs(S.u[i]) + Math.abs(S.v[i]) > 0.35) return -1;
+  for (let oy = -2; oy <= 2; oy++) for (let ox = -2; ox <= 2; ox++) { const j = i + oy * N + ox; if (d[j] > 0.02 && Math.abs(S.u[j]) + Math.abs(S.v[j]) > 0.35) return -1; } // still water all round (a pond or a lake bay, not the running river)
+  for (const o of [i + N, i - 1, i + 1, i - N]) if (d[o] < 0.015 && S.snow[o] < 0.3 && S.tree[o] < 0.6) return o; // the bank cell the frog sits on (front first)
+  return -1; }
+function frogSpots(S, T) { const N = S.N, out = [], s2 = Math.max(1, N >> 6);
+  for (let y = 4; y < N - 4; y += s2) for (let x = 4; x < N - 4; x += s2) { const i = y * N + x, b = frogEdge(S, i); if (b >= 0 && duckSeen(T, S, x, y) && foxProj(T, S, (b % N) + 0.5, ((b / N) | 0) + 0.5)) out.push([x, y, b]); }
+  return out; }
+function frogSprite() {
+  if (FROG.spr) return FROG.spr;
+  const c = document.createElement('canvas'); c.width = 14; c.height = 9; const g = c.getContext('2d');
+  g.fillStyle = '#2f5226'; g.beginPath(); g.ellipse(7, 6, 5.4, 2.8, 0, 0, 6.283); g.fill(); // squat body
+  g.beginPath(); g.ellipse(2.4, 7.6, 2.2, 1.1, 0, 0, 6.283); g.ellipse(11.6, 7.6, 2.2, 1.1, 0, 0, 6.283); g.fill(); // folded hind legs
+  g.fillStyle = '#4a7034'; g.beginPath(); g.arc(4.6, 3.4, 1.6, 0, 6.283); g.arc(9.4, 3.4, 1.6, 0, 6.283); g.fill(); // eye bumps
+  g.fillStyle = '#f0dc78'; g.fillRect(4, 2.7, 1.2, 1.2); g.fillRect(8.8, 2.7, 1.2, 1.2); // a glint of eye
+  g.fillStyle = '#7a9a4a'; g.beginPath(); g.ellipse(7, 7.2, 3, 1, 0, 0, 6.283); g.fill(); // paler throat
+  return FROG.spr = c;
+}
+function frogScr(T, S, x, y) { // water surface of a cell -> screen px (as duckSeen)
+  const N = S.N, i = y * N + x, sc = persp(y + 0.5, N), ox = (x + 0.5 - N / 2) * T.cp * sc + T.ow / 2, oy = baseY(T, y + 0.5, N) - (S.h[i] + S.d[i]) * T.cp * T.hEx * sc;
+  return [T.sx + ox * T.s, T.sy + oy * T.s, T.cp * sc * T.s]; }
+function drawFrogs(t) {
+  const T = tilt, S = st.S; st.frogsDrawn = 0; st.frogRings = 0; st.frogAt = []; st.frogCells = []; st.frogRate = 0;
+  const now = performance.now() / 1000, dt = Math.max(0, Math.min(0.1, FROG.last < 0 ? 0 : now - FROG.last)); FROG.last = now; void t;
+  if (!T || T.s == null || !T.pick) return;
+  if (FROG.S !== S) { FROG.S = S; FROG.frogs = []; FROG.rings = []; FROG.rt = -1e9; FROG.al = 0; }
+  const N = S.N, storm = LT.storm > 0.02, on = st.frogOn = !!(st.frogForce || frogSea(S) > 0.5) && frogHourOk(LT.h) && !st.alwaysDay && !storm;
+  FROG.al += ((on ? 1 : 0) - FROG.al) * Math.min(1, dt * (on ? 0.8 : 2.5));
+  if (!on && FROG.al < 0.03) { FROG.frogs = []; FROG.rings = []; FROG.al = 0; st.frogSpots = 0; return; }
+  if (now - FROG.rt > 3) { FROG.rt = now; FROG.src = frogSpots(S, T); // refresh: keep frogs whose spot is still good, fill up with spread-out new ones
+    const src = FROG.src; FROG.frogs = FROG.frogs.filter(f => src.some(c => c[0] === f.x && c[1] === f.y));
+    for (let k = 0; k < 30 && FROG.frogs.length < Math.min(FROG_MAX, src.length); k++) { const c = src[(Math.random() * src.length) | 0];
+      if (FROG.frogs.some(f => Math.hypot(f.x - c[0], f.y - c[1]) < 5)) continue; FROG.frogs.push({ x: c[0], y: c[1], b: c[2], next: Math.random() * 3 }); } }
+  st.frogSpots = FROG.src.length;
+  const fr = FROG.frogs, n = fr.length; if (!n) return;
+  const rate = on ? Math.min(3.2, 0.5 + 0.45 * n) * (LT.rain > 0.06 ? 1.35 : 1) : 0; st.frogRate = rate; // calls per second, the whole chorus
+  FROG.acc += rate * dt;
+  while (FROG.acc >= 1) { FROG.acc -= 1 + (Math.random() - 0.5) * 0.6; const f = fr[(Math.random() * n) | 0]; f.call = 0.35; FROG.croaks++; st.frogCroaks = FROG.croaks;
+    const w = frogScr(T, S, f.x, f.y); if (FROG.rings.length < FROG_MAX * 3) FROG.rings.push({ x: w[0], y: w[1], u: w[2], a: 0 });
+    if (AU.on) sndCroak(fxPan(w[0]), Math.min(1, 0.45 + 0.14 * n)); }
+  const al = Math.min(1, FROG.al), spr = frogSprite();
+  cx.save(); cx.lineWidth = isPhone ? 0.8 : 1;
+  for (let j = FROG.rings.length - 1; j >= 0; j--) { const r = FROG.rings[j]; r.a += dt / 2.2; if (r.a >= 1) { FROG.rings.splice(j, 1); continue; } // a ripple ring spreads out and fades in ~2 s
+    const rad = (0.15 + r.a * 0.9) * r.u; cx.strokeStyle = `rgba(205,222,232,${(0.55 * (1 - r.a) * al).toFixed(3)})`; cx.beginPath(); cx.ellipse(r.x, r.y, rad, rad * 0.38, 0, 0, 6.283); cx.stroke(); st.frogRings++; }
+  for (const f of fr) { const bx = (f.b % N) + 0.5, by = ((f.b / N) | 0) + 0.5, p = foxProj(T, S, bx * 0.7 + (f.x + 0.5) * 0.3, by * 0.7 + (f.y + 0.5) * 0.3); if (!p) continue; // on the bank, at the water's edge
+    if (f.call > 0) f.call -= dt; const w = (isPhone ? 7 : 9) * Math.max(0.8, Math.min(1.3, p[2] / 5)), hh = w * 9 / 14, puff = f.call > 0 ? 1 + 0.12 * Math.sin(f.call * 40) : 1;
+    cx.globalAlpha = al; cx.drawImage(spr, p[0] - w * puff / 2, p[1] - hh * puff * 0.9, w * puff, hh * puff);
+    st.frogsDrawn++; st.frogAt.push([Math.round(p[0]), Math.round(p[1])]); st.frogCells.push([f.x, f.y]); }
+  cx.restore();
+}
 // a barn owl over the meadows at dusk: on some calm, dry evenings from spring to autumn (year 0.08-0.80, about 1 evening
 // in 2, 20:00-22:30) a pale barn owl glides in low over the open meadows and quarters them: long, slow, low legs back and
 // forth across a patch of open grass (dry, unwooded, not on the rock or under snow), each leg a step further along,
@@ -5171,7 +5238,7 @@ function frame(now) {
   const tc0 = performance.now(); computeColours(st.time); st.colMs = (st.colMs || 0) * 0.9 + (performance.now() - tc0) * 0.1;
   cx.setTransform(dpr, 0, 0, dpr, 0, 0);
   if (st.view === 'tilt') { tiltGeom(); drawSky(st.time, dtReal); renderTilt(st.time); }
-  else { drawSky(st.time, dtReal); renderTop(st.time); drawRiverTop(); drawRiverHint('top'); drawCottagesTop(); drawWindowGlowTop(st.time); st.heronsDrawn = 0; st.heronAt = null; st.heronStates = []; HER.birds = []; st.kfDrawn = 0; st.kfAt = null; st.kfStates = []; st.kfPts = []; KF.birds = []; KF.sp = []; st.dipDrawn = 0; st.dipAt = null; st.dipStates = []; st.dipPts = []; DIP.birds = []; DIP.sp = []; st.websDrawn = 0; st.webAt = []; st.webCells = []; st.webGlints = 0; WEB.webs.forEach(w => { w.a = 0; }); st.frostTrees = 0; st.frostGlints = 0; st.frostGlintAt = []; FR.src = []; FR.gl.forEach(g => { g.age = g.life; }); st.foxTracks = 0; st.foxPrints = 0; st.foxPrintCells = []; st.foxDrawn = 0; st.foxAt = null; if (FOX.fox) { FOX.fox = null; FOX.rest = 5; } FOX.last = st.time; st.deerDrawn = 0; st.deerAt = null; st.deerState = ''; st.deerFawn = 0; DEER.rings = []; if (DEER.d) { DEER.d = null; DEER.rest = 5; } DEER.last = st.time; st.hogDrawn = 0; st.hogAt = null; st.hogState = ''; if (HOG.h) { HOG.h = null; HOG.rest = 5; } HOG.last = st.time; st.boDrawn = 0; st.boAt = null; st.boState = ''; if (BO.o) { BO.o = null; BO.rest = 5; } BO.last = st.time; st.glowwormsDrawn = 0; st.glowwormAt = []; st.glowwormCells = []; st.glowwormLvl = []; GW.worms.forEach(w => { w.a = 0; }); st.petalsDrawn = 0; st.mistDrawn = 0; st.mistDrift = 0; st.puddlesDrawn = 0; st.icyPuddles = 0; st.puddleIcePx = 0; st.splashKids = 0; st.splashHopping = 0; st.splashDrops = 0; st.splashSpots = 0; st.splashPuds = []; KID.on = false; st.batsDrawn = 0; st.batAt = null; st.midgesDrawn = 0; st.midgeSpecks = 0; st.midgeGlints = 0; st.midgeCols = []; MID.last = st.time; st.dragonfliesDrawn = 0; st.dfAt = null; st.butterfliesDrawn = 0; st.btfAt = null; BTF.flies.forEach(f => { f.a = 0; }); st.dfHover = 0; DF.last = st.time; st.duckFams = 0; st.ducksDrawn = 0; st.ducklingsDrawn = 0; st.duckLine = null; DUCK.last = null; st.swallowsDrawn = 0; st.swallowRings = 0; st.swallowAt = null; SW.last = st.time; st.bfDrawn = 0; st.bfSit = 0; st.bfFlying = 0; st.bfAtFeeder = 0; st.bfFeeders = 0; st.bfAt = []; st.bfFeederAt = []; BF.birds = []; BF.feeders = []; BF.home = null; BF.crowns = []; } // no petals in the map view (seen from far above they would be specks of dust)
+  else { drawSky(st.time, dtReal); renderTop(st.time); drawRiverTop(); drawRiverHint('top'); drawCottagesTop(); drawWindowGlowTop(st.time); st.heronsDrawn = 0; st.heronAt = null; st.heronStates = []; HER.birds = []; st.kfDrawn = 0; st.kfAt = null; st.kfStates = []; st.kfPts = []; KF.birds = []; KF.sp = []; st.dipDrawn = 0; st.dipAt = null; st.dipStates = []; st.dipPts = []; DIP.birds = []; DIP.sp = []; st.websDrawn = 0; st.webAt = []; st.webCells = []; st.webGlints = 0; WEB.webs.forEach(w => { w.a = 0; }); st.frostTrees = 0; st.frostGlints = 0; st.frostGlintAt = []; FR.src = []; FR.gl.forEach(g => { g.age = g.life; }); st.foxTracks = 0; st.foxPrints = 0; st.foxPrintCells = []; st.foxDrawn = 0; st.foxAt = null; if (FOX.fox) { FOX.fox = null; FOX.rest = 5; } FOX.last = st.time; st.deerDrawn = 0; st.deerAt = null; st.deerState = ''; st.deerFawn = 0; DEER.rings = []; if (DEER.d) { DEER.d = null; DEER.rest = 5; } DEER.last = st.time; st.hogDrawn = 0; st.hogAt = null; st.hogState = ''; if (HOG.h) { HOG.h = null; HOG.rest = 5; } HOG.last = st.time; st.boDrawn = 0; st.boAt = null; st.boState = ''; if (BO.o) { BO.o = null; BO.rest = 5; } BO.last = st.time; st.frogsDrawn = 0; st.frogRings = 0; st.frogAt = []; st.frogCells = []; st.frogRate = 0; FROG.frogs = []; FROG.rings = []; FROG.al = 0; FROG.last = -1; FROG.rt = -1e9; st.glowwormsDrawn = 0; st.glowwormAt = []; st.glowwormCells = []; st.glowwormLvl = []; GW.worms.forEach(w => { w.a = 0; }); st.petalsDrawn = 0; st.mistDrawn = 0; st.mistDrift = 0; st.puddlesDrawn = 0; st.icyPuddles = 0; st.puddleIcePx = 0; st.splashKids = 0; st.splashHopping = 0; st.splashDrops = 0; st.splashSpots = 0; st.splashPuds = []; KID.on = false; st.batsDrawn = 0; st.batAt = null; st.midgesDrawn = 0; st.midgeSpecks = 0; st.midgeGlints = 0; st.midgeCols = []; MID.last = st.time; st.dragonfliesDrawn = 0; st.dfAt = null; st.butterfliesDrawn = 0; st.btfAt = null; BTF.flies.forEach(f => { f.a = 0; }); st.dfHover = 0; DF.last = st.time; st.duckFams = 0; st.ducksDrawn = 0; st.ducklingsDrawn = 0; st.duckLine = null; DUCK.last = null; st.swallowsDrawn = 0; st.swallowRings = 0; st.swallowAt = null; SW.last = st.time; st.bfDrawn = 0; st.bfSit = 0; st.bfFlying = 0; st.bfAtFeeder = 0; st.bfFeeders = 0; st.bfAt = []; st.bfFeederAt = []; BF.birds = []; BF.feeders = []; BF.home = null; BF.crowns = []; } // no petals in the map view (seen from far above they would be specks of dust)
   floeStep(S, dtReal); drawFloes();
   drawCottageBadges(st.time);
   drawNaturalRain(st.time); drawOverlays(st.time); drawShower(st.time);
@@ -5215,7 +5282,7 @@ function adapt(dt) {
 // and thunder after lightning, wind (stronger in winter and storms), birds by day in the forest, crickets on
 // summer evenings, an owl at night, the creak and clack of turning mill wheels, cowbells near the village.
 // window.LV_AUDIO holds the levels (0..1) and gains so tests can check them without listening.
-const AU = { want: false, on: false, started: false, state: 'none', nodes: 0, live: 0, L: {}, G: {}, ev: { chirp: 0, cricket: 0, owl: 0, clack: 0, creak: 0, bell: 0, thunder: 0, plop: 0, slurp: 0, splash: 0, knock: 0, well: 0, rustle: 0, rumble: 0, drip: 0, squeak: 0, thump: 0, crunch: 0, skate: 0, icicle: 0, puddle: 0, peep: 0, twit: 0, bat: 0, pipe: 0, whirr: 0, honk: 0, crane: 0, frank: 0, tsee: 0, zit: 0, murmur: 0, spade: 0, sow: 0, canoe: 0, deerstep: 0, lap: 0, bark: 0, snuffle: 0, screech: 0 }, flow: 0, riverPan: 0, veg: 0, ticks: 0, vol: 1, snowCover: 0, rainMuffle: 0, rainCut: 9000, masterT: 0, melt: 0, meltPan: 0 };
+const AU = { want: false, on: false, started: false, state: 'none', nodes: 0, live: 0, L: {}, G: {}, ev: { chirp: 0, cricket: 0, owl: 0, clack: 0, creak: 0, bell: 0, thunder: 0, plop: 0, slurp: 0, splash: 0, knock: 0, well: 0, rustle: 0, rumble: 0, drip: 0, squeak: 0, thump: 0, crunch: 0, skate: 0, icicle: 0, puddle: 0, peep: 0, twit: 0, bat: 0, pipe: 0, whirr: 0, honk: 0, crane: 0, frank: 0, tsee: 0, zit: 0, murmur: 0, spade: 0, sow: 0, canoe: 0, deerstep: 0, lap: 0, bark: 0, snuffle: 0, screech: 0, croak: 0 }, flow: 0, riverPan: 0, veg: 0, ticks: 0, vol: 1, snowCover: 0, rainMuffle: 0, rainCut: 9000, masterT: 0, melt: 0, meltPan: 0 };
 window.LV_AUDIO = AU;
 const AU_KEY = 'lv-sound', AU_MASTER = 0.45, AU_DT = 0.25;
 const AU_MAX = { river: 0.55, rain: 0.42, wind: 0.2, birds: 0.42, crickets: 0.13, owl: 0.38, mill: 0.42, cows: 0.26, thunder: 0.85, melt: 0.3 }; // full-level gain per layer
@@ -5518,6 +5585,15 @@ function sndSnuffle(pan) { // a hedgehog snuffling in the grass: quick little sn
     a += 0.16 + Math.random() * 0.12; }
   noiseHit('fx', AG.pink, a, 0.12, 'bandpass', 420 + Math.random() * 80, 1.6, 0.04, pan, 0.05); // the huff
   AU.ev.snuffle++;
+}
+function sndCroak(pan, vol) { // one frog calls: two to four rough, quick pulses ("rrrek"), a low buzzy tone through a soft band, fx bus
+  if (!fxOn()) return; const ac = AG.ac, t = ac.currentTime + 0.03 + Math.random() * 0.05, n = 2 + (Math.random() * 3 | 0), f0 = 190 + Math.random() * 120, pd = 0.045 + Math.random() * 0.02, gap = 0.03 + Math.random() * 0.02, dur = n * (pd + gap) + 0.08;
+  const bp = ac.createBiquadFilter(), e = auVoice('fx', t, dur + 0.1, pan); bp.type = 'bandpass'; bp.frequency.value = 700 + Math.random() * 300; bp.Q.value = 1.4; bp.connect(e);
+  const o = osc('sawtooth', f0, t, dur, bp), pk = 0.05 * (vol == null ? 1 : vol);
+  for (let k = 0; k < n; k++) { const a = t + k * (pd + gap); o.frequency.setValueAtTime(f0 * 0.92, a); o.frequency.linearRampToValueAtTime(f0 * 1.08, a + pd);
+    e.gain.setValueAtTime(0, a); e.gain.linearRampToValueAtTime(pk, a + 0.008); e.gain.linearRampToValueAtTime(pk * 0.6, a + pd * 0.7); e.gain.linearRampToValueAtTime(0, a + pd); }
+  setTimeout(() => bp.disconnect(), (t - ac.currentTime + dur) * 1000 + 400);
+  AU.ev.croak++;
 }
 function sndScreech(pan) { // a barn owl's screech: one long, hoarse, breathy shriek (about 1 s), a touch falling at the end, soft and far, fx bus
   if (!fxOn()) return; const ac = AG.ac, t = ac.currentTime + 0.05, d = 0.85 + Math.random() * 0.35;
@@ -5965,7 +6041,7 @@ addEventListener('pagehide', () => autoSave('pagehide'));
 window.LV_AUTO = { AS, save: autoSave, get: asGet, put: asPut, clear: asClear, restore: autoRestore };
 
 
-window.__lv = { st, FR, FOX, foxEvening, HOG, hogNight, hogSea, hogGardens, sndSnuffle, BO, boEvening, boSea, boMeadow, sndScreech, DEER, deerDay, deerFind, troughStand, sndDeerStep, sndLap, sndBark, BF, GS, CR, HER, KF, DIP, MU, murmEvening, AU, SW, updSound, LV, LT, leaf: LS, clockText, wheelAng, get col() { return [colR, colG, colB]; }, get tilt() { return tilt; }, get area() { return area; }, setTool, newWorld, unproj, proj, get S() { return st.S; }, floes, breakup: sndBreakup, yearTurn, flourT, SACK_T, carts, CART_LOAD, cartTarget, bakeT, FLOUR, smokeRGB, HAY, HAY_T, PUD, KID, DUCK, BTF, BOAT, boatCourse, boatRestSnd, lowBareSprings, springNudgeOn, wishLine: id => wishLine(WISHES.find(w => w.id === id)) };
+window.__lv = { st, FROG, frogSea, frogHourOk, frogEdge, frogSpots, sndCroak, FR, FOX, foxEvening, HOG, hogNight, hogSea, hogGardens, sndSnuffle, BO, boEvening, boSea, boMeadow, sndScreech, DEER, deerDay, deerFind, troughStand, sndDeerStep, sndLap, sndBark, BF, GS, CR, HER, KF, DIP, MU, murmEvening, AU, SW, updSound, LV, LT, leaf: LS, clockText, wheelAng, get col() { return [colR, colG, colB]; }, get tilt() { return tilt; }, get area() { return area; }, setTool, newWorld, unproj, proj, get S() { return st.S; }, floes, breakup: sndBreakup, yearTurn, flourT, SACK_T, carts, CART_LOAD, cartTarget, bakeT, FLOUR, smokeRGB, HAY, HAY_T, PUD, KID, DUCK, BTF, BOAT, boatCourse, boatRestSnd, lowBareSprings, springNudgeOn, wishLine: id => wishLine(WISHES.find(w => w.id === id)) };
 updUI(); updSound();
 const rawHash = (location.hash || '').slice(1);
 let fromHash = ''; try { fromHash = decodeURIComponent(rawHash); } catch (e) { fromHash = ''; }

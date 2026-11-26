@@ -138,6 +138,14 @@ it home. With the sound on you hear one soft screech, a long, hoarse, breathy sh
 seen in view. None in winter, by day, in the always-day mode or in the map view. (`screenshot-barn-owl.png`:
 a barn owl hovering over the meadow at dusk.)
 
+**Frogs at the ponds**: on spring evenings and into early summer (from half past seven until eleven) frogs
+sit at a few still, shallow water edges, at the lakes, ponds and the millpond but not on the running river:
+tiny dark-green frogs on the bank, and every croak sends a small ripple ring out over the water. With the
+sound on you hear a soft chorus of short, rough croaks, each from the frog that calls, fuller the more frogs
+are in view. Light rain makes them call a little more, a storm silences them, and ice keeps them away. At most
+five at a time (three on a phone). None in autumn or winter, by day, in the always-day mode or in the map
+view. (`screenshot-frogs.png`: frogs at a pond edge on a spring evening, with ripple rings.)
+
 **Hoar frost**: after a clear, cold winter night the trees wake up white-rimed: the pine and leafy crowns
 (and the bare winter twigs) go frosty white with a bright rim on their edges and the open grass turns pale.
 When the sun is up, little sparkles wander over the frosted crowns, and the frost fades as the day warms
