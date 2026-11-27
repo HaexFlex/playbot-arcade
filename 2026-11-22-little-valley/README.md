@@ -190,6 +190,15 @@ children (two on a phone). None on a snowless winter day, in the morning, at nig
 the map view, and they are hidden behind ridges like the other figures. With the sound on every ride gives a soft
 snowy whoosh. `screenshot-sledge.png` shows a child sledding down beside its track while a friend waits at the top.
 
+**Snowmen**: on a snowy winter morning (about 10:00 to 15:00, no storm or heavy snowfall) the children of a cottage
+walk out to an open snowy spot a few steps from it, clear of the house (not on a sled run) and build a snowman over about two game hours:
+they roll the base, the body and the head one after the other, then add a carrot nose and two stick arms, and walk home.
+The snowman stays standing, day and night, as long as snow lies under it. When the snow thaws it shrinks and leans, the
+carrot drops first, then the arms, and once the snow is gone a carrot and two sticks lie on the ground for a day. At most
+two snowmen (one on a phone). Hidden behind ridges like the other figures, none in the map view. The sledging children
+now also look a little further for a slope (a 0.03 N wider search, measured to find a run on 91% instead of 89% of
+snowy days). `screenshot-snowman.png` shows children building a snowman beside a finished one.
+
 **Hoar frost**: after a clear, cold winter night the trees wake up white-rimed: the pine and leafy crowns
 (and the bare winter twigs) go frosty white with a bright rim on their edges and the open grass turns pale.
 When the sun is up, little sparkles wander over the frosted crowns, and the frost fades as the day warms

@@ -1900,6 +1900,7 @@ function renderTilt(t) {
   rasterSplash(T, data);
   rasterPile(T, data);
   rasterSled(T, data);
+  rasterSnowman(T, data);
   { const t0 = performance.now(); rasterDucks(T, data); st.duckMs = (st.duckMs || 0) * 0.9 + (performance.now() - t0) * 0.1; }
   T.ctx.putImageData(T.img, 0, 0);
   tintOver(T.ctx, 0, 0, ow, oh, 'source-atop');
@@ -2319,7 +2320,7 @@ function rasterPile(T, data) {
 // st.sledRiding (riding down now), st.sledRides (rides started so far), st.sledTrack (track px drawn), st.sledHome
 // (children walking home), st.sledSeen (sledging days seen, SLED.seen/seenDay: the life wish), st.sledCells ([top, bottom] cell per slope), st.sledMid (tilt-buffer px of the first run's middle), st.sledAt (tilt-buffer px of the first rider,
 // else the first slope top), st.sledMs (per-frame raster cost, smoothed), st.sledFindMs (the last slope search, every 3 s), SLED, sledOK, sledFind.
-const SLED_MAX = isPhone ? 1 : 2, SLED_P = 5.2, SLED_RIDE = 0.3, SLED = { S: null, t: -1e9, t0: 0, on: false, list: [], rf: [], rides: 0, trk: [], seen: 0, seenDay: -1, far: 0 }; // SLED.seen: winter days with a child seen riding a sled in view (one per clock day, for the life wish)
+const SLED_MAX = isPhone ? 1 : 2, SLED_P = 5.2, SLED_RIDE = 0.3, SLED = { S: null, t: -1e9, t0: 0, on: false, list: [], rf: [], rides: 0, trk: [], seen: 0, seenDay: -1, far: 0.03 }; // SLED.far: search radius beyond 0.11 N (0.03 measured 2026-11-27: slopes found in 91% vs 89% of snowy samples, all visible). SLED.seen: winter days with a child seen riding a sled in view (one per clock day, for the life wish)
 function sledOK() { const S = st.S; if (!S.P.seasons || st.view === 'top') return false; const y = LV.yearFrac(S);
   return (y >= 0.76 || y < 0.06) && LT.h >= 10 && LT.h < 17.3 && LT.storm < 0.05 && !(S.rainNow > 0.3); }
 function sledFind(S, T) { // each cottage's best gentle snowy run close above it: [top cell, ux, uy, len, cottage cell, dist, hash]
@@ -2395,6 +2396,90 @@ function rasterSled(T, data) {
   });
   if (st.sledRiding > 0) { const day = Math.floor(S.time / (S.P.dayLen || 720) + 0.1); if (day !== SLED.seenDay) { SLED.seenDay = day; SLED.seen++; st.sledSeen = SLED.seen; } } // a child seen riding down in view: one sledging day per clock day
   st.sledRides = SLED.rides; st.sledMs = (st.sledMs || 0) * 0.9 + (performance.now() - t0) * 0.1;
+}
+// Snowmen: on a snowy winter morning (10:00-15:00, no storm or heavy snowfall, 3D view) the children of a cottage (at most
+// 2 cottages, 1 on a phone) walk out to a snowy open spot 2.2-3.6 cells from it (clear of the cottage sprite) (in front where possible, not on a sled run,
+// visible) and build a snowman over ~2.2 game hours: the base, the body and the head roll bigger one after the other, then a
+// carrot nose and two stick arms; then they walk home. It stays standing (day and night) while snow lies on its spot and
+// melts with it (thaw, spring): it shrinks and leans, the carrot drops first, then the arms, and when the snow is gone a
+// carrot and two sticks lie on the ground for a day. Hidden behind ridges via the pick buffer, none in the map view.
+// Hooks: st.smSpots (snowmen planned), st.smMen (drawn), st.smKids (builders drawn), st.smStage / st.smP / st.smMelt (per
+// snowman: stage 0-6, progress 0-1, snow left 0-1), st.smCells, st.smAt (tilt-buffer px of the first snowman's foot),
+// st.smLeft (melted-away leftovers drawn), st.smBuilt / st.smMelted (totals), st.smMs, st.smFindMs, SM, smOK, smBuildOK, smFind.
+const SM_MAX = isPhone ? 1 : 2, SM_BUILD_H = 2.2, SM = { S: null, t: -1e9, list: [], left: [], lastT: null, lastRT: 0, built: 0, melted: 0, fast: 1 }; // SM.fast: a test hook (build speed)
+function smOK() { const S = st.S; return !!(S.P.seasons && st.view !== 'top'); }
+function smBuildOK() { const S = st.S, y = LV.yearFrac(S); return (y >= 0.76 || y < 0.06) && LT.h >= 10 && LT.h < 15 && LT.storm < 0.05 && !(S.rainNow > 0.3); }
+function smStage(p) { return p <= 0 ? 0 : p < 0.3 ? 1 : p < 0.6 ? 2 : p < 0.85 ? 3 : p < 0.93 ? 4 : p < 1 ? 5 : 6; }
+function smFind(S, T) { // keep the snowmen that still have snow under them, then (on a building day) a spot by each further cottage
+  const N = S.N, d = S.d, sn = S.snow, tr = S.tree, L = SM.list.filter(e => sn[e.i] > 0.02);
+  if (L.length >= SM_MAX || !smBuildOK()) return L;
+  const runs = []; for (const e of SLED.list) for (let k = 0; k <= e[4]; k++) runs.push([e[1] % N + e[2] * k, ((e[1] / N) | 0) + e[3] * k]);
+  const C = S.cottages.filter(c => !c.ruin && c.mood !== 'ruin').map(c => [LV.cottageCell(S, c), Math.abs(Math.sin(c.x * 311.7 + c.y * 183.3) * 43758.5) % 1]).sort((a, b) => a[1] - b[1]);
+  for (const [ci, hs] of C) { if (L.length >= SM_MAX) break; if (L.some(e => e.c === ci)) continue; const cx = ci % N, cy = (ci / N) | 0; let best = null;
+    for (let dy = -4; dy <= 4; dy++) for (let dx = -4; dx <= 4; dx++) { const r = Math.hypot(dx, dy), x = cx + dx, y = cy + dy; if (r < 2.2 || r > 3.6 || x < 4 || y < 4 || x >= N - 4 || y >= N - 4) continue;
+      const j = y * N + x; if (!(sn[j] > 0.08) || d[j] > 0.02 || tr[j] >= 0.25 || (S.ice && S.ice[j] > 0.3)) continue;
+      if (runs.some(q => Math.abs(q[0] - x) <= 1 && Math.abs(q[1] - y) <= 1) || L.some(e => Math.abs(e.i % N - x) + Math.abs(((e.i / N) | 0) - y) < 3)) continue;
+      if (S.cottages.some(o => !o.ruin && Math.hypot(o.x * N - x, o.y * N - y) < 1.2)) continue;
+      const sc = Math.abs(r - 2.8) + (dy < 1 ? 1.2 : 0) + ((j * 0.618) % 1) * 0.1; if (best && sc >= best[0]) continue; if (T && !duckSeen(T, S, x, y)) continue; best = [sc, j]; }
+    if (best) L.push({ i: best[1], c: ci, hs, p: 0, out: -1, hm: -1, done: false }); }
+  return L;
+}
+function rasterSnowman(T, data) {
+  let t0 = performance.now(); const S = st.S, N = S.N, ow = T.ow, oh = T.oh, pick = T.pick, cp = T.cp, h = S.h, sn = S.snow, now = st.time;
+  st.smMen = 0; st.smKids = 0; st.smLeft = 0; st.smAt = null;
+  if (SM.S !== S) { SM.S = S; SM.list = []; SM.left = []; SM.lastT = null; SM.t = -1e9; }
+  if (!smOK()) { st.smSpots = 0; st.smCells = []; st.smStage = []; st.smP = []; st.smMelt = []; SM.lastT = null; return; }
+  const dayLen = S.P.dayLen || 720, dH = SM.lastT == null ? 0 : Math.max(Math.max(0, Math.min(dayLen * 0.05, S.time - SM.lastT)) / dayLen * 24, Math.max(0, Math.min(0.5, now - SM.lastRT)) / 30) * SM.fast; SM.lastT = S.time; SM.lastRT = now; // game hours passed (or, paused, ~30 s per hour as at normal speed)
+  if (now - SM.t > 3 || now < SM.t) { const tf = performance.now(); SM.t = now; const old = SM.list; SM.list = smFind(S, T); for (const e of old) if (!SM.list.includes(e)) { const x = e.i % N, y = (e.i / N) | 0; if (e.p >= 0.85) { SM.left.push({ x, y, t: S.time, arms: e.p >= 0.93 }); SM.melted++; } } st.smFindMs = performance.now() - tf; t0 += st.smFindMs; }
+  SM.left = SM.left.filter(q => S.time - q.t < dayLen && S.time >= q.t);
+  const build = smBuildOK();
+  const put = (px, py, r, g, b) => { if (px < 0 || py < 0 || px >= ow || py >= oh) return; const q = (py * ow + px) * 4; data[q] = r; data[q + 1] = g; data[q + 2] = b; data[q + 3] = 255; };
+  const mix = (px, py, r, g, b, k) => { if (px < 0 || py < 0 || px >= ow || py >= oh) return; const q = (py * ow + px) * 4; data[q] += (r - data[q]) * k; data[q + 1] += (g - data[q + 1]) * k; data[q + 2] += (b - data[q + 2]) * k; };
+  const hAt = (gx, gy) => { const x = Math.max(0, Math.min(N - 1, Math.floor(gx))), y = Math.max(0, Math.min(N - 1, Math.floor(gy))), i = y * N + x; return h[i] + S.d[i]; };
+  const scr = (gx, gy) => { const s2 = persp(gy, N), ox = Math.round((gx - N / 2) * cp * s2 + ow / 2), oy = Math.round(baseY(T, gy, N) - hAt(gx, gy) * cp * T.hEx * s2);
+    if (ox < 4 || oy < 10 || ox >= ow - 4 || oy >= oh - 1) return null; const pc = pick[(oy + 1) * ow + ox];
+    if (pc < 0 || Math.abs(pc % N - Math.floor(gx)) > 3 || Math.abs(((pc / N) | 0) - Math.floor(gy)) > 4) return null; return [ox, oy, s2]; };
+  const ball = (cx, cy, r) => { const r2 = r * r + 0.3, ri = (r - 0.85) * (r - 0.85), R = Math.ceil(r); // a shaded snowball with a faint blue-grey rim so it reads on the snow
+    for (let dy = -R; dy <= R; dy++) for (let dx = -R; dx <= R; dx++) { const q = dx * dx + dy * dy; if (q > r2) continue; const l = Math.max(0, Math.min(1, 0.55 - (dx * 0.55 + dy * 0.75) / (r + 0.5) * 0.5));
+      if (q > ri && r >= 1.4) put(cx + dx, cy + dy, 168 + 30 * l, 180 + 28 * l, 206 + 20 * l); else put(cx + dx, cy + dy, 206 + 46 * l, 214 + 40 * l, 230 + 24 * l); } };
+  const stick = (x, y, s, n) => { for (let k = 0; k < n; k++) put(x + s * k, y - (k >> 1), 92, 62, 38); };
+  const kid = (ox, fy, u, C, k) => { const legs = Math.max(1, Math.round(u * 0.5)), coat = Math.max(2, Math.round(u * 1.1)), head = Math.max(2, Math.round(u * 0.8)), x0 = ox - (u >> 1);
+    for (let py = fy - legs + 1; py <= fy; py++) { put(x0, py, 60, 54, 70); if (u > 2) put(x0 + u - 1, py, 60, 54, 70); }
+    for (let py = fy - legs - coat + 1; py <= fy - legs; py++) for (let px = x0; px < x0 + u; px++) put(px, py, C[0] * (px === x0 ? 1.08 : 0.92), C[1] * (px === x0 ? 1.08 : 0.92), C[2] * (px === x0 ? 1.08 : 0.92));
+    const hy = fy - legs - coat; for (let py = hy - head + 1; py <= hy; py++) for (let px = x0; px < x0 + u; px++) put(px, py, 246, 214, 186);
+    put(x0 + (k % 2 ? u - 1 : 0), hy - head, C[0] * 0.7, C[1] * 0.7, C[2] * 0.7); };
+  for (const q of SM.left) { const sp = scr(q.x + 0.5, q.y + 0.6); if (!sp) continue; const [ox, oy] = sp; // a carrot and two sticks left lying where the snowman stood
+    put(ox, oy, 230, 118, 40); put(ox + 1, oy, 214, 104, 36); if (q.arms) { stick(ox - 3, oy, 1, 2); stick(ox + 3, oy + 1, 1, 2); } st.smLeft++; }
+  const kidsMax = isPhone ? 1 : 2, P = [], M = [], G = [];
+  SM.list.forEach((e, j) => {
+    const x = e.i % N, y = (e.i / N) | 0, m = Math.max(0, Math.min(1, (sn[e.i] - 0.02) / 0.1)), gx = x + 0.5, gy = y + 0.6, cx = e.c % N + 0.5, cy = ((e.c / N) | 0) + 0.9;
+    const working = build && e.p < 1 && m > 0.6; // the children come out and build while it is a building morning and the snow holds
+    if (working) { if (e.out < 0) { e.out = now; e.hm = -1; } e.p = Math.min(1, e.p + dH / SM_BUILD_H); if (e.p >= 1 && !e.done) { e.done = true; SM.built++; } }
+    else if (e.out >= 0 && e.hm < 0) e.hm = now;
+    if (e.p >= 1 && e.hm < 0 && e.out >= 0) e.hm = now;
+    P.push(+e.p.toFixed(3)); M.push(+m.toFixed(2)); G.push(smStage(e.p));
+    const sp = scr(gx, gy); if (!sp) return; const [ox, oy, s2] = sp, u = Math.max(2, Math.round(cp * s2));
+    // the builders: walk out from the cottage (1.5 s), pat and push beside the snowman, walk home when done (1.5 s)
+    if (e.out >= 0) for (let k = 0; k < kidsMax; k++) { const side = k ? 1 : -1, wx = gx + side * 1.15, wy = gy + 0.15 * k; let fx, fy, bob = 0;
+      if (e.hm >= 0) { const q = (now - e.hm) / 1.5; if (q >= 1 || q < 0) { if (k === kidsMax - 1 && q >= 1) { e.out = -1; e.hm = -1; } continue; } fx = wx + (cx - wx) * q; fy = wy + (cy - wy) * q; bob = Math.floor(now * 6) % 2; }
+      else { const q = Math.min(1, (now - e.out) / 1.5); fx = cx + (wx - cx) * q; fy = cy + (wy - cy) * q; bob = q < 1 ? Math.floor(now * 6) % 2 : (Math.floor(now * 2.2 + k * 1.3) % 3 === 0 ? 1 : 0); }
+      const kp = scr(fx, fy); if (!kp) continue; kid(kp[0], kp[1] - bob, Math.max(2, Math.round(cp * kp[2])), KID_C[(j * 2 + k + 1) % 4], k); st.smKids++; }
+    if (e.p <= 0) return;
+    const g1 = Math.min(1, e.p / 0.3), g2 = Math.max(0, Math.min(1, (e.p - 0.3) / 0.3)), g3 = Math.max(0, Math.min(1, (e.p - 0.6) / 0.25)), sz = 0.45 + 0.55 * m, lean = (1 - m) * (e.hs < 0.5 ? -1 : 1);
+    const rB = Math.max(1, u * 0.62 * sz * (0.35 + 0.65 * g1)), rM = rB * 0.74 * (0.35 + 0.65 * g2), rH = rB * 0.52 * (0.4 + 0.6 * g3);
+    for (let dx = -Math.ceil(rB * 1.3); dx <= Math.ceil(rB * 1.3); dx++) mix(ox + dx, oy + 1, 140, 156, 190, 0.28); // a soft shadow on the snow
+    const yB = oy - rB + 0.5; ball(ox, Math.round(yB), rB); st.smMen++; if (!st.smAt) st.smAt = [ox, oy];
+    if (g2 <= 0) return; const xM = Math.round(ox + lean * rM * 0.45), yM = Math.round(yB - rB - rM * 0.7); ball(xM, yM, rM);
+    for (let k = 0; k < 2 && rM >= 2; k++) put(xM, Math.round(yM - rM * 0.3 + k * rM * 0.6), 44, 42, 50); // coal buttons
+    if (e.p >= 0.93 && m >= 0.35) { const ay = Math.round(yM - rM * 0.2), al = Math.max(2, Math.round(u * 0.7)); stick(Math.round(xM - rM) - 1, ay, -1, al); stick(Math.round(xM + rM) + 1, ay, 1, al); } // stick arms
+    else if (e.p >= 0.93) { stick(ox - Math.round(rB) - 2, oy, 1, 2); stick(ox + Math.round(rB) + 1, oy + 1, 1, 2); } // the arms have dropped off
+    if (g3 <= 0) return; const xH = Math.round(ox + lean * rH * 1.2), yH = Math.round(yM - rM - rH * 0.65); ball(xH, yH, rH);
+    if (rH >= 1.4) { put(xH - 1, yH - 1, 36, 34, 42); put(xH + (rH >= 2 ? 1 : 0), yH - 1, 36, 34, 42); } // coal eyes
+    if (e.p >= 0.85 && m >= 0.55) { const nl = Math.max(1, Math.round(u * 0.45)); for (let k = 1; k <= nl; k++) put(xH + k, yH, 232 - k * 8, 118, 40); } // the carrot nose
+    else if (e.p >= 0.85) { put(ox + 1, oy, 230, 118, 40); put(ox + 2, oy, 214, 104, 36); } // the carrot has fallen off
+  });
+  st.smSpots = SM.list.length; st.smCells = SM.list.map(e => e.i); st.smP = P; st.smMelt = M; st.smStage = G;
+  st.smMs = (st.smMs || 0) * 0.9 + (performance.now() - t0) * 0.1;
 }
 // ducklings: in late spring and early summer (yearFrac ~0.16-0.34), by day (7:00-19:00), a few duck families (at most 2,
 // 1 on a phone) paddle slowly along the river and lake banks on open water: a brown mother duck with a dark-green head
@@ -5552,7 +5637,7 @@ function frame(now) {
   const tc0 = performance.now(); computeColours(st.time); st.colMs = (st.colMs || 0) * 0.9 + (performance.now() - tc0) * 0.1;
   cx.setTransform(dpr, 0, 0, dpr, 0, 0);
   if (st.view === 'tilt') { tiltGeom(); drawSky(st.time, dtReal); renderTilt(st.time); }
-  else { drawSky(st.time, dtReal); renderTop(st.time); drawRiverTop(); drawRiverHint('top'); drawCottagesTop(); drawWindowGlowTop(st.time); st.heronsDrawn = 0; st.heronAt = null; st.heronStates = []; HER.birds = []; st.kfDrawn = 0; st.kfAt = null; st.kfStates = []; st.kfPts = []; KF.birds = []; KF.sp = []; st.dipDrawn = 0; st.dipAt = null; st.dipStates = []; st.dipPts = []; DIP.birds = []; DIP.sp = []; st.websDrawn = 0; st.webAt = []; st.webCells = []; st.webGlints = 0; WEB.webs.forEach(w => { w.a = 0; }); st.frostTrees = 0; st.frostGlints = 0; st.frostGlintAt = []; FR.src = []; FR.gl.forEach(g => { g.age = g.life; }); st.foxTracks = 0; st.foxPrints = 0; st.foxPrintCells = []; st.foxDrawn = 0; st.foxAt = null; if (FOX.fox) { FOX.fox = null; FOX.rest = 5; } FOX.last = st.time; st.deerDrawn = 0; st.deerAt = null; st.deerState = ''; st.deerFawn = 0; DEER.rings = []; if (DEER.d) { DEER.d = null; DEER.rest = 5; } DEER.last = st.time; st.hogDrawn = 0; st.hogAt = null; st.hogState = ''; if (HOG.h) { HOG.h = null; HOG.rest = 5; } HOG.last = st.time; st.boDrawn = 0; st.boAt = null; st.boState = ''; if (BO.o) { BO.o = null; BO.rest = 5; } BO.last = st.time; st.frogsDrawn = 0; st.frogRings = 0; st.frogAt = []; st.frogCells = []; st.frogRate = 0; FROG.frogs = []; FROG.rings = []; FROG.al = 0; FROG.last = -1; FROG.rt = -1e9; st.wpDrawn = 0; st.wpAt = null; st.wpState = ''; st.wpChips = 0; if (WP.b) { WP.b = null; WP.rest = 2; } WP.chips = []; WP.trunks = []; WP.last = -1; st.glowwormsDrawn = 0; st.glowwormAt = []; st.glowwormCells = []; st.glowwormLvl = []; GW.worms.forEach(w => { w.a = 0; }); st.petalsDrawn = 0; st.leavesDrawn = 0; st.leavesLying = 0; st.lfGust = 0; LF.next = -1; st.mistDrawn = 0; st.mistDrift = 0; st.puddlesDrawn = 0; st.icyPuddles = 0; st.puddleIcePx = 0; st.splashKids = 0; st.splashHopping = 0; st.splashDrops = 0; st.splashSpots = 0; st.splashPuds = []; KID.on = false; st.pilesDrawn = 0; st.pileKids = 0; st.pileIn = 0; st.pileLeaves = 0; st.pileSpots = 0; st.pileAt = null; st.sledSlopes = 0; st.sledKids = 0; st.sledRiding = 0; st.sledTrack = 0; st.sledHome = 0; st.sledSpots = 0; st.sledAt = null; st.sledMid = null; SLED.on = false; PILE.on = false; st.batsDrawn = 0; st.batAt = null; st.midgesDrawn = 0; st.midgeSpecks = 0; st.midgeGlints = 0; st.midgeCols = []; MID.last = st.time; st.dragonfliesDrawn = 0; st.dfAt = null; st.butterfliesDrawn = 0; st.btfAt = null; BTF.flies.forEach(f => { f.a = 0; }); st.dfHover = 0; DF.last = st.time; st.duckFams = 0; st.ducksDrawn = 0; st.ducklingsDrawn = 0; st.duckLine = null; DUCK.last = null; st.swallowsDrawn = 0; st.swallowRings = 0; st.swallowAt = null; SW.last = st.time; st.bfDrawn = 0; st.bfSit = 0; st.bfFlying = 0; st.bfAtFeeder = 0; st.bfFeeders = 0; st.bfAt = []; st.bfFeederAt = []; BF.birds = []; BF.feeders = []; BF.home = null; BF.crowns = []; } // no petals in the map view (seen from far above they would be specks of dust)
+  else { drawSky(st.time, dtReal); renderTop(st.time); drawRiverTop(); drawRiverHint('top'); drawCottagesTop(); drawWindowGlowTop(st.time); st.heronsDrawn = 0; st.heronAt = null; st.heronStates = []; HER.birds = []; st.kfDrawn = 0; st.kfAt = null; st.kfStates = []; st.kfPts = []; KF.birds = []; KF.sp = []; st.dipDrawn = 0; st.dipAt = null; st.dipStates = []; st.dipPts = []; DIP.birds = []; DIP.sp = []; st.websDrawn = 0; st.webAt = []; st.webCells = []; st.webGlints = 0; WEB.webs.forEach(w => { w.a = 0; }); st.frostTrees = 0; st.frostGlints = 0; st.frostGlintAt = []; FR.src = []; FR.gl.forEach(g => { g.age = g.life; }); st.foxTracks = 0; st.foxPrints = 0; st.foxPrintCells = []; st.foxDrawn = 0; st.foxAt = null; if (FOX.fox) { FOX.fox = null; FOX.rest = 5; } FOX.last = st.time; st.deerDrawn = 0; st.deerAt = null; st.deerState = ''; st.deerFawn = 0; DEER.rings = []; if (DEER.d) { DEER.d = null; DEER.rest = 5; } DEER.last = st.time; st.hogDrawn = 0; st.hogAt = null; st.hogState = ''; if (HOG.h) { HOG.h = null; HOG.rest = 5; } HOG.last = st.time; st.boDrawn = 0; st.boAt = null; st.boState = ''; if (BO.o) { BO.o = null; BO.rest = 5; } BO.last = st.time; st.frogsDrawn = 0; st.frogRings = 0; st.frogAt = []; st.frogCells = []; st.frogRate = 0; FROG.frogs = []; FROG.rings = []; FROG.al = 0; FROG.last = -1; FROG.rt = -1e9; st.wpDrawn = 0; st.wpAt = null; st.wpState = ''; st.wpChips = 0; if (WP.b) { WP.b = null; WP.rest = 2; } WP.chips = []; WP.trunks = []; WP.last = -1; st.glowwormsDrawn = 0; st.glowwormAt = []; st.glowwormCells = []; st.glowwormLvl = []; GW.worms.forEach(w => { w.a = 0; }); st.petalsDrawn = 0; st.leavesDrawn = 0; st.leavesLying = 0; st.lfGust = 0; LF.next = -1; st.mistDrawn = 0; st.mistDrift = 0; st.puddlesDrawn = 0; st.icyPuddles = 0; st.puddleIcePx = 0; st.splashKids = 0; st.splashHopping = 0; st.splashDrops = 0; st.splashSpots = 0; st.splashPuds = []; KID.on = false; st.pilesDrawn = 0; st.pileKids = 0; st.pileIn = 0; st.pileLeaves = 0; st.pileSpots = 0; st.pileAt = null; st.sledSlopes = 0; st.sledKids = 0; st.sledRiding = 0; st.sledTrack = 0; st.sledHome = 0; st.sledSpots = 0; st.sledAt = null; st.sledMid = null; st.smMen = 0; st.smKids = 0; st.smLeft = 0; st.smSpots = 0; st.smAt = null; st.smCells = []; SM.lastT = null; SLED.on = false; PILE.on = false; st.batsDrawn = 0; st.batAt = null; st.midgesDrawn = 0; st.midgeSpecks = 0; st.midgeGlints = 0; st.midgeCols = []; MID.last = st.time; st.dragonfliesDrawn = 0; st.dfAt = null; st.butterfliesDrawn = 0; st.btfAt = null; BTF.flies.forEach(f => { f.a = 0; }); st.dfHover = 0; DF.last = st.time; st.duckFams = 0; st.ducksDrawn = 0; st.ducklingsDrawn = 0; st.duckLine = null; DUCK.last = null; st.swallowsDrawn = 0; st.swallowRings = 0; st.swallowAt = null; SW.last = st.time; st.bfDrawn = 0; st.bfSit = 0; st.bfFlying = 0; st.bfAtFeeder = 0; st.bfFeeders = 0; st.bfAt = []; st.bfFeederAt = []; BF.birds = []; BF.feeders = []; BF.home = null; BF.crowns = []; } // no petals in the map view (seen from far above they would be specks of dust)
   floeStep(S, dtReal); drawFloes();
   drawCottageBadges(st.time);
   drawNaturalRain(st.time); drawOverlays(st.time); drawShower(st.time);
@@ -6393,7 +6478,7 @@ addEventListener('pagehide', () => autoSave('pagehide'));
 window.LV_AUTO = { AS, save: autoSave, get: asGet, put: asPut, clear: asClear, restore: autoRestore };
 
 
-window.__lv = { st, PILE, pileOK, sndPile, SLED, sledOK, sledFind, sndSled, LF, leafQ, litQ, get litK() { return litK; }, sndGust, WP, wpSea, wpHourOk, sndDrum, FROG, frogSea, frogHourOk, frogEdge, frogSpots, sndCroak, FR, FOX, foxEvening, HOG, hogNight, hogSea, hogGardens, sndSnuffle, BO, boEvening, boSea, boMeadow, sndScreech, DEER, deerDay, deerFind, troughStand, sndDeerStep, sndLap, sndBark, BF, GS, CR, HER, KF, DIP, MU, murmEvening, AU, SW, updSound, LV, LT, leaf: LS, clockText, wheelAng, get col() { return [colR, colG, colB]; }, get tilt() { return tilt; }, get area() { return area; }, setTool, newWorld, unproj, proj, get S() { return st.S; }, floes, breakup: sndBreakup, yearTurn, flourT, SACK_T, carts, CART_LOAD, cartTarget, bakeT, FLOUR, smokeRGB, HAY, HAY_T, PUD, KID, DUCK, BTF, BOAT, boatCourse, boatRestSnd, lowBareSprings, springNudgeOn, wishLine: id => wishLine(WISHES.find(w => w.id === id)) };
+window.__lv = { st, SM, smOK, smBuildOK, smFind, PILE, pileOK, sndPile, SLED, sledOK, sledFind, sndSled, LF, leafQ, litQ, get litK() { return litK; }, sndGust, WP, wpSea, wpHourOk, sndDrum, FROG, frogSea, frogHourOk, frogEdge, frogSpots, sndCroak, FR, FOX, foxEvening, HOG, hogNight, hogSea, hogGardens, sndSnuffle, BO, boEvening, boSea, boMeadow, sndScreech, DEER, deerDay, deerFind, troughStand, sndDeerStep, sndLap, sndBark, BF, GS, CR, HER, KF, DIP, MU, murmEvening, AU, SW, updSound, LV, LT, leaf: LS, clockText, wheelAng, get col() { return [colR, colG, colB]; }, get tilt() { return tilt; }, get area() { return area; }, setTool, newWorld, unproj, proj, get S() { return st.S; }, floes, breakup: sndBreakup, yearTurn, flourT, SACK_T, carts, CART_LOAD, cartTarget, bakeT, FLOUR, smokeRGB, HAY, HAY_T, PUD, KID, DUCK, BTF, BOAT, boatCourse, boatRestSnd, lowBareSprings, springNudgeOn, wishLine: id => wishLine(WISHES.find(w => w.id === id)) };
 updUI(); updSound();
 const rawHash = (location.hash || '').slice(1);
 let fromHash = ''; try { fromHash = decodeURIComponent(rawHash); } catch (e) { fromHash = ''; }
