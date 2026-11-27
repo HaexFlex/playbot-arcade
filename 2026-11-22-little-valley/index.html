@@ -1898,6 +1898,7 @@ function renderTilt(t) {
   rasterCottages(T, data);
   rasterSkaters(T, data);
   rasterSplash(T, data);
+  rasterPile(T, data);
   { const t0 = performance.now(); rasterDucks(T, data); st.duckMs = (st.duckMs || 0) * 0.9 + (performance.now() - t0) * 0.1; }
   T.ctx.putImageData(T.img, 0, 0);
   tintOver(T.ctx, 0, 0, ow, oh, 'source-atop');
@@ -2233,6 +2234,78 @@ function rasterSplash(T, data) {
       if (s < 0.5) { put(ox - u, oy + 1, 170, 196, 214); put(ox + u, oy + 1, 170, 196, 214); }
     }
   }
+}
+// a leaf pile by the cottages: on a dry autumn afternoon (about 12:00-17:30, once the fallen leaves have gathered, litQ
+// > 0.3) a cottage with leaf litter close by (open ground at the edge of the woods, no snow, not wet) gets a little
+// raked pile of orange-brown leaves, and two children (at most 4, 2 on a phone; at most 2 piles, 1 on a phone) come out,
+// take a run-up and jump in it in turn: the pile squashes flat, they sink in to the shoulders and the leaves burst up
+// and float down around them, then they climb out and go again while the pile fluffs back up. None in rain, at night,
+// in the morning, outside autumn, without seasons, under snow or in the map view. With the sound on each landing
+// crunches (a dry rustle and a soft thump, at most one per 0.4 s). Hooks: st.pilesDrawn, st.pileKids (drawn),
+// st.pileSpots (children planned), st.pileIn (children sunk in a pile), st.pileLeaves (leaf px in the air this frame),
+// st.pileLands (landings so far), st.pileCells, st.pileAt (tilt-buffer px of the first pile), st.pileSquash, PILE, pileOK.
+const PILE_MAX = isPhone ? 1 : 2, PILE = { S: null, t: -1e9, t0: 0, on: false, list: [], lf: [], go: [], lands: 0 };
+function pileOK() { const S = st.S; if (!S.P.seasons || st.view === 'top') return false; const y = LV.yearFrac(S);
+  return y >= 0.62 && y < 0.9 && litQ(S) > 0.3 && LT.h >= 12 && LT.h < 17.5 && LT.rain < 0.1 && LT.storm < 0.05 && !(S.rainNow > 0.05); }
+function rasterPile(T, data) {
+  const S = st.S, N = S.N, ow = T.ow, oh = T.oh, pick = T.pick, cp = T.cp; st.pilesDrawn = 0; st.pileKids = 0; st.pileIn = 0; st.pileLeaves = 0; st.pileAt = null; st.pileSquash = 0;
+  if (!pileOK() || !litK || litK.length !== N * N) { PILE.on = false; st.pileSpots = 0; st.pileCells = []; return; }
+  if (!PILE.on) { PILE.on = true; PILE.t0 = st.time; PILE.t = -1e9; PILE.go = []; PILE.lf = []; }
+  if (PILE.S !== S || st.time - PILE.t > 3 || st.time < PILE.t) { // each cottage's nearest leafy open spot (within ~9% of the valley)
+    PILE.S = S; PILE.t = st.time; const R = Math.max(4, Math.round(N * 0.09)), L = [], tr = S.tree;
+    for (const c of S.cottages) {
+      if (c.mood === 'ruin') continue; const ci = LV.cottageCell(S, c), cx = ci % N, cy = (ci / N) | 0; let best = -1, bd = R * R;
+      for (let dy = -R; dy <= R; dy++) for (let dx = -R; dx <= R; dx++) { const x = cx + dx, y = cy + dy, dd = dx * dx + dy * dy; if (dd < 2 || dd >= bd || x < 3 || y < 3 || x >= N - 3 || y >= N - 3) continue; const i = y * N + x;
+        if (litK[i] < 0.12 || S.d[i] > 0.02 || S.snow[i] > 0.02 || tr[i] + tr[i - 1] + tr[i + 1] + tr[i + N] > 0.3 || Math.abs(S.h[i - 1] - S.h[i + 1]) > 0.02) continue; bd = dd; best = i; }
+      if (best >= 0 && !L.some(q => Math.abs(q[2] % N - best % N) + Math.abs(((q[2] / N) | 0) - ((best / N) | 0)) < 4)) L.push([bd, ci, best, Math.abs(Math.sin(c.x * 127.1 + c.y * 311.7) * 43758.5) % 1]);
+    }
+    PILE.list = L.sort((a, b) => a[0] - b[0] || a[1] - b[1]).slice(0, PILE_MAX);
+  }
+  st.pileSpots = Math.min(isPhone ? 2 : 4, PILE.list.length * 2); st.pileCells = PILE.list.map(e => e[2]);
+  const put = (px, py, r, g, b) => { if (px < 0 || py < 0 || px >= ow || py >= oh) return; const q = (py * ow + px) * 4; data[q] = r; data[q + 1] = g; data[q + 2] = b; data[q + 3] = 255; };
+  const kid = (ox, fy, u, C, k, headOnly) => { const legs = Math.max(1, Math.round(u * 0.5)), coat = Math.round(u * 1.1), head = Math.max(2, Math.round(u * 0.8)), x0 = ox - (u >> 1);
+    if (!headOnly) { for (let py = fy - legs + 1; py <= fy; py++) { put(x0, py, 60, 54, 70); if (u > 2) put(x0 + u - 1, py, 60, 54, 70); }
+      for (let py = fy - legs - coat + 1; py <= fy - legs; py++) for (let px = x0; px < x0 + u; px++) put(px, py, C[0] * (px === x0 ? 1.08 : 0.92), C[1] * (px === x0 ? 1.08 : 0.92), C[2] * (px === x0 ? 1.08 : 0.92)); }
+    const hy = headOnly ? fy : fy - legs - coat; for (let py = hy - head + 1; py <= hy; py++) for (let px = x0; px < x0 + u; px++) put(px, py, 246, 214, 186);
+    put(x0 + (k % 2 ? u - 1 : 0), hy - head, C[0] * 0.7, C[1] * 0.7, C[2] * 0.7); }; // a woolly hat's tuft
+  const now = st.time, P = 3.4; let kidsLeft = st.pileSpots;
+  PILE.list.map((e, j) => [e, j]).sort((a, b) => a[0][2] - b[0][2]).forEach(([[dd, ci, pi, hs], j]) => { // back to front
+    const px0 = pi % N + 0.5, py0 = ((pi / N) | 0) + 0.6, i = pi, sc = persp(py0, N), base = (S.h[i] + S.d[i]) * cp * T.hEx * sc;
+    const pox = Math.round((px0 - N / 2) * cp * sc + ow / 2), poy = Math.round(baseY(T, py0, N) - base); if (pox < 6 || poy < 8 || pox >= ow - 6 || poy >= oh - 1) return;
+    const pc = pick[(poy + 1) * ow + pox]; if (pc < 0 || Math.abs(pc % N - pi % N) > 3 || Math.abs(((pc / N) | 0) - ((pi / N) | 0)) > 4) return; // hidden behind a hill
+    const u = Math.max(2, Math.round(cp * sc)), w = Math.max(3, Math.round(u * 1.7)), h0 = Math.max(2, Math.round(u * 1.05));
+    // the children: k = 0, 1 take turns (half a cycle apart); each walks out from the cottage to its stand-by spot first
+    const ks = []; for (let m = 0; m < 2 && kidsLeft > 0; m++, kidsLeft--) {
+      const k = j * 2 + m, side = m ? 1 : -1, start = PILE.t0 + m * 0.8 + j * 0.6 + hs * 0.8, sx = px0 + side * 1.25, sy = py0 + 0.15, walk = Math.min(9, 0.6 + Math.sqrt(dd) / 2.2), a = now - start; if (a < 0) continue;
+      let gx, gy, lift = 0, inPile = false, f = -1;
+      if (a < walk) { const p = a / walk; gx = ci % N + 0.5 + (sx - ci % N - 0.5) * p; gy = ((ci / N) | 0) + 0.9 + (sy - ((ci / N) | 0) - 0.9) * p; lift = Math.floor(a * 6) % 2; }
+      else { const fc = ((now - PILE.t0 - hs * 1.2) / P + m * 0.5) % 1; // a shared clock per pile, so they take turns
+        if (!PILE.go[k] && fc < 0.15) PILE.go[k] = true; if (PILE.go[k]) f = fc; else { gx = sx; gy = sy; } }
+      if (f >= 0) {
+        if (f < 0.22) { const q = f / 0.22; gx = sx - side * 0.55 * q; gy = sy; lift = Math.floor(a * 8) % 2; } // run-up
+        else if (f < 0.4) { const q = (f - 0.22) / 0.18; gx = sx - side * (0.55 + 0.7 * q); gy = sy - 0.15 * q; lift = Math.round(Math.sin(Math.PI * q) * u * 1.6); } // the jump
+        else if (f < 0.66) { gx = px0; gy = py0; inPile = true; } // sunk in the leaves
+        else if (f < 0.84) { const q = (f - 0.66) / 0.18; gx = px0 + side * 1.25 * q; gy = py0 + 0.15 * q; lift = Math.floor(a * 6) % 2; } // climbing out
+        else { gx = sx; gy = sy; } }
+      ks.push({ k, m, gx, gy, lift, inPile, f, side });
+    }
+    let squash = 0, burst = []; for (const q of ks) if (q.f >= 0.4) { const s = (q.f - 0.4) / 0.6; squash = Math.max(squash, s < 0.1 ? s / 0.1 : 1 - smooth(0.25, 1, s)); if (q.f < 0.82) burst.push(q); }
+    const hh0 = Math.max(1, Math.round(h0 * (1 - 0.5 * squash))), ww = Math.round(w * (1 + 0.25 * squash));
+    // kids behind the pile (further up the screen) are drawn first, the pile over them, then the rest
+    const drawKid = q => { const x = Math.floor(q.gx), y = Math.floor(q.gy), ii = y * N + x; if (x < 1 || y < 1 || x >= N - 1 || y >= N - 1) return;
+      const s2 = persp(q.gy, N), ox = Math.round((q.gx - N / 2) * cp * s2 + ow / 2), oy = Math.round(baseY(T, q.gy, N) - (S.h[ii] + S.d[ii]) * cp * T.hEx * s2); if (ox < 3 || oy < 6 || ox >= ow - 3 || oy >= oh - 1) return;
+      const C = KID_C[(q.k + 1) % 4]; if (q.inPile) { kid(pox, poy - hh0 + 1, u, C, q.k, true); st.pileIn++; } else kid(ox, oy - q.lift, u, C, q.k, false); st.pileKids++; };
+    ks.filter(q => !q.inPile && q.gy < py0 - 0.05).forEach(drawKid);
+    for (let dx = -ww; dx <= ww; dx++) { const c = Math.round(hh0 * Math.sqrt(Math.max(0, 1 - (dx / (ww + 0.5)) ** 2))); // a little dome of leaves
+      for (let py = poy - c; py <= poy; py++) { const L = LIT_C[((dx * 7 + py * 3 + 99) % 4 + 4) % 4], top = py === poy - c ? 1.12 : py === poy ? 0.78 : 1; put(pox + dx, py, L[0] * top, L[1] * top, L[2] * top); } }
+    ks.filter(q => q.inPile || q.gy >= py0 - 0.05).forEach(drawKid);
+    for (const q of burst) { const s = (q.f - 0.4) / 0.42; // leaves burst up and flutter down around the pile
+      for (let n = 0; n < 6; n++) { const vx = (n - 2.5) * u * 0.75, up = u * (2.2 + (n % 3) * 0.6), x = Math.round(pox + vx * s + Math.sin(s * 9 + n) * u * 0.4), y = Math.round(poy - hh0 - up * Math.sin(Math.PI * Math.min(1, s * 1.15)) + s * u * 0.8);
+        if (x < 0 || y < 0 || x >= ow || y >= oh) continue; const L = LIT_C[(n + q.k) % 4]; put(x, y, L[0] * 1.1, L[1] * 1.1, L[2] * 1.1); st.pileLeaves++; } }
+    for (const q of ks) { const was = PILE.lf[q.k]; if (q.f >= 0.4 && was != null && was >= 0 && was < 0.4) PILE.lands++; PILE.lf[q.k] = q.f; }
+    st.pilesDrawn++; if (!st.pileAt) { st.pileAt = [pox, poy]; st.pileSquash = squash; }
+  });
+  st.pileLands = PILE.lands;
 }
 // ducklings: in late spring and early summer (yearFrac ~0.16-0.34), by day (7:00-19:00), a few duck families (at most 2,
 // 1 on a phone) paddle slowly along the river and lake banks on open water: a brown mother duck with a dark-green head
@@ -5389,7 +5462,7 @@ function frame(now) {
   const tc0 = performance.now(); computeColours(st.time); st.colMs = (st.colMs || 0) * 0.9 + (performance.now() - tc0) * 0.1;
   cx.setTransform(dpr, 0, 0, dpr, 0, 0);
   if (st.view === 'tilt') { tiltGeom(); drawSky(st.time, dtReal); renderTilt(st.time); }
-  else { drawSky(st.time, dtReal); renderTop(st.time); drawRiverTop(); drawRiverHint('top'); drawCottagesTop(); drawWindowGlowTop(st.time); st.heronsDrawn = 0; st.heronAt = null; st.heronStates = []; HER.birds = []; st.kfDrawn = 0; st.kfAt = null; st.kfStates = []; st.kfPts = []; KF.birds = []; KF.sp = []; st.dipDrawn = 0; st.dipAt = null; st.dipStates = []; st.dipPts = []; DIP.birds = []; DIP.sp = []; st.websDrawn = 0; st.webAt = []; st.webCells = []; st.webGlints = 0; WEB.webs.forEach(w => { w.a = 0; }); st.frostTrees = 0; st.frostGlints = 0; st.frostGlintAt = []; FR.src = []; FR.gl.forEach(g => { g.age = g.life; }); st.foxTracks = 0; st.foxPrints = 0; st.foxPrintCells = []; st.foxDrawn = 0; st.foxAt = null; if (FOX.fox) { FOX.fox = null; FOX.rest = 5; } FOX.last = st.time; st.deerDrawn = 0; st.deerAt = null; st.deerState = ''; st.deerFawn = 0; DEER.rings = []; if (DEER.d) { DEER.d = null; DEER.rest = 5; } DEER.last = st.time; st.hogDrawn = 0; st.hogAt = null; st.hogState = ''; if (HOG.h) { HOG.h = null; HOG.rest = 5; } HOG.last = st.time; st.boDrawn = 0; st.boAt = null; st.boState = ''; if (BO.o) { BO.o = null; BO.rest = 5; } BO.last = st.time; st.frogsDrawn = 0; st.frogRings = 0; st.frogAt = []; st.frogCells = []; st.frogRate = 0; FROG.frogs = []; FROG.rings = []; FROG.al = 0; FROG.last = -1; FROG.rt = -1e9; st.wpDrawn = 0; st.wpAt = null; st.wpState = ''; st.wpChips = 0; if (WP.b) { WP.b = null; WP.rest = 2; } WP.chips = []; WP.trunks = []; WP.last = -1; st.glowwormsDrawn = 0; st.glowwormAt = []; st.glowwormCells = []; st.glowwormLvl = []; GW.worms.forEach(w => { w.a = 0; }); st.petalsDrawn = 0; st.leavesDrawn = 0; st.leavesLying = 0; st.lfGust = 0; LF.next = -1; st.mistDrawn = 0; st.mistDrift = 0; st.puddlesDrawn = 0; st.icyPuddles = 0; st.puddleIcePx = 0; st.splashKids = 0; st.splashHopping = 0; st.splashDrops = 0; st.splashSpots = 0; st.splashPuds = []; KID.on = false; st.batsDrawn = 0; st.batAt = null; st.midgesDrawn = 0; st.midgeSpecks = 0; st.midgeGlints = 0; st.midgeCols = []; MID.last = st.time; st.dragonfliesDrawn = 0; st.dfAt = null; st.butterfliesDrawn = 0; st.btfAt = null; BTF.flies.forEach(f => { f.a = 0; }); st.dfHover = 0; DF.last = st.time; st.duckFams = 0; st.ducksDrawn = 0; st.ducklingsDrawn = 0; st.duckLine = null; DUCK.last = null; st.swallowsDrawn = 0; st.swallowRings = 0; st.swallowAt = null; SW.last = st.time; st.bfDrawn = 0; st.bfSit = 0; st.bfFlying = 0; st.bfAtFeeder = 0; st.bfFeeders = 0; st.bfAt = []; st.bfFeederAt = []; BF.birds = []; BF.feeders = []; BF.home = null; BF.crowns = []; } // no petals in the map view (seen from far above they would be specks of dust)
+  else { drawSky(st.time, dtReal); renderTop(st.time); drawRiverTop(); drawRiverHint('top'); drawCottagesTop(); drawWindowGlowTop(st.time); st.heronsDrawn = 0; st.heronAt = null; st.heronStates = []; HER.birds = []; st.kfDrawn = 0; st.kfAt = null; st.kfStates = []; st.kfPts = []; KF.birds = []; KF.sp = []; st.dipDrawn = 0; st.dipAt = null; st.dipStates = []; st.dipPts = []; DIP.birds = []; DIP.sp = []; st.websDrawn = 0; st.webAt = []; st.webCells = []; st.webGlints = 0; WEB.webs.forEach(w => { w.a = 0; }); st.frostTrees = 0; st.frostGlints = 0; st.frostGlintAt = []; FR.src = []; FR.gl.forEach(g => { g.age = g.life; }); st.foxTracks = 0; st.foxPrints = 0; st.foxPrintCells = []; st.foxDrawn = 0; st.foxAt = null; if (FOX.fox) { FOX.fox = null; FOX.rest = 5; } FOX.last = st.time; st.deerDrawn = 0; st.deerAt = null; st.deerState = ''; st.deerFawn = 0; DEER.rings = []; if (DEER.d) { DEER.d = null; DEER.rest = 5; } DEER.last = st.time; st.hogDrawn = 0; st.hogAt = null; st.hogState = ''; if (HOG.h) { HOG.h = null; HOG.rest = 5; } HOG.last = st.time; st.boDrawn = 0; st.boAt = null; st.boState = ''; if (BO.o) { BO.o = null; BO.rest = 5; } BO.last = st.time; st.frogsDrawn = 0; st.frogRings = 0; st.frogAt = []; st.frogCells = []; st.frogRate = 0; FROG.frogs = []; FROG.rings = []; FROG.al = 0; FROG.last = -1; FROG.rt = -1e9; st.wpDrawn = 0; st.wpAt = null; st.wpState = ''; st.wpChips = 0; if (WP.b) { WP.b = null; WP.rest = 2; } WP.chips = []; WP.trunks = []; WP.last = -1; st.glowwormsDrawn = 0; st.glowwormAt = []; st.glowwormCells = []; st.glowwormLvl = []; GW.worms.forEach(w => { w.a = 0; }); st.petalsDrawn = 0; st.leavesDrawn = 0; st.leavesLying = 0; st.lfGust = 0; LF.next = -1; st.mistDrawn = 0; st.mistDrift = 0; st.puddlesDrawn = 0; st.icyPuddles = 0; st.puddleIcePx = 0; st.splashKids = 0; st.splashHopping = 0; st.splashDrops = 0; st.splashSpots = 0; st.splashPuds = []; KID.on = false; st.pilesDrawn = 0; st.pileKids = 0; st.pileIn = 0; st.pileLeaves = 0; st.pileSpots = 0; st.pileAt = null; PILE.on = false; st.batsDrawn = 0; st.batAt = null; st.midgesDrawn = 0; st.midgeSpecks = 0; st.midgeGlints = 0; st.midgeCols = []; MID.last = st.time; st.dragonfliesDrawn = 0; st.dfAt = null; st.butterfliesDrawn = 0; st.btfAt = null; BTF.flies.forEach(f => { f.a = 0; }); st.dfHover = 0; DF.last = st.time; st.duckFams = 0; st.ducksDrawn = 0; st.ducklingsDrawn = 0; st.duckLine = null; DUCK.last = null; st.swallowsDrawn = 0; st.swallowRings = 0; st.swallowAt = null; SW.last = st.time; st.bfDrawn = 0; st.bfSit = 0; st.bfFlying = 0; st.bfAtFeeder = 0; st.bfFeeders = 0; st.bfAt = []; st.bfFeederAt = []; BF.birds = []; BF.feeders = []; BF.home = null; BF.crowns = []; } // no petals in the map view (seen from far above they would be specks of dust)
   floeStep(S, dtReal); drawFloes();
   drawCottageBadges(st.time);
   drawNaturalRain(st.time); drawOverlays(st.time); drawShower(st.time);
@@ -5433,7 +5506,7 @@ function adapt(dt) {
 // and thunder after lightning, wind (stronger in winter and storms), birds by day in the forest, crickets on
 // summer evenings, an owl at night, the creak and clack of turning mill wheels, cowbells near the village.
 // window.LV_AUDIO holds the levels (0..1) and gains so tests can check them without listening.
-const AU = { want: false, on: false, started: false, state: 'none', nodes: 0, live: 0, L: {}, G: {}, ev: { chirp: 0, cricket: 0, owl: 0, clack: 0, creak: 0, bell: 0, thunder: 0, plop: 0, slurp: 0, splash: 0, knock: 0, well: 0, rustle: 0, rumble: 0, drip: 0, squeak: 0, thump: 0, crunch: 0, skate: 0, icicle: 0, puddle: 0, peep: 0, twit: 0, bat: 0, pipe: 0, whirr: 0, honk: 0, crane: 0, frank: 0, tsee: 0, zit: 0, murmur: 0, spade: 0, sow: 0, canoe: 0, deerstep: 0, lap: 0, bark: 0, snuffle: 0, screech: 0, croak: 0, drum: 0, gust: 0 }, flow: 0, riverPan: 0, veg: 0, ticks: 0, vol: 1, snowCover: 0, rainMuffle: 0, rainCut: 9000, masterT: 0, melt: 0, meltPan: 0 };
+const AU = { want: false, on: false, started: false, state: 'none', nodes: 0, live: 0, L: {}, G: {}, ev: { chirp: 0, cricket: 0, owl: 0, clack: 0, creak: 0, bell: 0, thunder: 0, plop: 0, slurp: 0, splash: 0, knock: 0, well: 0, rustle: 0, rumble: 0, drip: 0, squeak: 0, thump: 0, crunch: 0, skate: 0, icicle: 0, puddle: 0, peep: 0, twit: 0, bat: 0, pipe: 0, whirr: 0, honk: 0, crane: 0, frank: 0, tsee: 0, zit: 0, murmur: 0, spade: 0, sow: 0, canoe: 0, deerstep: 0, lap: 0, bark: 0, snuffle: 0, screech: 0, croak: 0, drum: 0, gust: 0, pile: 0 }, flow: 0, riverPan: 0, veg: 0, ticks: 0, vol: 1, snowCover: 0, rainMuffle: 0, rainCut: 9000, masterT: 0, melt: 0, meltPan: 0 };
 window.LV_AUDIO = AU;
 const AU_KEY = 'lv-sound', AU_MASTER = 0.45, AU_DT = 0.25;
 const AU_MAX = { river: 0.55, rain: 0.42, wind: 0.2, birds: 0.42, crickets: 0.13, owl: 0.38, mill: 0.42, cows: 0.26, thunder: 0.85, melt: 0.3 }; // full-level gain per layer
@@ -5663,6 +5736,12 @@ function sndPuddle(pan, k) { // a child lands in a puddle: a small wet slap and 
   noiseHit('fx', AG.white, t, 0.22, 'bandpass', 1300 + Math.random() * 700, 1.1, 0.08 * k, pan, 0.045);
   drop(t + 0.025, 520 + Math.random() * 260, 0.3 * k, pan);
   AU.ev.puddle++;
+}
+function sndPile(pan, k) { // a child lands in the leaf pile: a soft thump and a dry crunchy rustle of leaves (fx bus, so mute and volume apply)
+  if (!fxOn()) return; const t = AG.ac.currentTime + 0.02 + Math.random() * 0.08;
+  noiseHit('fx', AG.pink, t, 0.16, 'bandpass', 260 + Math.random() * 80, 1.2, 0.07 * k, pan, 0.05);
+  for (let j = 0, n = 8 + (Math.random() * 5 | 0); j < n; j++) noiseHit('fx', AG.white, t + 0.01 + Math.random() * 0.35 * (j / n + 0.2), 0.05, 'highpass', 2800 + Math.random() * 2400, 0.7, (0.035 + Math.random() * 0.035) * k, pan + (Math.random() - 0.5) * 0.25, 0.012);
+  AU.ev.pile++;
 }
 function sndTwit(pan, k) { // a swallow: a quick, faint, high twitter of 3-5 chirps (fx bus, so mute and volume apply)
   if (!fxOn()) return; const t0 = AG.ac.currentTime + 0.02 + Math.random() * 0.2, n = 3 + ((Math.random() * 3) | 0), f0 = 4200 + Math.random() * 900;
@@ -5903,6 +5982,9 @@ function auTick(dt) {
   if (st.splashHopping > 0 && st.splashPuds && st.splashPuds.length && t - (AU.splT || -9) > 0.7 && R() < Math.min(0.7, 0.3 + 0.12 * st.splashHopping)) {
     const S = st.S, N = S.N, i0 = st.splashPuds[(R() * st.splashPuds.length) | 0], q = proj(i0 % N, (i0 / N) | 0);
     sndPuddle(q && innerWidth > 0 ? Math.max(-0.7, Math.min(0.7, (q[0] / innerWidth) * 1.4 - 0.7)) : 0, 0.7 + 0.3 * R()); AU.splT = t; }
+  // children landing in a leaf pile (while drawn): a dry crunch for each landing, at most one per 0.4 s, panned to the pile
+  if ((st.pileLands || 0) !== (AU.pileL || 0)) { if (st.pileKids > 0 && st.pileCells && st.pileCells.length && t - (AU.pileT || -9) > 0.4) { const S = st.S, N = S.N, i0 = st.pileCells[0], q = proj(i0 % N, (i0 / N) | 0);
+    sndPile(q && innerWidth > 0 ? fxPan(q[0]) : 0, 0.75 + 0.25 * R()); AU.pileT = t; } AU.pileL = st.pileLands || 0; }
   // ducklings on the water (while drawn): a soft peep now and then, at most one per 1.4 s, panned to the first family
   // swallows overhead (while drawn): a faint twitter now and then, at most one per 2.5 s, panned to the first bird
   if (st.swallowsDrawn > 0 && st.swallowAt && t - (AU.twitT || -9) > 2.5 && R() < 0.2) { sndTwit(fxPan(st.swallowAt[0]), 0.7 + 0.3 * R()); AU.twitT = t; }
@@ -6209,7 +6291,7 @@ addEventListener('pagehide', () => autoSave('pagehide'));
 window.LV_AUTO = { AS, save: autoSave, get: asGet, put: asPut, clear: asClear, restore: autoRestore };
 
 
-window.__lv = { st, LF, leafQ, litQ, get litK() { return litK; }, sndGust, WP, wpSea, wpHourOk, sndDrum, FROG, frogSea, frogHourOk, frogEdge, frogSpots, sndCroak, FR, FOX, foxEvening, HOG, hogNight, hogSea, hogGardens, sndSnuffle, BO, boEvening, boSea, boMeadow, sndScreech, DEER, deerDay, deerFind, troughStand, sndDeerStep, sndLap, sndBark, BF, GS, CR, HER, KF, DIP, MU, murmEvening, AU, SW, updSound, LV, LT, leaf: LS, clockText, wheelAng, get col() { return [colR, colG, colB]; }, get tilt() { return tilt; }, get area() { return area; }, setTool, newWorld, unproj, proj, get S() { return st.S; }, floes, breakup: sndBreakup, yearTurn, flourT, SACK_T, carts, CART_LOAD, cartTarget, bakeT, FLOUR, smokeRGB, HAY, HAY_T, PUD, KID, DUCK, BTF, BOAT, boatCourse, boatRestSnd, lowBareSprings, springNudgeOn, wishLine: id => wishLine(WISHES.find(w => w.id === id)) };
+window.__lv = { st, PILE, pileOK, sndPile, LF, leafQ, litQ, get litK() { return litK; }, sndGust, WP, wpSea, wpHourOk, sndDrum, FROG, frogSea, frogHourOk, frogEdge, frogSpots, sndCroak, FR, FOX, foxEvening, HOG, hogNight, hogSea, hogGardens, sndSnuffle, BO, boEvening, boSea, boMeadow, sndScreech, DEER, deerDay, deerFind, troughStand, sndDeerStep, sndLap, sndBark, BF, GS, CR, HER, KF, DIP, MU, murmEvening, AU, SW, updSound, LV, LT, leaf: LS, clockText, wheelAng, get col() { return [colR, colG, colB]; }, get tilt() { return tilt; }, get area() { return area; }, setTool, newWorld, unproj, proj, get S() { return st.S; }, floes, breakup: sndBreakup, yearTurn, flourT, SACK_T, carts, CART_LOAD, cartTarget, bakeT, FLOUR, smokeRGB, HAY, HAY_T, PUD, KID, DUCK, BTF, BOAT, boatCourse, boatRestSnd, lowBareSprings, springNudgeOn, wishLine: id => wishLine(WISHES.find(w => w.id === id)) };
 updUI(); updSound();
 const rawHash = (location.hash || '').slice(1);
 let fromHash = ''; try { fromHash = decodeURIComponent(rawHash); } catch (e) { fromHash = ''; }

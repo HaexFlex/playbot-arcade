@@ -172,6 +172,15 @@ it. By spring it has rotted away. 3D view only. Leaves that land on a river or p
 longer lie still: they touch down with a faint ring and float off on the current for a few seconds (on still water
 they only creep with the wind). `screenshot-litter.png` shows the litter round a bare wood by the river.
 
+**Leaf pile**: on a dry autumn afternoon (about 12:00 to 17:30), once the fallen leaves have gathered, a cottage with
+leaf litter close by (open ground at the edge of the woods) gets a little raked pile of orange-brown leaves, and two
+children in woolly hats come out to it. They take turns: a short run-up, a jump, and they sink into the leaves up to
+the shoulders while the pile squashes flat and the leaves burst up and flutter down round them; then they climb out
+and the pile fluffs back up for the next one. At most two piles (one on a phone) and four children (two on a phone).
+Nobody comes out in the morning, in the evening, in rain, when snow lies or outside autumn, and there are no piles in
+the map view. With the sound on every landing crunches (a soft thump and a dry rustle of leaves).
+`screenshot-leafpile.png` shows two children at their pile by a cottage at the woods' edge.
+
 **Hoar frost**: after a clear, cold winter night the trees wake up white-rimed: the pine and leafy crowns
 (and the bare winter twigs) go frosty white with a bright rim on their edges and the open grass turns pale.
 When the sun is up, little sparkles wander over the frosted crowns, and the frost fades as the day warms
