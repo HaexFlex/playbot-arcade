@@ -346,7 +346,7 @@ freeze again at night). On winter days the bullfinches in the bare trees call no
 low, slightly wistful whistled *pew*, and when the fox or a skater sends them up you hear a quick whirr of small wings.
 
 ## Valley wishes
-Tap the **Wishes** star for a small panel of twenty-three gentle goals, each with three stars:
+Tap the **Wishes** star for a small panel of twenty-four gentle goals, each with three stars:
 a lake to row on (one still lake covering 3.5%, 6% or 10% of the valley), a deep green forest
 (32%, 38%, 45% forest), a little village (3, 6, 10 cottages), the mill wheel turns (1, 2, 3 mills
 turning), dry feet in a storm (1, 3, 5 cottages kept dry until a storm has passed), rainbow hunter
@@ -359,7 +359,7 @@ out by themselves) and a
 waterfall (the tallest fall right now, 12, 25 or 45 m: a strong stream pouring over a drop twice as steep as
 wet ground settles; dig a steep pit just below a fast stream, and catch it quickly, because the wet cliff
 slumps within seconds; storms on the steep slopes make wild ones too) and a long river (1.6, 2 or 2.5 km
-from a spring all the way to the valley's edge; see below). Nine more are for the valley's quiet
+from a spring all the way to the valley's edge; see below). Ten more are for the valley's quiet
 animals and weather, counted when you see them on screen: a doe at the spring house (1, 2, 4 visits where the roe doe
 drinks at a spring-house trough), a hedgehog in the gardens (1, 3, 6 summer-night visits where it snuffles
 in view), a startled doe barks (1, 2, 3 alarm barks heard with the sound on when a shower sends her off),
@@ -367,8 +367,9 @@ a barn owl at dusk (1, 3, 6 evening visits where the owl is seen quartering the 
 frogs at the ponds (1, 3, 6 spring evenings where the frogs are seen calling at the water),
 a woodpecker drumming (🪶, 1, 3, 6 spring-day visits where the woodpecker is seen drumming on a trunk in the woods; one per bird visit),
 a windy autumn day (🍂, 1, 3, 6 autumn days on which a leaf-fall gust is seen sending a flurry of leaves flying in the 3D view: one per clock day, however many gusts; a gust only counts while at least 3 leaves are in view at its peak, so not in summer, in the map view or once the crowns are bare)
-a sledging day (🛷, 1, 3, 6 snowy winter days on which a child is seen riding a sled down a slope above the cottages in the 3D view: one per clock day, however many rides)
-and a snowman (☃️, 1, 3, 6 finished snowmen seen standing in the 3D view: each snowman counts once, the first time it is drawn whole, so not in the map view or hidden behind a ridge; unlike 'snowmen in the gardens' above, which counts the snowmen standing in the village right now).
+a sledging day (🛷, 1, 3, 6 snowy winter days on which a child is seen riding a sled down a slope above the cottages in the 3D view: one per clock day, however many rides),
+a snowman (☃️, 1, 3, 6 finished snowmen seen standing in the 3D view: each snowman counts once, the first time it is drawn whole, so not in the map view or hidden behind a ridge; unlike 'snowmen in the gardens' above, which counts the snowmen standing in the village right now)
+and a snowball fight (❄️, 1, 3, 6 snowy winter afternoons on which a snowball fight is seen in the 3D view, with at least two children out on the snow: one per clock day, however many throws; not in the map view, in a storm or hidden behind a ridge).
 Like rainbows, sightings count from when the page opened; the stars are kept. Each line shows live
 progress, the next goal and a short tip. Wishes are checked against the real valley twice a
 second (they only read it; the simulation is unchanged). Reaching a goal gives a star with a
