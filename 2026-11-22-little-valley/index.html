@@ -1898,6 +1898,7 @@ function renderTilt(t) {
   drawIcicleDrips(t);
   drawMist(t);
   drawPetals(t);
+  { const t0 = performance.now(); drawLeaves(t); st.leafMs = (st.leafMs || 0) * 0.9 + (performance.now() - t0) * 0.1; }
   { const t0 = performance.now(); drawSwallows(t); st.swallowMs = (st.swallowMs || 0) * 0.9 + (performance.now() - t0) * 0.1; }
   { const t0 = performance.now(); drawBats(t); st.batMs = (st.batMs || 0) * 0.9 + (performance.now() - t0) * 0.1; }
   { const t0 = performance.now(); drawMidges(t); st.midgeMs = (st.midgeMs || 0) * 0.9 + (performance.now() - t0) * 0.1; }
@@ -2065,6 +2066,7 @@ function rasterTrees(T, data) {
   }
   st.hayDrawn = nh;
   const stride = N > 120 ? 2 : 1; const PS = st.petalSrc = []; // blossoming crowns that let petals go (drawPetals)
+  const LFS = st.leafSrc = [], lfOk = LS.autumn > 0.02 && LS.bare < 0.5; // coloured autumn crowns that shed leaves (drawLeaves): crown x, y, radius, trunk foot y (buffer px), colour index
   const BFC = BF.crowns = []; // bare leafy crowns where the bullfinches sit (drawBullfinches)
   const WPT = WP.trunks = []; // trunks in the woods where the woodpecker clings (drawWoodpecker): bx, by (trunk foot, buffer px), cell px, trees round, visible trunk length (buffer px), front (1: the tree in front of it is open, a sunny wood edge where the whole trunk shows)
   FR.src = []; st.frostTrees = 0; if (cp * stride < 1.5) return;
@@ -2105,6 +2107,7 @@ function rasterTrees(T, data) {
       }
       if (WPT.length < 3600 && ((x * 7 + y * 3) % 2) === 0) { const fr = tree[i + N * stride] > 0.35 ? 0 : 1, wd = (tree[i - stride] > 0.35) + (tree[i + stride] > 0.35) + (tree[i - N * stride] > 0.35) + 1 - fr; if (wd >= 3 && (fr || WPT.length < 2400)) WPT.push(ox, oy, cp * sc, wd, Math.max(0.5, oy - ccy - rad * 0.85), fr); }
       if (twig && sad < 0.6 && BFC.length < 900 && ((x * 3 + y * 5) % 4) === 0) BFC.push(ox, ccy, rad);
+      if (lfOk && sad < 0.6 && LFS.length < 300 && ((x * 5 + y * 11) % 3) === 0) LFS.push(ccx, ccy, rad, oy, Math.abs(Math.floor((grain[i + 3] || 0) * 97)) % 3);
       nl++; if (bl) { nb++; if (bl > 30 && PS.length < 180 && ((x * 7 + y * 13) % 3) === 0) PS.push(ccx, ccy, rad); }
     } else {
       const hgt = cp * sc * (1.5 + 1.5 * tv) * (0.85 + grain[i + N] * 0.5), w = hgt * 0.36;
@@ -3129,6 +3132,43 @@ function drawPetals(t) {
     cx.beginPath(); cx.ellipse(x, y, rx, ry, spin * 0.5 + w * 0.3, 0, 7); cx.fill(); if (!st.petalsDrawn) st.petalAt = [x, y]; st.petalsDrawn++; sdx += (x - x0) / u; sdy += (y - y0) / u;
   }
   cx.restore(); if (st.petalsDrawn) { st.petalDrift = sdx / st.petalsDrawn; st.petalFall = sdy / st.petalsDrawn; } // mean drift and drop (in cells) of the petals in the air
+}
+// autumn leaves: while the leafy crowns are orange, red and gold (yearFrac ~0.56-0.77), leaves let go of them and
+// tumble down, swinging to and fro like a falling leaf does, drift on the wind (same wind as the petals) and come to
+// rest on the ground under and beside the tree, where they lie a moment and fade (stateless loops, capped, like the
+// petals). Fewer at the start of autumn, most in the last weeks before the trees are bare; none once the crowns are
+// bare twigs, in spring/summer/winter or the map view. Now and then (every 22-52 s) a gust sweeps the valley: for
+// ~2.6 s the wind is much stronger and up to twice as many leaves fly, with a soft whoosh and leafy rustle (sound on).
+// Hooks st.leafSrc/leavesDrawn/leavesLying/leafWind/leafDrift/leafFall/leafQ/lfGust/lfGusts/lfGustNow/leafAt, LF, leafQ, sndGust, AU.ev.gust.
+const LEAF_MAX = isPhone ? 32 : 60, LEAF_C = [[232, 150, 44], [206, 76, 42], [236, 198, 64], [168, 104, 52]];
+const LF = { next: -1, g0: -1e9, snd: -1e9 };
+function leafQ(S) { if (!S.P.seasons || LS.bare >= 0.5) return 0; const y = LV.yearFrac(S); return y < 0.5 ? 0 : LS.autumn * (0.3 + 0.7 * smooth(0.6, 0.72, y)) * (1 - smooth(0.38, 0.5, LS.bare)); }
+function drawLeaves(t) {
+  const T = tilt, FS = st.leafSrc, S = st.S, q = st.leafQ = leafQ(S); st.leavesDrawn = 0; st.leavesLying = 0; st.leafWind = 0; st.leafDrift = 0; st.leafFall = 0; st.lfGust = 0; let sdx = 0, sdy = 0, nd = 0;
+  if (!T || !FS || FS.length < 5 || q < 0.04) { LF.next = -1; return; }
+  if (LF.next < 0) LF.next = t + 6 + Math.random() * 10;
+  if (st.lfGustNow || t >= LF.next) { st.lfGustNow = false; LF.g0 = t; LF.next = t + 22 + Math.random() * 30; st.lfGusts = (st.lfGusts || 0) + 1; }
+  const gt = t - LF.g0, g = gt >= 0 && gt < 2.6 ? Math.sin(Math.PI * gt / 2.6) : 0; st.lfGust = g;
+  const w0 = petalWind(), dir = w0 < 0 ? -1 : 1, w = w0 * (1 + 1.4 * g) + dir * 0.7 * g, aw = Math.abs(w), rn = S.rainNow || 0, nS = FS.length / 5, u = Math.max(2, T.cp * T.s * persp(S.N * 0.6, S.N));
+  const n = Math.min(LEAF_MAX, Math.round(LEAF_MAX * Math.min(1, 0.2 + 0.8 * q) * (0.55 + 0.45 * g + 0.12 * Math.min(2, aw)) * Math.min(1, nS / 8 + 0.3)));
+  st.leafWind = w; const dim = 1 - LT.night * 0.55;
+  cx.save(); cx.lineWidth = 0.8;
+  for (let j = 0; j < n; j++) {
+    const L = 5.5 + ((j * 0.618) % 1) * 3, f = t / L + j * 0.29, cyc = Math.floor(f), ph = f - cyc, tau = ph * L;
+    const hsh = Math.abs(Math.sin(j * 91.3 + cyc * 271.9) * 43758.5453), k = (Math.floor(hsh) % nS) * 5, h2 = hsh % 1, h3 = (hsh * 7.31) % 1;
+    const x0 = T.sx + (FS[k] + (h2 - 0.5) * FS[k + 2] * 1.6) * T.s, y0 = T.sy + (FS[k + 1] + (h3 - 0.4) * FS[k + 2]) * T.s, yG = T.sy + FS[k + 3] * T.s + (h3 * 1.6 - 0.3) * u;
+    const vy = u * (0.42 + 0.3 * h2) * (1 + rn * 0.8) / (1 + 0.2 * Math.max(0, aw - 1)), tL = Math.max(0.3, (yG - y0) / vy), lie = tau >= tL, ta = lie ? tL : tau;
+    const sw = Math.sin(ta * (2.2 + h3 * 1.2) + j * 1.7), x = x0 + w * u * 1.5 * ta + sw * u * (0.55 + 0.4 * h2) / (1 + 0.3 * aw);
+    const y = lie ? yG : y0 + vy * ta - Math.abs(sw) * u * 0.18;
+    if (x < -8 || x > innerWidth + 8 || y > innerHeight + 8) continue;
+    const fade = lie ? 1 - smooth(0, 1.4, tau - tL) : 1 - smooth(0.8, 1, ph), a = Math.min(1, ph * 8) * fade * (0.55 + 0.45 * Math.min(1, q * 2)); if (a < 0.04) continue;
+    const C = LEAF_C[(h2 * 10 | 0) % 4 === 3 ? 3 : FS[k + 4]], rx = Math.max(2.8, u * 0.72), ry = lie ? rx * 0.45 : Math.max(1, rx * (0.25 + 0.6 * Math.abs(Math.cos(ta * 3.1 + j)))), rot = lie ? h2 * 3 : sw * 0.9 + w * 0.2;
+    cx.fillStyle = litC(C[0] * dim + 30 * (1 - dim), C[1] * dim + 36 * (1 - dim), C[2] * dim + 60 * (1 - dim), a);
+    cx.beginPath(); cx.ellipse(x, y, rx, ry, rot, 0, 7); cx.fill(); cx.strokeStyle = litC(70 * dim, 36 * dim, 18 * dim, a * 0.6); cx.stroke(); // a dark rim so a leaf reads against the coloured crowns
+    if (!st.leavesDrawn) st.leafAt = [x, y]; st.leavesDrawn++; if (lie) st.leavesLying++; else { nd++; sdx += (x - x0) / u; sdy += (y - y0) / u; }
+  }
+  cx.restore(); if (nd) { st.leafDrift = sdx / nd; st.leafFall = sdy / nd; } // mean drift and drop (in cells) of the leaves in the air
+  if (g > 0.3 && LF.snd < LF.g0 && st.leavesDrawn >= 3) { LF.snd = t; if (AU.on) sndGust(st.leafAt ? fxPan(st.leafAt[0]) : 0, g); }
 }
 // swallows: on warm summer evenings (yearFrac ~0.24-0.52, about 17:00-21:00) and low before a storm builds (a storm
 // cloud due within ~90 sim s, then also by day) a small flock of swallows (cap 8 desk / 5 phone) hunts midges low over
@@ -5326,7 +5366,7 @@ function frame(now) {
   const tc0 = performance.now(); computeColours(st.time); st.colMs = (st.colMs || 0) * 0.9 + (performance.now() - tc0) * 0.1;
   cx.setTransform(dpr, 0, 0, dpr, 0, 0);
   if (st.view === 'tilt') { tiltGeom(); drawSky(st.time, dtReal); renderTilt(st.time); }
-  else { drawSky(st.time, dtReal); renderTop(st.time); drawRiverTop(); drawRiverHint('top'); drawCottagesTop(); drawWindowGlowTop(st.time); st.heronsDrawn = 0; st.heronAt = null; st.heronStates = []; HER.birds = []; st.kfDrawn = 0; st.kfAt = null; st.kfStates = []; st.kfPts = []; KF.birds = []; KF.sp = []; st.dipDrawn = 0; st.dipAt = null; st.dipStates = []; st.dipPts = []; DIP.birds = []; DIP.sp = []; st.websDrawn = 0; st.webAt = []; st.webCells = []; st.webGlints = 0; WEB.webs.forEach(w => { w.a = 0; }); st.frostTrees = 0; st.frostGlints = 0; st.frostGlintAt = []; FR.src = []; FR.gl.forEach(g => { g.age = g.life; }); st.foxTracks = 0; st.foxPrints = 0; st.foxPrintCells = []; st.foxDrawn = 0; st.foxAt = null; if (FOX.fox) { FOX.fox = null; FOX.rest = 5; } FOX.last = st.time; st.deerDrawn = 0; st.deerAt = null; st.deerState = ''; st.deerFawn = 0; DEER.rings = []; if (DEER.d) { DEER.d = null; DEER.rest = 5; } DEER.last = st.time; st.hogDrawn = 0; st.hogAt = null; st.hogState = ''; if (HOG.h) { HOG.h = null; HOG.rest = 5; } HOG.last = st.time; st.boDrawn = 0; st.boAt = null; st.boState = ''; if (BO.o) { BO.o = null; BO.rest = 5; } BO.last = st.time; st.frogsDrawn = 0; st.frogRings = 0; st.frogAt = []; st.frogCells = []; st.frogRate = 0; FROG.frogs = []; FROG.rings = []; FROG.al = 0; FROG.last = -1; FROG.rt = -1e9; st.wpDrawn = 0; st.wpAt = null; st.wpState = ''; st.wpChips = 0; if (WP.b) { WP.b = null; WP.rest = 2; } WP.chips = []; WP.trunks = []; WP.last = -1; st.glowwormsDrawn = 0; st.glowwormAt = []; st.glowwormCells = []; st.glowwormLvl = []; GW.worms.forEach(w => { w.a = 0; }); st.petalsDrawn = 0; st.mistDrawn = 0; st.mistDrift = 0; st.puddlesDrawn = 0; st.icyPuddles = 0; st.puddleIcePx = 0; st.splashKids = 0; st.splashHopping = 0; st.splashDrops = 0; st.splashSpots = 0; st.splashPuds = []; KID.on = false; st.batsDrawn = 0; st.batAt = null; st.midgesDrawn = 0; st.midgeSpecks = 0; st.midgeGlints = 0; st.midgeCols = []; MID.last = st.time; st.dragonfliesDrawn = 0; st.dfAt = null; st.butterfliesDrawn = 0; st.btfAt = null; BTF.flies.forEach(f => { f.a = 0; }); st.dfHover = 0; DF.last = st.time; st.duckFams = 0; st.ducksDrawn = 0; st.ducklingsDrawn = 0; st.duckLine = null; DUCK.last = null; st.swallowsDrawn = 0; st.swallowRings = 0; st.swallowAt = null; SW.last = st.time; st.bfDrawn = 0; st.bfSit = 0; st.bfFlying = 0; st.bfAtFeeder = 0; st.bfFeeders = 0; st.bfAt = []; st.bfFeederAt = []; BF.birds = []; BF.feeders = []; BF.home = null; BF.crowns = []; } // no petals in the map view (seen from far above they would be specks of dust)
+  else { drawSky(st.time, dtReal); renderTop(st.time); drawRiverTop(); drawRiverHint('top'); drawCottagesTop(); drawWindowGlowTop(st.time); st.heronsDrawn = 0; st.heronAt = null; st.heronStates = []; HER.birds = []; st.kfDrawn = 0; st.kfAt = null; st.kfStates = []; st.kfPts = []; KF.birds = []; KF.sp = []; st.dipDrawn = 0; st.dipAt = null; st.dipStates = []; st.dipPts = []; DIP.birds = []; DIP.sp = []; st.websDrawn = 0; st.webAt = []; st.webCells = []; st.webGlints = 0; WEB.webs.forEach(w => { w.a = 0; }); st.frostTrees = 0; st.frostGlints = 0; st.frostGlintAt = []; FR.src = []; FR.gl.forEach(g => { g.age = g.life; }); st.foxTracks = 0; st.foxPrints = 0; st.foxPrintCells = []; st.foxDrawn = 0; st.foxAt = null; if (FOX.fox) { FOX.fox = null; FOX.rest = 5; } FOX.last = st.time; st.deerDrawn = 0; st.deerAt = null; st.deerState = ''; st.deerFawn = 0; DEER.rings = []; if (DEER.d) { DEER.d = null; DEER.rest = 5; } DEER.last = st.time; st.hogDrawn = 0; st.hogAt = null; st.hogState = ''; if (HOG.h) { HOG.h = null; HOG.rest = 5; } HOG.last = st.time; st.boDrawn = 0; st.boAt = null; st.boState = ''; if (BO.o) { BO.o = null; BO.rest = 5; } BO.last = st.time; st.frogsDrawn = 0; st.frogRings = 0; st.frogAt = []; st.frogCells = []; st.frogRate = 0; FROG.frogs = []; FROG.rings = []; FROG.al = 0; FROG.last = -1; FROG.rt = -1e9; st.wpDrawn = 0; st.wpAt = null; st.wpState = ''; st.wpChips = 0; if (WP.b) { WP.b = null; WP.rest = 2; } WP.chips = []; WP.trunks = []; WP.last = -1; st.glowwormsDrawn = 0; st.glowwormAt = []; st.glowwormCells = []; st.glowwormLvl = []; GW.worms.forEach(w => { w.a = 0; }); st.petalsDrawn = 0; st.leavesDrawn = 0; st.leavesLying = 0; st.lfGust = 0; LF.next = -1; st.mistDrawn = 0; st.mistDrift = 0; st.puddlesDrawn = 0; st.icyPuddles = 0; st.puddleIcePx = 0; st.splashKids = 0; st.splashHopping = 0; st.splashDrops = 0; st.splashSpots = 0; st.splashPuds = []; KID.on = false; st.batsDrawn = 0; st.batAt = null; st.midgesDrawn = 0; st.midgeSpecks = 0; st.midgeGlints = 0; st.midgeCols = []; MID.last = st.time; st.dragonfliesDrawn = 0; st.dfAt = null; st.butterfliesDrawn = 0; st.btfAt = null; BTF.flies.forEach(f => { f.a = 0; }); st.dfHover = 0; DF.last = st.time; st.duckFams = 0; st.ducksDrawn = 0; st.ducklingsDrawn = 0; st.duckLine = null; DUCK.last = null; st.swallowsDrawn = 0; st.swallowRings = 0; st.swallowAt = null; SW.last = st.time; st.bfDrawn = 0; st.bfSit = 0; st.bfFlying = 0; st.bfAtFeeder = 0; st.bfFeeders = 0; st.bfAt = []; st.bfFeederAt = []; BF.birds = []; BF.feeders = []; BF.home = null; BF.crowns = []; } // no petals in the map view (seen from far above they would be specks of dust)
   floeStep(S, dtReal); drawFloes();
   drawCottageBadges(st.time);
   drawNaturalRain(st.time); drawOverlays(st.time); drawShower(st.time);
@@ -5370,7 +5410,7 @@ function adapt(dt) {
 // and thunder after lightning, wind (stronger in winter and storms), birds by day in the forest, crickets on
 // summer evenings, an owl at night, the creak and clack of turning mill wheels, cowbells near the village.
 // window.LV_AUDIO holds the levels (0..1) and gains so tests can check them without listening.
-const AU = { want: false, on: false, started: false, state: 'none', nodes: 0, live: 0, L: {}, G: {}, ev: { chirp: 0, cricket: 0, owl: 0, clack: 0, creak: 0, bell: 0, thunder: 0, plop: 0, slurp: 0, splash: 0, knock: 0, well: 0, rustle: 0, rumble: 0, drip: 0, squeak: 0, thump: 0, crunch: 0, skate: 0, icicle: 0, puddle: 0, peep: 0, twit: 0, bat: 0, pipe: 0, whirr: 0, honk: 0, crane: 0, frank: 0, tsee: 0, zit: 0, murmur: 0, spade: 0, sow: 0, canoe: 0, deerstep: 0, lap: 0, bark: 0, snuffle: 0, screech: 0, croak: 0, drum: 0 }, flow: 0, riverPan: 0, veg: 0, ticks: 0, vol: 1, snowCover: 0, rainMuffle: 0, rainCut: 9000, masterT: 0, melt: 0, meltPan: 0 };
+const AU = { want: false, on: false, started: false, state: 'none', nodes: 0, live: 0, L: {}, G: {}, ev: { chirp: 0, cricket: 0, owl: 0, clack: 0, creak: 0, bell: 0, thunder: 0, plop: 0, slurp: 0, splash: 0, knock: 0, well: 0, rustle: 0, rumble: 0, drip: 0, squeak: 0, thump: 0, crunch: 0, skate: 0, icicle: 0, puddle: 0, peep: 0, twit: 0, bat: 0, pipe: 0, whirr: 0, honk: 0, crane: 0, frank: 0, tsee: 0, zit: 0, murmur: 0, spade: 0, sow: 0, canoe: 0, deerstep: 0, lap: 0, bark: 0, snuffle: 0, screech: 0, croak: 0, drum: 0, gust: 0 }, flow: 0, riverPan: 0, veg: 0, ticks: 0, vol: 1, snowCover: 0, rainMuffle: 0, rainCut: 9000, masterT: 0, melt: 0, meltPan: 0 };
 window.LV_AUDIO = AU;
 const AU_KEY = 'lv-sound', AU_MASTER = 0.45, AU_DT = 0.25;
 const AU_MAX = { river: 0.55, rain: 0.42, wind: 0.2, birds: 0.42, crickets: 0.13, owl: 0.38, mill: 0.42, cows: 0.26, thunder: 0.85, melt: 0.3 }; // full-level gain per layer
@@ -5693,6 +5733,13 @@ function sndScreech(pan) { // a barn owl's screech: one long, hoarse, breathy sh
   { const e = auVoice('fx', t, d + 0.2, pan), o = osc('sawtooth', 1350 + Math.random() * 120, t, d + 0.1, e); o.frequency.linearRampToValueAtTime(1150, t + d); // a faint rasp under the hiss
     e.gain.setValueAtTime(0, t); e.gain.linearRampToValueAtTime(0.006, t + 0.1); e.gain.linearRampToValueAtTime(0, t + d); }
   AU.ev.screech++;
+}
+function sndGust(pan) { // an autumn gust: a soft rising and falling whoosh of wind and a dry rustle of leaves lifting, fx bus
+  if (!fxOn()) return; const t = AG.ac.currentTime + 0.03;
+  const { e, fl } = noiseHit('fx', AG.pink, t, 2.2, 'bandpass', 420, 0.8, 0, pan, 1); e.gain.cancelScheduledValues(t); e.gain.setValueAtTime(0, t); e.gain.linearRampToValueAtTime(0.07, t + 0.9); e.gain.linearRampToValueAtTime(0, t + 2.1);
+  fl.frequency.setValueAtTime(420, t); fl.frequency.linearRampToValueAtTime(1300, t + 0.9); fl.frequency.linearRampToValueAtTime(600, t + 2.1);
+  for (let k = 0, n = 7 + (Math.random() * 5 | 0); k < n; k++) noiseHit('fx', AG.white, t + 0.35 + Math.random() * 1.4, 0.06, 'highpass', 3200 + Math.random() * 2600, 0.7, 0.04 + Math.random() * 0.04, pan + (Math.random() - 0.5) * 0.3, 0.012);
+  AU.ev.gust++;
 }
 function sndDrum(pan, n, dur) { // a woodpecker's drum roll: n quick, dry knocks on hollow wood ('trrrrr'), loudest early, a hollow body tone under them, fx bus
   if (!fxOn()) return; const ac = AG.ac, t = ac.currentTime + 0.03; n = Math.max(6, Math.min(22, n | 0)); const gap = dur / n;
@@ -6139,7 +6186,7 @@ addEventListener('pagehide', () => autoSave('pagehide'));
 window.LV_AUTO = { AS, save: autoSave, get: asGet, put: asPut, clear: asClear, restore: autoRestore };
 
 
-window.__lv = { st, WP, wpSea, wpHourOk, sndDrum, FROG, frogSea, frogHourOk, frogEdge, frogSpots, sndCroak, FR, FOX, foxEvening, HOG, hogNight, hogSea, hogGardens, sndSnuffle, BO, boEvening, boSea, boMeadow, sndScreech, DEER, deerDay, deerFind, troughStand, sndDeerStep, sndLap, sndBark, BF, GS, CR, HER, KF, DIP, MU, murmEvening, AU, SW, updSound, LV, LT, leaf: LS, clockText, wheelAng, get col() { return [colR, colG, colB]; }, get tilt() { return tilt; }, get area() { return area; }, setTool, newWorld, unproj, proj, get S() { return st.S; }, floes, breakup: sndBreakup, yearTurn, flourT, SACK_T, carts, CART_LOAD, cartTarget, bakeT, FLOUR, smokeRGB, HAY, HAY_T, PUD, KID, DUCK, BTF, BOAT, boatCourse, boatRestSnd, lowBareSprings, springNudgeOn, wishLine: id => wishLine(WISHES.find(w => w.id === id)) };
+window.__lv = { st, LF, leafQ, sndGust, WP, wpSea, wpHourOk, sndDrum, FROG, frogSea, frogHourOk, frogEdge, frogSpots, sndCroak, FR, FOX, foxEvening, HOG, hogNight, hogSea, hogGardens, sndSnuffle, BO, boEvening, boSea, boMeadow, sndScreech, DEER, deerDay, deerFind, troughStand, sndDeerStep, sndLap, sndBark, BF, GS, CR, HER, KF, DIP, MU, murmEvening, AU, SW, updSound, LV, LT, leaf: LS, clockText, wheelAng, get col() { return [colR, colG, colB]; }, get tilt() { return tilt; }, get area() { return area; }, setTool, newWorld, unproj, proj, get S() { return st.S; }, floes, breakup: sndBreakup, yearTurn, flourT, SACK_T, carts, CART_LOAD, cartTarget, bakeT, FLOUR, smokeRGB, HAY, HAY_T, PUD, KID, DUCK, BTF, BOAT, boatCourse, boatRestSnd, lowBareSprings, springNudgeOn, wishLine: id => wishLine(WISHES.find(w => w.id === id)) };
 updUI(); updSound();
 const rawHash = (location.hash || '').slice(1);
 let fromHash = ''; try { fromHash = decodeURIComponent(rawHash); } catch (e) { fromHash = ''; }

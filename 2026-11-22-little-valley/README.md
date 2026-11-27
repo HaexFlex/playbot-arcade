@@ -156,6 +156,15 @@ a soft, quick wooden "trrrrr", panned to the bird. Rain or a storm sends it off,
 None in summer, autumn or winter, at night or in the map view. (`screenshot-woodpecker.png`: a woodpecker
 drumming on a trunk at the edge of a blossoming wood, wood chips flying.)
 
+**Falling leaves**: in autumn, while the leafy trees are orange, red and gold, their leaves let go and tumble
+down, swinging to and fro as a real leaf falls and drifting the way the wind blows (the same wind as the spring
+petals, harder under rain and in a storm). They come to rest on the ground under and beside the tree, lie there a
+moment and fade. Only a few fall at the start of autumn and the most in its last weeks; once the crowns are bare
+twigs it stops. Now and then a gust sweeps the valley: for a couple of seconds the wind blows much harder and a
+flurry of leaves flies off at once, and with the sound on you hear a soft whoosh of wind and a dry rustle of leaves.
+None in spring, summer or winter, or in the map view. (`screenshot-leaves.png`: leaves tumbling off the autumn
+crowns by a river in a gust.)
+
 **Hoar frost**: after a clear, cold winter night the trees wake up white-rimed: the pine and leafy crowns
 (and the bare winter twigs) go frosty white with a bright rim on their edges and the open grass turns pale.
 When the sun is up, little sparkles wander over the frosted crowns, and the frost fades as the day warms
