@@ -216,6 +216,14 @@ not changed), hidden behind ridges like everything else and not drawn in the map
 `screenshot-trample.png` shows the trampled patch below a cottage and a snowman the next day at noon;
 `tools/trample-check.js` checks it on a desktop and a phone.
 
+**Footprints in the snow**: children walking through snow leave a soft trail of small prints, left and right in turn
+(about one every half step): out from the cottage to a snowball patch and home again, out to build a snowman and home,
+and up beside a sled run (none while riding down). They have the same look as the trampled snow (a small blue-grey dent,
+up close with a longer heel and a bright lip), fade over about a day, fill in when fresh snow falls and are gone in a
+thaw or under water. Only a look, hidden behind ridges, none in the map view; at most 120 prints (48 on a phone), and
+they cost about 0.02 ms a frame. `screenshot-footprints.png` shows children walking home from a snowball fight with
+their trail in the snow; `tools/footprint-check.js` checks it on a desktop and a phone.
+
 **Hoar frost**: after a clear, cold winter night the trees wake up white-rimed: the pine and leafy crowns
 (and the bare winter twigs) go frosty white with a bright rim on their edges and the open grass turns pale.
 When the sun is up, little sparkles wander over the frosted crowns, and the frost fades as the day warms
