@@ -165,6 +165,13 @@ flurry of leaves flies off at once, and with the sound on you hear a soft whoosh
 None in spring, summer or winter, or in the map view. (`screenshot-leaves.png`: leaves tumbling off the autumn
 crowns by a river in a gust.)
 
+**Leaf litter**: the fallen leaves gather. Through late autumn a faint orange-brown layer of leaves spreads on the
+ground under and just in front of the leafy woods (a few tints, rusty to tawny, so it reads as scattered leaves, not
+paint); it is the most once the trees are bare, stays through winter wherever no snow lies, and the first snow covers
+it. By spring it has rotted away. 3D view only. Leaves that land on a river or pond just in front of their tree no
+longer lie still: they touch down with a faint ring and float off on the current for a few seconds (on still water
+they only creep with the wind). `screenshot-litter.png` shows the litter round a bare wood by the river.
+
 **Hoar frost**: after a clear, cold winter night the trees wake up white-rimed: the pine and leafy crowns
 (and the bare winter twigs) go frosty white with a bright rim on their edges and the open grass turns pale.
 When the sun is up, little sparkles wander over the frosted crowns, and the frost fades as the day warms
