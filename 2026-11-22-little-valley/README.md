@@ -200,6 +200,15 @@ two snowmen (one on a phone). Hidden behind ridges like the other figures, none 
 now also look a little further for a slope (a 0.03 N wider search, measured to find a run on 91% instead of 89% of
 snowy days). `screenshot-snowman.png` shows children building a snowman beside a finished one.
 
+**Snowball fights**: on a snowy winter afternoon (about 13:00 to 16:00, after the snowman mornings, no storm or heavy
+snowfall) children of a cottage walk out to a patch of open snow a few steps from it (clear of the houses, the sled runs
+and the snowmen) and have a snowball fight, two sides facing each other: a child crouches to scoop up snow, winds up and
+throws; the little white ball flies in an arc and lands with a tiny puff, the one aimed at ducks or runs a few steps
+aside, and now and then someone is hit (a small white burst on the coat and a little stagger). From 16:00 they walk home.
+Two to four children (two groups of two, or one group of four; two on a phone), hidden behind ridges like the other
+figures, none in the map view. With the sound on a landing snowball gives a very soft 'pff'. Children who are still
+building a snowman don't join in. `screenshot-snowball.png` shows a snowball in the air between two sides.
+
 **Hoar frost**: after a clear, cold winter night the trees wake up white-rimed: the pine and leafy crowns
 (and the bare winter twigs) go frosty white with a bright rim on their edges and the open grass turns pale.
 When the sun is up, little sparkles wander over the frosted crowns, and the frost fades as the day warms

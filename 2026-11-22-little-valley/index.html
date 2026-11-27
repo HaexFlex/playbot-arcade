@@ -1901,6 +1901,7 @@ function renderTilt(t) {
   rasterPile(T, data);
   rasterSled(T, data);
   rasterSnowman(T, data);
+  rasterSnowball(T, data);
   { const t0 = performance.now(); rasterDucks(T, data); st.duckMs = (st.duckMs || 0) * 0.9 + (performance.now() - t0) * 0.1; }
   T.ctx.putImageData(T.img, 0, 0);
   tintOver(T.ctx, 0, 0, ow, oh, 'source-atop');
@@ -2419,7 +2420,7 @@ function smFind(S, T) { // keep the snowmen that still have snow under them, the
   for (const [ci, hs] of C) { if (L.length >= SM_MAX) break; if (L.some(e => e.c === ci)) continue; const cx = ci % N, cy = (ci / N) | 0; let best = null;
     for (let dy = -4; dy <= 4; dy++) for (let dx = -4; dx <= 4; dx++) { const r = Math.hypot(dx, dy), x = cx + dx, y = cy + dy; if (r < 2.2 || r > 3.6 || x < 4 || y < 4 || x >= N - 4 || y >= N - 4) continue;
       const j = y * N + x; if (!(sn[j] > 0.08) || d[j] > 0.02 || tr[j] >= 0.25 || (S.ice && S.ice[j] > 0.3)) continue;
-      if (runs.some(q => Math.abs(q[0] - x) <= 1 && Math.abs(q[1] - y) <= 1) || L.some(e => Math.abs(e.i % N - x) + Math.abs(((e.i / N) | 0) - y) < 3)) continue;
+      if (runs.some(q => Math.abs(q[0] - x) <= 1 && Math.abs(q[1] - y) <= 1) || L.some(e => Math.abs(e.i % N - x) + Math.abs(((e.i / N) | 0) - y) < 3) || SB.list.some(g => Math.abs(g.i % N - x) <= 3 && Math.abs(((g.i / N) | 0) - y) <= 2)) continue; // not on a snowball patch
       if (S.cottages.some(o => !o.ruin && Math.hypot(o.x * N - x, o.y * N - y) < 1.2)) continue;
       const sc = Math.abs(r - 2.8) + (dy < 1 ? 1.2 : 0) + ((j * 0.618) % 1) * 0.1; if (best && sc >= best[0]) continue; if (T && !duckSeen(T, S, x, y)) continue; best = [sc, j]; }
     if (best) L.push({ i: best[1], c: ci, hs, p: 0, out: -1, hm: -1, done: false }); }
@@ -2485,6 +2486,118 @@ function rasterSnowman(T, data) {
   });
   st.smSpots = SM.list.length; st.smCells = SM.list.map(e => e.i); st.smP = P; st.smMelt = M; st.smStage = G;
   st.smMs = (st.smMs || 0) * 0.9 + (performance.now() - t0) * 0.1;
+}
+// Snowball fights: on a snowy winter afternoon (13:00-16:00, no storm or heavy snowfall, 3D view) the children of a cottage
+// (2-4 children: 2 groups of 2 on a desktop or one group of 4 if only one spot is found, 1 group of 2 on a phone) walk out
+// (1.5 s) to open snowy ground 3-5 cells from it (a 5 x 3 cell patch of snow, no water, ice or trees, clear of cottages,
+// sled runs and snowmen, visible) and throw snowballs at each other across the patch, two sides facing each other: a child
+// crouches to scoop snow, winds up and throws; the little white ball flies in an arc (with a faint shadow on the snow) and
+// lands with a tiny puff, the one aimed at ducks or runs a few steps aside, and now and then one is hit (a small white
+// burst at the coat, a little stagger). From 16:00 they walk home (in by about 16:30). With the sound on a landing gives a
+// very soft 'pff' (fx bus, at most one per 0.5 s). Hidden behind ridges via the pick buffer, none in the map view; app only.
+// Hooks: st.sbGroups (groups drawn), st.sbSpots (children planned), st.sbKids (children drawn), st.sbBalls (balls in the
+// air drawn), st.sbPuffs (landing puffs / hit bursts drawn), st.sbDuck (children ducking, running or hit drawn), st.sbThrows /
+// st.sbHits / st.sbLands (totals), st.sbCells (patch centre cells), st.sbAt (tilt-buffer px of the first patch centre),
+// st.sbMs (per-frame cost, smoothed), st.sbFindMs (the last spot search, every 3 s), SB (SB.fast: a test speed-up of the
+// children's clock; SB.force: ignore the season and the hour, for tests), sbOK, sbFightOK, sbFind.
+const SB_MAX = isPhone ? 1 : 2, SB_KIDS = isPhone ? 2 : 4, SB = { S: null, t: -1e9, list: [], lastRT: null, throws: 0, hits: 0, lands: 0, fast: 1, force: false };
+function sbOK() { const S = st.S; if (!S.P.seasons || st.view === 'top') return false; if (LT.storm >= 0.05 || S.rainNow > 0.3) return false; if (SB.force) return true;
+  const y = LV.yearFrac(S); return (y >= 0.76 || y < 0.06) && LT.h >= 13 && LT.h < 16.5; }
+function sbFightOK() { return SB.force || LT.h < 16; }
+function sbFind(S, T) { // a 5 x 3 patch of open snow 3-5 cells from each cottage (in front preferred), clear of cottages, sled runs and snowmen: [{ i, c, hs }]
+  const N = S.N, d = S.d, sn = S.snow, tr = S.tree, L = [];
+  const open = j => sn[j] > 0.08 && !(d[j] > 0.02) && tr[j] < 0.25 && !(S.ice && S.ice[j] > 0.3);
+  const patch = i => { const x = i % N, y = (i / N) | 0; for (let v = -1; v <= 1; v++) for (let u = -2; u <= 2; u++) if (!open((y + v) * N + x + u)) return false; return !T || (duckSeen(T, S, x - 2, y) && duckSeen(T, S, x + 2, y) && duckSeen(T, S, x, y)); };
+  const runs = []; for (const e of SLED.list) for (let k = 0; k <= e[4]; k++) runs.push([e[1] % N + e[2] * k, ((e[1] / N) | 0) + e[3] * k]);
+  const men = SM.list.map(e => [e.i % N, (e.i / N) | 0]), busy = new Set(SM.list.filter(e => !e.done).map(e => e.c));
+  const free = (x, y) => !runs.some(q => Math.abs(q[0] - x) <= 3 && Math.abs(q[1] - y) <= 2) && !men.some(q => Math.abs(q[0] - x) <= 3 && Math.abs(q[1] - y) <= 2) && !S.cottages.some(o => !o.ruin && Math.abs(o.x * N - (x + 0.5)) < 4 && Math.abs(o.y * N - (y + 0.5)) < 2.6);
+  const cells = new Set(S.cottages.filter(c => !c.ruin && c.mood !== 'ruin').map(c => LV.cottageCell(S, c)));
+  if (SB.S === S) for (const g of SB.list) if (cells.has(g.c) && free(g.i % N, (g.i / N) | 0) && patch(g.i)) L.push({ i: g.i, c: g.c, hs: g.hs }); // a game under way goes on while its patch holds
+  if (L.length >= SB_MAX || (L.length && SB.list.find(g => g.i === L[0].i).K.length >= SB_KIDS)) return L;
+  const C = S.cottages.filter(c => !c.ruin && c.mood !== 'ruin').map(c => [LV.cottageCell(S, c), Math.abs(Math.sin(c.x * 97.1 + c.y * 413.7) * 43758.5) % 1]).filter(c => !busy.has(c[0]) && !L.some(e => e.c === c[0])).sort((a, b) => a[1] - b[1]);
+  for (const [ci, hs] of C) { if (L.length >= SB_MAX) break; const cx = ci % N, cy = (ci / N) | 0; let best = null;
+    for (let dy = -5; dy <= 5; dy++) for (let dx = -5; dx <= 5; dx++) { const r = Math.hypot(dx, dy), x = cx + dx, y = cy + dy; if (r < 3 || r > 5.2 || x < 6 || y < 5 || x >= N - 6 || y >= N - 5) continue;
+      const sc = Math.abs(r - 3.8) + (dy < 1 ? 1.5 : 0) + ((y * N + x) * 0.618 % 1) * 0.1; if (best && sc >= best[0]) continue;
+      if (!free(x, y)) continue;
+      if (L.some(e => Math.abs(e.i % N - x) < 7 && Math.abs(((e.i / N) | 0) - y) < 5)) continue;
+      if (!patch(y * N + x)) continue; best = [sc, y * N + x]; }
+    if (best) L.push({ i: best[1], c: ci, hs }); }
+  return L;
+}
+function sbGroup(e, nk) { // the children of a new group: two sides facing each other across the patch
+  const N = st.S.N, x = e.i % N + 0.5, y = ((e.i / N) | 0) + 0.6, K = [];
+  for (let k = 0; k < nk; k++) { const side = k % 2 ? 1 : -1, row = nk > 2 ? ((k >> 1) ? 0.45 : -0.45) : 0, bx = x + side * (1.45 + 0.15 * ((k >> 1) % 2)), by = y + row;
+    K.push({ side, bx, by, ox: 0, oy: 0, fx: 0, fy: 0, tx: 0, ty: 0, m0: -9, s: 'out', s0: 0, nt: 2 + 0.7 * k + Math.random() * 1.5 }); }
+  return { i: e.i, c: e.c, hs: e.hs, gx: x, gy: y, clk: 0, K, balls: [], puffs: [] };
+}
+function rasterSnowball(T, data) {
+  let t0 = performance.now(); const S = st.S, N = S.N, ow = T.ow, oh = T.oh, pick = T.pick, cp = T.cp, h = S.h, now = st.time;
+  st.sbGroups = 0; st.sbKids = 0; st.sbBalls = 0; st.sbPuffs = 0; st.sbDuck = 0; st.sbAt = null;
+  if (SB.S !== S) { SB.S = S; SB.list = []; SB.t = -1e9; }
+  if (!sbOK()) { SB.list = []; SB.lastRT = null; st.sbSpots = 0; st.sbCells = []; st.sbThrows = SB.throws; st.sbHits = SB.hits; st.sbLands = SB.lands; return; }
+  const dt = SB.lastRT == null ? 0 : Math.max(0, Math.min(0.1, now - SB.lastRT)) * SB.fast; SB.lastRT = now;
+  if (now - SB.t > 3 || now < SB.t) { const tf = performance.now(); SB.t = now; const f = sbFind(S, T), nk = f.length > 1 ? 2 : SB_KIDS;
+    SB.list = f.map(e => SB.list.find(g => g.i === e.i && g.c === e.c) || sbGroup(e, nk)); st.sbFindMs = performance.now() - tf; t0 += st.sbFindMs; }
+  st.sbSpots = SB.list.reduce((a, g) => a + g.K.length, 0); st.sbCells = SB.list.map(g => g.i);
+  const put = (px, py, r, g, b) => { if (px < 0 || py < 0 || px >= ow || py >= oh) return; const q = (py * ow + px) * 4; data[q] = r; data[q + 1] = g; data[q + 2] = b; data[q + 3] = 255; };
+  const mix = (px, py, r, g, b, k) => { if (px < 0 || py < 0 || px >= ow || py >= oh) return; const q = (py * ow + px) * 4; data[q] += (r - data[q]) * k; data[q + 1] += (g - data[q + 1]) * k; data[q + 2] += (b - data[q + 2]) * k; };
+  const hAt = (gx, gy) => { const x = Math.max(0, Math.min(N - 1, Math.floor(gx))), y = Math.max(0, Math.min(N - 1, Math.floor(gy))), i = y * N + x; return h[i] + S.d[i]; };
+  const scr = (gx, gy) => { const s2 = persp(gy, N), ox = Math.round((gx - N / 2) * cp * s2 + ow / 2), oy = Math.round(baseY(T, gy, N) - hAt(gx, gy) * cp * T.hEx * s2);
+    if (ox < 4 || oy < 10 || ox >= ow - 4 || oy >= oh - 1) return null; const pc = pick[(oy + 1) * ow + ox];
+    if (pc < 0 || Math.abs(pc % N - Math.floor(gx)) > 3 || Math.abs(((pc / N) | 0) - Math.floor(gy)) > 4) return null; return [ox, oy, s2]; };
+  const kid = (ox, fy, u, C, k, low, arm) => { const legs = Math.max(1, Math.round(u * 0.5)), coat = Math.max(2, Math.round(u * (low ? 0.6 : 1.1))), head = Math.max(2, Math.round(u * 0.8)), x0 = ox - (u >> 1);
+    for (let py = fy - legs + 1; py <= fy; py++) { put(x0, py, 60, 54, 70); if (u > 2) put(x0 + u - 1, py, 60, 54, 70); }
+    for (let py = fy - legs - coat + 1; py <= fy - legs; py++) for (let px = x0; px < x0 + u; px++) put(px, py, C[0] * (px === x0 ? 1.08 : 0.92), C[1] * (px === x0 ? 1.08 : 0.92), C[2] * (px === x0 ? 1.08 : 0.92));
+    const hy = fy - legs - coat; for (let py = hy - head + 1; py <= hy; py++) for (let px = x0; px < x0 + u; px++) put(px, py, 246, 214, 186);
+    put(x0 + (k % 2 ? u - 1 : 0), hy - head, C[0] * 0.7, C[1] * 0.7, C[2] * 0.7); // a woolly hat's tuft
+    if (arm) { const ax = arm < 0 ? x0 - 1 : x0 + u; put(ax, hy, C[0] * 0.85, C[1] * 0.85, C[2] * 0.85); put(ax, hy - 1, 246, 214, 186); put(ax, hy - 2, 250, 252, 255); } // an arm up with a snowball
+    return hy + Math.round(head / 2); };
+  const home = SB.force ? 0 : LT.h >= 16 ? Math.min(1, (LT.h - 16) / 0.5) : 0, fight = sbFightOK() && home === 0;
+  const pos = q => [q.bx + q.ox, q.by + q.oy];
+  SB.list.forEach((g, j) => {
+    g.clk += dt; const c = g.clk, cx = g.c % N + 0.5, cy = ((g.c / N) | 0) + 0.9, nk = g.K.length;
+    for (const q of g.K) { // the children's little state machines: out -> idle -> scoop -> wind -> (throw) -> idle; duck / run / hit when aimed at
+      if (q.s === 'out') { if (c >= 1.5) { q.s = 'idle'; q.s0 = c; } continue; }
+      if (q.m0 >= 0) { const a = Math.min(1, (c - q.m0) / 0.45); q.ox = q.fx + (q.tx - q.fx) * a; q.oy = q.fy + (q.ty - q.fy) * a; if (a >= 1) q.m0 = -9; }
+      if ((q.s === 'duck' && c - q.s0 > 0.5) || (q.s === 'hit' && c - q.s0 > 0.55) || (q.s === 'run' && q.m0 < 0)) { q.s = 'idle'; q.s0 = c; }
+      if (!fight) continue;
+      if (q.s === 'idle' && c >= q.nt) { q.s = Math.random() < 0.45 ? 'scoop' : 'wind'; q.s0 = c; }
+      else if (q.s === 'scoop' && c - q.s0 > 0.45) { q.s = 'wind'; q.s0 = c; }
+      else if (q.s === 'wind' && c - q.s0 > 0.22) { q.s = 'idle'; q.s0 = c; q.nt = c + 1.3 + Math.random() * 2.2; // release
+        const opp = g.K.filter(o => o.side !== q.side && o.s !== 'out'); if (!opp.length) continue; const tg = opp[(Math.random() * opp.length) | 0], [x0, y0] = pos(q), [x1, y1] = pos(tg);
+        const hit = tg.s === 'idle' && tg.m0 < 0 && Math.random() < 0.33, dist = Math.hypot(x1 - x0, y1 - y0), dur = 0.5 + dist * 0.06;
+        const mx = hit ? x1 : x1 + (Math.random() < 0.5 ? -1 : 1) * (0.35 + Math.random() * 0.4) * -q.side, my = hit ? y1 : y1 + (Math.random() - 0.5) * 0.9;
+        g.balls.push({ x0, y0, x1: mx, y1: my, t0: c, dur, hit, tg, re: hit ? -1 : c + Math.max(0.05, dur - 0.32), sd: q.side }); SB.throws++; } }
+    for (const b of g.balls) { // the one aimed at reacts a moment before a miss lands: ducks or runs a few steps aside
+      if (b.re >= 0 && c >= b.re) { b.re = -1; const tg = b.tg; if (tg.s === 'idle' || tg.s === 'scoop') { if (Math.random() < 0.5) { tg.s = 'duck'; tg.s0 = c; } else { tg.s = 'run'; tg.s0 = c; tg.fx = tg.ox; tg.fy = tg.oy; tg.tx = Math.max(-0.35, Math.min(0.35, tg.ox + (Math.random() - 0.5) * 0.5)); tg.ty = tg.oy > 0.1 ? tg.oy - 0.35 - Math.random() * 0.25 : tg.oy < -0.1 ? tg.oy + 0.35 + Math.random() * 0.25 : (Math.random() < 0.5 ? -1 : 1) * 0.4; tg.m0 = c; } } }
+      if (c - b.t0 >= b.dur) { b.done = true; SB.lands++; g.puffs.push({ x: b.x1, y: b.y1, t0: c, hit: b.hit, tg: b.hit ? b.tg : null });
+        if (b.hit) { SB.hits++; b.tg.s = 'hit'; b.tg.s0 = c; b.tg.m0 = -9; } } }
+    g.balls = g.balls.filter(b => !b.done); g.puffs = g.puffs.filter(p => c - p.t0 < 0.4 && c >= p.t0);
+    // draw: the children (back to front), then the puffs and the balls in the air
+    const sp0 = scr(g.gx, g.gy); if (sp0 && !st.sbAt) st.sbAt = [sp0[0], sp0[1]];
+    const figs = g.K.map((q, k) => { let gx, gy, lift = 0; const [px, py] = pos(q);
+      if (home > 0) { if (home >= 1) return null; gx = px + (cx - px) * home; gy = py + (cy - py) * home; lift = Math.floor(now * 6) % 2; }
+      else if (q.s === 'out') { const a = Math.min(1, c / 1.5); gx = cx + (px - cx) * a; gy = cy + (py - cy) * a; lift = Math.floor(now * 6) % 2; }
+      else { gx = px; gy = py; if (q.s === 'run') lift = Math.floor(now * 9) % 2; }
+      return { q, k, gx, gy, lift }; }).filter(Boolean).sort((a, b) => a.gy - b.gy);
+    let drawn = 0; const chest = new Map();
+    for (const f of figs) { const sp = scr(f.gx, f.gy); if (!sp) continue; const [ox, oy, s2] = sp, u = Math.max(2, Math.round(cp * s2)), q = f.q, C = KID_C[(j * 2 + f.k + 3) % 4];
+      const hitNow = q.s === 'hit', low = home === 0 && (q.s === 'duck' || q.s === 'scoop'), lean = hitNow && c - q.s0 < 0.25 ? q.side : 0;
+      const cyPx = kid(ox + lean, oy - f.lift, u, C, f.k, low, home === 0 && q.s === 'wind' ? q.side : 0); chest.set(q, [ox, cyPx + Math.max(1, Math.round(u * 0.9)), u]);
+      if (q.s === 'scoop' && home === 0) { put(ox - q.side, oy, 236, 242, 252); put(ox - q.side * 2, oy, 214, 224, 240); } // patting snow into a ball
+      if (low || hitNow || q.s === 'run') st.sbDuck++; drawn++; }
+    st.sbKids += drawn; if (drawn) st.sbGroups++;
+    for (const p of g.puffs) { const a = (c - p.t0) / 0.4, ch = p.tg ? chest.get(p.tg) : null;
+      const sp = ch ? [ch[0], ch[1], 0] : scr(p.x, p.y); if (!sp) continue; const u = ch ? ch[2] : Math.max(2, Math.round(cp * sp[2])), R = (p.hit ? 1.6 : 1.1) * u * (0.35 + a * 0.65), n = p.hit ? 7 : 5, k = 0.85 * (1 - a);
+      for (let m = 0; m < n; m++) { const an = m / n * 6.283 + (p.hit ? 0.3 : 0), px = Math.round(sp[0] + Math.cos(an) * R), py = Math.round(sp[1] - (p.hit ? 0 : 1) + Math.sin(an) * R * (p.hit ? 0.8 : 0.45) - (p.hit ? 0 : a * u * 0.5));
+        mix(px, py, 252, 253, 255, k); if (!p.hit && m % 2 === 0) mix(px, py + 1, 170, 184, 212, k * 0.5); }
+      if (a < 0.4) mix(sp[0], sp[1] - 1, 255, 255, 255, 0.9); st.sbPuffs++; }
+    for (const b of g.balls) { const a = Math.max(0, Math.min(1, (c - b.t0) / b.dur)), gx = b.x0 + (b.x1 - b.x0) * a, gy = b.y0 + (b.y1 - b.y0) * a, sp = scr(gx, gy); if (!sp) continue;
+      const u = Math.max(2, Math.round(cp * sp[2])), dist = Math.hypot(b.x1 - b.x0, b.y1 - b.y0), H = u * 2.1 * (1 - a) + (b.hit ? u * 1.3 : 0) * a + Math.sin(Math.PI * a) * u * (1 + dist * 0.45), bx = sp[0], by = Math.round(sp[1] - H);
+      mix(bx, sp[1], 150, 166, 200, 0.35 * (0.4 + 0.6 * a)); // a faint shadow on the snow
+      put(bx, by, 252, 253, 255); put(bx + 1, by, 236, 241, 250); put(bx, by + 1, 226, 233, 246); put(bx + 1, by + 1, 176, 190, 216); st.sbBalls++; }
+  });
+  st.sbThrows = SB.throws; st.sbHits = SB.hits; st.sbLands = SB.lands; st.sbMs = (st.sbMs || 0) * 0.9 + (performance.now() - t0) * 0.1;
 }
 // ducklings: in late spring and early summer (yearFrac ~0.16-0.34), by day (7:00-19:00), a few duck families (at most 2,
 // 1 on a phone) paddle slowly along the river and lake banks on open water: a brown mother duck with a dark-green head
@@ -5642,7 +5755,7 @@ function frame(now) {
   const tc0 = performance.now(); computeColours(st.time); st.colMs = (st.colMs || 0) * 0.9 + (performance.now() - tc0) * 0.1;
   cx.setTransform(dpr, 0, 0, dpr, 0, 0);
   if (st.view === 'tilt') { tiltGeom(); drawSky(st.time, dtReal); renderTilt(st.time); }
-  else { drawSky(st.time, dtReal); renderTop(st.time); drawRiverTop(); drawRiverHint('top'); drawCottagesTop(); drawWindowGlowTop(st.time); st.heronsDrawn = 0; st.heronAt = null; st.heronStates = []; HER.birds = []; st.kfDrawn = 0; st.kfAt = null; st.kfStates = []; st.kfPts = []; KF.birds = []; KF.sp = []; st.dipDrawn = 0; st.dipAt = null; st.dipStates = []; st.dipPts = []; DIP.birds = []; DIP.sp = []; st.websDrawn = 0; st.webAt = []; st.webCells = []; st.webGlints = 0; WEB.webs.forEach(w => { w.a = 0; }); st.frostTrees = 0; st.frostGlints = 0; st.frostGlintAt = []; FR.src = []; FR.gl.forEach(g => { g.age = g.life; }); st.foxTracks = 0; st.foxPrints = 0; st.foxPrintCells = []; st.foxDrawn = 0; st.foxAt = null; if (FOX.fox) { FOX.fox = null; FOX.rest = 5; } FOX.last = st.time; st.deerDrawn = 0; st.deerAt = null; st.deerState = ''; st.deerFawn = 0; DEER.rings = []; if (DEER.d) { DEER.d = null; DEER.rest = 5; } DEER.last = st.time; st.hogDrawn = 0; st.hogAt = null; st.hogState = ''; if (HOG.h) { HOG.h = null; HOG.rest = 5; } HOG.last = st.time; st.boDrawn = 0; st.boAt = null; st.boState = ''; if (BO.o) { BO.o = null; BO.rest = 5; } BO.last = st.time; st.frogsDrawn = 0; st.frogRings = 0; st.frogAt = []; st.frogCells = []; st.frogRate = 0; FROG.frogs = []; FROG.rings = []; FROG.al = 0; FROG.last = -1; FROG.rt = -1e9; st.wpDrawn = 0; st.wpAt = null; st.wpState = ''; st.wpChips = 0; if (WP.b) { WP.b = null; WP.rest = 2; } WP.chips = []; WP.trunks = []; WP.last = -1; st.glowwormsDrawn = 0; st.glowwormAt = []; st.glowwormCells = []; st.glowwormLvl = []; GW.worms.forEach(w => { w.a = 0; }); st.petalsDrawn = 0; st.leavesDrawn = 0; st.leavesLying = 0; st.lfGust = 0; LF.next = -1; st.mistDrawn = 0; st.mistDrift = 0; st.puddlesDrawn = 0; st.icyPuddles = 0; st.puddleIcePx = 0; st.splashKids = 0; st.splashHopping = 0; st.splashDrops = 0; st.splashSpots = 0; st.splashPuds = []; KID.on = false; st.pilesDrawn = 0; st.pileKids = 0; st.pileIn = 0; st.pileLeaves = 0; st.pileSpots = 0; st.pileAt = null; st.sledSlopes = 0; st.sledKids = 0; st.sledRiding = 0; st.sledTrack = 0; st.sledHome = 0; st.sledSpots = 0; st.sledAt = null; st.sledMid = null; st.smMen = 0; st.smKids = 0; st.smLeft = 0; st.smSpots = 0; st.smAt = null; st.smCells = []; SM.lastT = null; SLED.on = false; PILE.on = false; st.batsDrawn = 0; st.batAt = null; st.midgesDrawn = 0; st.midgeSpecks = 0; st.midgeGlints = 0; st.midgeCols = []; MID.last = st.time; st.dragonfliesDrawn = 0; st.dfAt = null; st.butterfliesDrawn = 0; st.btfAt = null; BTF.flies.forEach(f => { f.a = 0; }); st.dfHover = 0; DF.last = st.time; st.duckFams = 0; st.ducksDrawn = 0; st.ducklingsDrawn = 0; st.duckLine = null; DUCK.last = null; st.swallowsDrawn = 0; st.swallowRings = 0; st.swallowAt = null; SW.last = st.time; st.bfDrawn = 0; st.bfSit = 0; st.bfFlying = 0; st.bfAtFeeder = 0; st.bfFeeders = 0; st.bfAt = []; st.bfFeederAt = []; BF.birds = []; BF.feeders = []; BF.home = null; BF.crowns = []; } // no petals in the map view (seen from far above they would be specks of dust)
+  else { drawSky(st.time, dtReal); renderTop(st.time); drawRiverTop(); drawRiverHint('top'); drawCottagesTop(); drawWindowGlowTop(st.time); st.heronsDrawn = 0; st.heronAt = null; st.heronStates = []; HER.birds = []; st.kfDrawn = 0; st.kfAt = null; st.kfStates = []; st.kfPts = []; KF.birds = []; KF.sp = []; st.dipDrawn = 0; st.dipAt = null; st.dipStates = []; st.dipPts = []; DIP.birds = []; DIP.sp = []; st.websDrawn = 0; st.webAt = []; st.webCells = []; st.webGlints = 0; WEB.webs.forEach(w => { w.a = 0; }); st.frostTrees = 0; st.frostGlints = 0; st.frostGlintAt = []; FR.src = []; FR.gl.forEach(g => { g.age = g.life; }); st.foxTracks = 0; st.foxPrints = 0; st.foxPrintCells = []; st.foxDrawn = 0; st.foxAt = null; if (FOX.fox) { FOX.fox = null; FOX.rest = 5; } FOX.last = st.time; st.deerDrawn = 0; st.deerAt = null; st.deerState = ''; st.deerFawn = 0; DEER.rings = []; if (DEER.d) { DEER.d = null; DEER.rest = 5; } DEER.last = st.time; st.hogDrawn = 0; st.hogAt = null; st.hogState = ''; if (HOG.h) { HOG.h = null; HOG.rest = 5; } HOG.last = st.time; st.boDrawn = 0; st.boAt = null; st.boState = ''; if (BO.o) { BO.o = null; BO.rest = 5; } BO.last = st.time; st.frogsDrawn = 0; st.frogRings = 0; st.frogAt = []; st.frogCells = []; st.frogRate = 0; FROG.frogs = []; FROG.rings = []; FROG.al = 0; FROG.last = -1; FROG.rt = -1e9; st.wpDrawn = 0; st.wpAt = null; st.wpState = ''; st.wpChips = 0; if (WP.b) { WP.b = null; WP.rest = 2; } WP.chips = []; WP.trunks = []; WP.last = -1; st.glowwormsDrawn = 0; st.glowwormAt = []; st.glowwormCells = []; st.glowwormLvl = []; GW.worms.forEach(w => { w.a = 0; }); st.petalsDrawn = 0; st.leavesDrawn = 0; st.leavesLying = 0; st.lfGust = 0; LF.next = -1; st.mistDrawn = 0; st.mistDrift = 0; st.puddlesDrawn = 0; st.icyPuddles = 0; st.puddleIcePx = 0; st.splashKids = 0; st.splashHopping = 0; st.splashDrops = 0; st.splashSpots = 0; st.splashPuds = []; KID.on = false; st.pilesDrawn = 0; st.pileKids = 0; st.pileIn = 0; st.pileLeaves = 0; st.pileSpots = 0; st.pileAt = null; st.sledSlopes = 0; st.sledKids = 0; st.sledRiding = 0; st.sledTrack = 0; st.sledHome = 0; st.sledSpots = 0; st.sledAt = null; st.sledMid = null; st.smMen = 0; st.smKids = 0; st.smLeft = 0; st.smSpots = 0; st.smAt = null; st.smCells = []; st.sbGroups = 0; st.sbKids = 0; st.sbBalls = 0; st.sbPuffs = 0; st.sbDuck = 0; st.sbSpots = 0; st.sbAt = null; st.sbCells = []; SB.list = []; SB.lastRT = null; SM.lastT = null; SLED.on = false; PILE.on = false; st.batsDrawn = 0; st.batAt = null; st.midgesDrawn = 0; st.midgeSpecks = 0; st.midgeGlints = 0; st.midgeCols = []; MID.last = st.time; st.dragonfliesDrawn = 0; st.dfAt = null; st.butterfliesDrawn = 0; st.btfAt = null; BTF.flies.forEach(f => { f.a = 0; }); st.dfHover = 0; DF.last = st.time; st.duckFams = 0; st.ducksDrawn = 0; st.ducklingsDrawn = 0; st.duckLine = null; DUCK.last = null; st.swallowsDrawn = 0; st.swallowRings = 0; st.swallowAt = null; SW.last = st.time; st.bfDrawn = 0; st.bfSit = 0; st.bfFlying = 0; st.bfAtFeeder = 0; st.bfFeeders = 0; st.bfAt = []; st.bfFeederAt = []; BF.birds = []; BF.feeders = []; BF.home = null; BF.crowns = []; } // no petals in the map view (seen from far above they would be specks of dust)
   floeStep(S, dtReal); drawFloes();
   drawCottageBadges(st.time);
   drawNaturalRain(st.time); drawOverlays(st.time); drawShower(st.time);
@@ -5686,7 +5799,7 @@ function adapt(dt) {
 // and thunder after lightning, wind (stronger in winter and storms), birds by day in the forest, crickets on
 // summer evenings, an owl at night, the creak and clack of turning mill wheels, cowbells near the village.
 // window.LV_AUDIO holds the levels (0..1) and gains so tests can check them without listening.
-const AU = { want: false, on: false, started: false, state: 'none', nodes: 0, live: 0, L: {}, G: {}, ev: { chirp: 0, cricket: 0, owl: 0, clack: 0, creak: 0, bell: 0, thunder: 0, plop: 0, slurp: 0, splash: 0, knock: 0, well: 0, rustle: 0, rumble: 0, drip: 0, squeak: 0, thump: 0, crunch: 0, skate: 0, icicle: 0, puddle: 0, peep: 0, twit: 0, bat: 0, pipe: 0, whirr: 0, honk: 0, crane: 0, frank: 0, tsee: 0, zit: 0, murmur: 0, spade: 0, sow: 0, canoe: 0, deerstep: 0, lap: 0, bark: 0, snuffle: 0, screech: 0, croak: 0, drum: 0, gust: 0, pile: 0, sled: 0 }, flow: 0, riverPan: 0, veg: 0, ticks: 0, vol: 1, snowCover: 0, rainMuffle: 0, rainCut: 9000, masterT: 0, melt: 0, meltPan: 0 };
+const AU = { want: false, on: false, started: false, state: 'none', nodes: 0, live: 0, L: {}, G: {}, ev: { chirp: 0, cricket: 0, owl: 0, clack: 0, creak: 0, bell: 0, thunder: 0, plop: 0, slurp: 0, splash: 0, knock: 0, well: 0, rustle: 0, rumble: 0, drip: 0, squeak: 0, thump: 0, crunch: 0, skate: 0, icicle: 0, puddle: 0, peep: 0, twit: 0, bat: 0, pipe: 0, whirr: 0, honk: 0, crane: 0, frank: 0, tsee: 0, zit: 0, murmur: 0, spade: 0, sow: 0, canoe: 0, deerstep: 0, lap: 0, bark: 0, snuffle: 0, screech: 0, croak: 0, drum: 0, gust: 0, pile: 0, sled: 0, sb: 0 }, flow: 0, riverPan: 0, veg: 0, ticks: 0, vol: 1, snowCover: 0, rainMuffle: 0, rainCut: 9000, masterT: 0, melt: 0, meltPan: 0 };
 window.LV_AUDIO = AU;
 const AU_KEY = 'lv-sound', AU_MASTER = 0.45, AU_DT = 0.25;
 const AU_MAX = { river: 0.55, rain: 0.42, wind: 0.2, birds: 0.42, crickets: 0.13, owl: 0.38, mill: 0.42, cows: 0.26, thunder: 0.85, melt: 0.3 }; // full-level gain per layer
@@ -5929,6 +6042,12 @@ function sndSled(pan, k) { // a child sleds off down the slope: a soft snowy who
   fl.frequency.setValueAtTime(1500 + Math.random() * 300, t); fl.frequency.exponentialRampToValueAtTime(620 + Math.random() * 120, t + dur);
   noiseHit('fx', AG.white, t + 0.05, dur * 0.8, 'highpass', 5200 + Math.random() * 1200, 0.7, 0.012 * k, pan, dur * 0.4);
   AU.ev.sled++;
+}
+function sndSnowball(pan, k) { // a snowball lands: a very soft, short, muffled 'pff' (fx bus, so mute and volume apply)
+  if (!fxOn()) return; const t = AG.ac.currentTime + 0.02 + Math.random() * 0.05;
+  noiseHit('fx', AG.pink, t, 0.12, 'lowpass', 520 + Math.random() * 160, 0.7, 0.04 * k, pan, 0.03);
+  noiseHit('fx', AG.white, t + 0.005, 0.07, 'bandpass', 2400 + Math.random() * 800, 0.8, 0.008 * k, pan, 0.015);
+  AU.ev.sb++;
 }
 function sndTwit(pan, k) { // a swallow: a quick, faint, high twitter of 3-5 chirps (fx bus, so mute and volume apply)
   if (!fxOn()) return; const t0 = AG.ac.currentTime + 0.02 + Math.random() * 0.2, n = 3 + ((Math.random() * 3) | 0), f0 = 4200 + Math.random() * 900;
@@ -6175,6 +6294,9 @@ function auTick(dt) {
   // children sledding down a snowy slope (while drawn): a soft whoosh for each ride, at most one per 0.6 s, panned to the slope
   if ((st.sledRides || 0) !== (AU.sledL || 0)) { if (st.sledKids > 0 && st.sledCells && st.sledCells.length && t - (AU.sledT || -9) > 0.6) { const S = st.S, N = S.N, i0 = st.sledCells[0][0], q = proj(i0 % N, (i0 / N) | 0);
     sndSled(q && innerWidth > 0 ? fxPan(q[0]) : 0, 0.75 + 0.25 * R()); AU.sledT = t; } AU.sledL = st.sledRides || 0; }
+  // a snowball fight (while drawn): a very soft 'pff' when a snowball lands, at most one per 0.5 s, panned to the patch
+  if ((st.sbLands || 0) !== (AU.sbL || 0)) { if (st.sbKids > 0 && st.sbCells && st.sbCells.length && t - (AU.sbT || -9) > 0.5) { const S = st.S, N = S.N, i0 = st.sbCells[0], q = proj(i0 % N, (i0 / N) | 0);
+    sndSnowball(q && innerWidth > 0 ? fxPan(q[0]) : 0, 0.7 + 0.3 * R()); AU.sbT = t; } AU.sbL = st.sbLands || 0; }
   // ducklings on the water (while drawn): a soft peep now and then, at most one per 1.4 s, panned to the first family
   // swallows overhead (while drawn): a faint twitter now and then, at most one per 2.5 s, panned to the first bird
   if (st.swallowsDrawn > 0 && st.swallowAt && t - (AU.twitT || -9) > 2.5 && R() < 0.2) { sndTwit(fxPan(st.swallowAt[0]), 0.7 + 0.3 * R()); AU.twitT = t; }
@@ -6484,7 +6606,7 @@ addEventListener('pagehide', () => autoSave('pagehide'));
 window.LV_AUTO = { AS, save: autoSave, get: asGet, put: asPut, clear: asClear, restore: autoRestore };
 
 
-window.__lv = { st, SM, smOK, smBuildOK, smFind, PILE, pileOK, sndPile, SLED, sledOK, sledFind, sndSled, LF, leafQ, litQ, get litK() { return litK; }, sndGust, WP, wpSea, wpHourOk, sndDrum, FROG, frogSea, frogHourOk, frogEdge, frogSpots, sndCroak, FR, FOX, foxEvening, HOG, hogNight, hogSea, hogGardens, sndSnuffle, BO, boEvening, boSea, boMeadow, sndScreech, DEER, deerDay, deerFind, troughStand, sndDeerStep, sndLap, sndBark, BF, GS, CR, HER, KF, DIP, MU, murmEvening, AU, SW, updSound, LV, LT, leaf: LS, clockText, wheelAng, get col() { return [colR, colG, colB]; }, get tilt() { return tilt; }, get area() { return area; }, setTool, newWorld, unproj, proj, get S() { return st.S; }, floes, breakup: sndBreakup, yearTurn, flourT, SACK_T, carts, CART_LOAD, cartTarget, bakeT, FLOUR, smokeRGB, HAY, HAY_T, PUD, KID, DUCK, BTF, BOAT, boatCourse, boatRestSnd, lowBareSprings, springNudgeOn, wishLine: id => wishLine(WISHES.find(w => w.id === id)) };
+window.__lv = { st, SB, sbOK, sbFightOK, sbFind, sndSnowball, SM, smOK, smBuildOK, smFind, PILE, pileOK, sndPile, SLED, sledOK, sledFind, sndSled, LF, leafQ, litQ, get litK() { return litK; }, sndGust, WP, wpSea, wpHourOk, sndDrum, FROG, frogSea, frogHourOk, frogEdge, frogSpots, sndCroak, FR, FOX, foxEvening, HOG, hogNight, hogSea, hogGardens, sndSnuffle, BO, boEvening, boSea, boMeadow, sndScreech, DEER, deerDay, deerFind, troughStand, sndDeerStep, sndLap, sndBark, BF, GS, CR, HER, KF, DIP, MU, murmEvening, AU, SW, updSound, LV, LT, leaf: LS, clockText, wheelAng, get col() { return [colR, colG, colB]; }, get tilt() { return tilt; }, get area() { return area; }, setTool, newWorld, unproj, proj, get S() { return st.S; }, floes, breakup: sndBreakup, yearTurn, flourT, SACK_T, carts, CART_LOAD, cartTarget, bakeT, FLOUR, smokeRGB, HAY, HAY_T, PUD, KID, DUCK, BTF, BOAT, boatCourse, boatRestSnd, lowBareSprings, springNudgeOn, wishLine: id => wishLine(WISHES.find(w => w.id === id)) };
 updUI(); updSound();
 const rawHash = (location.hash || '').slice(1);
 let fromHash = ''; try { fromHash = decodeURIComponent(rawHash); } catch (e) { fromHash = ''; }
