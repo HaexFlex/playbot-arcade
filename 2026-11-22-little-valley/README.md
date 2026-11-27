@@ -181,6 +181,15 @@ Nobody comes out in the morning, in the evening, in rain, when snow lies or outs
 the map view. With the sound on every landing crunches (a soft thump and a dry rustle of leaves).
 `screenshot-leafpile.png` shows two children at their pile by a cottage at the woods' edge.
 
+**Sledging**: on a snowy winter day (about 10:00 to 16:30) a cottage with a gentle snowy slope close above it (a
+straight, open run of a few cells going steadily downhill, not too steep, with snow lying on it) sends two children
+out with small wooden sleds. They walk up to the top, sled down one after the other (sitting on the sled, picking up
+speed down the run), leaving a faint runner track in the snow, then pull their sleds back up beside the track and go
+again. From about 16:30, as dusk comes, they walk home with their sleds. At most two slopes (one on a phone) and four
+children (two on a phone). None on a snowless winter day, in the morning, at night, in a storm, outside winter or in
+the map view, and they are hidden behind ridges like the other figures. With the sound on every ride gives a soft
+snowy whoosh. `screenshot-sledge.png` shows a child sledding down beside its track while a friend waits at the top.
+
 **Hoar frost**: after a clear, cold winter night the trees wake up white-rimed: the pine and leafy crowns
 (and the bare winter twigs) go frosty white with a bright rim on their edges and the open grass turns pale.
 When the sun is up, little sparkles wander over the frosted crowns, and the frost fades as the day warms
