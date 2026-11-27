@@ -209,6 +209,13 @@ Two to four children (two groups of two, or one group of four; two on a phone), 
 figures, none in the map view. With the sound on a landing snowball gives a very soft 'pff'. Children who are still
 building a snowman don't join in. `screenshot-snowball.png` shows a snowball in the air between two sides.
 
+**Trampled snow**: where the children had their snowball fight (most where they stood) and round a snowman they built,
+the snow looks trodden for a while: a touch darker and blue-grey, speckled with small dents and bright lips. It fades
+over about a day, fills in when fresh snow falls and is gone when the snow thaws. It is only a look (the snow itself is
+not changed), hidden behind ridges like everything else and not drawn in the map view; it costs about 0.03 ms a frame.
+`screenshot-trample.png` shows the trampled patch below a cottage and a snowman the next day at noon;
+`tools/trample-check.js` checks it on a desktop and a phone.
+
 **Hoar frost**: after a clear, cold winter night the trees wake up white-rimed: the pine and leafy crowns
 (and the bare winter twigs) go frosty white with a bright rim on their edges and the open grass turns pale.
 When the sun is up, little sparkles wander over the frosted crowns, and the frost fades as the day warms
