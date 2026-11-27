@@ -224,6 +224,16 @@ thaw or under water. Only a look, hidden behind ridges, none in the map view; at
 they cost about 0.02 ms a frame. `screenshot-footprints.png` shows children walking home from a snowball fight with
 their trail in the snow; `tools/footprint-check.js` checks it on a desktop and a phone.
 
+**Snowballs at the foot of the run**: now and then (every 20 to 40 seconds per run) a sledging child who has just come
+down waits at the foot of the run for the other one, and when the friend arrives the two toss a snowball or two at
+each other (the first one is patted together while waiting): the ball flies in a small arc and lands with a tiny puff
+as the target ducks, or about one in three bursts white on a coat with a little stagger, and the landing spot is
+trodden a little like the snowball-fight patch. Then they pull their sleds back up in their usual turn, still riding
+down one at a time. Only with both children at the foot, never in the map view, in a storm or without snow. With the
+sound on a landing gives the same soft 'pff' as a snowball fight (at most one per half second).
+`screenshot-sledball.png` shows the two sledgers by their cottage at the foot of the run during a snowball break (the
+ball is tiny at this size); `tools/sledball-check.js` checks it on a desktop and a phone.
+
 **Hoar frost**: after a clear, cold winter night the trees wake up white-rimed: the pine and leafy crowns
 (and the bare winter twigs) go frosty white with a bright rim on their edges and the open grass turns pale.
 When the sun is up, little sparkles wander over the frosted crowns, and the frost fades as the day warms
