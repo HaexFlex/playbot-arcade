@@ -293,6 +293,17 @@ The first pair in a valley gives its own hint (English and German). Same cost as
 `screenshot-kitepair.png` shows the kite held up just before the launch; `tools/kitepair-check.js` checks it on a desktop
 and a phone.
 
+**Stones from the footbridge**: on the same calm, dry days as the lake stone skipping (late spring to early autumn,
+daytime, no rain, little wind), every 30-55 seconds or so a village child runs out to the middle of a standing
+footbridge (never one with a Poohsticks game on it), swings and flicks a flat stone off the deck. It drops onto the
+stream and skips on downstream with the current along the flow line under the bridge: 2-4 skips, each hop shorter and
+quicker than the one before, every ring drifting off downstream with the water, and a bigger ring with a little splash
+where it sinks. At three or more skips the child cheers with both arms up, then runs off to the far bank. Each throw
+counts for the 🪨 wish like the lake throws. The first one in a valley gives a hint (English and German). With sound on
+a tik for every skip and a plunk. Never over ice or in the map view; about 0.01-0.02 ms a frame.
+`screenshot-bridgeskip.png` shows the rings drifting downstream under the child; `tools/bridgeskip-check.js` checks it
+on a desktop and a phone.
+
 **Mallards at the footbridge**: by day (7:00-18:30), all year while the stream is open (no ice, storm or heavy rain),
 a pair of mallards potters about the stream around a standing footbridge (up to 2 pairs at different bridges, 1 on a
 phone): a drake with a glossy green head, white collar, chestnut breast and pale grey body, and a mottled brown hen a
