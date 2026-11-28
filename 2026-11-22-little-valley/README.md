@@ -234,6 +234,17 @@ sound on a landing gives the same soft 'pff' as a snowball fight (at most one pe
 `screenshot-sledball.png` shows the two sledgers by their cottage at the foot of the run during a snowball break (the
 ball is tiny at this size); `tools/sledball-check.js` checks it on a desktop and a phone.
 
+**Footbridges**: where a cottage's footpath to one of its two nearest neighbours fords a narrow stream (up to about
+60 m of water) and the path is well trodden on both banks, the villagers lay a little wooden footbridge across: the
+planks go down one by one from the near bank over about 8 seconds, then it stands with posts and two hand rails, a faint
+shadow on the water and a white deck under snow. The first finished bridge in a valley gives a hint, and with the sound on
+a few light hammer knocks. If the crossing is no longer used (the cottages are gone or a flood moved the path) the bridge
+stays a little while, then fades out. It counts for the 🌉 wish, shows as a short plank line in the map view, is hidden
+behind ridges and costs about 0.03-0.07 ms a frame (the crossings are looked up every 2 seconds, read-only: bridges do not
+change the water or the paths). To get one, build cottages close together on both banks of a stream.
+`screenshot-bridge.png` shows a finished footbridge between two cottages; `tools/bridge-check.js` checks it on a desktop
+and a phone.
+
 **Hoar frost**: after a clear, cold winter night the trees wake up white-rimed: the pine and leafy crowns
 (and the bare winter twigs) go frosty white with a bright rim on their edges and the open grass turns pale.
 When the sun is up, little sparkles wander over the frosted crowns, and the frost fades as the day warms
@@ -371,7 +382,7 @@ freeze again at night). On winter days the bullfinches in the bare trees call no
 low, slightly wistful whistled *pew*, and when the fox or a skater sends them up you hear a quick whirr of small wings.
 
 ## Valley wishes
-Tap the **Wishes** star for a small panel of twenty-four gentle goals, each with three stars:
+Tap the **Wishes** star for a small panel of twenty-five gentle goals, each with three stars:
 a lake to row on (one still lake covering 3.5%, 6% or 10% of the valley), a deep green forest
 (32%, 38%, 45% forest), a little village (3, 6, 10 cottages), the mill wheel turns (1, 2, 3 mills
 turning), dry feet in a storm (1, 3, 5 cottages kept dry until a storm has passed), rainbow hunter
@@ -383,8 +394,9 @@ wildflower meadow in bloom on 2%, 5% or 10% of the valley; the wild flowers don'
 out by themselves) and a
 waterfall (the tallest fall right now, 12, 25 or 45 m: a strong stream pouring over a drop twice as steep as
 wet ground settles; dig a steep pit just below a fast stream, and catch it quickly, because the wet cliff
-slumps within seconds; storms on the steep slopes make wild ones too) and a long river (1.6, 2 or 2.5 km
-from a spring all the way to the valley's edge; see below). Ten more are for the valley's quiet
+slumps within seconds; storms on the steep slopes make wild ones too), a long river (1.6, 2 or 2.5 km
+from a spring all the way to the valley's edge; see below) and a bridge over the stream (🌉, 1, 2, 3 little wooden
+footbridges standing right now; see Footbridges). Ten more are for the valley's quiet
 animals and weather, counted when you see them on screen: a doe at the spring house (1, 2, 4 visits where the roe doe
 drinks at a spring-house trough), a hedgehog in the gardens (1, 3, 6 summer-night visits where it snuffles
 in view), a startled doe barks (1, 2, 3 alarm barks heard with the sound on when a shower sends her off),
