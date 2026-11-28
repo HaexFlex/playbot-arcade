@@ -264,6 +264,17 @@ bright 'tik' at every skip (a little higher each time) and a soft plunk at the e
 frame, spot search under 1 ms every 3 s. `screenshot-skipping.png` shows a 7-skip throw; `tools/skip-check.js`
 checks it on a desktop and a phone.
 
+**Mallards at the footbridge**: by day (7:00-18:30), all year while the stream is open (no ice, storm or heavy rain),
+a pair of mallards potters about the stream around a standing footbridge (up to 2 pairs at different bridges, 1 on a
+phone): a drake with a glossy green head, white collar, chestnut breast and pale grey body, and a mottled brown hen a
+little behind him. They paddle up and down a short reach of open water across the bridge line with a faint V of wake,
+and now and then stop to dabble, tail up and head under, with a little ring. More often than not the next spot lies on
+the other side of the bridge, so they paddle under the deck (the planks are drawn over them). When children come out
+for Poohsticks on their bridge the pair hurries off to the far end of the reach with a quack. The first pair in a
+valley gives a hint. Tilt view only, hidden behind ridges. With sound on, now and then the hen's soft
+'quack-quack-quack' (fx bus). About 0.02-0.04 ms a frame. `screenshot-mallards.png` shows a pair by a footbridge;
+`tools/mallard-check.js` checks it on a desktop and a phone.
+
 **Hoar frost**: after a clear, cold winter night the trees wake up white-rimed: the pine and leafy crowns
 (and the bare winter twigs) go frosty white with a bright rim on their edges and the open grass turns pale.
 When the sun is up, little sparkles wander over the frosted crowns, and the frost fades as the day warms
