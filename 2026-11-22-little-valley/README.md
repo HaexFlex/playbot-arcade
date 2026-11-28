@@ -318,6 +318,13 @@ broad wings to another edge (with the sound on you hear a hoarse *fraank* as it 
 storms or heavy rain, or in the map view.
 (`screenshot-heron.png`: a grey heron in the shallows.)
 
+**The dawn heron**: on calm mornings from spring to autumn, between half past five and half past nine, one grey
+heron comes to fish. If the villagers have laid a footbridge it stands right by the bridge post, otherwise in the
+shallows at a bank. It stands still for a long time, then slowly leans forward and makes a quick stab into the water
+(a little ring spreads where the bill went in), and now and then it comes up with a tiny silver fish. When a cart
+rumbles by, children run out onto the bridge, the morning ends or the weather turns, it flies off with slow beats, legs
+trailing (with the sound on you hear its harsh *fraank*). Not in winter, in rain, at night or in the map view.
+
 **Kingfishers**: by day, all year where a stream runs open, a tiny bright blue and orange bird flashes low and
 fast along the water, following the stream for a second or so, then lands on the bank right next to it and sits
 there bobbing its head. Now and then it dives straight into the stream with a little splash (sometimes it comes
@@ -390,7 +397,7 @@ freeze again at night). On winter days the bullfinches in the bare trees call no
 low, slightly wistful whistled *pew*, and when the fox or a skater sends them up you hear a quick whirr of small wings.
 
 ## Valley wishes
-Tap the **Wishes** star for a small panel of twenty-five gentle goals, each with three stars:
+Tap the **Wishes** star for a small panel of twenty-six gentle goals, each with three stars:
 a lake to row on (one still lake covering 3.5%, 6% or 10% of the valley), a deep green forest
 (32%, 38%, 45% forest), a little village (3, 6, 10 cottages), the mill wheel turns (1, 2, 3 mills
 turning), dry feet in a storm (1, 3, 5 cottages kept dry until a storm has passed), rainbow hunter
@@ -404,7 +411,7 @@ waterfall (the tallest fall right now, 12, 25 or 45 m: a strong stream pouring o
 wet ground settles; dig a steep pit just below a fast stream, and catch it quickly, because the wet cliff
 slumps within seconds; storms on the steep slopes make wild ones too), a long river (1.6, 2 or 2.5 km
 from a spring all the way to the valley's edge; see below) and a bridge over the stream (🌉, 1, 2, 3 little wooden
-footbridges standing right now; see Footbridges). Ten more are for the valley's quiet
+footbridges standing right now; see Footbridges), and a game of Poohsticks (🪵, 1, 3, 6 games seen from a footbridge; see Poohsticks). Ten more are for the valley's quiet
 animals and weather, counted when you see them on screen: a doe at the spring house (1, 2, 4 visits where the roe doe
 drinks at a spring-house trough), a hedgehog in the gardens (1, 3, 6 summer-night visits where it snuffles
 in view), a startled doe barks (1, 2, 3 alarm barks heard with the sound on when a shower sends her off),
