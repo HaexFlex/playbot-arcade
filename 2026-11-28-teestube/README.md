@@ -13,13 +13,14 @@ Open `index.html`. One file, no libraries, no network.
 - **Blätter**, or a tin, adds one tea. **Ausspülen** clears the pot. Chamomile, black tea, and peppermint are on the shelf at the start. The others arrive as gifts.
 - The dots under the pot fill as the tea steeps. The little mark is where that tea turns bitter. **Sieb heben** stops the steep. **Einschenken** fills the cup, which then cools in the open air.
 - **Honig**, **Zitrone**, **Milch**, and **Minze** go into the next cup you pour. Milk curdles in green, floral, and mint teas.
+- **Zweig** snips the mint on the sill. A fresh sprig is stronger than the tin, and it counts as the mint a guest asked for. Leave the kettle screaming and the plant droops; a tired sprig is a poor substitute. Put the sprig back before you pour if you change your mind. New leaves return once the plant has cooled. Z does the same.
 - **Servieren** hands the cup to the guest. The candle on the counter is their patience. If it burns down they leave kindly and can be invited back from the guestbook.
 - Weather changes the window and nudges the score: rain likes a hot cup, snow likes black and spicy teas, a clear night likes floral teas, wind shortens the candle.
 - **Untertasse** is for Semmel, the cat, once she jumps onto the counter.
 - **Stammbuch** keeps what each guest let slip, and the recipes that delighted them. Six stars in the window means every regular has been delighted once. You can keep serving after that.
 - **Ton** stays off until the first tap, then rain and the kettle start. Tap it again to mute. M does the same.
 
-Keys: H heat, F refill, G pour, L leaves, I strainer, C cup, Enter serve, R rinse, B guestbook, M sound, 1–9 pick a tin.
+Keys: H heat, F refill, G pour, L leaves, I strainer, C cup, Enter serve, R rinse, Z sprig, B guestbook, M sound, 1–9 pick a tin.
 
 ![Evening Tea Room](screenshot.png)
 

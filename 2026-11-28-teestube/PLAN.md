@@ -15,11 +15,11 @@ A night counter that can keep growing. One self-contained `index.html`, Swiss Ge
 - Web Audio after the first gesture: rain, hiss, whistle, pour, clink, bell, purr, a small chime. Mute button
 - Desktop, portrait phone, and short landscape. Touch and a few keys
 - Coach glow on the first cup only
+- Sill mint: snip a sprig (stronger than the tin), it droops while the kettle stays screaming, and a tired sprig does not satisfy a guest who wanted mint. Leaves grow back once it is cool again
 
 ## Next
 
 - A notch on the kettle you can set, so a regular's heat is one tap instead of watching the number
-- Fresh mint from the sill plant, stronger than the tin, and it wilts if the room gets too hot
 - A second chair: two guests, one pot, and the cup cools while you pour the other
 - Porcelain patterns on the cup, unlocked with the stars, visible when you pour
 - A recipe link in the hash, so a blend can be opened again
