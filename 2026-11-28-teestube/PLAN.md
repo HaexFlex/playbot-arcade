@@ -16,6 +16,10 @@ A night counter that can keep growing. One self-contained `index.html`, Swiss Ge
 - Desktop, portrait phone, and short landscape. Touch and a few keys
 - Coach glow on the first cup only
 - Sill mint: snip a sprig (stronger than the tin), it droops while the kettle stays screaming, and a tired sprig does not satisfy a guest who wanted mint. Leaves grow back once it is cool again
+- Guestbook chapters: each delight adds a line. Lio's chapter, Herr Quell's postcard, and a short arc for every regular, kept in the old save
+- The night moves on its own clock: evening, late (the rain thins), toward dawn (a clear starry sky). A new evening brings the rain back without wiping the book
+- Ivo, from the night shift, only joins the queue once it is late
+- Closing up, from the button or the door, sends the room to dawn. Opening again keeps stars, tins, notes, and the mint
 
 ## Next
 
@@ -24,6 +28,5 @@ A night counter that can keep growing. One self-contained `index.html`, Swiss Ge
 - Porcelain patterns on the cup, unlocked with the stars, visible when you pour
 - A recipe link in the hash, so a blend can be opened again
 - The whistle as a tiny tune: three kettles, three songs
-- Short continuing notes in the guestbook (Lio's chapter, Quell's postcard) after repeat delights
 - A phonograph by the door with three quiet tunes
 - High-contrast theme and a text log of the steep, for when the dots are hard to see

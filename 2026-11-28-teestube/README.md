@@ -17,10 +17,11 @@ Open `index.html`. One file, no libraries, no network.
 - **Servieren** hands the cup to the guest. The candle on the counter is their patience. If it burns down they leave kindly and can be invited back from the guestbook.
 - Weather changes the window and nudges the score: rain likes a hot cup, snow likes black and spicy teas, a clear night likes floral teas, wind shortens the candle.
 - **Untertasse** is for Semmel, the cat, once she jumps onto the counter.
-- **Stammbuch** keeps what each guest let slip, and the recipes that delighted them. Six stars in the window means every regular has been delighted once. You can keep serving after that.
+- **Stammbuch** keeps what each guest let slip, and the recipes that delighted them. Each time a guest is delighted, another line of their story is written under their name: Lio's chapter, Herr Quell's postcard, and a few more. Six stars in the window means every regular has been delighted once. You can keep serving after that.
+- The night moves. After a few cups it gets late, the rain grows quieter, and **Ivo** comes in from a night shift. Later the rain eases and the window fills with stars toward dawn. **Zumachen** closes the room (the door does the same). **Neuer Abend** opens again: the rain returns, and the guestbook stays. T does the same.
 - **Ton** stays off until the first tap, then rain and the kettle start. Tap it again to mute. M does the same.
 
-Keys: H heat, F refill, G pour, L leaves, I strainer, C cup, Enter serve, R rinse, Z sprig, B guestbook, M sound, 1–9 pick a tin.
+Keys: H heat, F refill, G pour, L leaves, I strainer, C cup, Enter serve, R rinse, Z sprig, B guestbook, T close up, M sound, 1–9 pick a tin.
 
 ![Evening Tea Room](screenshot.png)
 

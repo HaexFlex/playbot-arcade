@@ -78,7 +78,7 @@ button:focus-visible{outline:2px solid #ffe3a3;outline-offset:2px}
 <div id="app">
   <header>
     <h1>Teestube</h1>
-    <p id="meta"><span id="weather">Regen</span> · <span id="stars">Sterne 0/6</span></p>
+    <p id="meta"><span id="weather">Regen</span> · <span id="hour">Abend</span> · <span id="stars">Sterne 0/6</span></p>
     <p id="help">Heize den Kessel, giesse auf, lass den Tee ziehen und serviere die Tasse.</p>
     <p id="hint" role="status" aria-live="polite"></p>
   </header>
@@ -107,6 +107,7 @@ button:focus-visible{outline:2px solid #ffe3a3;outline-offset:2px}
         <button type="button" id="bServe">Servieren</button>
         <button type="button" id="bRinse">Ausspülen</button>
         <button type="button" id="bBook">Stammbuch</button>
+        <button type="button" id="bNight">Zumachen</button>
         <button type="button" id="bSound" aria-pressed="false" aria-label="Ton ist aus">Ton aus</button>
       </div>
     </div>
@@ -202,8 +203,56 @@ button:focus-visible{outline:2px solid #ffe3a3;outline-offset:2px}
       teas: { jasmin: 1, holunderbluete: 0.86, bergamotte: 0.68, kamille: 0.5, gruen: 0.55, minze: 0.3, schwarz: 0.25, ingwer: 0.2, rooibos: 0.3 },
       temp: 82, tempW: 14, strength: 0.48, strengthW: 0.24,
       add: { honey: 0.08, lemon: 0.05, milk: -0.65, mint: -0.08 }
+    },
+    ivo: {
+      name: 'Ivo',
+      enter: 'Ivo kommt herein. Die Schicht ist zu Ende.',
+      wish: 'Etwas Ruhiges. Warm, nicht kochend, ein wenig Honig.',
+      delight: 'So kann ich den Weg nach Hause gehen.',
+      teas: { kamille: 1, holunderbluete: 0.9, minze: 0.72, rooibos: 0.6, jasmin: 0.55, ingwer: 0.4, schwarz: 0.3, gruen: 0.35, bergamotte: 0.32 },
+      temp: 86, tempW: 16, strength: 0.5, strengthW: 0.3,
+      add: { honey: 0.18, lemon: 0, milk: -0.4, mint: 0.05 }
     }
   };
+
+  const CHAPTERS = {
+    holunder: [
+      'Frau Holunder erzählt von einem Winter, in dem der Honig ausging.',
+      'Sie hat ein Glas von zu Hause mitgebracht. Es reicht für noch einen Abend.',
+      'Der Winter ist erzählt. Sie bleibt, solange die Kerze brennt.'
+    ],
+    lio: [
+      'Lio legt ein Lesezeichen neben die Tasse. Das Kapitel ist noch offen.',
+      'Lio liest den letzten Absatz laut. Die Zitrone hält die Augen wach.',
+      'Das Buch ist zu. Lio sagt, morgen geht die Geschichte weiter.'
+    ],
+    quell: [
+      'Herr Quell legt eine Postkarte auf den Tresen. Der Hafen, nachts.',
+      'Auf der Karte steht nur: Das Wasser war warm.',
+      'Eine zweite Karte zeigt denselben Kai, diesmal ohne Regen.'
+    ],
+    noor: [
+      'Noor bringt einen nassen Zweig aus dem Garten mit. Der Regen hat ihn gewaschen.',
+      'Noor sagt, der Nachtgarten schläft erst, wenn die Minze duftet.',
+      'Noor stellt die Tür einen Spalt offen, damit der Duft hinauskann.'
+    ],
+    mira: [
+      'Mira hält die Tasse gegen das Fenster und vergleicht das Licht.',
+      'Sie notiert die Farbe. Kühl und hell, sonst stimmt es nicht.',
+      'Mira hat die Farbe gefunden. Sie malt sie nicht, sie trinkt sie.'
+    ],
+    pema: [
+      'Pema hört dem Regen zu und sagt, die Nacht hat einen Rand.',
+      'Pema spricht leiser. Die Sterne sollen in die Tasse passen.',
+      'Gegen Morgen wird Pema still. Die Nacht hat hineingepasst.'
+    ],
+    ivo: [
+      'Ivo arbeitet, wenn die anderen schlafen. Die Tasse ist die Pause.',
+      'Ivo sagt, gegen Morgen wird die Strasse leer und freundlich.',
+      'Ivo geht, bevor es hell ist. Die Erinnerung an die Tasse bleibt warm.'
+    ]
+  };
+  const HOUR_DE = ['Abend', 'Spät', 'Gegen Morgen', 'Geschlossen'];
 
   const LOOK = {
     holunder: { coat: '#7a4e74', hair: '#f3efe6', skin: '#efc2a4', hat: 'bun', shawl: '#d9c6e0' },
@@ -211,7 +260,8 @@ button:focus-visible{outline:2px solid #ffe3a3;outline-offset:2px}
     mira: { coat: '#b5523e', hair: '#1a1a1e', skin: '#f0c2a2', hat: 'bob', beret: '#2f6b4f' },
     quell: { coat: '#243246', hair: '#d5d8dc', skin: '#e0b08e', hat: 'beard', cap: '#1c2836' },
     noor: { coat: '#3d6a45', hair: '#4a2c22', skin: '#8d5a3a', hat: 'tie', sprig: true },
-    pema: { coat: '#c47a3a', hair: '#161616', skin: '#e7b898', hat: 'knot', wrap: '#f2d7a2' }
+    pema: { coat: '#c47a3a', hair: '#161616', skin: '#e7b898', hat: 'knot', wrap: '#f2d7a2' },
+    ivo: { coat: '#3a3f4a', hair: '#2a2118', skin: '#e0b08e', hat: 'short', cap: '#1e2430' }
   };
 
   const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -242,7 +292,11 @@ button:focus-visible{outline:2px solid #ffe3a3;outline-offset:2px}
     saucer: 0,
     pendingCat: false,
     evening: false,
-    knownRecipe: false
+    knownRecipe: false,
+    hour: 0,
+    nightServes: 0,
+    closed: false,
+    nights: 0
   };
 
   const steam = [];
@@ -282,6 +336,18 @@ button:focus-visible{outline:2px solid #ffe3a3;outline-offset:2px}
     if (el.dataset.src === t) return;
     el.dataset.src = t;
     el.textContent = t;
+  }
+  function paintHour() {
+    const t = HOUR_DE[S.hour] || HOUR_DE[0];
+    const el = $('hour');
+    if (el.dataset.src === t) return;
+    el.dataset.src = t;
+    el.textContent = t;
+  }
+  function chaptersFor(id) {
+    const lines = CHAPTERS[id] || [];
+    const n = S.delighted[id] || 0;
+    return lines.slice(0, Math.min(lines.length, n));
   }
   const attrMem = new WeakMap();
   function setText(el, text) {
@@ -329,6 +395,10 @@ button:focus-visible{outline:2px solid #ffe3a3;outline-offset:2px}
         S.plant.sprigs = clamp(d.plant.sprigs | 0, 0, 3);
       }
       if (typeof d.guestLast === 'string') S.guestLast = d.guestLast;
+      if (typeof d.hour === 'number') S.hour = clamp(d.hour | 0, 0, 3);
+      if (typeof d.nightServes === 'number' && d.nightServes >= 0) S.nightServes = d.nightServes;
+      if (d.closed) S.closed = true;
+      if (typeof d.nights === 'number' && d.nights >= 0) S.nights = d.nights | 0;
       return true;
     } catch (e) { return false; }
   }
@@ -345,7 +415,11 @@ button:focus-visible{outline:2px solid #ffe3a3;outline-offset:2px}
         catGifted: S.catGifted,
         evening: S.evening,
         guestLast: S.guestLast,
-        plant: { health: S.plant.health, sprigs: S.plant.sprigs }
+        plant: { health: S.plant.health, sprigs: S.plant.sprigs },
+        hour: S.hour,
+        nightServes: S.nightServes,
+        closed: S.closed,
+        nights: S.nights
       }));
     } catch (e) {}
   }
@@ -601,6 +675,8 @@ button:focus-visible{outline:2px solid #ffe3a3;outline-offset:2px}
 
   function onLove(gid, cup) {
     S.delighted[gid] = (S.delighted[gid] || 0) + 1;
+    const lines = chaptersFor(gid);
+    if (lines.length >= 2) speak(lines[lines.length - 1]);
     const known = addRecipe(gid, cup);
     let gift = null;
     const gidTea = GIFTS[gid];
@@ -609,14 +685,67 @@ button:focus-visible{outline:2px solid #ffe3a3;outline-offset:2px}
       gift = gidTea;
       rebuildTins(gidTea);
     }
+    const before = S.hour;
     const finished = starCount() >= 6 && !S.evening;
     if (finished) S.evening = true;
-    if (finished) say('Sechs Sterne im Fenster. Der Abend ist rund.');
-    else if (gift) say('Neue Dose: ' + TEAS[gift].name + '.');
-    else if (known) say('Das Rezept kennst du schon.');
-    else say('Ins Stammbuch geschrieben.');
+    advanceHour();
+    if (S.hour === before) {
+      if (finished) say('Sechs Sterne im Fenster. Der Abend ist rund.');
+      else if (gift) say('Neue Dose: ' + TEAS[gift].name + '.');
+      else if (known) say('Das Rezept kennst du schon.');
+      else say('Ins Stammbuch geschrieben.');
+    }
     playChime();
     paintStars();
+  }
+  function advanceHour() {
+    if (S.closed) return;
+    let next = 0;
+    if (S.nightServes >= 6 || S.evening) next = 2;
+    else if (S.nightServes >= 3) next = 1;
+    if (next <= S.hour) return;
+    const prev = S.hour;
+    S.hour = next;
+    if (prev < 1 && next >= 1) {
+      S.weather = 'wind';
+      S.weatherT = 0;
+      if (!S.queue.includes('ivo') && !(S.guest && S.guest.id === 'ivo')) S.queue.unshift('ivo');
+      say('Es wird spät. Der Regen wird leiser.');
+    }
+    if (next >= 2) {
+      S.weather = 'clear';
+      S.weatherT = 0;
+      say('Gegen Morgen. Der Regen hat nachgelassen, die Sterne stehen klar.');
+    }
+    paintHour();
+  }
+  function closeEvening() {
+    if (S.guest && S.guest.phase !== 'out') {
+      speak('Wir machen zu. Komm morgen wieder.');
+      S.guest.phase = 'out';
+      S.guest.t = 0;
+      S.guest.dur = 0.7;
+    }
+    S.closed = true;
+    S.hour = 3;
+    S.weather = 'clear';
+    S.weatherT = 0;
+    say('Die Teestube macht zu. Draussen wird es hell.');
+    paintHour();
+    save();
+  }
+  function openEvening() {
+    S.closed = false;
+    S.hour = 0;
+    S.nightServes = 0;
+    S.weather = 'rain';
+    S.weatherT = 0;
+    S.nights = (S.nights || 0) + 1;
+    S.queue = PARADE.slice();
+    if (!S.guest) S.wait = 0.4;
+    say('Ein neuer Abend. Der Regen ist wieder da.');
+    paintHour();
+    save();
   }
 
   function heatWord(temp) { return temp >= 90 ? 'Heiss' : temp >= 78 ? 'Warm' : 'Kühl'; }
@@ -728,7 +857,9 @@ button:focus-visible{outline:2px solid #ffe3a3;outline-offset:2px}
     else { say('Der Gast trinkt.'); playClink(); }
     S.cup.filled = false;
     S.served += 1;
+    S.nightServes += 1;
     if (S.served === 2) S.pendingCat = true;
+    advanceHour();
     S.queue = S.queue.filter(id => id !== gid);
     S.guestLast = gid;
     paintStars();
@@ -804,15 +935,19 @@ button:focus-visible{outline:2px solid #ffe3a3;outline-offset:2px}
     g.dur = 0.7;
   }
 
+  function roster() {
+    return S.hour >= 1 ? PARADE.concat('ivo') : PARADE.slice();
+  }
   function nextId() {
     if (S.queue.length) return S.queue[0];
     const pool = [];
-    PARADE.forEach(id => {
+    roster().forEach(id => {
       if (id === S.guestLast) return;
-      const w = S.delighted[id] > 0 ? 1 : 3;
+      let w = S.delighted[id] > 0 ? 1 : 3;
+      if (id === 'ivo' && S.hour === 1) w += 2;
       for (let i = 0; i < w; i++) pool.push(id);
     });
-    const bag = pool.length ? pool : PARADE.slice();
+    const bag = pool.length ? pool : roster();
     return bag[Math.floor(Math.random() * bag.length)];
   }
   function spawn(id) {
@@ -824,6 +959,7 @@ button:focus-visible{outline:2px solid #ffe3a3;outline-offset:2px}
   }
   function invite(id) {
     closeBook();
+    if (S.closed) { say('Die Teestube ist zu. Morgen wieder.'); return; }
     if (S.guest) { say('Es sitzt schon jemand.'); return; }
     S.queue = S.queue.filter(x => x !== id);
     S.wait = 0;
@@ -851,6 +987,7 @@ button:focus-visible{outline:2px solid #ffe3a3;outline-offset:2px}
     setPressed($('bMint'), S.tray.mint);
     setText($('bSprig'), S.tray.sprig === 1 ? 'Frischer Zweig' : S.tray.sprig === 2 ? 'Matter Zweig' : 'Zweig');
     setPressed($('bSprig'), S.tray.sprig > 0);
+    setText($('bNight'), S.closed ? 'Neuer Abend' : 'Zumachen');
     const target = coachTarget();
     const map = { heat: 'bHeat', pour: 'bPour', strainer: 'bStrainer', cup: 'bCup', serve: 'bServe' };
     ['bHeat', 'bPour', 'bStrainer', 'bCup', 'bServe'].forEach(id => {
@@ -862,6 +999,7 @@ button:focus-visible{outline:2px solid #ffe3a3;outline-offset:2px}
     document.querySelectorAll('#tins button').forEach(b => setPressed(b, b.dataset.tea === S.selected));
     paintStars();
     paintWeather();
+    paintHour();
     syncSound();
   }
 
@@ -878,6 +1016,7 @@ button:focus-visible{outline:2px solid #ffe3a3;outline-offset:2px}
     else if (name === 'sprig') snip();
     else if (name === 'saucer') saucer();
     else if (name === 'book') toggleBook();
+    else if (name === 'night') { if (S.closed) openEvening(); else closeEvening(); }
     else if (name === 'sound') toggleSound();
     else if (name.indexOf('tea:') === 0) chooseTea(name.slice(4));
     syncControls();
@@ -905,6 +1044,13 @@ button:focus-visible{outline:2px solid #ffe3a3;outline-offset:2px}
     $('tabR').classList.toggle('on', tab === 'recipes');
     $('tabG').setAttribute('aria-selected', tab === 'guests' ? 'true' : 'false');
     $('tabR').setAttribute('aria-selected', tab === 'recipes' ? 'true' : 'false');
+    if (tab === 'guests' && (S.closed || S.nights > 0)) {
+      const banner = document.createElement('p');
+      banner.textContent = S.closed
+        ? 'Die Teestube ist zu. Das Stammbuch bleibt offen.'
+        : ('Abend ' + (S.nights + 1) + '. Die Geschichten bleiben.');
+      page.appendChild(banner);
+    }
     if (tab === 'recipes') {
       if (!S.recipes.length) {
         const p = document.createElement('p');
@@ -925,7 +1071,7 @@ button:focus-visible{outline:2px solid #ffe3a3;outline-offset:2px}
       });
       return;
     }
-    PARADE.forEach(id => {
+    PARADE.concat('ivo').forEach(id => {
       const g = GUESTS[id];
       const n = S.notes[id];
       const art = document.createElement('article');
@@ -934,7 +1080,8 @@ button:focus-visible{outline:2px solid #ffe3a3;outline-offset:2px}
       head.className = 'row';
       const h = document.createElement('h3');
       const known = n && (n.visits > 0 || (n.last && n.last.length));
-      if (!known) h.textContent = 'Ein leerer Stuhl';
+      if (!known && id === 'ivo') h.textContent = 'Ivo';
+      else if (!known) h.textContent = 'Ein leerer Stuhl';
       else h.textContent = (S.delighted[id] > 0 ? '★ ' : '☆ ') + g.name;
       head.appendChild(h);
       if (known) {
@@ -945,8 +1092,17 @@ button:focus-visible{outline:2px solid #ffe3a3;outline-offset:2px}
         head.appendChild(b);
       }
       const p = document.createElement('p');
-      p.textContent = known && n.last ? n.last : 'Noch nicht da gewesen.';
+      if (known && n.last) p.textContent = n.last;
+      else if (id === 'ivo' && S.hour < 1 && !S.closed) p.textContent = 'Ivo kommt, wenn es spät ist.';
+      else if (id === 'ivo') p.textContent = 'Ivo ist noch unterwegs.';
+      else p.textContent = 'Noch nicht da gewesen.';
       art.append(head, p);
+      chaptersFor(id).forEach(line => {
+        const c = document.createElement('p');
+        c.className = 'chapter';
+        c.textContent = line;
+        art.appendChild(c);
+      });
       if (known && S.delighted[id] > 0) {
         const mark = document.createElement('p');
         mark.textContent = S.delighted[id] > 1 ? ('Begeistert, ' + S.delighted[id] + ' Mal') : 'Begeistert';
@@ -1008,8 +1164,10 @@ button:focus-visible{outline:2px solid #ffe3a3;outline-offset:2px}
     stepPlant(dt);
 
     if (!S.guest) {
-      S.wait -= dt;
-      if (S.wait <= 0) spawn(nextId());
+      if (!S.closed) {
+        S.wait -= dt;
+        if (S.wait <= 0) spawn(nextId());
+      }
     } else {
       const g = S.guest;
       g.t += dt;
@@ -1037,8 +1195,8 @@ button:focus-visible{outline:2px solid #ffe3a3;outline-offset:2px}
       }
     }
 
-    S.weatherT += dt;
-    if (S.weatherT > 72) {
+    if (S.hour === 0 && !S.closed) S.weatherT += dt;
+    if (S.hour === 0 && !S.closed && S.weatherT > 72) {
       S.weatherT = 0;
       const i = (WEATHERS.indexOf(S.weather) + 1) % WEATHERS.length;
       S.weather = WEATHERS[i];
@@ -1197,20 +1355,24 @@ button:focus-visible{outline:2px solid #ffe3a3;outline-offset:2px}
     round(w.x, w.y, w.w, w.h, 6);
     ctx.clip();
     const sky = ctx.createLinearGradient(0, w.y, 0, w.y + w.h);
-    if (S.weather === 'clear') { sky.addColorStop(0, '#141a33'); sky.addColorStop(1, '#243456'); }
+    const dawn = S.hour >= 2;
+    if (S.hour >= 3) { sky.addColorStop(0, '#7f9cc4'); sky.addColorStop(0.45, '#f0c4a4'); sky.addColorStop(1, '#f7e2c4'); }
+    else if (dawn) { sky.addColorStop(0, '#12182e'); sky.addColorStop(0.62, '#243456'); sky.addColorStop(1, '#c4866a'); }
+    else if (S.weather === 'clear') { sky.addColorStop(0, '#141a33'); sky.addColorStop(1, '#243456'); }
     else if (S.weather === 'snow') { sky.addColorStop(0, '#2a3348'); sky.addColorStop(1, '#465066'); }
     else { sky.addColorStop(0, '#1a2233'); sky.addColorStop(1, '#2c3848'); }
     ctx.fillStyle = sky;
     ctx.fillRect(w.x, w.y, w.w, w.h);
-    if (S.weather === 'clear' || S.weather === 'snow') {
+    if (!dawn && (S.weather === 'clear' || S.weather === 'snow')) {
       ctx.fillStyle = S.weather === 'snow' ? 'rgba(255,248,230,.85)' : '#f7f1cf';
       ctx.beginPath();
       ctx.arc(w.x + w.w * 0.78, w.y + w.h * 0.28, Math.min(22, w.w * 0.06), 0, Math.PI * 2);
       ctx.fill();
     }
-    if (S.weather === 'clear') {
+    if (S.hour < 3 && (S.weather === 'clear' || dawn)) {
       ctx.fillStyle = 'rgba(255,255,255,.8)';
-      for (let i = 0; i < 10; i++) {
+      const starN = dawn ? 22 : 10;
+      for (let i = 0; i < starN; i++) {
         const sx = w.x + ((i * 47) % 100) / 100 * w.w;
         const sy = w.y + ((i * 29) % 70) / 100 * w.h * 0.55;
         ctx.fillRect(sx, sy, 2, 2);
@@ -1232,13 +1394,14 @@ button:focus-visible{outline:2px solid #ffe3a3;outline-offset:2px}
     const lampX = w.x + w.w * 0.22;
     const lampY = w.y + w.h * 0.42;
     const glow = ctx.createRadialGradient(lampX, lampY, 4, lampX, lampY, w.w * 0.28);
-    glow.addColorStop(0, 'rgba(255,214,140,.9)');
+    const lampA = S.closed ? 0.22 : 0.9;
+    glow.addColorStop(0, 'rgba(255,214,140,' + lampA + ')');
     glow.addColorStop(1, 'rgba(255,214,140,0)');
     ctx.fillStyle = glow;
     ctx.fillRect(w.x, w.y, w.w, w.h);
     ctx.fillStyle = '#2a241c';
     ctx.fillRect(lampX - 2, lampY, 4, w.h * 0.2);
-    ctx.fillStyle = '#ffe1a8';
+    ctx.fillStyle = S.closed ? '#8a7560' : '#ffe1a8';
     ctx.beginPath();
     ctx.arc(lampX, lampY, 6, 0, Math.PI * 2);
     ctx.fill();
@@ -1719,7 +1882,7 @@ button:focus-visible{outline:2px solid #ffe3a3;outline-offset:2px}
     ctx.restore();
   }
   function drawDoor(m) {
-    const open = S.guest && (S.guest.phase === 'in' || S.guest.phase === 'out');
+    const open = !S.closed && S.guest && (S.guest.phase === 'in' || S.guest.phase === 'out');
     ctx.save();
     ctx.translate(W - 26, m.counter);
     ctx.fillStyle = '#4a3028';
@@ -1783,6 +1946,7 @@ button:focus-visible{outline:2px solid #ffe3a3;outline-offset:2px}
   function poke(x, y) {
     const m = lastM || metrics();
     const hits = [];
+    if (W > 700) hits.push({ id: 'night', x: W - 20, y: m.counter - 56 * m.s, r: Math.max(22, 28 * m.s) });
     hits.push({ id: 'heat', x: m.kettle.x, y: m.kettle.y - 24 * m.s, r: m.kettle.r });
     hits.push({ id: 'refill', x: m.tap.x, y: m.tap.y, r: m.tap.r });
     m.jars.forEach(j => hits.push({ id: j.id, x: j.x, y: j.y, r: j.r }));
@@ -1832,6 +1996,10 @@ button:focus-visible{outline:2px solid #ffe3a3;outline-offset:2px}
       served: S.served,
       recipes: S.recipes.length,
       evening: S.evening,
+      hour: HOUR_DE[S.hour] || HOUR_DE[0],
+      nightServes: S.nightServes,
+      closed: S.closed,
+      nights: S.nights,
       sound: audioOn && !userMuted,
       hint: $('hint').textContent,
       say: $('say').textContent
@@ -1863,6 +2031,7 @@ button:focus-visible{outline:2px solid #ffe3a3;outline-offset:2px}
   $('bSprig').addEventListener('click', () => act('sprig'));
   $('bSaucer').addEventListener('click', () => act('saucer'));
   $('bBook').addEventListener('click', () => act('book'));
+  $('bNight').addEventListener('click', () => act('night'));
   $('bSound').addEventListener('click', () => act('sound'));
   $('bClose').addEventListener('click', closeBook);
   $('tabG').addEventListener('click', () => { tab = 'guests'; renderBook(); });
@@ -1879,7 +2048,7 @@ button:focus-visible{outline:2px solid #ffe3a3;outline-offset:2px}
     const book = !$('book').hidden;
     const k = e.key.toLowerCase();
     if (book && k !== 'm' && k !== 'b') return;
-    const map = { h: 'heat', f: 'refill', g: 'pour', l: 'leaf', i: 'strainer', c: 'cup', r: 'rinse', b: 'book', m: 'sound', z: 'sprig' };
+    const map = { h: 'heat', f: 'refill', g: 'pour', l: 'leaf', i: 'strainer', c: 'cup', r: 'rinse', b: 'book', m: 'sound', z: 'sprig', t: 'night' };
     if (k === 'enter') { act('serve'); e.preventDefault(); return; }
     if (map[k]) { act(map[k]); e.preventDefault(); return; }
     if (k >= '1' && k <= '9') {
@@ -1900,7 +2069,27 @@ button:focus-visible{outline:2px solid #ffe3a3;outline-offset:2px}
       return { line: reaction(g, cup, j), score: j.score, teaS: j.teaS, curdle: j.curdle };
     },
     hotspots: () => lastM,
-    act
+    act,
+    again: (id) => {
+      if (!GUESTS[id]) return [];
+      const cup = { tea: 'kamille', temp: 94, strength: 0.62, add: { honey: true, lemon: false, milk: false, mint: false, sprig: 0 } };
+      onLove(id, cup);
+      save();
+      return chaptersFor(id);
+    },
+    skipToLate: () => {
+      S.closed = false;
+      if (S.hour > 1) S.hour = 0;
+      S.nightServes = 3;
+      advanceHour();
+      return { hour: HOUR_DE[S.hour], weather: S.weather, queueHasIvo: S.queue.includes('ivo') };
+    },
+    skipToDawn: () => {
+      S.closed = false;
+      S.nightServes = 6;
+      advanceHour();
+      return { hour: HOUR_DE[S.hour], weather: S.weather };
+    }
   };
 
   function frame(ts) {
@@ -1919,7 +2108,7 @@ button:focus-visible{outline:2px solid #ffe3a3;outline-offset:2px}
 </script>
 <!-- pb-i18n:begin --><script>
 (function(){
-var SRC='de',CORNER='tr',D={"von":"of","und":"and","oder":"or","mit":"with","für":"for","Heiss":"Hot","Warm":"Warm","Kühl":"Cool","Stark":"Strong","Mittel":"Medium","Zart":"Light","Honig":"Honey","Zitrone":"Lemon","Milch":"Milk","Minze":"Mint","Zweig":"Sprig","Frischer Zweig":"Fresh sprig","Matter Zweig":"Tired sprig","Frische Minze":"Fresh mint","Matte Minze":"Tired mint","frische Minze":"fresh mint","matte Minze":"tired mint","Frische Minze. Sie duftet stärker als die Dose.":"Fresh mint. It smells stronger than the tin.","Ein matter Zweig. Die Hitze war zu viel.":"A tired sprig. The heat was too much.","Die Minze ruht noch. Ein neues Blatt braucht Zeit.":"The mint is resting. A new leaf needs time.","Der Zweig liegt wieder am Stock.":"The sprig is back on the plant.","Die Minze auf dem Sims lasst die Blätter hängen.":"The mint on the sill lets its leaves droop.","Die Minze ist matt von der Hitze.":"The mint is tired from the heat.","heiss":"hot","kühl":"cool","stark":"strong","zart":"light","Kamille":"Chamomile","Schwarztee":"Black tea","Pfefferminze":"Peppermint","Grüntee":"Green tea","Jasmin":"Jasmine","Ingwer":"Ginger","Rooibos":"Rooibos","Bergamotte":"Bergamot","Holunderblüte":"Elderflower","leer":"empty","Teestube":"Tea Room","Teestube am Abend":"Evening Tea Room","Teestube am Abend: Kessel, Kanne und Gäste. Tee ziehen lassen und das Stammbuch füllen.":"Evening Tea Room: kettle, pot and guests. Steep the tea and fill the guestbook.","Heize den Kessel, giesse auf, lass den Tee ziehen und serviere die Tasse.":"Heat the kettle, pour, let the tea steep and serve the cup.","Tresen mit Fenster, Kessel, Kanne, Tasse und Gast":"Counter with a window, kettle, pot, cup and guest","Tee wählen":"Choose a tea","Zutaten":"Additions","Handgriffe":"Actions","Untertasse":"Saucer","Heizen":"Heat","Heizt":"Heating","Auffüllen":"Refill","Aufgiessen":"Pour in","Blätter":"Leaves","Sieb heben":"Lift strainer","Sieb senken":"Lower strainer","Einschenken":"Pour cup","Servieren":"Serve","Ausspülen":"Rinse","Stammbuch":"Guestbook","Ton aus":"Sound off","Ton an":"Sound on","Ton ist aus":"Sound is off","Ton ist an":"Sound is on","Schliessen":"Close","Gäste":"Guests","Rezepte":"Recipes","Einladen":"Invite","Ein leerer Stuhl":"An empty chair","Noch nicht da gewesen.":"Has not visited yet.","Noch kein Rezept. Eine begeisterte Tasse wird hier notiert.":"No recipe yet. A delighted cup is noted here.","Begeistert":"Delighted","Begeistert, # Mal":"Delighted, # times","Sterne #/#":"Stars #/#","Regen":"Rain","Klar":"Clear","Schnee":"Snow","Wind":"Wind","Honig fehlt":"honey missing","Zitrone fehlt":"lemon missing","Milch fehlt":"milk missing","Minze fehlt":"mint missing","keine Milch":"no milk","nicht bitter":"not bitter","Frau Holunder kommt herein.":"Frau Holunder comes in.","Lio kommt herein.":"Lio comes in.","Mira kommt herein.":"Mira comes in.","Herr Quell kommt herein.":"Herr Quell comes in.","Noor kommt herein.":"Noor comes in.","Pema kommt herein.":"Pema comes in.","Mir ist kalt bis in die Finger. Blumig, heiss, und Honig wäre schön.":"I am cold down to my fingers. Floral, hot, and honey would be lovely.","Ich lese noch. Bitte wach, mit Zitrone, nicht zu dünn.":"I am still reading. Something waking, with lemon, not too thin.","Hell und eher kühl, sonst stimmt die Farbe nicht. Keine Milch.":"Light and on the cool side, or the color is wrong. No milk.","Stark und heiss, wie im Hafen. Milch darf dazu.":"Strong and hot, like the harbor. Milk is welcome.","Nach dem Garten: Minze. Honig und ein Minzblatt, wenn du hast.":"After the garden: mint. Honey and a mint leaf, if you have them.","Die Nacht soll in die Tasse. Floral, ruhig, nicht zu stark.":"The night should go in the cup. Floral, quiet, not too strong.","Genau die Wärme. Danke.":"Just the right warmth. Thank you.","Jetzt bleiben die Augen offen.":"Now my eyes will stay open.","Die Farbe stimmt. Wunderbar.":"The color is right. Wonderful.","Wie im Hafen. Danke.":"Like the harbor. Thank you.","Nachtgarten in der Tasse.":"A night garden in the cup.","Die Nacht passt hinein.":"The night fits inside.","Die Milch flockt aus. Das mag ich nicht.":"The milk has curdled. I do not like that.","Ein anderer Tee wäre mir lieber.":"I would rather have a different tea.","Die Tasse ist mir zu kühl.":"The cup is too cool for me.","Zu heiss für meine Zunge.":"Too hot for my tongue.","Etwas bitter für mich.":"A little bitter for me.","Etwas zu dünn.":"A little too thin.","Etwas zu stark für mich.":"A little too strong for me.","Milch mag ich in diesem Tee nicht.":"I do not want milk in this tea.","Die Zitrone ist mir zu scharf. Lieber ohne.":"The lemon is too sharp for me. Better without.","Honig brauche ich nicht.":"I do not need honey.","Honig hätte gut gepasst.":"Honey would have suited it.","Eine Zitrone hätte mich geweckt.":"A lemon would have woken me.","Milch hätte mich an den Hafen erinnert.":"Milk would have reminded me of the harbor.","Ein Minzblatt hätte den Garten gebracht.":"A mint leaf would have brought the garden.","Das tut gut. Danke.":"That does me good. Thank you.","Ich trinke ihn aus. Ganz meiner war er nicht.":"I will finish it. It was not quite mine.","Lieb, dass du einschenkst. Heute lieber ein andermal.":"Kind of you to pour. Maybe another time today.","Ich komme ein andermal. Die Kerze ist zu Ende.":"I will come another time. The candle has burned down.","Tippe den Kessel, bis er singt.":"Tap the kettle until it sings.","Das Stammbuch liegt noch auf dem Tresen.":"The guestbook is still on the counter.","Der Kessel singt. Tippe die Kanne zum Aufgiessen.":"The kettle is singing. Tap the pot to pour.","Der Kessel ruft. Nimm ihn herunter oder giesse auf.":"The kettle is calling. Take it off or pour.","Das Wasser ist verkocht.":"The water has boiled away.","Der Kessel ist leer. Erst auffüllen.":"The kettle is empty. Refill it first.","Der Kessel ist schon voll.":"The kettle is already full.","Frisches Wasser. Der Kessel muss neu heizen.":"Fresh water. The kettle must heat again.","Der Kessel steht auf der Flamme.":"The kettle is on the flame.","Der Kessel ist vom Feuer.":"The kettle is off the fire.","Die Kanne ist voll.":"The pot is full.","Zweiter Aufguss. Der Sud ist zarter.":"Second steep. The brew is lighter.","Laues Wasser. Der Tee wird still.":"Lukewarm water. The tea stays quiet.","Der Tee zieht.":"The tea is steeping.","Wasser in der Kanne. Jetzt die Blätter.":"Water in the pot. Now the leaves.","In der Kanne liegen schon Blätter.":"There are already leaves in the pot.","Die Blätter warten auf Wasser.":"The leaves are waiting for water.","Der Tee zieht noch nicht.":"The tea is not steeping yet.","Das Sieb ist oben. Der Sud hält an.":"The strainer is up. The brew holds.","Das Sieb ist wieder unten.":"The strainer is down again.","Die Kanne hat noch keine Blätter.":"The pot has no leaves yet.","Erst Wasser in die Kanne.":"Water in the pot first.","Die Milch flockt in der Tasse.":"The milk curdles in the cup.","Die Tasse steht bereit. Heiss und Stark.":"The cup is ready. Hot and strong.","Die Tasse steht bereit. Heiss und Mittel.":"The cup is ready. Hot and medium.","Die Tasse steht bereit. Heiss und Zart.":"The cup is ready. Hot and light.","Die Tasse steht bereit. Warm und Stark.":"The cup is ready. Warm and strong.","Die Tasse steht bereit. Warm und Mittel.":"The cup is ready. Warm and medium.","Die Tasse steht bereit. Warm und Zart.":"The cup is ready. Warm and light.","Die Tasse steht bereit. Kühl und Stark.":"The cup is ready. Cool and strong.","Die Tasse steht bereit. Kühl und Mittel.":"The cup is ready. Cool and medium.","Die Tasse steht bereit. Kühl und Zart.":"The cup is ready. Cool and light.","Die Zutaten liegen erst in der nächsten Tasse.":"The additions go into the next cup.","Die Kanne ist wieder klar.":"The pot is clear again.","Der Stuhl ist leer.":"The chair is empty.","Der Gast trinkt schon.":"The guest is already drinking.","Der Gast trinkt.":"The guest is drinking.","Die Kerze wird kurz.":"The candle is getting short.","Die Kerze ist heruntergebrannt.":"The candle has burned down.","Es sitzt schon jemand.":"Someone is already sitting.","Die Untertasse wartet auf Semmel.":"The saucer is waiting for Semmel.","Semmel schnurrt. In ihrem Fell hing eine Dose Bergamotte.":"Semmel purrs. A tin of bergamot was caught in her fur.","Semmel schnurrt und legt sich hin.":"Semmel purrs and lies down.","Semmel springt auf den Tresen und schaut die Milch an.":"Semmel jumps onto the counter and looks at the milk.","Neue Dose: Ingwer.":"New tin: Ginger.","Neue Dose: Grüntee.":"New tin: Green tea.","Neue Dose: Jasmin.":"New tin: Jasmine.","Neue Dose: Rooibos.":"New tin: Rooibos.","Neue Dose: Holunderblüte.":"New tin: Elderflower.","Neue Dose: Bergamotte.":"New tin: Bergamot.","Das Rezept kennst du schon.":"You already know this recipe.","Ins Stammbuch geschrieben.":"Written into the guestbook.","Sechs Sterne im Fenster. Der Abend ist rund.":"Six stars in the window. The evening is complete.","Regen am Fenster.":"Rain on the window.","Klare Nacht.":"Clear night.","Es schneit.":"It is snowing.","Wind an der Scheibe.":"Wind on the pane."};
+var SRC='de',CORNER='tr',D={"von":"of","und":"and","oder":"or","mit":"with","für":"for","Heiss":"Hot","Warm":"Warm","Kühl":"Cool","Stark":"Strong","Mittel":"Medium","Zart":"Light","Honig":"Honey","Zitrone":"Lemon","Milch":"Milk","Minze":"Mint","Zweig":"Sprig","Frischer Zweig":"Fresh sprig","Matter Zweig":"Tired sprig","Frische Minze":"Fresh mint","Matte Minze":"Tired mint","frische Minze":"fresh mint","matte Minze":"tired mint","Frische Minze. Sie duftet stärker als die Dose.":"Fresh mint. It smells stronger than the tin.","Ein matter Zweig. Die Hitze war zu viel.":"A tired sprig. The heat was too much.","Die Minze ruht noch. Ein neues Blatt braucht Zeit.":"The mint is resting. A new leaf needs time.","Der Zweig liegt wieder am Stock.":"The sprig is back on the plant.","Die Minze auf dem Sims lasst die Blätter hängen.":"The mint on the sill lets its leaves droop.","Die Minze ist matt von der Hitze.":"The mint is tired from the heat.","heiss":"hot","kühl":"cool","stark":"strong","zart":"light","Kamille":"Chamomile","Schwarztee":"Black tea","Pfefferminze":"Peppermint","Grüntee":"Green tea","Jasmin":"Jasmine","Ingwer":"Ginger","Rooibos":"Rooibos","Bergamotte":"Bergamot","Holunderblüte":"Elderflower","leer":"empty","Teestube":"Tea Room","Teestube am Abend":"Evening Tea Room","Teestube am Abend: Kessel, Kanne und Gäste. Tee ziehen lassen und das Stammbuch füllen.":"Evening Tea Room: kettle, pot and guests. Steep the tea and fill the guestbook.","Heize den Kessel, giesse auf, lass den Tee ziehen und serviere die Tasse.":"Heat the kettle, pour, let the tea steep and serve the cup.","Tresen mit Fenster, Kessel, Kanne, Tasse und Gast":"Counter with a window, kettle, pot, cup and guest","Tee wählen":"Choose a tea","Zutaten":"Additions","Handgriffe":"Actions","Untertasse":"Saucer","Heizen":"Heat","Heizt":"Heating","Auffüllen":"Refill","Aufgiessen":"Pour in","Blätter":"Leaves","Sieb heben":"Lift strainer","Sieb senken":"Lower strainer","Einschenken":"Pour cup","Servieren":"Serve","Ausspülen":"Rinse","Stammbuch":"Guestbook","Ton aus":"Sound off","Ton an":"Sound on","Ton ist aus":"Sound is off","Ton ist an":"Sound is on","Schliessen":"Close","Gäste":"Guests","Rezepte":"Recipes","Einladen":"Invite","Ein leerer Stuhl":"An empty chair","Noch nicht da gewesen.":"Has not visited yet.","Noch kein Rezept. Eine begeisterte Tasse wird hier notiert.":"No recipe yet. A delighted cup is noted here.","Begeistert":"Delighted","Begeistert, # Mal":"Delighted, # times","Sterne #/#":"Stars #/#","Regen":"Rain","Klar":"Clear","Schnee":"Snow","Wind":"Wind","Honig fehlt":"honey missing","Zitrone fehlt":"lemon missing","Milch fehlt":"milk missing","Minze fehlt":"mint missing","keine Milch":"no milk","nicht bitter":"not bitter","Frau Holunder kommt herein.":"Frau Holunder comes in.","Lio kommt herein.":"Lio comes in.","Mira kommt herein.":"Mira comes in.","Herr Quell kommt herein.":"Herr Quell comes in.","Noor kommt herein.":"Noor comes in.","Pema kommt herein.":"Pema comes in.","Mir ist kalt bis in die Finger. Blumig, heiss, und Honig wäre schön.":"I am cold down to my fingers. Floral, hot, and honey would be lovely.","Ich lese noch. Bitte wach, mit Zitrone, nicht zu dünn.":"I am still reading. Something waking, with lemon, not too thin.","Hell und eher kühl, sonst stimmt die Farbe nicht. Keine Milch.":"Light and on the cool side, or the color is wrong. No milk.","Stark und heiss, wie im Hafen. Milch darf dazu.":"Strong and hot, like the harbor. Milk is welcome.","Nach dem Garten: Minze. Honig und ein Minzblatt, wenn du hast.":"After the garden: mint. Honey and a mint leaf, if you have them.","Die Nacht soll in die Tasse. Floral, ruhig, nicht zu stark.":"The night should go in the cup. Floral, quiet, not too strong.","Genau die Wärme. Danke.":"Just the right warmth. Thank you.","Jetzt bleiben die Augen offen.":"Now my eyes will stay open.","Die Farbe stimmt. Wunderbar.":"The color is right. Wonderful.","Wie im Hafen. Danke.":"Like the harbor. Thank you.","Nachtgarten in der Tasse.":"A night garden in the cup.","Die Nacht passt hinein.":"The night fits inside.","Die Milch flockt aus. Das mag ich nicht.":"The milk has curdled. I do not like that.","Ein anderer Tee wäre mir lieber.":"I would rather have a different tea.","Die Tasse ist mir zu kühl.":"The cup is too cool for me.","Zu heiss für meine Zunge.":"Too hot for my tongue.","Etwas bitter für mich.":"A little bitter for me.","Etwas zu dünn.":"A little too thin.","Etwas zu stark für mich.":"A little too strong for me.","Milch mag ich in diesem Tee nicht.":"I do not want milk in this tea.","Die Zitrone ist mir zu scharf. Lieber ohne.":"The lemon is too sharp for me. Better without.","Honig brauche ich nicht.":"I do not need honey.","Honig hätte gut gepasst.":"Honey would have suited it.","Eine Zitrone hätte mich geweckt.":"A lemon would have woken me.","Milch hätte mich an den Hafen erinnert.":"Milk would have reminded me of the harbor.","Ein Minzblatt hätte den Garten gebracht.":"A mint leaf would have brought the garden.","Das tut gut. Danke.":"That does me good. Thank you.","Ich trinke ihn aus. Ganz meiner war er nicht.":"I will finish it. It was not quite mine.","Lieb, dass du einschenkst. Heute lieber ein andermal.":"Kind of you to pour. Maybe another time today.","Ich komme ein andermal. Die Kerze ist zu Ende.":"I will come another time. The candle has burned down.","Tippe den Kessel, bis er singt.":"Tap the kettle until it sings.","Das Stammbuch liegt noch auf dem Tresen.":"The guestbook is still on the counter.","Der Kessel singt. Tippe die Kanne zum Aufgiessen.":"The kettle is singing. Tap the pot to pour.","Der Kessel ruft. Nimm ihn herunter oder giesse auf.":"The kettle is calling. Take it off or pour.","Das Wasser ist verkocht.":"The water has boiled away.","Der Kessel ist leer. Erst auffüllen.":"The kettle is empty. Refill it first.","Der Kessel ist schon voll.":"The kettle is already full.","Frisches Wasser. Der Kessel muss neu heizen.":"Fresh water. The kettle must heat again.","Der Kessel steht auf der Flamme.":"The kettle is on the flame.","Der Kessel ist vom Feuer.":"The kettle is off the fire.","Die Kanne ist voll.":"The pot is full.","Zweiter Aufguss. Der Sud ist zarter.":"Second steep. The brew is lighter.","Laues Wasser. Der Tee wird still.":"Lukewarm water. The tea stays quiet.","Der Tee zieht.":"The tea is steeping.","Wasser in der Kanne. Jetzt die Blätter.":"Water in the pot. Now the leaves.","In der Kanne liegen schon Blätter.":"There are already leaves in the pot.","Die Blätter warten auf Wasser.":"The leaves are waiting for water.","Der Tee zieht noch nicht.":"The tea is not steeping yet.","Das Sieb ist oben. Der Sud hält an.":"The strainer is up. The brew holds.","Das Sieb ist wieder unten.":"The strainer is down again.","Die Kanne hat noch keine Blätter.":"The pot has no leaves yet.","Erst Wasser in die Kanne.":"Water in the pot first.","Die Milch flockt in der Tasse.":"The milk curdles in the cup.","Die Tasse steht bereit. Heiss und Stark.":"The cup is ready. Hot and strong.","Die Tasse steht bereit. Heiss und Mittel.":"The cup is ready. Hot and medium.","Die Tasse steht bereit. Heiss und Zart.":"The cup is ready. Hot and light.","Die Tasse steht bereit. Warm und Stark.":"The cup is ready. Warm and strong.","Die Tasse steht bereit. Warm und Mittel.":"The cup is ready. Warm and medium.","Die Tasse steht bereit. Warm und Zart.":"The cup is ready. Warm and light.","Die Tasse steht bereit. Kühl und Stark.":"The cup is ready. Cool and strong.","Die Tasse steht bereit. Kühl und Mittel.":"The cup is ready. Cool and medium.","Die Tasse steht bereit. Kühl und Zart.":"The cup is ready. Cool and light.","Die Zutaten liegen erst in der nächsten Tasse.":"The additions go into the next cup.","Die Kanne ist wieder klar.":"The pot is clear again.","Der Stuhl ist leer.":"The chair is empty.","Der Gast trinkt schon.":"The guest is already drinking.","Der Gast trinkt.":"The guest is drinking.","Die Kerze wird kurz.":"The candle is getting short.","Die Kerze ist heruntergebrannt.":"The candle has burned down.","Es sitzt schon jemand.":"Someone is already sitting.","Die Untertasse wartet auf Semmel.":"The saucer is waiting for Semmel.","Semmel schnurrt. In ihrem Fell hing eine Dose Bergamotte.":"Semmel purrs. A tin of bergamot was caught in her fur.","Semmel schnurrt und legt sich hin.":"Semmel purrs and lies down.","Semmel springt auf den Tresen und schaut die Milch an.":"Semmel jumps onto the counter and looks at the milk.","Neue Dose: Ingwer.":"New tin: Ginger.","Neue Dose: Grüntee.":"New tin: Green tea.","Neue Dose: Jasmin.":"New tin: Jasmine.","Neue Dose: Rooibos.":"New tin: Rooibos.","Neue Dose: Holunderblüte.":"New tin: Elderflower.","Neue Dose: Bergamotte.":"New tin: Bergamot.","Das Rezept kennst du schon.":"You already know this recipe.","Ins Stammbuch geschrieben.":"Written into the guestbook.","Sechs Sterne im Fenster. Der Abend ist rund.":"Six stars in the window. The evening is complete.","Regen am Fenster.":"Rain on the window.","Klare Nacht.":"Clear night.","Es schneit.":"It is snowing.","Wind an der Scheibe.":"Wind on the pane.","Zumachen":"Close up","Neuer Abend":"New evening","Abend":"Evening","Spät":"Late","Gegen Morgen":"Toward dawn","Geschlossen":"Closed","Abend #. Die Geschichten bleiben.":"Evening #. The stories stay.","Ivo kommt herein. Die Schicht ist zu Ende.":"Ivo comes in. The shift is over.","Etwas Ruhiges. Warm, nicht kochend, ein wenig Honig.":"Something quiet. Warm, not boiling, a little honey.","So kann ich den Weg nach Hause gehen.":"Now I can walk home.","Frau Holunder erzählt von einem Winter, in dem der Honig ausging.":"Frau Holunder tells of a winter when the honey ran out.","Sie hat ein Glas von zu Hause mitgebracht. Es reicht für noch einen Abend.":"She brought a jar from home. It will last one more evening.","Der Winter ist erzählt. Sie bleibt, solange die Kerze brennt.":"The winter has been told. She stays while the candle burns.","Lio legt ein Lesezeichen neben die Tasse. Das Kapitel ist noch offen.":"Lio sets a bookmark beside the cup. The chapter is still open.","Lio liest den letzten Absatz laut. Die Zitrone hält die Augen wach.":"Lio reads the last paragraph aloud. The lemon keeps the eyes awake.","Das Buch ist zu. Lio sagt, morgen geht die Geschichte weiter.":"The book is shut. Lio says the story goes on tomorrow.","Herr Quell legt eine Postkarte auf den Tresen. Der Hafen, nachts.":"Herr Quell lays a postcard on the counter. The harbor at night.","Auf der Karte steht nur: Das Wasser war warm.":"The card says only: the water was warm.","Eine zweite Karte zeigt denselben Kai, diesmal ohne Regen.":"A second card shows the same quay, this time without rain.","Noor bringt einen nassen Zweig aus dem Garten mit. Der Regen hat ihn gewaschen.":"Noor brings a wet sprig from the garden. The rain has washed it.","Noor sagt, der Nachtgarten schläft erst, wenn die Minze duftet.":"Noor says the night garden sleeps only once the mint smells sweet.","Noor stellt die Tür einen Spalt offen, damit der Duft hinauskann.":"Noor leaves the door a crack open, so the scent can go out.","Mira hält die Tasse gegen das Fenster und vergleicht das Licht.":"Mira holds the cup to the window and compares the light.","Sie notiert die Farbe. Kühl und hell, sonst stimmt es nicht.":"She notes the color. Cool and light, or it is wrong.","Mira hat die Farbe gefunden. Sie malt sie nicht, sie trinkt sie.":"Mira has found the color. She does not paint it, she drinks it.","Pema hört dem Regen zu und sagt, die Nacht hat einen Rand.":"Pema listens to the rain and says the night has an edge.","Pema spricht leiser. Die Sterne sollen in die Tasse passen.":"Pema speaks more quietly. The stars should fit in the cup.","Gegen Morgen wird Pema still. Die Nacht hat hineingepasst.":"Toward dawn Pema grows quiet. The night fitted inside.","Ivo arbeitet, wenn die anderen schlafen. Die Tasse ist die Pause.":"Ivo works while the others sleep. The cup is the break.","Ivo sagt, gegen Morgen wird die Strasse leer und freundlich.":"Ivo says that toward dawn the street grows empty and kind.","Ivo geht, bevor es hell ist. Die Erinnerung an die Tasse bleibt warm.":"Ivo leaves before it is light. The memory of the cup stays warm.","Es wird spät. Der Regen wird leiser.":"It is getting late. The rain grows quieter.","Gegen Morgen. Der Regen hat nachgelassen, die Sterne stehen klar.":"Toward dawn. The rain has eased, and the stars stand clear.","Die Teestube macht zu. Draussen wird es hell.":"The tea room is closing. Outside it is growing light.","Ein neuer Abend. Der Regen ist wieder da.":"A new evening. The rain is back.","Wir machen zu. Komm morgen wieder.":"We are closing. Come again tomorrow.","Die Teestube ist zu. Morgen wieder.":"The tea room is closed. Again tomorrow.","Die Teestube ist zu. Das Stammbuch bleibt offen.":"The tea room is closed. The guestbook stays open.","Ivo ist noch unterwegs.":"Ivo is still on the way.","Ivo kommt, wenn es spät ist.":"Ivo comes when it is late."};
 var KEY='playbot-lang',OTHER=SRC==='de'?'en':'de',lang=SRC;
 function pref(){try{var v=localStorage.getItem(KEY);if(v==='de'||v==='en')return v}catch(e){}return(navigator.language||'en').toLowerCase().indexOf('de')===0?'de':'en'}
 var NUM=/-?\d+(?:[.,]\d+)?/g,rec=new WeakMap(),nodes=[],attrRec=new WeakMap(),attrEls=[];
