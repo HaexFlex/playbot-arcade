@@ -4616,7 +4616,7 @@ function drawPoohsticks(t) { // tilt view, after the bridges
   if (mx >= 0 && mx < T.ow && my >= 0 && my < T.oh) { const pc = T.pick[my * T.ow + mx]; if (pc >= 0 && ((pc / N) | 0) > (ay + by) / 2 + 3) { st.psMs = (st.psMs || 0) * 0.9 + (performance.now() - t0) * 0.1; return; } } // behind a ridge
   // the sticks: dropped at 2.0 and 2.35 s from the middle of the deck, then they drift with the water
   for (let k = 0; k < 2; k++) if (e >= 2 + k * 0.35 && g.sticks.length === k) { const q = 0.5 + (k ? 0.06 : -0.06), j = psWater(S, b);
-    g.sticks.push({ x: ax + (bx - ax) * q + 0.5, y: ay + (by - ay) * q + 0.5, t: now, d: 0, stop: j < 0, ang: Math.random() * 3 }); }
+    g.sticks.push({ x: ax + (bx - ax) * q + 0.5, y: ay + (by - ay) * q + 0.5, t: now, d: 0, stop: j < 0, ang: Math.random() * 3 }); if (j >= 0) sndStick(fxPan(mid[0]), k ? 0.8 : 1); }
   const u = mid[4], al = Math.max(0, Math.min(1, (PS_LEN - e) / 1.5)), sl = Math.max(2.2, u * 0.75);
   cx.save(); cx.lineCap = 'round';
   for (const s of g.sticks) { const x = Math.max(0, Math.min(N - 1, s.x | 0)), y = Math.max(0, Math.min(N - 1, s.y | 0)), i = y * N + x, age = now - s.t;
@@ -6093,7 +6093,7 @@ function adapt(dt) {
 // and thunder after lightning, wind (stronger in winter and storms), birds by day in the forest, crickets on
 // summer evenings, an owl at night, the creak and clack of turning mill wheels, cowbells near the village.
 // window.LV_AUDIO holds the levels (0..1) and gains so tests can check them without listening.
-const AU = { want: false, on: false, started: false, state: 'none', nodes: 0, live: 0, L: {}, G: {}, ev: { chirp: 0, cricket: 0, owl: 0, clack: 0, creak: 0, bell: 0, thunder: 0, plop: 0, slurp: 0, splash: 0, knock: 0, well: 0, rustle: 0, rumble: 0, drip: 0, squeak: 0, thump: 0, crunch: 0, skate: 0, icicle: 0, puddle: 0, peep: 0, twit: 0, bat: 0, pipe: 0, whirr: 0, honk: 0, crane: 0, frank: 0, tsee: 0, zit: 0, murmur: 0, spade: 0, sow: 0, canoe: 0, deerstep: 0, lap: 0, bark: 0, snuffle: 0, screech: 0, croak: 0, drum: 0, gust: 0, pile: 0, sled: 0, sb: 0, planks: 0 }, flow: 0, riverPan: 0, veg: 0, ticks: 0, vol: 1, snowCover: 0, rainMuffle: 0, rainCut: 9000, masterT: 0, melt: 0, meltPan: 0 };
+const AU = { want: false, on: false, started: false, state: 'none', nodes: 0, live: 0, L: {}, G: {}, ev: { chirp: 0, cricket: 0, owl: 0, clack: 0, creak: 0, bell: 0, thunder: 0, plop: 0, slurp: 0, splash: 0, knock: 0, well: 0, rustle: 0, rumble: 0, drip: 0, squeak: 0, thump: 0, crunch: 0, skate: 0, icicle: 0, puddle: 0, peep: 0, twit: 0, bat: 0, pipe: 0, whirr: 0, honk: 0, crane: 0, frank: 0, tsee: 0, zit: 0, murmur: 0, spade: 0, sow: 0, canoe: 0, deerstep: 0, lap: 0, bark: 0, snuffle: 0, screech: 0, croak: 0, drum: 0, gust: 0, pile: 0, sled: 0, sb: 0, planks: 0, stick: 0 }, flow: 0, riverPan: 0, veg: 0, ticks: 0, vol: 1, snowCover: 0, rainMuffle: 0, rainCut: 9000, masterT: 0, melt: 0, meltPan: 0 };
 window.LV_AUDIO = AU;
 const AU_KEY = 'lv-sound', AU_MASTER = 0.45, AU_DT = 0.25;
 const AU_MAX = { river: 0.55, rain: 0.42, wind: 0.2, birds: 0.42, crickets: 0.13, owl: 0.38, mill: 0.42, cows: 0.26, thunder: 0.85, melt: 0.3 }; // full-level gain per layer
@@ -6323,6 +6323,12 @@ function sndPuddle(pan, k) { // a child lands in a puddle: a small wet slap and 
   noiseHit('fx', AG.white, t, 0.22, 'bandpass', 1300 + Math.random() * 700, 1.1, 0.08 * k, pan, 0.045);
   drop(t + 0.025, 520 + Math.random() * 260, 0.3 * k, pan);
   AU.ev.puddle++;
+}
+function sndStick(pan, k) { // Poohsticks: a little stick drops into the stream, a hollow woody 'plip' and a tiny bloop (fx bus, so mute and volume apply)
+  if (!fxOn()) return; const t = AG.ac.currentTime + 0.18 + Math.random() * 0.05; // it falls a moment from the rail first
+  noiseHit('fx', AG.white, t, 0.08, 'bandpass', 2600 + Math.random() * 800, 3, 0.035 * k, pan, 0.02);
+  drop(t + 0.01, 980 + Math.random() * 280, 0.22 * k, pan);
+  AU.ev.stick++;
 }
 function sndPile(pan, k) { // a child lands in the leaf pile: a soft thump and a dry crunchy rustle of leaves (fx bus, so mute and volume apply)
   if (!fxOn()) return; const t = AG.ac.currentTime + 0.02 + Math.random() * 0.08;

@@ -127,6 +127,8 @@ every feature must be visible on screen (no hidden numbers); stays at 30+ fps at
 
 **Update 2026-11-28 (02:29 run, poohsticks step): singular wish units + Poohsticks from the footbridge.** See the checklist entry above. Next ideas in the same spirit: a soft 'plop' sound when the sticks hit the water (sound on), ducks paddling under a footbridge, or a heron fishing from a bridge post at dawn; or a 'Poohsticks' wish (would add 3 strings and change the star total checked by the browser test).
 
+**Update 2026-11-28 (03:28 takeover run): Poohsticks verified + published (3fda21e), then stick plip.** With sound on each stick that lands on water makes a small woody 'plip' ~0.2 s after the drop (sndStick: short bandpass noise tick + a high drop bloop, fx bus, AU.ev.stick); poohsticks-check.js checks 2 plips with sound on and none muted (desk + phone). Note: poohsticks-check gave one unexplained single FAIL in 8 runs (output lost); watch it. Next ideas: ducks paddling under a footbridge, a heron on a bridge post at dawn, or a 'Poohsticks' wish.
+
 ## Checklist (every step)
 - [ ] `node tools/build.js` then `node tools/test.js` (all pass)
 - [ ] `node tools/browser-test.js` (all checks, 0 console errors) and save its output to `tools/browser_test_output.txt`

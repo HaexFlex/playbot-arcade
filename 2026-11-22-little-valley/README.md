@@ -249,8 +249,8 @@ and a phone.
 village children may run out onto a standing footbridge, lean over the rail and each drop a little stick into the
 stream with a small ripple ring. The sticks drift off downstream with the water, bobbing, while the children hop and
 cheer, then the two run off to the far bank; a stick that reaches dry ground or still water stays put and fades. The
-first game in a valley gives a hint. Never over ice, in winter or in the map view; hidden behind ridges; visual only,
-about 0.02-0.03 ms a frame. `screenshot-poohsticks.png` shows a game; `tools/poohsticks-check.js` checks it (and the
+first game in a valley gives a hint. Never over ice, in winter or in the map view; hidden behind ridges. With sound on,
+each stick lands in the water with a small woody 'plip' (fx bus, so mute and volume apply). About 0.02-0.03 ms a frame. `screenshot-poohsticks.png` shows a game; `tools/poohsticks-check.js` checks it (and the
 wish line's singular "1 footbridge" in English and German) on a desktop and a phone.
 
 **Hoar frost**: after a clear, cold winter night the trees wake up white-rimed: the pine and leafy crowns
