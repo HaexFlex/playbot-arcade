@@ -253,6 +253,17 @@ first game in a valley gives a hint. Never over ice, in winter or in the map vie
 each stick lands in the water with a small woody 'plip' (fx bus, so mute and volume apply). About 0.02-0.03 ms a frame. `screenshot-poohsticks.png` shows a game; `tools/poohsticks-check.js` checks it (and the
 wish line's singular "1 footbridge" in English and German) on a desktop and a phone.
 
+**Stone skipping**: on calm, dry days from late spring to early autumn (no rain or storm, little wind, 10:00-19:00)
+every 20-40 seconds or so a village child walks down to the shore of a still lake or pond near a cottage (a dry, open
+bank from which a straight line of at least 7 still, open water cells runs, preferring lines across the screen),
+crouches, swings and sends a flat stone skimming across: 3 to 7 skips, each hop shorter and quicker than the one
+before, a little ring spreading at every touch and a bigger 'plunk' ring with a tiny splash where it sinks. From the
+fifth skip on the child hops and cheers with both arms up, then walks off. The first throw in a valley gives a hint.
+Never over ice, at night, in winter, in a strong wind or in the map view; hidden behind ridges. With sound on a tiny
+bright 'tik' at every skip (a little higher each time) and a soft plunk at the end (fx bus). About 0.01-0.03 ms a
+frame, spot search under 1 ms every 3 s. `screenshot-skipping.png` shows a 7-skip throw; `tools/skip-check.js`
+checks it on a desktop and a phone.
+
 **Hoar frost**: after a clear, cold winter night the trees wake up white-rimed: the pine and leafy crowns
 (and the bare winter twigs) go frosty white with a bright rim on their edges and the open grass turns pale.
 When the sun is up, little sparkles wander over the frosted crowns, and the frost fades as the day warms
