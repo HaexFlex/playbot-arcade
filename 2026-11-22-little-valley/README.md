@@ -321,7 +321,8 @@ storms or heavy rain, or in the map view.
 **The dawn heron**: on calm mornings from spring to autumn, between half past five and half past nine, one grey
 heron comes to fish. If the villagers have laid a footbridge it stands right by the bridge post, otherwise in the
 shallows at a bank. It stands still for a long time, then slowly leans forward and makes a quick stab into the water
-(a little ring spreads where the bill went in), and now and then it comes up with a tiny silver fish. When a cart
+(a little ring spreads where the bill went in), and now and then it comes up with a tiny silver fish, holds it crosswise for a moment and swallows it with a quick
+head toss. When a cart
 rumbles by, children run out onto the bridge, the morning ends or the weather turns, it flies off with slow beats, legs
 trailing (with the sound on you hear its harsh *fraank*). Not in winter, in rain, at night or in the map view.
 
