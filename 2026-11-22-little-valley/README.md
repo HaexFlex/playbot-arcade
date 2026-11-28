@@ -274,6 +274,16 @@ other claps (a tie: both cheer), then they walk off together. Both throws count 
 valley gives its own hint (English and German). With sound on a tik for every skip and a plunk for each stone.
 `screenshot-skipduel.png` shows a 4-to-7 duel; `tools/skipduel-check.js` checks it on a desktop and a phone.
 
+**Autumn kites**: on dry afternoons in the windy second half of autumn (11:00-17:00, no rain or storm; never in summer,
+winter, at night or in the map view) every 25-50 seconds or so a village child walks out from a cottage onto open, dry
+high ground nearby (the highest bare spot within about 8 cells, away from water, trees, fields and houses, and visible
+in the tilt view) with a diamond kite in two colours. It stands a moment, runs a few steps into the wind while the kite
+climbs off the grass, then the kite rides high downwind on a sagging string, bobbing and swaying, its ribbon tail with
+three little bows rippling. An autumn leaf gust lifts it higher, and once or twice a flight it loops the loop. After
+half a minute or so the child reels it in, winding with both hands, and walks home. One kite at a time; the first kite
+in a valley gives a hint (English and German). About 0.05-0.07 ms a frame, spot search about 1 ms every 4 s.
+`screenshot-kite.png` shows a kite flying high above its child; `tools/kite-check.js` checks it on a desktop and a phone.
+
 **Mallards at the footbridge**: by day (7:00-18:30), all year while the stream is open (no ice, storm or heavy rain),
 a pair of mallards potters about the stream around a standing footbridge (up to 2 pairs at different bridges, 1 on a
 phone): a drake with a glossy green head, white collar, chestnut breast and pale grey body, and a mottled brown hen a
