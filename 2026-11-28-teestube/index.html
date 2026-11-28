@@ -1,0 +1,1874 @@
+<!doctype html>
+<html lang="de-CH">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Teestube am Abend</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect fill='%23241912' width='32' height='32'/%3E%3Cpath d='M8 12h12v8a6 6 0 0 1-12 0z' fill='%23f4e6d4'/%3E%3Cpath d='M20 14h3a3 3 0 0 1 0 6h-3' fill='none' stroke='%23f4e6d4' stroke-width='2'/%3E%3C/svg%3E">
+<meta name="description" content="Teestube am Abend: Kessel, Kanne und Gäste. Tee ziehen lassen und das Stammbuch füllen.">
+<meta name="theme-color" content="#241912">
+<style>
+*,*::before,*::after{box-sizing:border-box}
+html,body{margin:0;height:100%;background:#241912;color:#f6ead8;font-family:"Iowan Old Style",Palatino,Georgia,serif;-webkit-user-select:none;user-select:none;overflow:hidden;overscroll-behavior:none}
+#app{height:100dvh;min-height:100%;display:flex;flex-direction:column}
+header{flex:0 0 auto;padding:max(8px,env(safe-area-inset-top)) 96px 6px 14px;background:linear-gradient(#3a2a24,#2a1c18)}
+h1{margin:0;font-size:clamp(20px,2.6vw,30px);font-weight:700;letter-spacing:.01em;line-height:1.05}
+#meta{margin:2px 0 0;font:600 13px/1.2 system-ui,-apple-system,"Segoe UI",sans-serif;opacity:.88}
+#help,#hint{margin:3px 0 0;font:500 13.5px/1.35 system-ui,-apple-system,"Segoe UI",sans-serif}
+#hint{font-weight:700;min-height:2.7em}
+#body{flex:1;min-height:0;display:flex;flex-direction:column}
+#stage{flex:1 1 auto;min-height:168px;position:relative;overflow:hidden}
+canvas{display:block;width:100%;height:100%;touch-action:none;cursor:pointer}
+#say{position:absolute;z-index:2;top:10px;right:10px;max-width:min(280px,68%);margin:0;padding:8px 12px 10px;background:#fff8ee;color:#3a2416;border-radius:16px 16px 4px 16px;font:600 14px/1.35 system-ui,-apple-system,"Segoe UI",sans-serif;box-shadow:0 8px 22px rgba(0,0,0,.28);pointer-events:none}
+#say:empty{display:none}
+#say::after{content:"";position:absolute;right:22px;bottom:-8px;border:8px solid transparent;border-top-color:#fff8ee;border-bottom:0}
+#controls{flex:0 0 auto;max-height:48dvh;overflow:auto;background:linear-gradient(#4a3428,#3a271e);border-top:1px solid rgba(255,220,180,.16);padding:6px 8px max(8px,env(safe-area-inset-bottom));display:flex;flex-direction:column;gap:6px;-webkit-overflow-scrolling:touch}
+#tins{display:flex;flex-wrap:wrap;gap:6px;padding:1px 2px 2px}
+#adds,#bar{display:flex;flex-wrap:wrap;gap:6px;justify-content:center}
+button{font:700 14px/1.1 system-ui,-apple-system,"Segoe UI",sans-serif;touch-action:manipulation;cursor:pointer;-webkit-tap-highlight-color:transparent}
+#tins button{flex:0 0 auto;display:flex;align-items:center;gap:6px;min-height:40px;padding:4px 12px 4px 4px;border-radius:999px;border:1px solid #8a6248;background:#f3e2cc;color:#3a2416}
+#tins button i{width:28px;height:28px;border-radius:50%;display:block;box-shadow:inset 0 -4px 0 rgba(0,0,0,.25)}
+#tins button[aria-pressed="true"]{background:#6b3a22;color:#fff6e8;border-color:#f0d2a4}
+#adds button,#bar button,#book button{min-height:40px;min-width:44px;padding:8px 10px;border-radius:999px;border:1px solid #a07858;background:#f6e7d2;color:#3a2416}
+#adds button[aria-pressed="true"],#bar button[aria-pressed="true"]{background:#6b3a22;color:#fff6e8;border-color:#e7c8a2}
+#bSound[aria-pressed="true"]{background:#2f5d4a;color:#f3fff6;border-color:#8fd0b0}
+button.coach,#tins.coach button{box-shadow:0 0 0 3px #e7b84a}
+button:focus-visible{outline:2px solid #ffe3a3;outline-offset:2px}
+#tins button.fresh{box-shadow:0 0 0 3px #fff1c2}
+#book[hidden]{display:none !important}
+#book{position:fixed;inset:0;z-index:30;background:rgba(18,10,12,.55);display:flex;align-items:center;justify-content:center;padding:14px}
+.sheet{width:min(680px,100%);max-height:min(86dvh,760px);overflow:auto;background:#f7ecd8;color:#3a2416;border-radius:18px;padding:14px 14px 18px;box-shadow:0 18px 50px rgba(0,0,0,.38)}
+.sheethead{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.sheet h2{margin:0;font-size:22px}
+.tabs{display:flex;gap:6px;margin:10px 0}
+.tabs button.on{background:#6b3a22;color:#fff6e8}
+.guest{padding:8px 0;border-top:1px solid rgba(80,40,20,.16)}
+.guest h3{margin:0 0 4px;font-size:17px}
+.guest p,.recipe p{margin:0;font:500 14px/1.35 system-ui,-apple-system,"Segoe UI",sans-serif}
+.chips{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px}
+.chips span{background:#efe0c4;border-radius:999px;padding:3px 8px;font:600 12px/1.3 system-ui,sans-serif}
+.guest .row{display:flex;justify-content:space-between;gap:8px;align-items:center}
+.recipe{padding:8px 0;border-top:1px solid rgba(80,40,20,.16)}
+.recipe h3{margin:0 0 3px;font-size:16px}
+@media (max-width:520px){
+  #help{display:none}
+  #adds button,#bar button{font-size:13px;padding:8px}
+  header{padding-right:88px}
+}
+@media (orientation:landscape) and (max-height:560px){
+  #body{flex-direction:row}
+  header{padding-top:4px;padding-bottom:2px}
+  #controls{width:min(420px,50vw);max-height:none;border-top:0;border-left:1px solid rgba(255,220,180,.16);gap:4px;padding:4px 6px max(4px,env(safe-area-inset-bottom))}
+  #help{display:none}
+  h1{font-size:18px}
+  #meta{margin:0}
+  #hint{min-height:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  #tins{flex-wrap:nowrap}
+  #tins button{flex:1 1 0;min-width:0;padding:4px 6px 4px 3px;font-size:12px}
+  #tins button span{overflow:hidden;text-overflow:ellipsis}
+  #adds,#bar{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:4px}
+  #adds button,#bar button{min-width:0;padding:6px 4px;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+}
+@media (prefers-reduced-motion:reduce){
+  #tins button.fresh{box-shadow:0 0 0 3px #fff1c2}
+}
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <h1>Teestube</h1>
+    <p id="meta"><span id="weather">Regen</span> · <span id="stars">Sterne 0/6</span></p>
+    <p id="help">Heize den Kessel, giesse auf, lass den Tee ziehen und serviere die Tasse.</p>
+    <p id="hint" role="status" aria-live="polite"></p>
+  </header>
+  <div id="body">
+    <div id="stage">
+      <canvas id="c" aria-label="Tresen mit Fenster, Kessel, Kanne, Tasse und Gast"></canvas>
+      <p id="say" role="status" aria-live="polite"></p>
+    </div>
+    <div id="controls">
+      <div id="tins" role="group" aria-label="Tee wählen"></div>
+      <div id="adds" role="group" aria-label="Zutaten">
+        <button type="button" id="bHoney" aria-pressed="false">Honig</button>
+        <button type="button" id="bLemon" aria-pressed="false">Zitrone</button>
+        <button type="button" id="bMilk" aria-pressed="false">Milch</button>
+        <button type="button" id="bMint" aria-pressed="false">Minze</button>
+        <button type="button" id="bSaucer">Untertasse</button>
+      </div>
+      <div id="bar" role="toolbar" aria-label="Handgriffe">
+        <button type="button" id="bHeat" aria-pressed="false">Heizen</button>
+        <button type="button" id="bRefill">Auffüllen</button>
+        <button type="button" id="bPour">Aufgiessen</button>
+        <button type="button" id="bLeaf">Blätter</button>
+        <button type="button" id="bStrainer">Sieb heben</button>
+        <button type="button" id="bCup">Einschenken</button>
+        <button type="button" id="bServe">Servieren</button>
+        <button type="button" id="bRinse">Ausspülen</button>
+        <button type="button" id="bBook">Stammbuch</button>
+        <button type="button" id="bSound" aria-pressed="false" aria-label="Ton ist aus">Ton aus</button>
+      </div>
+    </div>
+  </div>
+</div>
+<div id="book" hidden>
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="bookTitle">
+    <div class="sheethead">
+      <h2 id="bookTitle">Stammbuch</h2>
+      <button type="button" id="bClose">Schliessen</button>
+    </div>
+    <div class="tabs" role="tablist">
+      <button type="button" id="tabG" class="on" role="tab" aria-selected="true">Gäste</button>
+      <button type="button" id="tabR" role="tab" aria-selected="false">Rezepte</button>
+    </div>
+    <div id="page"></div>
+  </div>
+</div>
+<script>
+'use strict';
+(function () {
+  const STORE = 'teestube-abend-v1';
+  const LOVE = 0.86;
+  const PARADE = ['holunder', 'lio', 'noor', 'quell', 'mira', 'pema'];
+  const TEA_ORDER = ['schwarz', 'kamille', 'minze', 'gruen', 'jasmin', 'ingwer', 'rooibos', 'bergamotte', 'holunderbluete'];
+  const GIFTS = { holunder: 'ingwer', lio: 'gruen', mira: 'jasmin', quell: 'rooibos', noor: 'holunderbluete' };
+  const WEATHERS = ['rain', 'clear', 'snow', 'wind'];
+  const WEATHER_DE = { rain: 'Regen', clear: 'Klar', snow: 'Schnee', wind: 'Wind' };
+
+  const TEAS = {
+    schwarz: { name: 'Schwarztee', family: 'black', color: '#6a3418', tin: '#4a3424', rate: 0.11, bitter: 1.22, curdle: false },
+    kamille: { name: 'Kamille', family: 'herbal', color: '#e4b23e', tin: '#d4a84a', rate: 0.15, bitter: 1.30, curdle: false },
+    minze: { name: 'Pfefferminze', family: 'herbal', color: '#6eae62', tin: '#2f6a3c', rate: 0.15, bitter: 1.15, curdle: true },
+    gruen: { name: 'Grüntee', family: 'green', color: '#c5d46a', tin: '#7d9a3a', rate: 0.10, bitter: 0.64, curdle: true },
+    jasmin: { name: 'Jasmin', family: 'floral', color: '#f0e4a4', tin: '#ddd6a2', rate: 0.12, bitter: 0.82, curdle: true, floral: true },
+    ingwer: { name: 'Ingwer', family: 'spicy', color: '#e08a32', tin: '#c47a28', rate: 0.12, bitter: 1.25, curdle: false },
+    rooibos: { name: 'Rooibos', family: 'spicy', color: '#c85a38', tin: '#a84830', rate: 0.11, bitter: 1.28, curdle: false },
+    bergamotte: { name: 'Bergamotte', family: 'black', color: '#c48440', tin: '#8a6840', rate: 0.11, bitter: 1.18, curdle: false, floral: true },
+    holunderbluete: { name: 'Holunderblüte', family: 'floral', color: '#f3e6c4', tin: '#efe4c4', rate: 0.13, bitter: 1.05, curdle: true, floral: true }
+  };
+
+  const GUESTS = {
+    holunder: {
+      name: 'Frau Holunder',
+      enter: 'Frau Holunder kommt herein.',
+      wish: 'Mir ist kalt bis in die Finger. Blumig, heiss, und Honig wäre schön.',
+      delight: 'Genau die Wärme. Danke.',
+      teas: { kamille: 0.95, holunderbluete: 1, ingwer: 0.82, jasmin: 0.58, minze: 0.42, schwarz: 0.28, rooibos: 0.36, gruen: 0.2, bergamotte: 0.34 },
+      temp: 94, tempW: 16, strength: 0.62, strengthW: 0.36,
+      add: { honey: 0.22, lemon: 0, milk: -0.55, mint: 0.05 }
+    },
+    lio: {
+      name: 'Lio',
+      enter: 'Lio kommt herein.',
+      wish: 'Ich lese noch. Bitte wach, mit Zitrone, nicht zu dünn.',
+      delight: 'Jetzt bleiben die Augen offen.',
+      teas: { schwarz: 0.92, bergamotte: 1, gruen: 0.55, rooibos: 0.5, ingwer: 0.34, kamille: 0.22, minze: 0.16, jasmin: 0.4, holunderbluete: 0.26 },
+      temp: 91, tempW: 16, strength: 0.9, strengthW: 0.32, likesBitter: true,
+      add: { honey: -0.05, lemon: 0.22, milk: -0.2, mint: 0 }
+    },
+    noor: {
+      name: 'Noor',
+      enter: 'Noor kommt herein.',
+      wish: 'Nach dem Garten: Minze. Honig und ein Minzblatt, wenn du hast.',
+      delight: 'Nachtgarten in der Tasse.',
+      teas: { minze: 1, rooibos: 0.8, kamille: 0.84, holunderbluete: 0.78, ingwer: 0.48, schwarz: 0.2, gruen: 0.36, jasmin: 0.42, bergamotte: 0.24 },
+      temp: 88, tempW: 22, strength: 0.58, strengthW: 0.36, combo: true,
+      add: { honey: 0.16, lemon: 0, milk: -0.25, mint: 0.2 }
+    },
+    quell: {
+      name: 'Herr Quell',
+      enter: 'Herr Quell kommt herein.',
+      wish: 'Stark und heiss, wie im Hafen. Milch darf dazu.',
+      delight: 'Wie im Hafen. Danke.',
+      teas: { schwarz: 1, bergamotte: 0.9, rooibos: 0.62, ingwer: 0.55, kamille: 0.16, minze: 0.12, gruen: 0.08, jasmin: 0.2, holunderbluete: 0.14 },
+      temp: 97, tempW: 12, strength: 1.02, strengthW: 0.28, likesBitter: true,
+      add: { honey: -0.08, lemon: -0.22, milk: 0.2, mint: 0 }
+    },
+    mira: {
+      name: 'Mira',
+      enter: 'Mira kommt herein.',
+      wish: 'Hell und eher kühl, sonst stimmt die Farbe nicht. Keine Milch.',
+      delight: 'Die Farbe stimmt. Wunderbar.',
+      teas: { gruen: 1, jasmin: 0.96, holunderbluete: 0.5, minze: 0.44, bergamotte: 0.34, kamille: 0.4, schwarz: 0.12, ingwer: 0.16, rooibos: 0.2 },
+      temp: 76, tempW: 10, strength: 0.4, strengthW: 0.28,
+      add: { honey: -0.12, lemon: 0.05, milk: -0.7, mint: 0 }
+    },
+    pema: {
+      name: 'Pema',
+      enter: 'Pema kommt herein.',
+      wish: 'Die Nacht soll in die Tasse. Floral, ruhig, nicht zu stark.',
+      delight: 'Die Nacht passt hinein.',
+      teas: { jasmin: 1, holunderbluete: 0.86, bergamotte: 0.68, kamille: 0.5, gruen: 0.55, minze: 0.3, schwarz: 0.25, ingwer: 0.2, rooibos: 0.3 },
+      temp: 82, tempW: 14, strength: 0.48, strengthW: 0.24,
+      add: { honey: 0.08, lemon: 0.05, milk: -0.65, mint: -0.08 }
+    }
+  };
+
+  const LOOK = {
+    holunder: { coat: '#7a4e74', hair: '#f3efe6', skin: '#efc2a4', hat: 'bun', shawl: '#d9c6e0' },
+    lio: { coat: '#2c4a78', hair: '#241c16', skin: '#d39a6c', hat: 'short', scarf: '#e2b33a' },
+    mira: { coat: '#b5523e', hair: '#1a1a1e', skin: '#f0c2a2', hat: 'bob', beret: '#2f6b4f' },
+    quell: { coat: '#243246', hair: '#d5d8dc', skin: '#e0b08e', hat: 'beard', cap: '#1c2836' },
+    noor: { coat: '#3d6a45', hair: '#4a2c22', skin: '#8d5a3a', hat: 'tie', sprig: true },
+    pema: { coat: '#c47a3a', hair: '#161616', skin: '#e7b898', hat: 'knot', wrap: '#f2d7a2' }
+  };
+
+  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const $ = id => document.getElementById(id);
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+  const ease = t => { t = clamp(t, 0, 1); return t * t * (3 - 2 * t); };
+
+  const S = {
+    kettle: { on: false, temp: 22, water: 1, boil: 0, whistled: false, urged: false },
+    pot: { tea: null, water: 0, temp: 22, strength: 0, lifted: false, spent: false },
+    cup: { filled: false, tea: null, temp: 22, strength: 0, curdled: false, add: { honey: false, lemon: false, milk: false, mint: false } },
+    tray: { honey: false, lemon: false, milk: false, mint: false },
+    selected: 'kamille',
+    guest: null,
+    guestLast: '',
+    wait: 1.05,
+    weather: 'rain',
+    weatherT: 0,
+    served: 0,
+    delighted: {},
+    unlocked: { schwarz: 1, kamille: 1, minze: 1 },
+    notes: {},
+    recipes: [],
+    queue: PARADE.slice(),
+    cat: false,
+    catGifted: false,
+    saucer: 0,
+    pendingCat: false,
+    evening: false,
+    knownRecipe: false
+  };
+
+  const steam = [];
+  const drops = [];
+  const flakes = [];
+  let W = 0, H = 0, time = 0, last = 0, lastM = null;
+  let audioOn = false, userMuted = false;
+  let tab = 'guests';
+  const AU = { ac: null, master: null, rain: null, hiss: null, noise: null };
+
+  const canvas = $('c');
+  const ctx = canvas.getContext('2d');
+
+  function say(msg) {
+    if (say.last === msg) return;
+    say.last = msg;
+    $('hint').textContent = msg;
+  }
+  function speak(msg) {
+    if (speak.last === msg) return;
+    speak.last = msg;
+    $('say').textContent = msg || '';
+  }
+  function starCount() {
+    return PARADE.filter(id => S.delighted[id] > 0).length;
+  }
+  function paintStars() {
+    const t = 'Sterne ' + starCount() + '/6';
+    const el = $('stars');
+    if (el.dataset.src === t) return;
+    el.dataset.src = t;
+    el.textContent = t;
+  }
+  function paintWeather() {
+    const t = WEATHER_DE[S.weather];
+    const el = $('weather');
+    if (el.dataset.src === t) return;
+    el.dataset.src = t;
+    el.textContent = t;
+  }
+  const attrMem = new WeakMap();
+  function setText(el, text) {
+    if (!el || el.dataset.src === text) return;
+    el.dataset.src = text;
+    el.textContent = text;
+  }
+  function setAttr(el, name, val) {
+    let mem = attrMem.get(el);
+    if (!mem) { mem = {}; attrMem.set(el, mem); }
+    if (mem[name] === val) return;
+    mem[name] = val;
+    el.setAttribute(name, val);
+  }
+  function setPressed(el, on) {
+    const v = on ? 'true' : 'false';
+    if (el.getAttribute('aria-pressed') !== v) el.setAttribute('aria-pressed', v);
+  }
+
+  function noteOf(id) {
+    if (!S.notes[id] || typeof S.notes[id] !== 'object') S.notes[id] = { chips: [], last: '', visits: 0 };
+    if (!Array.isArray(S.notes[id].chips)) S.notes[id].chips = [];
+    return S.notes[id];
+  }
+
+  function load() {
+    try {
+      const raw = localStorage.getItem(STORE);
+      if (!raw) return false;
+      const d = JSON.parse(raw);
+      if (d.unlocked && typeof d.unlocked === 'object') {
+        S.unlocked = { schwarz: 1, kamille: 1, minze: 1 };
+        TEA_ORDER.forEach(id => { if (d.unlocked[id]) S.unlocked[id] = 1; });
+      }
+      if (d.notes && typeof d.notes === 'object') S.notes = d.notes;
+      if (Array.isArray(d.recipes)) S.recipes = d.recipes.filter(r => r && TEAS[r.tea]).slice(0, 24);
+      if (d.delighted && typeof d.delighted === 'object') S.delighted = d.delighted;
+      if (Array.isArray(d.queue)) S.queue = d.queue.filter(id => GUESTS[id]);
+      if (typeof d.served === 'number' && d.served >= 0) S.served = d.served;
+      if (d.cat) S.cat = true;
+      if (d.catGifted) { S.catGifted = true; S.unlocked.bergamotte = 1; }
+      if (d.evening) S.evening = true;
+      if (typeof d.guestLast === 'string') S.guestLast = d.guestLast;
+      return true;
+    } catch (e) { return false; }
+  }
+  function save() {
+    try {
+      localStorage.setItem(STORE, JSON.stringify({
+        unlocked: S.unlocked,
+        notes: S.notes,
+        recipes: S.recipes,
+        delighted: S.delighted,
+        queue: S.queue,
+        served: S.served,
+        cat: S.cat,
+        catGifted: S.catGifted,
+        evening: S.evening,
+        guestLast: S.guestLast
+      }));
+    } catch (e) {}
+  }
+
+  function canPlay() { return !!(AU.ac && audioOn && !userMuted); }
+  function startAudio() {
+    try {
+      if (!AU.ac) {
+        const ac = new AudioContext();
+        AU.ac = ac;
+        const master = ac.createGain();
+        master.gain.value = 0.42;
+        master.connect(ac.destination);
+        AU.master = master;
+        const n = ac.createBuffer(1, ac.sampleRate * 2, ac.sampleRate);
+        const data = n.getChannelData(0);
+        for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
+        AU.noise = n;
+        const src = ac.createBufferSource();
+        src.buffer = n; src.loop = true;
+        const bp = ac.createBiquadFilter();
+        bp.type = 'bandpass'; bp.frequency.value = 800; bp.Q.value = 0.55;
+        const g = ac.createGain(); g.gain.value = 0;
+        src.connect(bp); bp.connect(g); g.connect(master); src.start();
+        AU.rain = g;
+        const src2 = ac.createBufferSource();
+        src2.buffer = n; src2.loop = true;
+        const hp = ac.createBiquadFilter();
+        hp.type = 'highpass'; hp.frequency.value = 1600;
+        const g2 = ac.createGain(); g2.gain.value = 0;
+        src2.connect(hp); hp.connect(g2); g2.connect(master); src2.start();
+        AU.hiss = g2;
+      }
+      if (AU.ac.state === 'suspended') AU.ac.resume().catch(() => {});
+      AU.master.gain.value = userMuted ? 0 : 0.42;
+    } catch (e) {}
+  }
+  function tone(freq, dur, vol, type, toFreq) {
+    if (!canPlay()) return;
+    const ac = AU.ac, t = ac.currentTime;
+    const o = ac.createOscillator();
+    o.type = type || 'sine';
+    o.frequency.setValueAtTime(Math.max(40, freq), t);
+    if (toFreq) o.frequency.exponentialRampToValueAtTime(Math.max(40, toFreq), t + dur);
+    const g = ac.createGain();
+    g.gain.setValueAtTime(vol, t);
+    g.gain.exponentialRampToValueAtTime(0.0008, t + dur);
+    o.connect(g); g.connect(AU.master);
+    o.start(t); o.stop(t + dur + 0.02);
+  }
+  function burst(dur, freq, q, vol) {
+    if (!canPlay() || !AU.noise) return;
+    const ac = AU.ac, t = ac.currentTime;
+    const src = ac.createBufferSource();
+    src.buffer = AU.noise;
+    const f = ac.createBiquadFilter();
+    f.type = 'bandpass'; f.frequency.value = freq; f.Q.value = q;
+    const g = ac.createGain();
+    g.gain.setValueAtTime(vol, t);
+    g.gain.exponentialRampToValueAtTime(0.0008, t + dur);
+    src.connect(f); f.connect(g); g.connect(AU.master);
+    src.start(t); src.stop(t + dur + 0.02);
+  }
+  function playPour() { burst(0.32, 780, 0.45, 0.16); }
+  function playClink() { tone(1480, 0.07, 0.05, 'sine'); tone(2100, 0.05, 0.03, 'sine'); }
+  function playWhistle() { tone(1320, 0.42, 0.045, 'sine', 2140); tone(1760, 0.48, 0.02, 'triangle', 2480); }
+  function playBell() { tone(784, 0.45, 0.04, 'sine'); tone(1176, 0.55, 0.025, 'sine'); }
+  function playChime() {
+    tone(523, 0.34, 0.05, 'sine');
+    tone(659, 0.38, 0.04, 'sine');
+    tone(784, 0.46, 0.035, 'sine');
+  }
+  function playPurr() { burst(0.7, 180, 0.6, 0.12); tone(90, 0.6, 0.03, 'sine', 70); }
+  function syncAudio(dt) {
+    if (!AU.rain) return;
+    const rainT = (!audioOn || userMuted) ? 0 : S.weather === 'rain' ? 0.075 : S.weather === 'wind' ? 0.05 : S.weather === 'snow' ? 0.018 : 0.01;
+    AU.rain.gain.value += (rainT - AU.rain.gain.value) * Math.min(1, dt * 3);
+    const hissT = (audioOn && !userMuted && S.kettle.water > 0 && S.kettle.temp > 58) ? ((S.kettle.temp - 58) / 42) * 0.07 : 0;
+    AU.hiss.gain.value += (hissT - AU.hiss.gain.value) * Math.min(1, dt * 4);
+    if (AU.master) AU.master.gain.value = (audioOn && !userMuted) ? 0.42 : 0;
+  }
+
+  function worldGesture() {
+    if (userMuted || audioOn) return;
+    audioOn = true;
+    startAudio();
+    syncSound();
+  }
+  function toggleSound() {
+    if (!audioOn && !userMuted) {
+      audioOn = true;
+      startAudio();
+    } else if (!userMuted) {
+      userMuted = true;
+      audioOn = false;
+    } else {
+      userMuted = false;
+      audioOn = true;
+      startAudio();
+    }
+    syncSound();
+  }
+  function syncSound() {
+    const on = audioOn && !userMuted;
+    setText($('bSound'), on ? 'Ton an' : 'Ton aus');
+    setPressed($('bSound'), on);
+    setAttr($('bSound'), 'aria-label', on ? 'Ton ist an' : 'Ton ist aus');
+  }
+
+  function judge(g, cup, weather) {
+    const tea = TEAS[cup.tea];
+    let teaS = tea && g.teas[cup.tea] != null ? g.teas[cup.tea] : 0;
+    const tempS = 1 - Math.min(1.5, Math.abs(cup.temp - g.temp) / g.tempW);
+    const strS = 1 - Math.min(1.5, Math.abs(cup.strength - g.strength) / g.strengthW);
+    let add = 0;
+    let requiredMissing = false;
+    ['honey', 'lemon', 'milk', 'mint'].forEach(k => {
+      const w = g.add[k] || 0;
+      if (cup.add[k]) add += w;
+      else if (w > 0.12) add -= Math.min(0.22, w);
+      if (w > 0.15 && !cup.add[k]) requiredMissing = true;
+    });
+    if (g.combo && cup.add.honey && cup.add.mint) add += 0.12;
+    const curdle = !!(tea && cup.add.milk && tea.curdle);
+    if (curdle) add -= 0.5;
+    const bitter = !!(tea && cup.strength > tea.bitter);
+    if (bitter) add -= g.likesBitter ? 0.06 : 0.24;
+    let weatherB = 0;
+    if (tea) {
+      if (weather === 'rain' && cup.temp >= 90) weatherB += 0.05;
+      if (weather === 'snow' && (tea.family === 'spicy' || tea.family === 'black')) weatherB += 0.06;
+      if (weather === 'clear' && (tea.family === 'floral' || tea.floral)) weatherB += 0.06;
+      if (weather === 'wind' && cup.temp >= 88) weatherB += 0.04;
+    }
+    let raw = teaS * 0.50 + Math.max(0, tempS) * 0.28 + Math.max(0, strS) * 0.22 + add + weatherB;
+    if (tempS < 0.45) raw -= (0.45 - tempS) * 0.7;
+    if (strS < 0.35) raw -= (0.35 - strS) * 0.4;
+    if (teaS < 0.72) raw = Math.min(raw, 0.56 + teaS * 0.22);
+    if (requiredMissing) raw = Math.min(raw, 0.84);
+    return {
+      score: clamp(raw, 0, 1),
+      teaS, tempS, strS, add, curdle, bitter, weatherB
+    };
+  }
+
+  function missingLine(g, cup) {
+    const items = [
+      ['honey', g.add.honey || 0, 'Honig hätte gut gepasst.'],
+      ['lemon', g.add.lemon || 0, 'Eine Zitrone hätte mich geweckt.'],
+      ['milk', g.add.milk || 0, 'Milch hätte mich an den Hafen erinnert.'],
+      ['mint', g.add.mint || 0, 'Ein Minzblatt hätte den Garten gebracht.']
+    ];
+    let best = null, w = 0.12;
+    items.forEach(it => { if (it[1] > w && !cup.add[it[0]]) { w = it[1]; best = it[2]; } });
+    return best;
+  }
+  function reaction(g, cup, j) {
+    if (j.curdle) return 'Die Milch flockt aus. Das mag ich nicht.';
+    if (j.score >= LOVE && j.teaS >= 0.72) return g.delight;
+    if (j.teaS < 0.72) return 'Ein anderer Tee wäre mir lieber.';
+    if (j.tempS < 0.45 && cup.temp < g.temp - 3) return 'Die Tasse ist mir zu kühl.';
+    if (j.tempS < 0.45 && cup.temp > g.temp + 3) return 'Zu heiss für meine Zunge.';
+    if (j.bitter && !g.likesBitter) return 'Etwas bitter für mich.';
+    if (j.strS < 0.4 && cup.strength < g.strength - 0.04) return 'Etwas zu dünn.';
+    if (j.strS < 0.4 && cup.strength > g.strength + 0.04) return 'Etwas zu stark für mich.';
+    if (cup.add.milk && (g.add.milk || 0) < -0.2) return 'Milch mag ich in diesem Tee nicht.';
+    if (cup.add.lemon && (g.add.lemon || 0) < -0.15) return 'Die Zitrone ist mir zu scharf. Lieber ohne.';
+    if (cup.add.honey && (g.add.honey || 0) < -0.1) return 'Honig brauche ich nicht.';
+    const miss = missingLine(g, cup);
+    if (miss) return miss;
+    if (j.score >= 0.68) return 'Das tut gut. Danke.';
+    if (j.score >= 0.45) return 'Ich trinke ihn aus. Ganz meiner war er nicht.';
+    return 'Lieb, dass du einschenkst. Heute lieber ein andermal.';
+  }
+
+  function learn(g, cup, j, line, love) {
+    const n = noteOf(g.id || guestId(g));
+    n.visits += 1;
+    n.last = line;
+    const add = c => { if (c && n.chips.indexOf(c) < 0 && n.chips.length < 8) n.chips.push(c); };
+    const id = cup.tea;
+    if (j.teaS >= 0.72 && TEAS[id]) add(TEAS[id].name);
+    if (g.temp >= 90 && j.tempS > 0.6) add('heiss');
+    if (g.temp <= 82 && j.tempS > 0.6) add('kühl');
+    if (g.strength >= 0.85 && j.strS > 0.55) add('stark');
+    if (g.strength <= 0.55 && j.strS > 0.55) add('zart');
+    if (cup.add.honey && (g.add.honey || 0) > 0.1) add('Honig');
+    if ((g.add.honey || 0) > 0.15 && !cup.add.honey) add('Honig fehlt');
+    if (cup.add.lemon && (g.add.lemon || 0) > 0.1) add('Zitrone');
+    if ((g.add.lemon || 0) > 0.15 && !cup.add.lemon) add('Zitrone fehlt');
+    if (cup.add.milk && (g.add.milk || 0) > 0.1) add('Milch');
+    if ((g.add.milk || 0) > 0.15 && !cup.add.milk) add('Milch fehlt');
+    if (cup.add.mint && (g.add.mint || 0) > 0.1) add('Minze');
+    if ((g.add.mint || 0) > 0.15 && !cup.add.mint) add('Minze fehlt');
+    if (j.curdle || (love && (g.add.milk || 0) < -0.3)) add('keine Milch');
+    if (j.bitter && !g.likesBitter) add('nicht bitter');
+  }
+  function guestId(g) {
+    return PARADE.find(id => GUESTS[id] === g) || '';
+  }
+
+  function addRecipe(gid, cup) {
+    const adds = [];
+    if (cup.add.honey) adds.push('Honig');
+    if (cup.add.lemon) adds.push('Zitrone');
+    if (cup.add.milk) adds.push('Milch');
+    if (cup.add.mint) adds.push('Minze');
+    const heat = cup.temp >= 90 ? 'Heiss' : cup.temp >= 78 ? 'Warm' : 'Kühl';
+    const body = cup.strength >= 0.85 ? 'Stark' : cup.strength >= 0.5 ? 'Mittel' : 'Zart';
+    const key = cup.tea + '|' + adds.join('+') + '|' + heat + '|' + body + '|' + gid;
+    const old = S.recipes.find(r => r.key === key);
+    if (old) { old.n += 1; return true; }
+    S.recipes.push({ key, tea: cup.tea, adds, heat, body, guest: GUESTS[gid].name, n: 1 });
+    if (S.recipes.length > 24) S.recipes.shift();
+    return false;
+  }
+
+  function rebuildTins(freshId) {
+    const box = $('tins');
+    box.textContent = '';
+    TEA_ORDER.forEach(id => {
+      if (!S.unlocked[id]) return;
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.dataset.tea = id;
+      const sw = document.createElement('i');
+      sw.style.background = TEAS[id].tin;
+      const lab = document.createElement('span');
+      lab.textContent = TEAS[id].name;
+      b.append(sw, lab);
+      if (id === freshId) b.classList.add('fresh');
+      b.addEventListener('click', () => act('tea:' + id));
+      box.appendChild(b);
+    });
+    if (!S.unlocked[S.selected]) S.selected = 'kamille';
+  }
+
+  function onLove(gid, cup) {
+    S.delighted[gid] = (S.delighted[gid] || 0) + 1;
+    const known = addRecipe(gid, cup);
+    let gift = null;
+    const gidTea = GIFTS[gid];
+    if (gidTea && !S.unlocked[gidTea]) {
+      S.unlocked[gidTea] = 1;
+      gift = gidTea;
+      rebuildTins(gidTea);
+    }
+    const finished = starCount() >= 6 && !S.evening;
+    if (finished) S.evening = true;
+    if (finished) say('Sechs Sterne im Fenster. Der Abend ist rund.');
+    else if (gift) say('Neue Dose: ' + TEAS[gift].name + '.');
+    else if (known) say('Das Rezept kennst du schon.');
+    else say('Ins Stammbuch geschrieben.');
+    playChime();
+    paintStars();
+  }
+
+  function heatWord(temp) { return temp >= 90 ? 'Heiss' : temp >= 78 ? 'Warm' : 'Kühl'; }
+  function bodyWord(st) { return st >= 0.85 ? 'Stark' : st >= 0.5 ? 'Mittel' : 'Zart'; }
+  function cupPhrase(cup) {
+    return 'Die Tasse steht bereit. ' + heatWord(cup.temp) + ' und ' + bodyWord(cup.strength) + '.';
+  }
+
+  function toggleHeat() {
+    if (!S.kettle.on && S.kettle.water <= 0) { say('Der Kessel ist leer. Erst auffüllen.'); return; }
+    S.kettle.on = !S.kettle.on;
+    if (!S.kettle.on) { S.kettle.boil = 0; S.kettle.urged = false; }
+    say(S.kettle.on ? 'Der Kessel steht auf der Flamme.' : 'Der Kessel ist vom Feuer.');
+  }
+  function refill() {
+    if (S.kettle.water > 0) { say('Der Kessel ist schon voll.'); return; }
+    S.kettle.water = 1;
+    S.kettle.temp = Math.min(S.kettle.temp, 26);
+    S.kettle.boil = 0;
+    S.kettle.whistled = false;
+    S.kettle.urged = false;
+    say('Frisches Wasser. Der Kessel muss neu heizen.');
+    playClink();
+  }
+  function pourKettle() {
+    if (S.kettle.water <= 0) { say('Der Kessel ist leer. Erst auffüllen.'); return; }
+    if (S.pot.water > 0) { say('Die Kanne ist voll.'); return; }
+    S.pot.water = 1;
+    S.pot.temp = S.kettle.temp;
+    S.pot.lifted = false;
+    if (S.pot.spent) S.pot.strength *= 0.45;
+    if (S.pot.spent) say('Zweiter Aufguss. Der Sud ist zarter.');
+    else if (S.kettle.temp < 65) say('Laues Wasser. Der Tee wird still.');
+    else if (S.pot.tea) say('Der Tee zieht.');
+    else say('Wasser in der Kanne. Jetzt die Blätter.');
+    S.kettle.boil = 0;
+    S.kettle.urged = false;
+    playPour();
+  }
+  function addLeaves(id) {
+    if (!TEAS[id] || !S.unlocked[id]) return;
+    if (S.pot.tea) { say('In der Kanne liegen schon Blätter.'); return; }
+    S.pot.tea = id;
+    if (!S.pot.spent) S.pot.strength = 0;
+    S.pot.lifted = false;
+    say(S.pot.water ? 'Der Tee zieht.' : 'Die Blätter warten auf Wasser.');
+  }
+  function chooseTea(id) {
+    if (!TEAS[id] || !S.unlocked[id]) return;
+    S.selected = id;
+    addLeaves(id);
+  }
+  function toggleStrainer() {
+    if (!S.pot.tea || S.pot.water <= 0) { say('Der Tee zieht noch nicht.'); return; }
+    S.pot.lifted = !S.pot.lifted;
+    say(S.pot.lifted ? 'Das Sieb ist oben. Der Sud hält an.' : 'Das Sieb ist wieder unten.');
+  }
+  function pourCup() {
+    if (!S.pot.tea) { say('Die Kanne hat noch keine Blätter.'); return; }
+    if (S.pot.water <= 0) { say('Erst Wasser in die Kanne.'); return; }
+    const add = { honey: S.tray.honey, lemon: S.tray.lemon, milk: S.tray.milk, mint: S.tray.mint };
+    S.cup.filled = true;
+    S.cup.tea = S.pot.tea;
+    S.cup.temp = S.pot.temp;
+    S.cup.strength = S.pot.strength;
+    S.cup.add = add;
+    S.cup.curdled = !!(add.milk && TEAS[S.pot.tea].curdle);
+    S.pot.water = 0;
+    S.pot.spent = true;
+    S.pot.lifted = true;
+    say(S.cup.curdled ? 'Die Milch flockt in der Tasse.' : cupPhrase(S.cup));
+    playPour();
+  }
+  function rinse() {
+    S.pot.tea = null;
+    S.pot.water = 0;
+    S.pot.strength = 0;
+    S.pot.lifted = false;
+    S.pot.spent = false;
+    say('Die Kanne ist wieder klar.');
+  }
+  function toggleAdd(k) {
+    S.tray[k] = !S.tray[k];
+    if (S.cup.filled) say('Die Zutaten liegen erst in der nächsten Tasse.');
+  }
+  function serve() {
+    if (!S.guest || S.guest.phase === 'out') { say('Der Stuhl ist leer.'); return; }
+    if (S.guest.phase === 'sip') { say('Der Gast trinkt schon.'); return; }
+    if (!S.cup.filled) { say('Die Tasse ist noch leer.'); return; }
+    const gid = S.guest.id;
+    const g = GUESTS[gid];
+    const cup = {
+      tea: S.cup.tea, temp: S.cup.temp, strength: S.cup.strength, curdled: S.cup.curdled,
+      add: { honey: S.cup.add.honey, lemon: S.cup.add.lemon, milk: S.cup.add.milk, mint: S.cup.add.mint }
+    };
+    const j = judge(g, cup, S.weather);
+    const line = reaction(g, cup, j);
+    const love = j.score >= LOVE && j.teaS >= 0.72 && !j.curdle;
+    g.id = gid;
+    learn(g, cup, j, line, love);
+    speak(line);
+    S.guest.mood = love ? 'glad' : j.score >= 0.68 ? 'calm' : 'flat';
+    S.guest.phase = 'sip';
+    S.guest.t = 0;
+    S.guest.dur = 1.85;
+    S.guest.sip = liquorColor(cup.tea, cup.strength, cup.curdled);
+    if (love) onLove(gid, cup);
+    else { say('Der Gast trinkt.'); playClink(); }
+    S.cup.filled = false;
+    S.served += 1;
+    if (S.served === 2) S.pendingCat = true;
+    S.queue = S.queue.filter(id => id !== gid);
+    S.guestLast = gid;
+    paintStars();
+    save();
+  }
+  function saucer() {
+    if (!S.cat) { say('Die Untertasse wartet auf Semmel.'); return; }
+    S.saucer = 9;
+    if (!S.catGifted) {
+      S.catGifted = true;
+      S.unlocked.bergamotte = 1;
+      rebuildTins('bergamotte');
+      say('Semmel schnurrt. In ihrem Fell hing eine Dose Bergamotte.');
+      playPurr();
+      save();
+    } else {
+      say('Semmel schnurrt und legt sich hin.');
+      playPurr();
+    }
+  }
+  function endGuest(kind) {
+    const g = S.guest;
+    if (!g) return;
+    if (kind === 'leave') {
+      const n = noteOf(g.id);
+      n.visits += 1;
+      n.last = 'Ich komme ein andermal. Die Kerze ist zu Ende.';
+      speak('Ich komme ein andermal. Die Kerze ist zu Ende.');
+      say('Die Kerze ist heruntergebrannt.');
+      S.queue = S.queue.filter(id => id !== g.id);
+      save();
+    }
+    g.phase = 'out';
+    g.t = 0;
+    g.dur = 0.7;
+  }
+
+  function nextId() {
+    if (S.queue.length) return S.queue[0];
+    const pool = [];
+    PARADE.forEach(id => {
+      if (id === S.guestLast) return;
+      const w = S.delighted[id] > 0 ? 1 : 3;
+      for (let i = 0; i < w; i++) pool.push(id);
+    });
+    const bag = pool.length ? pool : PARADE.slice();
+    return bag[Math.floor(Math.random() * bag.length)];
+  }
+  function spawn(id) {
+    if (!GUESTS[id]) return;
+    const max = S.weather === 'wind' ? 62 : 78;
+    S.guest = { id, phase: 'in', t: 0, dur: 0.7, patience: max, max, mood: 'calm', warned: false, sip: '#f4e6d4' };
+    speak(GUESTS[id].enter);
+    playBell();
+  }
+  function invite(id) {
+    closeBook();
+    if (S.guest) { say('Es sitzt schon jemand.'); return; }
+    S.queue = S.queue.filter(x => x !== id);
+    S.wait = 0;
+    spawn(id);
+    save();
+  }
+
+  function coachTarget() {
+    if (S.served > 0) return null;
+    if (!S.kettle.on && S.kettle.temp < 85) return 'heat';
+    if (S.pot.water <= 0) return S.kettle.temp >= 85 ? 'pour' : 'heat';
+    if (!S.pot.tea) return 'tin';
+    if (!S.pot.lifted && S.pot.strength >= 0.48) return 'strainer';
+    if (!S.cup.filled && S.pot.lifted) return 'cup';
+    if (S.cup.filled) return 'serve';
+    return null;
+  }
+  function syncControls() {
+    setText($('bHeat'), S.kettle.on ? 'Heizt' : 'Heizen');
+    setPressed($('bHeat'), S.kettle.on);
+    setText($('bStrainer'), S.pot.lifted ? 'Sieb senken' : 'Sieb heben');
+    setPressed($('bHoney'), S.tray.honey);
+    setPressed($('bLemon'), S.tray.lemon);
+    setPressed($('bMilk'), S.tray.milk);
+    setPressed($('bMint'), S.tray.mint);
+    const target = coachTarget();
+    const map = { heat: 'bHeat', pour: 'bPour', strainer: 'bStrainer', cup: 'bCup', serve: 'bServe' };
+    ['bHeat', 'bPour', 'bStrainer', 'bCup', 'bServe'].forEach(id => {
+      const on = map[target] === id;
+      if ($(id).classList.contains('coach') !== on) $(id).classList.toggle('coach', on);
+    });
+    const tinCoach = target === 'tin';
+    if ($('tins').classList.contains('coach') !== tinCoach) $('tins').classList.toggle('coach', tinCoach);
+    document.querySelectorAll('#tins button').forEach(b => setPressed(b, b.dataset.tea === S.selected));
+    paintStars();
+    paintWeather();
+    syncSound();
+  }
+
+  function act(name) {
+    if (name === 'heat') toggleHeat();
+    else if (name === 'refill') refill();
+    else if (name === 'pour') pourKettle();
+    else if (name === 'leaf') addLeaves(S.selected);
+    else if (name === 'strainer') toggleStrainer();
+    else if (name === 'cup') pourCup();
+    else if (name === 'serve') serve();
+    else if (name === 'rinse') rinse();
+    else if (name === 'honey' || name === 'lemon' || name === 'milk' || name === 'mint') toggleAdd(name);
+    else if (name === 'saucer') saucer();
+    else if (name === 'book') toggleBook();
+    else if (name === 'sound') toggleSound();
+    else if (name.indexOf('tea:') === 0) chooseTea(name.slice(4));
+    syncControls();
+  }
+
+  function closeBook() { $('book').hidden = true; }
+  function openBook() {
+    $('book').hidden = false;
+    renderBook();
+    $('bClose').focus();
+  }
+  function toggleBook() { if ($('book').hidden) openBook(); else closeBook(); }
+  function recipeTitle(r) {
+    const name = TEAS[r.tea] ? TEAS[r.tea].name : r.tea;
+    if (!r.adds || !r.adds.length) return name;
+    return name + ' mit ' + r.adds.join(' und ');
+  }
+  function recipeDetail(r) {
+    return r.heat + ' und ' + r.body + ', für ' + r.guest + '.';
+  }
+  function renderBook() {
+    const page = $('page');
+    page.textContent = '';
+    $('tabG').classList.toggle('on', tab === 'guests');
+    $('tabR').classList.toggle('on', tab === 'recipes');
+    $('tabG').setAttribute('aria-selected', tab === 'guests' ? 'true' : 'false');
+    $('tabR').setAttribute('aria-selected', tab === 'recipes' ? 'true' : 'false');
+    if (tab === 'recipes') {
+      if (!S.recipes.length) {
+        const p = document.createElement('p');
+        p.textContent = 'Noch kein Rezept. Eine begeisterte Tasse wird hier notiert.';
+        page.appendChild(p);
+        return;
+      }
+      S.recipes.forEach(r => {
+        if (!TEAS[r.tea]) return;
+        const art = document.createElement('article');
+        art.className = 'recipe';
+        const h = document.createElement('h3');
+        h.textContent = recipeTitle(r) + (r.n > 1 ? ' ×' + r.n : '');
+        const p = document.createElement('p');
+        p.textContent = recipeDetail(r);
+        art.append(h, p);
+        page.appendChild(art);
+      });
+      return;
+    }
+    PARADE.forEach(id => {
+      const g = GUESTS[id];
+      const n = S.notes[id];
+      const art = document.createElement('article');
+      art.className = 'guest';
+      const head = document.createElement('div');
+      head.className = 'row';
+      const h = document.createElement('h3');
+      const known = n && (n.visits > 0 || (n.last && n.last.length));
+      if (!known) h.textContent = 'Ein leerer Stuhl';
+      else h.textContent = (S.delighted[id] > 0 ? '★ ' : '☆ ') + g.name;
+      head.appendChild(h);
+      if (known) {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.textContent = 'Einladen';
+        b.addEventListener('click', () => invite(id));
+        head.appendChild(b);
+      }
+      const p = document.createElement('p');
+      p.textContent = known && n.last ? n.last : 'Noch nicht da gewesen.';
+      art.append(head, p);
+      if (known && S.delighted[id] > 0) {
+        const mark = document.createElement('p');
+        mark.textContent = S.delighted[id] > 1 ? ('Begeistert, ' + S.delighted[id] + ' Mal') : 'Begeistert';
+        art.appendChild(mark);
+      }
+      if (known && Array.isArray(n.chips) && n.chips.length) {
+        const chips = document.createElement('div');
+        chips.className = 'chips';
+        n.chips.forEach(c => {
+          const s = document.createElement('span');
+          s.textContent = c;
+          chips.appendChild(s);
+        });
+        art.appendChild(chips);
+      }
+      page.appendChild(art);
+    });
+  }
+
+  function liquorColor(id, strength, curdled) {
+    const tea = TEAS[id] || { color: '#d5e4ea' };
+    const n = parseInt(tea.color.slice(1), 16);
+    const r = (n >> 16) & 255, g = (n >> 8) & 255, b = n & 255;
+    const w = clamp(strength / 0.95, 0.12, 1);
+    let R = Math.round(232 * (1 - w) + r * w);
+    let G = Math.round(236 * (1 - w) + g * w);
+    let B = Math.round(228 * (1 - w) + b * w);
+    if (curdled) { R = Math.round(R * 0.7 + 150 * 0.3); G = Math.round(G * 0.7 + 148 * 0.3); B = Math.round(B * 0.65 + 120 * 0.35); }
+    return 'rgb(' + R + ',' + G + ',' + B + ')';
+  }
+
+  function step(dt) {
+    const k = S.kettle;
+    if (k.on && k.water > 0) {
+      if (k.temp < 100) k.temp = Math.min(100, k.temp + dt * 13);
+      if (k.temp >= 99.4) {
+        if (!k.whistled) { k.whistled = true; playWhistle(); say('Der Kessel singt. Tippe die Kanne zum Aufgiessen.'); }
+        k.boil += dt;
+        if (k.boil > 8 && !k.urged) { k.urged = true; say('Der Kessel ruft. Nimm ihn herunter oder giesse auf.'); }
+        if (k.boil > 15) {
+          k.water = 0; k.boil = 0; k.on = false; k.urged = false;
+          say('Das Wasser ist verkocht.');
+        }
+      }
+    } else if (k.temp > 22) {
+      k.temp = Math.max(22, k.temp - dt * 5);
+    }
+    if (k.temp < 96) k.whistled = false;
+
+    if (S.pot.water > 0 && S.pot.tea && !S.pot.lifted) {
+      const tea = TEAS[S.pot.tea];
+      const hf = S.pot.temp < 70 ? 0.4 : 1;
+      const spent = S.pot.spent ? 0.45 : 1;
+      S.pot.strength = Math.min(1.4, S.pot.strength + dt * tea.rate * hf * spent);
+    }
+    if (S.pot.water > 0) S.pot.temp = Math.max(22, S.pot.temp - dt * 0.65);
+    if (S.cup.filled) S.cup.temp = Math.max(22, S.cup.temp - dt * 2.8);
+    if (S.saucer > 0) S.saucer = Math.max(0, S.saucer - dt);
+
+    if (!S.guest) {
+      S.wait -= dt;
+      if (S.wait <= 0) spawn(nextId());
+    } else {
+      const g = S.guest;
+      g.t += dt;
+      if (g.phase === 'in' && g.t >= g.dur) {
+        g.phase = 'sit';
+        g.t = 0;
+        speak(GUESTS[g.id].wish);
+      } else if (g.phase === 'sit') {
+        g.patience -= dt;
+        if (g.patience < 18 && !g.warned) { g.warned = true; say('Die Kerze wird kurz.'); }
+        if (g.patience <= 0) endGuest('leave');
+      } else if (g.phase === 'sip' && g.t >= g.dur) {
+        g.phase = 'out'; g.t = 0; g.dur = 0.65;
+      } else if (g.phase === 'out' && g.t >= g.dur) {
+        S.guestLast = g.id;
+        S.guest = null;
+        speak('');
+        S.wait = 2.1;
+        if (S.pendingCat) {
+          S.pendingCat = false;
+          S.cat = true;
+          say('Semmel springt auf den Tresen und schaut die Milch an.');
+          save();
+        }
+      }
+    }
+
+    S.weatherT += dt;
+    if (S.weatherT > 72) {
+      S.weatherT = 0;
+      const i = (WEATHERS.indexOf(S.weather) + 1) % WEATHERS.length;
+      S.weather = WEATHERS[i];
+      const line = {
+        rain: 'Regen am Fenster.',
+        clear: 'Klare Nacht.',
+        snow: 'Es schneit.',
+        wind: 'Wind an der Scheibe.'
+      }[S.weather];
+      say(line);
+    }
+
+    if (lastM && lastM.kettle) {
+      const hotK = S.kettle.water > 0 && S.kettle.temp > 62;
+      const hotP = S.pot.water > 0 && S.pot.temp > 60;
+      const hotC = S.cup.filled && S.cup.temp > 60;
+      const rate = reduce ? 0.35 : 1;
+      if (hotK && Math.random() < dt * 10 * rate) puff(lastM.kettle.x + 16 * lastM.s, lastM.kettle.y - 58 * lastM.s);
+      if (hotP && Math.random() < dt * 8 * rate) puff(lastM.pot.x, lastM.pot.y - 46 * lastM.s);
+      if (hotC && Math.random() < dt * 6 * rate) puff(lastM.cup.x, lastM.cup.y - 36 * lastM.s);
+    }
+    for (let i = steam.length - 1; i >= 0; i--) {
+      const p = steam[i];
+      p.age += dt;
+      p.y += p.vy * dt;
+      p.x += Math.sin(time * 2 + i) * 8 * dt;
+      if (p.age > p.life) steam.splice(i, 1);
+    }
+    if (S.weather === 'rain' || S.weather === 'wind') {
+      const cap = reduce ? 24 : 64;
+      if (drops.length < cap && Math.random() < dt * 40) drops.push({ x: Math.random(), y: -0.05, v: 0.55 + Math.random() * 0.5, len: 8 + Math.random() * 10 });
+    }
+    for (let i = drops.length - 1; i >= 0; i--) {
+      drops[i].y += drops[i].v * dt;
+      if (drops[i].y > 1.05) drops.splice(i, 1);
+    }
+    if (S.weather === 'snow') {
+      const cap = reduce ? 16 : 40;
+      if (flakes.length < cap && Math.random() < dt * 20) flakes.push({ x: Math.random(), y: -0.05, v: 0.12 + Math.random() * 0.12, r: 1.2 + Math.random() * 1.6, drift: Math.random() * 6 });
+    }
+    for (let i = flakes.length - 1; i >= 0; i--) {
+      flakes[i].y += flakes[i].v * dt;
+      flakes[i].x += Math.sin(time + flakes[i].drift) * dt * 0.05;
+      if (flakes[i].y > 1.05) flakes.splice(i, 1);
+    }
+    syncAudio(dt);
+    syncControls();
+  }
+  function puff(x, y) {
+    if (steam.length > (reduce ? 10 : 32)) return;
+    steam.push({ x: x + (Math.random() - 0.5) * 8, y, vy: -16 - Math.random() * 18, life: 0.8 + Math.random() * 0.5, age: 0, r: 2 + Math.random() * 3 });
+  }
+
+  function metrics() {
+    const s = Math.max(0.62, Math.min(1.12, Math.min(W / 860, H / 500)));
+    const counter = Math.min(H - 4, Math.max(120, H * 0.64));
+    const win = {
+      x: Math.max(78, W * 0.28),
+      y: 8,
+      w: Math.max(100, Math.min(W * 0.42, W - Math.max(78, W * 0.28) - 16)),
+      h: Math.max(70, counter - 18)
+    };
+    const kettle = { x: Math.max(64, W * 0.16), y: counter, r: Math.max(34, 46 * s) };
+    const pot = { x: W * 0.40, y: counter, r: Math.max(30, 42 * s) };
+    const cup = { x: W * 0.56, y: counter, r: Math.max(24, 30 * s) };
+    const guest = { x: Math.min(W - 42, Math.max(cup.x + 70, W * 0.78)), y: counter, r: Math.max(34, 50 * s) };
+    const tap = { x: Math.max(22, kettle.x - 52 * s), y: counter - 62 * s, r: Math.max(20, 24 * s) };
+    const cat = { x: win.x + Math.min(46, win.w * 0.18), y: counter - 4, r: Math.max(20, 24 * s) };
+    const candle = { x: clamp((cup.x + guest.x) * 0.5, cup.x + 28, guest.x - 28), y: counter };
+    const jars = ['honey', 'lemon', 'milk', 'mint'].map((id, i) => ({
+      id,
+      x: kettle.x + (58 + i * 30) * s,
+      y: counter - 54 * s,
+      r: Math.max(15, 17 * s)
+    }));
+    const unlocked = TEA_ORDER.filter(id => S.unlocked[id]);
+    const tins = W >= 760 ? unlocked.map((id, i) => ({
+      id,
+      x: 30,
+      y: 26 + i * Math.max(32, 36 * s),
+      r: Math.max(15, 16 * s)
+    })) : [];
+    return { s, counter, win, kettle, pot, cup, guest, tap, cat, candle, jars, tins };
+  }
+
+  function round(x, y, w, h, r) {
+    const rr = Math.min(r, w / 2, h / 2);
+    ctx.beginPath();
+    ctx.moveTo(x + rr, y);
+    ctx.arcTo(x + w, y, x + w, y + h, rr);
+    ctx.arcTo(x + w, y + h, x, y + h, rr);
+    ctx.arcTo(x, y + h, x, y, rr);
+    ctx.arcTo(x, y, x + w, y, rr);
+    ctx.closePath();
+  }
+  function star(x, y, r, rot) {
+    ctx.beginPath();
+    for (let i = 0; i < 5; i++) {
+      const a = rot + i * Math.PI * 2 / 5 - Math.PI / 2;
+      const b = a + Math.PI / 5;
+      ctx.lineTo(x + Math.cos(a) * r, y + Math.sin(a) * r);
+      ctx.lineTo(x + Math.cos(b) * r * 0.42, y + Math.sin(b) * r * 0.42);
+    }
+    ctx.closePath();
+  }
+
+  function draw() {
+    if (W < 2 || H < 2) return;
+    const m = metrics();
+    lastM = m;
+    const s = m.s;
+    ctx.clearRect(0, 0, W, H);
+    const wall = ctx.createLinearGradient(0, 0, 0, H);
+    wall.addColorStop(0, '#2c2433');
+    wall.addColorStop(0.55, '#3a2a2c');
+    wall.addColorStop(1, '#4a3024');
+    ctx.fillStyle = wall;
+    ctx.fillRect(0, 0, W, H);
+
+    drawWindow(m);
+    drawCounter(m);
+    drawTap(m);
+    drawJars(m);
+    drawKettle(m);
+    drawPot(m);
+    drawCup(m);
+    drawCandle(m);
+    if (S.cat) drawCat(m);
+    if (S.guest) drawGuest(m);
+    if (W > 700) drawDoor(m);
+    drawTins(m);
+    drawSteam();
+    drawCoach(m);
+    tempLabel(m.kettle.x, Math.min(H - 8, m.counter + 28 * s), S.kettle.water > 0 ? Math.round(S.kettle.temp) + '°' : 'leer', S.kettle.temp, s);
+    if (S.pot.water > 0) tempLabel(m.pot.x, Math.min(H - 8, m.counter + 28 * s), Math.round(S.pot.temp) + '°', S.pot.temp, s);
+    if (S.cup.filled) tempLabel(m.cup.x, Math.min(H - 8, m.counter + 22 * s), Math.round(S.cup.temp) + '°', S.cup.temp, s);
+  }
+
+  function tempLabel(x, y, text, temp, s) {
+    ctx.font = '700 ' + Math.round(12 * s) + 'px system-ui,sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = temp >= 88 ? '#ffe1b0' : temp >= 70 ? '#f6e2c8' : '#d5e4f2';
+    ctx.fillText(text, x, y);
+  }
+
+  function drawWindow(m) {
+    const w = m.win;
+    ctx.save();
+    round(w.x - 8, w.y - 6, w.w + 16, w.h + 14, 12);
+    ctx.fillStyle = '#6b4632';
+    ctx.fill();
+    ctx.save();
+    round(w.x, w.y, w.w, w.h, 6);
+    ctx.clip();
+    const sky = ctx.createLinearGradient(0, w.y, 0, w.y + w.h);
+    if (S.weather === 'clear') { sky.addColorStop(0, '#141a33'); sky.addColorStop(1, '#243456'); }
+    else if (S.weather === 'snow') { sky.addColorStop(0, '#2a3348'); sky.addColorStop(1, '#465066'); }
+    else { sky.addColorStop(0, '#1a2233'); sky.addColorStop(1, '#2c3848'); }
+    ctx.fillStyle = sky;
+    ctx.fillRect(w.x, w.y, w.w, w.h);
+    if (S.weather === 'clear' || S.weather === 'snow') {
+      ctx.fillStyle = S.weather === 'snow' ? 'rgba(255,248,230,.85)' : '#f7f1cf';
+      ctx.beginPath();
+      ctx.arc(w.x + w.w * 0.78, w.y + w.h * 0.28, Math.min(22, w.w * 0.06), 0, Math.PI * 2);
+      ctx.fill();
+    }
+    if (S.weather === 'clear') {
+      ctx.fillStyle = 'rgba(255,255,255,.8)';
+      for (let i = 0; i < 10; i++) {
+        const sx = w.x + ((i * 47) % 100) / 100 * w.w;
+        const sy = w.y + ((i * 29) % 70) / 100 * w.h * 0.55;
+        ctx.fillRect(sx, sy, 2, 2);
+      }
+    }
+    ctx.fillStyle = '#1b1422';
+    ctx.beginPath();
+    ctx.moveTo(w.x, w.y + w.h * 0.72);
+    ctx.lineTo(w.x + w.w * 0.22, w.y + w.h * 0.5);
+    ctx.lineTo(w.x + w.w * 0.4, w.y + w.h * 0.7);
+    ctx.lineTo(w.x + w.w * 0.62, w.y + w.h * 0.42);
+    ctx.lineTo(w.x + w.w * 0.82, w.y + w.h * 0.66);
+    ctx.lineTo(w.x + w.w, w.y + w.h * 0.5);
+    ctx.lineTo(w.x + w.w, w.y + w.h);
+    ctx.lineTo(w.x, w.y + w.h);
+    ctx.fill();
+    ctx.fillStyle = '#141018';
+    ctx.fillRect(w.x, w.y + w.h * 0.78, w.w, w.h * 0.22);
+    const lampX = w.x + w.w * 0.22;
+    const lampY = w.y + w.h * 0.42;
+    const glow = ctx.createRadialGradient(lampX, lampY, 4, lampX, lampY, w.w * 0.28);
+    glow.addColorStop(0, 'rgba(255,214,140,.9)');
+    glow.addColorStop(1, 'rgba(255,214,140,0)');
+    ctx.fillStyle = glow;
+    ctx.fillRect(w.x, w.y, w.w, w.h);
+    ctx.fillStyle = '#2a241c';
+    ctx.fillRect(lampX - 2, lampY, 4, w.h * 0.2);
+    ctx.fillStyle = '#ffe1a8';
+    ctx.beginPath();
+    ctx.arc(lampX, lampY, 6, 0, Math.PI * 2);
+    ctx.fill();
+    const swing = Math.sin(time * (S.weather === 'wind' ? 2.4 : 0.8)) * (S.weather === 'wind' ? 0.2 : 0.05);
+    ctx.save();
+    ctx.translate(w.x + w.w * 0.55, w.y + 18);
+    ctx.rotate(swing);
+    ctx.fillStyle = '#6b3a2a';
+    ctx.fillRect(-16, 0, 32, 16);
+    ctx.fillStyle = '#fff6e4';
+    ctx.font = '700 10px system-ui,sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('TEE', 0, 8);
+    ctx.restore();
+    const slant = S.weather === 'wind' ? 10 : 4;
+    ctx.strokeStyle = 'rgba(210,225,240,.45)';
+    ctx.lineWidth = 1.4;
+    drops.forEach(d => {
+      const x = w.x + d.x * w.w;
+      const y = w.y + d.y * w.h;
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      ctx.lineTo(x + slant, y + d.len);
+      ctx.stroke();
+    });
+    ctx.fillStyle = 'rgba(255,255,255,.9)';
+    flakes.forEach(f => {
+      ctx.beginPath();
+      ctx.arc(w.x + f.x * w.w, w.y + f.y * w.h, f.r, 0, Math.PI * 2);
+      ctx.fill();
+    });
+    if (S.weather === 'snow') {
+      ctx.fillStyle = 'rgba(255,255,255,.75)';
+      ctx.fillRect(w.x, w.y + w.h - 8, w.w, 8);
+    }
+    ctx.restore();
+    const gx = w.x + w.w / 2 - 42;
+    PARADE.forEach((id, i) => {
+      ctx.fillStyle = S.delighted[id] > 0 ? '#ffd56a' : 'rgba(255,248,220,.62)';
+      star(gx + i * 16, w.y + 16, S.delighted[id] > 0 ? 6 : 4.5, -0.2);
+      ctx.fill();
+    });
+    ctx.restore();
+  }
+
+  function drawCounter(m) {
+    const y = m.counter;
+    const g = ctx.createLinearGradient(0, y - 8, 0, H);
+    g.addColorStop(0, '#c4895c');
+    g.addColorStop(0.08, '#a56b42');
+    g.addColorStop(1, '#6e4128');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, y - 8, W, H - y + 8);
+    ctx.strokeStyle = 'rgba(80,40,20,.25)';
+    ctx.lineWidth = 2;
+    for (let i = 1; i <= 4; i++) {
+      ctx.beginPath();
+      ctx.moveTo(0, y + i * ((H - y) / 5));
+      ctx.lineTo(W, y + i * ((H - y) / 5));
+      ctx.stroke();
+    }
+  }
+  function drawTap(m) {
+    const t = m.tap, s = m.s;
+    ctx.save();
+    ctx.translate(t.x, t.y);
+    ctx.fillStyle = '#c6a15a';
+    ctx.fillRect(-4 * s, -16 * s, 8 * s, 28 * s);
+    ctx.beginPath();
+    ctx.arc(0, -16 * s, 7 * s, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#8c6a32';
+    ctx.fillRect(0, -2 * s, 16 * s, 5 * s);
+    ctx.restore();
+  }
+  function drawJars(m) {
+    const colors = { honey: '#e2a02a', lemon: '#f0d15a', milk: '#f7f4ee', mint: '#3f8f52' };
+    m.jars.forEach(j => {
+      const on = S.tray[j.id];
+      ctx.save();
+      ctx.translate(j.x, j.y);
+      ctx.fillStyle = 'rgba(0,0,0,.18)';
+      ctx.beginPath();
+      ctx.ellipse(0, 12 * m.s, 12 * m.s, 4 * m.s, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = colors[j.id];
+      round(-10 * m.s, -8 * m.s, 20 * m.s, 20 * m.s, 5);
+      ctx.fill();
+      ctx.fillStyle = on ? '#fff6e0' : '#6b4a30';
+      ctx.fillRect(-8 * m.s, -14 * m.s + (on ? -3 : 0), 16 * m.s, 6 * m.s);
+      if (j.id === 'lemon') {
+        ctx.fillStyle = '#7da84a';
+        ctx.fillRect(-2, -16 * m.s, 4, 5);
+      }
+      if (j.id === 'mint') {
+        ctx.fillStyle = '#1e5a30';
+        ctx.beginPath();
+        ctx.ellipse(0, 2, 5, 8, 0.4, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.restore();
+    });
+  }
+  function drawKettle(m) {
+    const k = m.kettle, s = m.s;
+    ctx.save();
+    ctx.translate(k.x, k.y);
+    ctx.fillStyle = '#2a241e';
+    round(-28 * s, -8 * s, 56 * s, 16 * s, 4);
+    ctx.fill();
+    if (S.kettle.on && S.kettle.water > 0) {
+      const flick = reduce ? 1 : 0.75 + Math.sin(time * 18) * 0.25;
+      ctx.fillStyle = '#ffb15a';
+      ctx.beginPath();
+      ctx.moveTo(-10 * s, -6 * s);
+      ctx.quadraticCurveTo(-12 * s, -28 * s * flick, 0, -8 * s);
+      ctx.quadraticCurveTo(8 * s, -34 * s * flick, 10 * s, -6 * s);
+      ctx.fill();
+      ctx.fillStyle = '#ffe7a8';
+      ctx.beginPath();
+      ctx.moveTo(-4 * s, -6 * s);
+      ctx.quadraticCurveTo(0, -20 * s * flick, 4 * s, -6 * s);
+      ctx.fill();
+    }
+    ctx.fillStyle = '#c86a32';
+    ctx.beginPath();
+    ctx.ellipse(0, -28 * s, 26 * s, 18 * s, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = S.kettle.water > 0 ? '#7eb4c8' : '#4a342c';
+    ctx.beginPath();
+    ctx.ellipse(0, -24 * s, 16 * s, 8 * s, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = '#8d3e22';
+    ctx.lineWidth = 4 * s;
+    ctx.beginPath();
+    ctx.arc(-24 * s, -30 * s, 12 * s, Math.PI * 0.4, Math.PI * 1.4);
+    ctx.stroke();
+    ctx.fillStyle = '#e8a06a';
+    ctx.beginPath();
+    ctx.moveTo(20 * s, -30 * s);
+    ctx.lineTo(40 * s, -18 * s);
+    ctx.lineTo(34 * s, -12 * s);
+    ctx.lineTo(18 * s, -22 * s);
+    ctx.fill();
+    const bob = S.kettle.temp >= 99 && S.kettle.water > 0 && !reduce ? Math.sin(time * 24) * 2 : 0;
+    ctx.fillStyle = '#a65428';
+    ctx.beginPath();
+    ctx.ellipse(0, -46 * s + bob, 12 * s, 5 * s, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#f0d2a8';
+    ctx.beginPath();
+    ctx.arc(0, -50 * s + bob, 3 * s, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+  function drawPot(m) {
+    const p = m.pot, s = m.s;
+    ctx.save();
+    ctx.translate(p.x, p.y);
+    ctx.fillStyle = 'rgba(255,255,255,.18)';
+    ctx.beginPath();
+    ctx.ellipse(0, -24 * s, 24 * s, 20 * s, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,.55)';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    if (S.pot.water > 0 && S.pot.tea) {
+      ctx.save();
+      ctx.beginPath();
+      ctx.ellipse(0, -24 * s, 22 * s, 18 * s, 0, 0, Math.PI * 2);
+      ctx.clip();
+      ctx.fillStyle = liquorColor(S.pot.tea, S.pot.strength, false);
+      ctx.fillRect(-24 * s, -24 * s, 48 * s, 22 * s);
+      ctx.restore();
+    }
+    if (S.pot.tea && !S.pot.lifted) {
+      ctx.fillStyle = S.pot.spent ? '#8a7a48' : '#3e4a28';
+      for (let i = 0; i < 4; i++) {
+        ctx.beginPath();
+        ctx.ellipse(-10 * s + i * 7 * s, -20 * s, 3 * s, 5 * s, 0.4, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+    ctx.strokeStyle = '#d9dde2';
+    ctx.lineWidth = 3;
+    const lift = S.pot.lifted ? -16 * s : 0;
+    ctx.beginPath();
+    ctx.moveTo(-16 * s, -30 * s + lift);
+    ctx.lineTo(16 * s, -30 * s + lift);
+    ctx.stroke();
+    if (S.pot.lifted && S.pot.tea) {
+      ctx.fillStyle = '#6a5a30';
+      ctx.fillRect(-8 * s, -40 * s, 16 * s, 8 * s);
+    }
+    ctx.strokeStyle = 'rgba(255,255,255,.7)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(26 * s, -24 * s, 8 * s, -1, 1);
+    ctx.stroke();
+    const tea = S.pot.tea ? TEAS[S.pot.tea] : null;
+    const y0 = 8 * s;
+    for (let i = 0; i < 5; i++) {
+      const need = (i + 0.15) * 0.26;
+      ctx.beginPath();
+      ctx.arc(-28 * s + i * 14 * s, y0, 4.5 * s, 0, Math.PI * 2);
+      ctx.fillStyle = S.pot.strength >= need ? (tea && need > tea.bitter ? '#6a3a22' : '#e7b14a') : 'rgba(255,244,220,.35)';
+      ctx.fill();
+    }
+    if (tea) {
+      const bx = -28 * s + clamp(tea.bitter / 1.3, 0, 1) * 56 * s;
+      ctx.fillStyle = '#f0d0c4';
+      ctx.beginPath();
+      ctx.moveTo(bx, y0 + 8 * s);
+      ctx.lineTo(bx - 3, y0 + 12 * s);
+      ctx.lineTo(bx + 3, y0 + 12 * s);
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+  function drawCup(m) {
+    const c = m.cup, s = m.s;
+    ctx.save();
+    ctx.translate(c.x, c.y);
+    ctx.fillStyle = '#f7f1e6';
+    ctx.beginPath();
+    ctx.ellipse(0, -4 * s, 22 * s, 7 * s, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#fffaf3';
+    round(-12 * s, -32 * s, 24 * s, 26 * s, 6);
+    ctx.fill();
+    ctx.strokeStyle = '#e4d3be';
+    ctx.stroke();
+    ctx.strokeStyle = '#eadcc8';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(14 * s, -20 * s, 7 * s, -1.2, 1.2);
+    ctx.stroke();
+    if (S.cup.filled) {
+      ctx.fillStyle = liquorColor(S.cup.tea, S.cup.strength, S.cup.curdled);
+      ctx.beginPath();
+      ctx.ellipse(0, -28 * s, 9 * s, 4 * s, 0, 0, Math.PI * 2);
+      ctx.fill();
+      if (S.cup.curdled) {
+        ctx.fillStyle = 'rgba(90,90,70,.45)';
+        for (let i = 0; i < 4; i++) {
+          ctx.beginPath();
+          ctx.arc(-4 + i * 3, -28 * s, 1.2, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+    }
+    ctx.restore();
+  }
+  function drawCandle(m) {
+    const s = m.s;
+    const lit = S.guest && S.guest.phase !== 'out';
+    const ratio = lit ? clamp(S.guest.patience / S.guest.max, 0.08, 1) : 0.35;
+    ctx.save();
+    ctx.translate(m.candle.x, m.counter);
+    ctx.fillStyle = '#f3e2c4';
+    round(-6 * s, -10 * s - 36 * s * ratio, 12 * s, 16 * s + 36 * s * ratio, 3);
+    ctx.fill();
+    if (lit) {
+      const flick = reduce ? 1 : 0.8 + Math.sin(time * 16) * 0.2;
+      ctx.fillStyle = '#ffb347';
+      ctx.beginPath();
+      ctx.ellipse(0, -14 * s - 36 * s * ratio, 4 * s, 8 * s * flick, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#fff1c4';
+      ctx.beginPath();
+      ctx.ellipse(0, -12 * s - 36 * s * ratio, 2 * s, 4 * s, 0, 0, Math.PI * 2);
+      ctx.fill();
+    } else {
+      ctx.strokeStyle = '#333';
+      ctx.beginPath();
+      ctx.moveTo(0, -12 * s - 36 * s * ratio);
+      ctx.lineTo(0, -18 * s - 36 * s * ratio);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+  function drawCat(m) {
+    const s = m.s;
+    ctx.save();
+    ctx.translate(m.cat.x, m.cat.y);
+    ctx.fillStyle = '#d8a15a';
+    ctx.beginPath();
+    ctx.ellipse(0, -10 * s, 22 * s, 12 * s, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(-14 * s, -18 * s, 8 * s, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(-20 * s, -22 * s);
+    ctx.lineTo(-16 * s, -30 * s);
+    ctx.lineTo(-12 * s, -20 * s);
+    ctx.moveTo(-12 * s, -22 * s);
+    ctx.lineTo(-8 * s, -30 * s);
+    ctx.lineTo(-6 * s, -18 * s);
+    ctx.fill();
+    ctx.fillStyle = '#3a2416';
+    ctx.beginPath();
+    ctx.arc(-17 * s, -19 * s, 1.3 * s, 0, Math.PI * 2);
+    ctx.arc(-11 * s, -19 * s, 1.3 * s, 0, Math.PI * 2);
+    ctx.fill();
+    const wag = Math.sin(time * 4) * 0.6;
+    ctx.strokeStyle = '#d8a15a';
+    ctx.lineWidth = 3 * s;
+    ctx.beginPath();
+    ctx.moveTo(16 * s, -10 * s);
+    ctx.quadraticCurveTo(28 * s, -20 * s + wag * 8, 24 * s, -4 * s);
+    ctx.stroke();
+    if (S.saucer > 0) {
+      ctx.fillStyle = '#f7f4ee';
+      ctx.beginPath();
+      ctx.ellipse(18 * s, -2 * s, 10 * s, 4 * s, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#fff';
+      ctx.beginPath();
+      ctx.ellipse(18 * s, -3 * s, 6 * s, 2.4 * s, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.fillStyle = '#fff6e8';
+    ctx.font = '700 ' + Math.round(11 * s) + 'px system-ui,sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('Semmel', 0, -34 * s);
+    ctx.restore();
+  }
+  function drawGuest(m) {
+    const g = S.guest;
+    const L = LOOK[g.id];
+    const s = m.s;
+    let slide = 0, alpha = 1;
+    if (g.phase === 'in') slide = (1 - ease(g.t / g.dur)) * 64;
+    if (g.phase === 'out') { slide = ease(g.t / Math.max(0.2, g.dur)) * 70; alpha = 1 - ease(g.t / Math.max(0.2, g.dur)); }
+    ctx.save();
+    ctx.translate(m.guest.x + slide, m.guest.y);
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = '#5c3a28';
+    round(-16 * s, -18 * s, 32 * s, 16 * s, 3);
+    ctx.fill();
+    ctx.fillRect(-18 * s, -48 * s, 6 * s, 36 * s);
+    ctx.fillRect(12 * s, -48 * s, 6 * s, 36 * s);
+    ctx.fillStyle = L.coat;
+    round(-18 * s, -78 * s, 36 * s, 46 * s, 10);
+    ctx.fill();
+    if (L.shawl) {
+      ctx.fillStyle = L.shawl;
+      ctx.beginPath();
+      ctx.moveTo(-16 * s, -70 * s);
+      ctx.lineTo(16 * s, -66 * s);
+      ctx.lineTo(10 * s, -40 * s);
+      ctx.lineTo(-14 * s, -46 * s);
+      ctx.fill();
+    }
+    if (L.scarf) {
+      ctx.fillStyle = L.scarf;
+      ctx.fillRect(-8 * s, -78 * s, 16 * s, 8 * s);
+    }
+    if (L.wrap) {
+      ctx.fillStyle = L.wrap;
+      ctx.globalAlpha = alpha * 0.9;
+      ctx.fillRect(-20 * s, -60 * s, 10 * s, 28 * s);
+      ctx.globalAlpha = alpha;
+    }
+    ctx.fillStyle = L.skin;
+    ctx.beginPath();
+    ctx.arc(0, -96 * s, 16 * s, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = L.hair;
+    if (L.hat === 'bun' || L.hat === 'knot') {
+      ctx.beginPath();
+      ctx.arc(0, -104 * s, 14 * s, Math.PI, 0);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(0, -112 * s, 6 * s, 0, Math.PI * 2);
+      ctx.fill();
+    } else if (L.hat === 'bob') {
+      ctx.beginPath();
+      ctx.arc(0, -98 * s, 17 * s, Math.PI * 0.95, Math.PI * 0.05);
+      ctx.fill();
+      ctx.fillRect(-16 * s, -98 * s, 32 * s, 12 * s);
+    } else if (L.hat === 'beard') {
+      ctx.beginPath();
+      ctx.arc(0, -104 * s, 15 * s, Math.PI, 0);
+      ctx.fill();
+      ctx.fillRect(-8 * s, -86 * s, 16 * s, 8 * s);
+    } else {
+      ctx.beginPath();
+      ctx.arc(0, -102 * s, 15 * s, Math.PI, 0);
+      ctx.fill();
+    }
+    if (L.beret) {
+      ctx.fillStyle = L.beret;
+      ctx.beginPath();
+      ctx.ellipse(2 * s, -112 * s, 14 * s, 6 * s, -0.2, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    if (L.cap) {
+      ctx.fillStyle = L.cap;
+      ctx.fillRect(-14 * s, -112 * s, 28 * s, 6 * s);
+      ctx.fillRect(-16 * s, -108 * s, 14 * s, 4 * s);
+    }
+    if (L.sprig) {
+      ctx.fillStyle = '#7dbe62';
+      ctx.beginPath();
+      ctx.ellipse(16 * s, -100 * s, 4 * s, 8 * s, 0.6, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    const blink = !reduce && (time % 4.4) < 0.12;
+    ctx.fillStyle = '#2a2118';
+    if (blink) {
+      ctx.fillRect(-8 * s, -96 * s, 5 * s, 1.4);
+      ctx.fillRect(3 * s, -96 * s, 5 * s, 1.4);
+    } else {
+      ctx.beginPath();
+      ctx.arc(-6 * s, -96 * s, 1.6 * s, 0, Math.PI * 2);
+      ctx.arc(6 * s, -96 * s, 1.6 * s, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.strokeStyle = '#6a3b32';
+    ctx.lineWidth = 1.4;
+    ctx.beginPath();
+    if (g.mood === 'glad') ctx.arc(0, -88 * s, 5 * s, 0.2, Math.PI - 0.2);
+    else if (g.mood === 'flat') ctx.moveTo(-4 * s, -86 * s), ctx.lineTo(4 * s, -86 * s);
+    else ctx.arc(0, -90 * s, 4 * s, 0.35, Math.PI - 0.35);
+    ctx.stroke();
+    if (g.phase === 'sip') {
+      ctx.fillStyle = g.sip || '#e4b23e';
+      round(8 * s, -78 * s, 10 * s, 12 * s, 2);
+      ctx.fill();
+    }
+    const name = GUESTS[g.id].name;
+    ctx.font = '700 ' + Math.round(13 * s) + 'px system-ui,sans-serif';
+    const tw = ctx.measureText(name).width;
+    round(-tw / 2 - 6, -132 * s, tw + 12, 18, 8);
+    ctx.fillStyle = 'rgba(255,248,238,.94)';
+    ctx.fill();
+    ctx.fillStyle = '#3a2416';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(name, 0, -123 * s);
+    ctx.restore();
+  }
+  function drawDoor(m) {
+    const open = S.guest && (S.guest.phase === 'in' || S.guest.phase === 'out');
+    ctx.save();
+    ctx.translate(W - 26, m.counter);
+    ctx.fillStyle = '#4a3028';
+    ctx.fillRect(-18, -120 * m.s, 28, 112 * m.s);
+    ctx.fillStyle = open ? '#ffd7a8' : '#6b4636';
+    ctx.fillRect(-12, -110 * m.s, 16, 96 * m.s);
+    ctx.restore();
+  }
+  function drawTins(m) {
+    m.tins.forEach(t => {
+      const tea = TEAS[t.id];
+      ctx.save();
+      ctx.translate(t.x, t.y);
+      ctx.fillStyle = '#5c4030';
+      round(-11, -16, 22, 30, 7);
+      ctx.fill();
+      ctx.fillStyle = tea.tin;
+      ctx.fillRect(-11, -2, 22, 12);
+      ctx.fillStyle = S.selected === t.id ? '#ffe3a3' : '#f3e0c4';
+      ctx.beginPath();
+      ctx.ellipse(0, -12, 11, 5, 0, 0, Math.PI * 2);
+      ctx.fill();
+      if (S.selected === t.id) {
+        ctx.strokeStyle = '#ffe3a3';
+        ctx.lineWidth = 2;
+        round(-15, -17, 30, 32, 6);
+        ctx.stroke();
+      }
+      ctx.restore();
+    });
+  }
+  function drawSteam() {
+    steam.forEach(p => {
+      const a = 1 - p.age / p.life;
+      ctx.fillStyle = 'rgba(255,255,255,' + (0.28 * a) + ')';
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.r + p.age * 4, 0, Math.PI * 2);
+      ctx.fill();
+    });
+  }
+  function drawCoach(m) {
+    const target = coachTarget();
+    if (!target || target === 'tin') {
+      if (target === 'tin') {
+        m.tins.forEach(t => ring(t.x, t.y, t.r + 4));
+      }
+      return;
+    }
+    const spot = { heat: m.kettle, pour: m.pot, strainer: m.pot, cup: m.cup, serve: m.guest }[target];
+    if (spot) ring(spot.x, spot.y - (target === 'serve' ? 70 * m.s : 20), (spot.r || 30) + 6);
+  }
+  function ring(x, y, r) {
+    const a = reduce ? 0.85 : 0.45 + Math.sin(time * 4) * 0.35;
+    ctx.strokeStyle = 'rgba(255,214,120,' + a + ')';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+
+  function poke(x, y) {
+    const m = lastM || metrics();
+    const hits = [];
+    hits.push({ id: 'heat', x: m.kettle.x, y: m.kettle.y - 24 * m.s, r: m.kettle.r });
+    hits.push({ id: 'refill', x: m.tap.x, y: m.tap.y, r: m.tap.r });
+    m.jars.forEach(j => hits.push({ id: j.id, x: j.x, y: j.y, r: j.r }));
+    hits.push({ id: 'pour', x: m.pot.x, y: m.pot.y - 20 * m.s, r: m.pot.r });
+    hits.push({ id: 'cup', x: m.cup.x, y: m.cup.y - 16 * m.s, r: m.cup.r });
+    hits.push({ id: 'serve', x: m.guest.x, y: m.guest.y - 60 * m.s, r: m.guest.r });
+    if (S.cat) hits.push({ id: 'saucer', x: m.cat.x, y: m.cat.y, r: m.cat.r });
+    m.tins.forEach(t => hits.push({ id: 'tea:' + t.id, x: t.x, y: t.y, r: t.r + 4 }));
+    for (let i = hits.length - 1; i >= 0; i--) {
+      const h = hits[i];
+      const dx = x - h.x, dy = y - h.y;
+      if (dx * dx + dy * dy <= h.r * h.r) {
+        if (h.id === 'pour' && S.pot.water > 0 && S.pot.tea) act('strainer');
+        else if (h.id === 'pour' && S.pot.water > 0 && !S.pot.tea) act('leaf');
+        else act(h.id);
+        return;
+      }
+    }
+  }
+
+  function fit() {
+    const r = canvas.getBoundingClientRect();
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    const w = Math.max(2, r.width);
+    const h = Math.max(2, r.height);
+    canvas.width = Math.round(w * dpr);
+    canvas.height = Math.round(h * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    W = w;
+    H = h;
+  }
+
+  function snap() {
+    return {
+      kettle: { on: S.kettle.on, temp: S.kettle.temp, water: S.kettle.water },
+      pot: { tea: S.pot.tea, water: S.pot.water, temp: S.pot.temp, strength: S.pot.strength, lifted: S.pot.lifted, spent: S.pot.spent },
+      cup: { filled: S.cup.filled, tea: S.cup.tea, temp: S.cup.temp, strength: S.cup.strength, curdled: S.cup.curdled, add: Object.assign({}, S.cup.add) },
+      tray: Object.assign({}, S.tray),
+      guest: S.guest ? { id: S.guest.id, phase: S.guest.phase, patience: S.guest.patience } : null,
+      weather: S.weather,
+      unlocked: TEA_ORDER.filter(id => S.unlocked[id]),
+      stars: starCount(),
+      cat: S.cat,
+      catGifted: !!S.catGifted,
+      served: S.served,
+      recipes: S.recipes.length,
+      evening: S.evening,
+      sound: audioOn && !userMuted,
+      hint: $('hint').textContent,
+      say: $('say').textContent
+    };
+  }
+
+  const hadSave = load();
+  rebuildTins();
+  syncControls();
+  say(hadSave ? 'Das Stammbuch liegt noch auf dem Tresen.' : 'Tippe den Kessel, bis er singt.');
+  speak('');
+
+  document.addEventListener('pointerdown', e => {
+    if (e.target.closest && (e.target.closest('#pb-lang') || e.target.closest('#bSound'))) return;
+    worldGesture();
+  }, true);
+  $('bHeat').addEventListener('click', () => act('heat'));
+  $('bRefill').addEventListener('click', () => act('refill'));
+  $('bPour').addEventListener('click', () => act('pour'));
+  $('bLeaf').addEventListener('click', () => act('leaf'));
+  $('bStrainer').addEventListener('click', () => act('strainer'));
+  $('bCup').addEventListener('click', () => act('cup'));
+  $('bServe').addEventListener('click', () => act('serve'));
+  $('bRinse').addEventListener('click', () => act('rinse'));
+  $('bHoney').addEventListener('click', () => act('honey'));
+  $('bLemon').addEventListener('click', () => act('lemon'));
+  $('bMilk').addEventListener('click', () => act('milk'));
+  $('bMint').addEventListener('click', () => act('mint'));
+  $('bSaucer').addEventListener('click', () => act('saucer'));
+  $('bBook').addEventListener('click', () => act('book'));
+  $('bSound').addEventListener('click', () => act('sound'));
+  $('bClose').addEventListener('click', closeBook);
+  $('tabG').addEventListener('click', () => { tab = 'guests'; renderBook(); });
+  $('tabR').addEventListener('click', () => { tab = 'recipes'; renderBook(); });
+  $('book').addEventListener('click', e => { if (e.target.id === 'book') closeBook(); });
+  canvas.addEventListener('pointerdown', e => {
+    if (e.cancelable) e.preventDefault();
+    const r = canvas.getBoundingClientRect();
+    poke(e.clientX - r.left, e.clientY - r.top);
+  }, { passive: false });
+  document.addEventListener('keydown', e => {
+    if (e.repeat || e.metaKey || e.ctrlKey || e.altKey) return;
+    if (e.key === 'Escape') { closeBook(); return; }
+    const book = !$('book').hidden;
+    const k = e.key.toLowerCase();
+    if (book && k !== 'm' && k !== 'b') return;
+    const map = { h: 'heat', f: 'refill', g: 'pour', l: 'leaf', i: 'strainer', c: 'cup', r: 'rinse', b: 'book', m: 'sound' };
+    if (k === 'enter') { act('serve'); e.preventDefault(); return; }
+    if (map[k]) { act(map[k]); e.preventDefault(); return; }
+    if (k >= '1' && k <= '9') {
+      const ids = TEA_ORDER.filter(id => S.unlocked[id]);
+      const id = ids[Number(k) - 1];
+      if (id) { act('tea:' + id); e.preventDefault(); }
+    }
+  });
+  window.addEventListener('resize', fit);
+
+  window.__teestube = {
+    ready: false,
+    snap,
+    judge: (id, cup, weather) => judge(GUESTS[id], cup, weather || S.weather),
+    reaction: (id, cup, weather) => {
+      const g = GUESTS[id];
+      const j = judge(g, cup, weather || S.weather);
+      return { line: reaction(g, cup, j), score: j.score, teaS: j.teaS, curdle: j.curdle };
+    },
+    hotspots: () => lastM,
+    act
+  };
+
+  function frame(ts) {
+    const dt = Math.min(0.05, last ? (ts - last) / 1000 : 0.016);
+    last = ts;
+    time += dt;
+    if (W < 2) fit();
+    step(dt);
+    draw();
+    window.__teestube.ready = true;
+    requestAnimationFrame(frame);
+  }
+  fit();
+  requestAnimationFrame(frame);
+})();
+</script>
+<!-- pb-i18n:begin --><script>
+(function(){
+var SRC='de',CORNER='tr',D={"von":"of","und":"and","oder":"or","mit":"with","für":"for","Heiss":"Hot","Warm":"Warm","Kühl":"Cool","Stark":"Strong","Mittel":"Medium","Zart":"Light","Honig":"Honey","Zitrone":"Lemon","Milch":"Milk","Minze":"Mint","heiss":"hot","kühl":"cool","stark":"strong","zart":"light","Kamille":"Chamomile","Schwarztee":"Black tea","Pfefferminze":"Peppermint","Grüntee":"Green tea","Jasmin":"Jasmine","Ingwer":"Ginger","Rooibos":"Rooibos","Bergamotte":"Bergamot","Holunderblüte":"Elderflower","leer":"empty","Teestube":"Tea Room","Teestube am Abend":"Evening Tea Room","Teestube am Abend: Kessel, Kanne und Gäste. Tee ziehen lassen und das Stammbuch füllen.":"Evening Tea Room: kettle, pot and guests. Steep the tea and fill the guestbook.","Heize den Kessel, giesse auf, lass den Tee ziehen und serviere die Tasse.":"Heat the kettle, pour, let the tea steep and serve the cup.","Tresen mit Fenster, Kessel, Kanne, Tasse und Gast":"Counter with a window, kettle, pot, cup and guest","Tee wählen":"Choose a tea","Zutaten":"Additions","Handgriffe":"Actions","Untertasse":"Saucer","Heizen":"Heat","Heizt":"Heating","Auffüllen":"Refill","Aufgiessen":"Pour in","Blätter":"Leaves","Sieb heben":"Lift strainer","Sieb senken":"Lower strainer","Einschenken":"Pour cup","Servieren":"Serve","Ausspülen":"Rinse","Stammbuch":"Guestbook","Ton aus":"Sound off","Ton an":"Sound on","Ton ist aus":"Sound is off","Ton ist an":"Sound is on","Schliessen":"Close","Gäste":"Guests","Rezepte":"Recipes","Einladen":"Invite","Ein leerer Stuhl":"An empty chair","Noch nicht da gewesen.":"Has not visited yet.","Noch kein Rezept. Eine begeisterte Tasse wird hier notiert.":"No recipe yet. A delighted cup is noted here.","Begeistert":"Delighted","Begeistert, # Mal":"Delighted, # times","Sterne #/#":"Stars #/#","Regen":"Rain","Klar":"Clear","Schnee":"Snow","Wind":"Wind","Honig fehlt":"honey missing","Zitrone fehlt":"lemon missing","Milch fehlt":"milk missing","Minze fehlt":"mint missing","keine Milch":"no milk","nicht bitter":"not bitter","Frau Holunder kommt herein.":"Frau Holunder comes in.","Lio kommt herein.":"Lio comes in.","Mira kommt herein.":"Mira comes in.","Herr Quell kommt herein.":"Herr Quell comes in.","Noor kommt herein.":"Noor comes in.","Pema kommt herein.":"Pema comes in.","Mir ist kalt bis in die Finger. Blumig, heiss, und Honig wäre schön.":"I am cold down to my fingers. Floral, hot, and honey would be lovely.","Ich lese noch. Bitte wach, mit Zitrone, nicht zu dünn.":"I am still reading. Something waking, with lemon, not too thin.","Hell und eher kühl, sonst stimmt die Farbe nicht. Keine Milch.":"Light and on the cool side, or the color is wrong. No milk.","Stark und heiss, wie im Hafen. Milch darf dazu.":"Strong and hot, like the harbor. Milk is welcome.","Nach dem Garten: Minze. Honig und ein Minzblatt, wenn du hast.":"After the garden: mint. Honey and a mint leaf, if you have them.","Die Nacht soll in die Tasse. Floral, ruhig, nicht zu stark.":"The night should go in the cup. Floral, quiet, not too strong.","Genau die Wärme. Danke.":"Just the right warmth. Thank you.","Jetzt bleiben die Augen offen.":"Now my eyes will stay open.","Die Farbe stimmt. Wunderbar.":"The color is right. Wonderful.","Wie im Hafen. Danke.":"Like the harbor. Thank you.","Nachtgarten in der Tasse.":"A night garden in the cup.","Die Nacht passt hinein.":"The night fits inside.","Die Milch flockt aus. Das mag ich nicht.":"The milk has curdled. I do not like that.","Ein anderer Tee wäre mir lieber.":"I would rather have a different tea.","Die Tasse ist mir zu kühl.":"The cup is too cool for me.","Zu heiss für meine Zunge.":"Too hot for my tongue.","Etwas bitter für mich.":"A little bitter for me.","Etwas zu dünn.":"A little too thin.","Etwas zu stark für mich.":"A little too strong for me.","Milch mag ich in diesem Tee nicht.":"I do not want milk in this tea.","Die Zitrone ist mir zu scharf. Lieber ohne.":"The lemon is too sharp for me. Better without.","Honig brauche ich nicht.":"I do not need honey.","Honig hätte gut gepasst.":"Honey would have suited it.","Eine Zitrone hätte mich geweckt.":"A lemon would have woken me.","Milch hätte mich an den Hafen erinnert.":"Milk would have reminded me of the harbor.","Ein Minzblatt hätte den Garten gebracht.":"A mint leaf would have brought the garden.","Das tut gut. Danke.":"That does me good. Thank you.","Ich trinke ihn aus. Ganz meiner war er nicht.":"I will finish it. It was not quite mine.","Lieb, dass du einschenkst. Heute lieber ein andermal.":"Kind of you to pour. Maybe another time today.","Ich komme ein andermal. Die Kerze ist zu Ende.":"I will come another time. The candle has burned down.","Tippe den Kessel, bis er singt.":"Tap the kettle until it sings.","Das Stammbuch liegt noch auf dem Tresen.":"The guestbook is still on the counter.","Der Kessel singt. Tippe die Kanne zum Aufgiessen.":"The kettle is singing. Tap the pot to pour.","Der Kessel ruft. Nimm ihn herunter oder giesse auf.":"The kettle is calling. Take it off or pour.","Das Wasser ist verkocht.":"The water has boiled away.","Der Kessel ist leer. Erst auffüllen.":"The kettle is empty. Refill it first.","Der Kessel ist schon voll.":"The kettle is already full.","Frisches Wasser. Der Kessel muss neu heizen.":"Fresh water. The kettle must heat again.","Der Kessel steht auf der Flamme.":"The kettle is on the flame.","Der Kessel ist vom Feuer.":"The kettle is off the fire.","Die Kanne ist voll.":"The pot is full.","Zweiter Aufguss. Der Sud ist zarter.":"Second steep. The brew is lighter.","Laues Wasser. Der Tee wird still.":"Lukewarm water. The tea stays quiet.","Der Tee zieht.":"The tea is steeping.","Wasser in der Kanne. Jetzt die Blätter.":"Water in the pot. Now the leaves.","In der Kanne liegen schon Blätter.":"There are already leaves in the pot.","Die Blätter warten auf Wasser.":"The leaves are waiting for water.","Der Tee zieht noch nicht.":"The tea is not steeping yet.","Das Sieb ist oben. Der Sud hält an.":"The strainer is up. The brew holds.","Das Sieb ist wieder unten.":"The strainer is down again.","Die Kanne hat noch keine Blätter.":"The pot has no leaves yet.","Erst Wasser in die Kanne.":"Water in the pot first.","Die Milch flockt in der Tasse.":"The milk curdles in the cup.","Die Tasse steht bereit. Heiss und Stark.":"The cup is ready. Hot and strong.","Die Tasse steht bereit. Heiss und Mittel.":"The cup is ready. Hot and medium.","Die Tasse steht bereit. Heiss und Zart.":"The cup is ready. Hot and light.","Die Tasse steht bereit. Warm und Stark.":"The cup is ready. Warm and strong.","Die Tasse steht bereit. Warm und Mittel.":"The cup is ready. Warm and medium.","Die Tasse steht bereit. Warm und Zart.":"The cup is ready. Warm and light.","Die Tasse steht bereit. Kühl und Stark.":"The cup is ready. Cool and strong.","Die Tasse steht bereit. Kühl und Mittel.":"The cup is ready. Cool and medium.","Die Tasse steht bereit. Kühl und Zart.":"The cup is ready. Cool and light.","Die Zutaten liegen erst in der nächsten Tasse.":"The additions go into the next cup.","Die Kanne ist wieder klar.":"The pot is clear again.","Der Stuhl ist leer.":"The chair is empty.","Der Gast trinkt schon.":"The guest is already drinking.","Der Gast trinkt.":"The guest is drinking.","Die Kerze wird kurz.":"The candle is getting short.","Die Kerze ist heruntergebrannt.":"The candle has burned down.","Es sitzt schon jemand.":"Someone is already sitting.","Die Untertasse wartet auf Semmel.":"The saucer is waiting for Semmel.","Semmel schnurrt. In ihrem Fell hing eine Dose Bergamotte.":"Semmel purrs. A tin of bergamot was caught in her fur.","Semmel schnurrt und legt sich hin.":"Semmel purrs and lies down.","Semmel springt auf den Tresen und schaut die Milch an.":"Semmel jumps onto the counter and looks at the milk.","Neue Dose: Ingwer.":"New tin: Ginger.","Neue Dose: Grüntee.":"New tin: Green tea.","Neue Dose: Jasmin.":"New tin: Jasmine.","Neue Dose: Rooibos.":"New tin: Rooibos.","Neue Dose: Holunderblüte.":"New tin: Elderflower.","Neue Dose: Bergamotte.":"New tin: Bergamot.","Das Rezept kennst du schon.":"You already know this recipe.","Ins Stammbuch geschrieben.":"Written into the guestbook.","Sechs Sterne im Fenster. Der Abend ist rund.":"Six stars in the window. The evening is complete.","Regen am Fenster.":"Rain on the window.","Klare Nacht.":"Clear night.","Es schneit.":"It is snowing.","Wind an der Scheibe.":"Wind on the pane."};
+var KEY='playbot-lang',OTHER=SRC==='de'?'en':'de',lang=SRC;
+function pref(){try{var v=localStorage.getItem(KEY);if(v==='de'||v==='en')return v}catch(e){}return(navigator.language||'en').toLowerCase().indexOf('de')===0?'de':'en'}
+var NUM=/-?\d+(?:[.,]\d+)?/g,rec=new WeakMap(),nodes=[],attrRec=new WeakMap(),attrEls=[];
+var keys=Object.keys(D).filter(function(k){return k.length>=3&&k.indexOf('#')<0}).sort(function(a,b){return b.length-a.length});
+var FR=null;
+if(keys.length){try{FR=new RegExp('(?<![\\p{L}\\p{N}])(?:'+keys.map(function(k){return k.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')}).join('|')+')(?![\\p{L}\\p{N}])','gu')}catch(e){FR=null}}
+function tr(raw){
+ var m=/^(\s*)([\s\S]*?)(\s*)$/.exec(raw),s=m[2].replace(/\s+/g,' ');if(!s)return raw;
+ var t=D[s];
+ if(t==null){var nums=s.match(NUM);if(nums){var ns=s.replace(NUM,'#');t=D[ns];if(t!=null){var i=0;t=t.replace(/#/g,function(){return nums[i++]!=null?nums[i-1]:'#'})}}}
+ if(t==null&&FR&&s.length<500){var c=s.replace(FR,function(x){return D[x]});if(c!==s)t=c}
+ return t==null?raw:m[1]+t+m[3]}
+var cc=new Map();function ctr(t){if(lang===SRC||typeof t!=='string'||t.length<2||t.length>300)return t;var r=cc.get(t);if(r===undefined){r=tr(t);if(cc.size>2000)cc.clear();cc.set(t,r)}return r}
+try{var P2=CanvasRenderingContext2D.prototype;['fillText','strokeText'].forEach(function(n){var o=P2[n];P2[n]=function(t){arguments[0]=ctr(t);return o.apply(this,arguments)}});var mt=P2.measureText;P2.measureText=function(t){return mt.call(this,ctr(t))}}catch(e){}
+var ATTR=['title','aria-label','placeholder','alt'];
+function skip(n){var p=n.parentNode;return !p||p.nodeName==='SCRIPT'||p.nodeName==='STYLE'||p.nodeName==='TEXTAREA'||(p.closest&&p.closest('#pb-lang'))}
+function doText(n){if(skip(n))return;var v=n.nodeValue,r=rec.get(n);if(r&&v===r.out)return;var t=tr(v);if(t!==v){if(!r)nodes.push(n);rec.set(n,{orig:v,out:t});n.nodeValue=t}else if(r){rec.delete(n)}}
+function doAttrs(el){if(el.id==='pb-lang'||(el.closest&&el.closest('#pb-lang')))return;for(var i=0;i<ATTR.length;i++){var a=ATTR[i];if(!el.hasAttribute(a))continue;var v=el.getAttribute(a),m=attrRec.get(el)||{};if(m[a]&&m[a].out===v)continue;var t=tr(v);if(t!==v){if(!attrRec.has(el)){attrRec.set(el,m);attrEls.push(el)}m[a]={orig:v,out:t};el.setAttribute(a,t)}}}
+function walk(root){
+ if(root.nodeType===3){doText(root);return}
+ if(root.nodeType!==1)return;
+ doAttrs(root);
+ var w=document.createTreeWalker(root,5,null),n;while((n=w.nextNode())){if(n.nodeType===3)doText(n);else doAttrs(n)}}
+var obs=new MutationObserver(function(ms){if(lang===SRC)return;obs.disconnect();try{for(var i=0;i<ms.length;i++){var m=ms[i];if(m.type==='characterData')doText(m.target);else if(m.type==='attributes')doAttrs(m.target);else for(var j=0;j<m.addedNodes.length;j++)walk(m.addedNodes[j])}}finally{watch()}});
+function watch(){obs.observe(document.documentElement,{subtree:true,childList:true,characterData:true,attributes:true,attributeFilter:ATTR})}
+var titleOrig=document.title;
+function setTitle(){if(lang===SRC){if(document.title!==titleOrig&&titleOrig===document.title)return;document.title=titleOrig}else{var t=tr(titleOrig);document.title=t}}
+function restore(){obs.disconnect();for(var i=0;i<nodes.length;i++){var n=nodes[i],r=rec.get(n);if(r&&n.nodeValue===r.out)n.nodeValue=r.orig;rec.delete(n)}nodes=[];
+ for(var k=0;k<attrEls.length;k++){var el=attrEls[k],m=attrRec.get(el)||{};for(var a in m)if(el.getAttribute(a)===m[a].out)el.setAttribute(a,m[a].orig);attrRec.delete(el)}attrEls=[];watch()}
+function apply(l){
+ lang=l;cc.clear();document.documentElement.setAttribute('data-pb-lang',l);window.PB_LANG=l;
+ if(l===SRC){restore();document.title=titleOrig}else{obs.disconnect();walk(document.body);document.title=tr(titleOrig);watch()}
+ var b=document.getElementById('pb-lang');if(b){b.querySelector('[data-l=en]').className=l==='en'?'on':'';b.querySelector('[data-l=de]').className=l==='de'?'on':'';b.setAttribute('aria-label',l==='de'?'Sprache wechseln (Deutsch aktiv)':'Switch language (English active)');b.title=b.getAttribute('aria-label')}
+ try{window.dispatchEvent(new CustomEvent('pblangchange',{detail:l}))}catch(e){}}
+function ui(){
+ var st=document.createElement('style');var pos={tr:'top:8px;right:8px',tl:'top:8px;left:8px',br:'bottom:8px;right:8px',bl:'bottom:8px;left:8px'}[CORNER]||'top:8px;right:8px';
+ st.textContent='#pb-lang{position:fixed;'+pos+';z-index:2147483000;display:flex;align-items:center;height:36px;min-width:72px;padding:0;margin:0;border:1px solid rgba(255,255,255,.35);border-radius:10px;background:rgba(10,14,28,.72);color:#e8eeff;font:600 12px/1 system-ui,-apple-system,"Segoe UI",sans-serif;letter-spacing:.04em;cursor:pointer;overflow:hidden;-webkit-tap-highlight-color:transparent;touch-action:manipulation;opacity:.88}#pb-lang:hover,#pb-lang:focus-visible{opacity:1}#pb-lang span{flex:1;display:flex;align-items:center;justify-content:center;height:100%;min-width:36px;color:#e8eeff;opacity:.6}#pb-lang span.on{background:#ffe27a;color:#0b0f1e;opacity:1}';
+ document.head.appendChild(st);
+ var b=document.createElement('button');b.id='pb-lang';b.type='button';b.innerHTML='<span data-l="en">EN</span><span data-l="de">DE</span>';
+ b.addEventListener('click',function(e){e.stopPropagation();var n=lang==='en'?'de':'en';try{localStorage.setItem(KEY,n)}catch(_){}apply(n)});
+ b.addEventListener('pointerdown',function(e){e.stopPropagation()});b.addEventListener('keydown',function(e){e.stopPropagation()});
+ document.body.appendChild(b);
+ var cur=CORNER,INTER='button,a[href],input,select,textarea,summary,[role=button],[onclick],[tabindex]',pend=0;
+ function rectFor(c){var W=innerWidth,H=innerHeight,w=b.offsetWidth||72,h=b.offsetHeight||36;var x=c.charAt(1)==='l'?8:W-8-w,y=c.charAt(0)==='t'?8:H-8-h;return{x:x,y:y,w:w,h:h}}
+ function blocked(c){var r=rectFor(c),xs=[.1,.5,.9],ys=[.2,.8];for(var i=0;i<3;i++)for(var j=0;j<2;j++){var px=r.x+r.w*xs[i],py=r.y+r.h*ys[j];if(px<0||py<0||px>=innerWidth||py>=innerHeight)continue;var l=document.elementsFromPoint(px,py);for(var k=0;k<l.length;k++){var e=l[k];if(e===b||b.contains(e))continue;if(e.closest&&e.closest(INTER))return true}}return false}
+ function put(c){cur=c;var s=b.style;s.top=c.charAt(0)==='t'?'8px':'auto';s.bottom=c.charAt(0)==='b'?'8px':'auto';s.left=c.charAt(1)==='l'?'8px':'auto';s.right=c.charAt(1)==='r'?'8px':'auto'}
+ function place(){pend=0;if(!blocked(cur))return;var o=[CORNER,'tr','tl','br','bl'];for(var i=0;i<o.length;i++){if(o[i]!==cur&&!blocked(o[i])){put(o[i]);return}}}
+ function sched(){if(!pend){pend=1;requestAnimationFrame(place)}}
+ try{new MutationObserver(sched).observe(document.body,{subtree:true,childList:true,attributes:true,attributeFilter:['class','style','hidden','open']})}catch(_){}
+ addEventListener('resize',sched);setInterval(place,400);sched()}
+function init(){ui();watch();var p=pref();apply(p)}
+addEventListener('storage',function(e){if(e.key===KEY&&(e.newValue==='en'||e.newValue==='de'))apply(e.newValue)});
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init);else init();
+})();
+</script><!-- pb-i18n:end -->
+</body>
+</html>
