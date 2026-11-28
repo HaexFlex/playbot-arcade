@@ -266,6 +266,14 @@ checks it on a desktop and a phone. The 🪨 'Skipping stones' wish counts the b
 second, a full 7 for the third. It is a best, not a count, so resetting the wishes clears it (a later 5-skip throw
 gives 2 stars again).
 
+**Stone-skipping duel**: almost every other outing (if there is dry open ground just behind the thrower) two village
+children come down to the lake together instead of one. The second waits a step behind; the first throws, and once its
+stone sinks its number of skips pops up over its head. Then they swap places, passing side by side, and the second
+throws the same line. When both stones are in, the better thrower cheers with both arms up under a gold number and the
+other claps (a tie: both cheer), then they walk off together. Both throws count for the 🪨 wish. The first duel in a
+valley gives its own hint (English and German). With sound on a tik for every skip and a plunk for each stone.
+`screenshot-skipduel.png` shows a 4-to-7 duel; `tools/skipduel-check.js` checks it on a desktop and a phone.
+
 **Mallards at the footbridge**: by day (7:00-18:30), all year while the stream is open (no ice, storm or heavy rain),
 a pair of mallards potters about the stream around a standing footbridge (up to 2 pairs at different bridges, 1 on a
 phone): a drake with a glossy green head, white collar, chestnut breast and pale grey body, and a mottled brown hen a
