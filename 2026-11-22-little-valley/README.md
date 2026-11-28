@@ -304,6 +304,17 @@ a tik for every skip and a plunk. Never over ice or in the map view; about 0.01-
 `screenshot-bridgeskip.png` shows the rings drifting downstream under the child; `tools/bridgeskip-check.js` checks it
 on a desktop and a phone.
 
+**A kite caught in a tree**: on kite days (dry autumn afternoons) now and then, never while a kite is flying, a village
+child's kite is stuck high in the crown of a leafy autumn tree near the cottages, its ribbon tail and a loose end of
+string dangling. The child stands under the tree hopping and reaching up for it. A grown-up (taller, with a cap) walks
+over from home, looks up shading its eyes, grips the trunk and shakes it: the crown jiggles, a shower of autumn leaves
+drifts down and the kite comes loose, tumbling and swinging down into the child's raised hands. The child holds it up
+and cheers, and the two walk home together, the kite under the child's arm. No new kite starts while this goes on. The
+first one in a valley gives a hint (English and German); with sound on, one leafy rustle when the tree is shaken. Never
+in rain, at night, in winter or in the map view; about 0.04 ms a frame.
+`screenshot-kite-tree.png` shows the grown-up shaking the tree with the leaves coming down; `tools/kite-tree-check.js`
+checks it on a desktop and a phone.
+
 **Mallards at the footbridge**: by day (7:00-18:30), all year while the stream is open (no ice, storm or heavy rain),
 a pair of mallards potters about the stream around a standing footbridge (up to 2 pairs at different bridges, 1 on a
 phone): a drake with a glossy green head, white collar, chestnut breast and pale grey body, and a mottled brown hen a
