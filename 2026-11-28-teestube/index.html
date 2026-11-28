@@ -94,6 +94,7 @@ button:focus-visible{outline:2px solid #ffe3a3;outline-offset:2px}
         <button type="button" id="bLemon" aria-pressed="false">Zitrone</button>
         <button type="button" id="bMilk" aria-pressed="false">Milch</button>
         <button type="button" id="bMint" aria-pressed="false">Minze</button>
+        <button type="button" id="bSprig" aria-pressed="false">Zweig</button>
         <button type="button" id="bSaucer">Untertasse</button>
       </div>
       <div id="bar" role="toolbar" aria-label="Handgriffe">
@@ -222,7 +223,8 @@ button:focus-visible{outline:2px solid #ffe3a3;outline-offset:2px}
     kettle: { on: false, temp: 22, water: 1, boil: 0, whistled: false, urged: false },
     pot: { tea: null, water: 0, temp: 22, strength: 0, lifted: false, spent: false },
     cup: { filled: false, tea: null, temp: 22, strength: 0, curdled: false, add: { honey: false, lemon: false, milk: false, mint: false } },
-    tray: { honey: false, lemon: false, milk: false, mint: false },
+    tray: { honey: false, lemon: false, milk: false, mint: false, sprig: 0 },
+    plant: { health: 1, sprigs: 2, grow: 0, warned: false },
     selected: 'kamille',
     guest: null,
     guestLast: '',
@@ -322,6 +324,10 @@ button:focus-visible{outline:2px solid #ffe3a3;outline-offset:2px}
       if (d.cat) S.cat = true;
       if (d.catGifted) { S.catGifted = true; S.unlocked.bergamotte = 1; }
       if (d.evening) S.evening = true;
+      if (d.plant && typeof d.plant.health === 'number') {
+        S.plant.health = clamp(d.plant.health, 0, 1);
+        S.plant.sprigs = clamp(d.plant.sprigs | 0, 0, 3);
+      }
       if (typeof d.guestLast === 'string') S.guestLast = d.guestLast;
       return true;
     } catch (e) { return false; }
@@ -338,7 +344,8 @@ button:focus-visible{outline:2px solid #ffe3a3;outline-offset:2px}
         cat: S.cat,
         catGifted: S.catGifted,
         evening: S.evening,
-        guestLast: S.guestLast
+        guestLast: S.guestLast,
+        plant: { health: S.plant.health, sprigs: S.plant.sprigs }
       }));
     } catch (e) {}
   }
@@ -455,13 +462,24 @@ button:focus-visible{outline:2px solid #ffe3a3;outline-offset:2px}
     const strS = 1 - Math.min(1.5, Math.abs(cup.strength - g.strength) / g.strengthW);
     let add = 0;
     let requiredMissing = false;
+    const freshSprig = cup.add.sprig === 1;
+    const tiredSprig = cup.add.sprig === 2;
     ['honey', 'lemon', 'milk', 'mint'].forEach(k => {
       const w = g.add[k] || 0;
+      if (k === 'mint') {
+        const mintOn = !!cup.add.mint || freshSprig;
+        if (mintOn) add += w;
+        else if (tiredSprig) add += w * 0.35;
+        else if (w > 0.12) add -= Math.min(0.22, w);
+        if (w > 0.15 && !mintOn) requiredMissing = true;
+        if (freshSprig && w > 0.1) add += 0.14;
+        return;
+      }
       if (cup.add[k]) add += w;
       else if (w > 0.12) add -= Math.min(0.22, w);
       if (w > 0.15 && !cup.add[k]) requiredMissing = true;
     });
-    if (g.combo && cup.add.honey && cup.add.mint) add += 0.12;
+    if (g.combo && cup.add.honey && (!!cup.add.mint || freshSprig)) add += 0.12;
     const curdle = !!(tea && cup.add.milk && tea.curdle);
     if (curdle) add -= 0.5;
     const bitter = !!(tea && cup.strength > tea.bitter);
@@ -485,14 +503,15 @@ button:focus-visible{outline:2px solid #ffe3a3;outline-offset:2px}
   }
 
   function missingLine(g, cup) {
+    const mintOn = !!cup.add.mint || cup.add.sprig === 1;
     const items = [
-      ['honey', g.add.honey || 0, 'Honig hätte gut gepasst.'],
-      ['lemon', g.add.lemon || 0, 'Eine Zitrone hätte mich geweckt.'],
-      ['milk', g.add.milk || 0, 'Milch hätte mich an den Hafen erinnert.'],
-      ['mint', g.add.mint || 0, 'Ein Minzblatt hätte den Garten gebracht.']
+      [g.add.honey || 0, !!cup.add.honey, 'Honig hätte gut gepasst.'],
+      [g.add.lemon || 0, !!cup.add.lemon, 'Eine Zitrone hätte mich geweckt.'],
+      [g.add.milk || 0, !!cup.add.milk, 'Milch hätte mich an den Hafen erinnert.'],
+      [g.add.mint || 0, mintOn, 'Ein Minzblatt hätte den Garten gebracht.']
     ];
     let best = null, w = 0.12;
-    items.forEach(it => { if (it[1] > w && !cup.add[it[0]]) { w = it[1]; best = it[2]; } });
+    items.forEach(it => { if (it[0] > w && !it[1]) { w = it[0]; best = it[2]; } });
     return best;
   }
   function reaction(g, cup, j) {
@@ -507,6 +526,7 @@ button:focus-visible{outline:2px solid #ffe3a3;outline-offset:2px}
     if (cup.add.milk && (g.add.milk || 0) < -0.2) return 'Milch mag ich in diesem Tee nicht.';
     if (cup.add.lemon && (g.add.lemon || 0) < -0.15) return 'Die Zitrone ist mir zu scharf. Lieber ohne.';
     if (cup.add.honey && (g.add.honey || 0) < -0.1) return 'Honig brauche ich nicht.';
+    if (cup.add.sprig === 2 && (g.add.mint || 0) > 0.12) return 'Die Minze ist matt von der Hitze.';
     const miss = missingLine(g, cup);
     if (miss) return miss;
     if (j.score >= 0.68) return 'Das tut gut. Danke.';
@@ -531,8 +551,9 @@ button:focus-visible{outline:2px solid #ffe3a3;outline-offset:2px}
     if ((g.add.lemon || 0) > 0.15 && !cup.add.lemon) add('Zitrone fehlt');
     if (cup.add.milk && (g.add.milk || 0) > 0.1) add('Milch');
     if ((g.add.milk || 0) > 0.15 && !cup.add.milk) add('Milch fehlt');
-    if (cup.add.mint && (g.add.mint || 0) > 0.1) add('Minze');
-    if ((g.add.mint || 0) > 0.15 && !cup.add.mint) add('Minze fehlt');
+    const mintThere = !!cup.add.mint || cup.add.sprig === 1;
+    if (mintThere && (g.add.mint || 0) > 0.1) add(cup.add.sprig === 1 ? 'frische Minze' : 'Minze');
+    if ((g.add.mint || 0) > 0.15 && !mintThere) add(cup.add.sprig === 2 ? 'matte Minze' : 'Minze fehlt');
     if (j.curdle || (love && (g.add.milk || 0) < -0.3)) add('keine Milch');
     if (j.bitter && !g.likesBitter) add('nicht bitter');
   }
@@ -545,7 +566,9 @@ button:focus-visible{outline:2px solid #ffe3a3;outline-offset:2px}
     if (cup.add.honey) adds.push('Honig');
     if (cup.add.lemon) adds.push('Zitrone');
     if (cup.add.milk) adds.push('Milch');
-    if (cup.add.mint) adds.push('Minze');
+    if (cup.add.sprig === 1) adds.push('Frische Minze');
+    else if (cup.add.sprig === 2) adds.push('Matte Minze');
+    else if (cup.add.mint) adds.push('Minze');
     const heat = cup.temp >= 90 ? 'Heiss' : cup.temp >= 78 ? 'Warm' : 'Kühl';
     const body = cup.strength >= 0.85 ? 'Stark' : cup.strength >= 0.5 ? 'Mittel' : 'Zart';
     const key = cup.tea + '|' + adds.join('+') + '|' + heat + '|' + body + '|' + gid;
@@ -654,7 +677,8 @@ button:focus-visible{outline:2px solid #ffe3a3;outline-offset:2px}
   function pourCup() {
     if (!S.pot.tea) { say('Die Kanne hat noch keine Blätter.'); return; }
     if (S.pot.water <= 0) { say('Erst Wasser in die Kanne.'); return; }
-    const add = { honey: S.tray.honey, lemon: S.tray.lemon, milk: S.tray.milk, mint: S.tray.mint };
+    const add = { honey: S.tray.honey, lemon: S.tray.lemon, milk: S.tray.milk, mint: S.tray.mint, sprig: S.tray.sprig };
+    S.tray.sprig = 0;
     S.cup.filled = true;
     S.cup.tea = S.pot.tea;
     S.cup.temp = S.pot.temp;
@@ -687,7 +711,7 @@ button:focus-visible{outline:2px solid #ffe3a3;outline-offset:2px}
     const g = GUESTS[gid];
     const cup = {
       tea: S.cup.tea, temp: S.cup.temp, strength: S.cup.strength, curdled: S.cup.curdled,
-      add: { honey: S.cup.add.honey, lemon: S.cup.add.lemon, milk: S.cup.add.milk, mint: S.cup.add.mint }
+      add: { honey: S.cup.add.honey, lemon: S.cup.add.lemon, milk: S.cup.add.milk, mint: S.cup.add.mint, sprig: S.cup.add.sprig || 0 }
     };
     const j = judge(g, cup, S.weather);
     const line = reaction(g, cup, j);
@@ -709,6 +733,44 @@ button:focus-visible{outline:2px solid #ffe3a3;outline-offset:2px}
     S.guestLast = gid;
     paintStars();
     save();
+  }
+  function snip() {
+    if (S.tray.sprig) {
+      S.tray.sprig = 0;
+      S.plant.sprigs = Math.min(3, S.plant.sprigs + 1);
+      say('Der Zweig liegt wieder am Stock.');
+      return;
+    }
+    if (S.plant.sprigs <= 0) { say('Die Minze ruht noch. Ein neues Blatt braucht Zeit.'); return; }
+    S.plant.sprigs -= 1;
+    if (S.plant.health < 0.4) {
+      S.tray.sprig = 2;
+      say(S.cup.filled ? 'Die Zutaten liegen erst in der nächsten Tasse.' : 'Ein matter Zweig. Die Hitze war zu viel.');
+    } else {
+      S.tray.sprig = 1;
+      say(S.cup.filled ? 'Die Zutaten liegen erst in der nächsten Tasse.' : 'Frische Minze. Sie duftet stärker als die Dose.');
+      burst(0.09, 2400, 3, 0.07);
+    }
+  }
+  function stepPlant(dt) {
+    const hot = S.kettle.on && S.kettle.water > 0 && S.kettle.temp >= 92;
+    if (hot) {
+      S.plant.health = Math.max(0, S.plant.health - dt * 0.09);
+      if (S.plant.health < 0.4 && !S.plant.warned) {
+        S.plant.warned = true;
+        say('Die Minze auf dem Sims lasst die Blätter hängen.');
+      }
+    } else if (!S.kettle.on || S.kettle.temp < 70) {
+      S.plant.health = Math.min(1, S.plant.health + dt * 0.045);
+      if (S.plant.health >= 0.7) S.plant.warned = false;
+    }
+    if (S.plant.health >= 0.65 && S.plant.sprigs < 3) {
+      S.plant.grow += dt;
+      if (S.plant.grow >= 18) {
+        S.plant.grow = 0;
+        S.plant.sprigs += 1;
+      }
+    } else S.plant.grow = 0;
   }
   function saucer() {
     if (!S.cat) { say('Die Untertasse wartet auf Semmel.'); return; }
@@ -787,6 +849,8 @@ button:focus-visible{outline:2px solid #ffe3a3;outline-offset:2px}
     setPressed($('bLemon'), S.tray.lemon);
     setPressed($('bMilk'), S.tray.milk);
     setPressed($('bMint'), S.tray.mint);
+    setText($('bSprig'), S.tray.sprig === 1 ? 'Frischer Zweig' : S.tray.sprig === 2 ? 'Matter Zweig' : 'Zweig');
+    setPressed($('bSprig'), S.tray.sprig > 0);
     const target = coachTarget();
     const map = { heat: 'bHeat', pour: 'bPour', strainer: 'bStrainer', cup: 'bCup', serve: 'bServe' };
     ['bHeat', 'bPour', 'bStrainer', 'bCup', 'bServe'].forEach(id => {
@@ -811,6 +875,7 @@ button:focus-visible{outline:2px solid #ffe3a3;outline-offset:2px}
     else if (name === 'serve') serve();
     else if (name === 'rinse') rinse();
     else if (name === 'honey' || name === 'lemon' || name === 'milk' || name === 'mint') toggleAdd(name);
+    else if (name === 'sprig') snip();
     else if (name === 'saucer') saucer();
     else if (name === 'book') toggleBook();
     else if (name === 'sound') toggleSound();
@@ -940,6 +1005,7 @@ button:focus-visible{outline:2px solid #ffe3a3;outline-offset:2px}
     if (S.pot.water > 0) S.pot.temp = Math.max(22, S.pot.temp - dt * 0.65);
     if (S.cup.filled) S.cup.temp = Math.max(22, S.cup.temp - dt * 2.8);
     if (S.saucer > 0) S.saucer = Math.max(0, S.saucer - dt);
+    stepPlant(dt);
 
     if (!S.guest) {
       S.wait -= dt;
@@ -1042,6 +1108,7 @@ button:focus-visible{outline:2px solid #ffe3a3;outline-offset:2px}
     const tap = { x: Math.max(22, kettle.x - 52 * s), y: counter - 62 * s, r: Math.max(20, 24 * s) };
     const cat = { x: win.x + Math.min(46, win.w * 0.18), y: counter - 4, r: Math.max(20, 24 * s) };
     const candle = { x: clamp((cup.x + guest.x) * 0.5, cup.x + 28, guest.x - 28), y: counter };
+    const plant = { x: win.x + win.w * 0.78, y: counter - 58 * s, r: Math.max(18, 22 * s) };
     const jars = ['honey', 'lemon', 'milk', 'mint'].map((id, i) => ({
       id,
       x: kettle.x + (58 + i * 30) * s,
@@ -1055,7 +1122,7 @@ button:focus-visible{outline:2px solid #ffe3a3;outline-offset:2px}
       y: 26 + i * Math.max(32, 36 * s),
       r: Math.max(15, 16 * s)
     })) : [];
-    return { s, counter, win, kettle, pot, cup, guest, tap, cat, candle, jars, tins };
+    return { s, counter, win, kettle, pot, cup, guest, tap, cat, candle, plant, jars, tins };
   }
 
   function round(x, y, w, h, r) {
@@ -1100,6 +1167,7 @@ button:focus-visible{outline:2px solid #ffe3a3;outline-offset:2px}
     drawPot(m);
     drawCup(m);
     drawCandle(m);
+    drawPlant(m);
     if (S.cat) drawCat(m);
     if (S.guest) drawGuest(m);
     if (W > 700) drawDoor(m);
@@ -1453,6 +1521,40 @@ button:focus-visible{outline:2px solid #ffe3a3;outline-offset:2px}
     }
     ctx.restore();
   }
+  function drawPlant(m) {
+    const p = m.plant;
+    const s = m.s;
+    const health = S.plant.health;
+    const droop = (1 - health) * 1.05;
+    const green = Math.round(55 + health * 110);
+    const red = Math.round(36 + (1 - health) * 70);
+    ctx.save();
+    ctx.translate(p.x, p.y);
+    ctx.fillStyle = '#c46a42';
+    round(-11 * s, 2 * s, 22 * s, 16 * s, 4);
+    ctx.fill();
+    ctx.fillStyle = '#6e3a28';
+    ctx.fillRect(-13 * s, 0, 26 * s, 5 * s);
+    const leaves = Math.max(S.plant.sprigs, 1);
+    for (let i = 0; i < leaves; i++) {
+      const side = (i - (leaves - 1) / 2) * 0.5;
+      ctx.save();
+      ctx.translate(side * 8 * s, 0);
+      ctx.rotate(side * 0.15 + droop * (i % 2 ? 0.85 : -0.85));
+      ctx.fillStyle = 'rgb(' + red + ',' + green + ',48)';
+      ctx.beginPath();
+      ctx.ellipse(0, -18 * s, 5.5 * s, S.plant.sprigs ? 15 * s : 7 * s, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+    if (S.tray.sprig) {
+      ctx.fillStyle = S.tray.sprig === 1 ? '#8ed56a' : '#9a8a55';
+      ctx.beginPath();
+      ctx.ellipse(18 * s, 8 * s, 4 * s, 10 * s, 0.9, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+  }
   function drawCat(m) {
     const s = m.s;
     ctx.save();
@@ -1688,6 +1790,7 @@ button:focus-visible{outline:2px solid #ffe3a3;outline-offset:2px}
     hits.push({ id: 'cup', x: m.cup.x, y: m.cup.y - 16 * m.s, r: m.cup.r });
     hits.push({ id: 'serve', x: m.guest.x, y: m.guest.y - 60 * m.s, r: m.guest.r });
     if (S.cat) hits.push({ id: 'saucer', x: m.cat.x, y: m.cat.y, r: m.cat.r });
+    if (m.plant) hits.push({ id: 'sprig', x: m.plant.x, y: m.plant.y, r: m.plant.r });
     m.tins.forEach(t => hits.push({ id: 'tea:' + t.id, x: t.x, y: t.y, r: t.r + 4 }));
     for (let i = hits.length - 1; i >= 0; i--) {
       const h = hits[i];
@@ -1723,6 +1826,7 @@ button:focus-visible{outline:2px solid #ffe3a3;outline-offset:2px}
       weather: S.weather,
       unlocked: TEA_ORDER.filter(id => S.unlocked[id]),
       stars: starCount(),
+      plant: { health: S.plant.health, sprigs: S.plant.sprigs, held: S.tray.sprig },
       cat: S.cat,
       catGifted: !!S.catGifted,
       served: S.served,
@@ -1756,6 +1860,7 @@ button:focus-visible{outline:2px solid #ffe3a3;outline-offset:2px}
   $('bLemon').addEventListener('click', () => act('lemon'));
   $('bMilk').addEventListener('click', () => act('milk'));
   $('bMint').addEventListener('click', () => act('mint'));
+  $('bSprig').addEventListener('click', () => act('sprig'));
   $('bSaucer').addEventListener('click', () => act('saucer'));
   $('bBook').addEventListener('click', () => act('book'));
   $('bSound').addEventListener('click', () => act('sound'));
@@ -1774,7 +1879,7 @@ button:focus-visible{outline:2px solid #ffe3a3;outline-offset:2px}
     const book = !$('book').hidden;
     const k = e.key.toLowerCase();
     if (book && k !== 'm' && k !== 'b') return;
-    const map = { h: 'heat', f: 'refill', g: 'pour', l: 'leaf', i: 'strainer', c: 'cup', r: 'rinse', b: 'book', m: 'sound' };
+    const map = { h: 'heat', f: 'refill', g: 'pour', l: 'leaf', i: 'strainer', c: 'cup', r: 'rinse', b: 'book', m: 'sound', z: 'sprig' };
     if (k === 'enter') { act('serve'); e.preventDefault(); return; }
     if (map[k]) { act(map[k]); e.preventDefault(); return; }
     if (k >= '1' && k <= '9') {
@@ -1814,7 +1919,7 @@ button:focus-visible{outline:2px solid #ffe3a3;outline-offset:2px}
 </script>
 <!-- pb-i18n:begin --><script>
 (function(){
-var SRC='de',CORNER='tr',D={"von":"of","und":"and","oder":"or","mit":"with","für":"for","Heiss":"Hot","Warm":"Warm","Kühl":"Cool","Stark":"Strong","Mittel":"Medium","Zart":"Light","Honig":"Honey","Zitrone":"Lemon","Milch":"Milk","Minze":"Mint","heiss":"hot","kühl":"cool","stark":"strong","zart":"light","Kamille":"Chamomile","Schwarztee":"Black tea","Pfefferminze":"Peppermint","Grüntee":"Green tea","Jasmin":"Jasmine","Ingwer":"Ginger","Rooibos":"Rooibos","Bergamotte":"Bergamot","Holunderblüte":"Elderflower","leer":"empty","Teestube":"Tea Room","Teestube am Abend":"Evening Tea Room","Teestube am Abend: Kessel, Kanne und Gäste. Tee ziehen lassen und das Stammbuch füllen.":"Evening Tea Room: kettle, pot and guests. Steep the tea and fill the guestbook.","Heize den Kessel, giesse auf, lass den Tee ziehen und serviere die Tasse.":"Heat the kettle, pour, let the tea steep and serve the cup.","Tresen mit Fenster, Kessel, Kanne, Tasse und Gast":"Counter with a window, kettle, pot, cup and guest","Tee wählen":"Choose a tea","Zutaten":"Additions","Handgriffe":"Actions","Untertasse":"Saucer","Heizen":"Heat","Heizt":"Heating","Auffüllen":"Refill","Aufgiessen":"Pour in","Blätter":"Leaves","Sieb heben":"Lift strainer","Sieb senken":"Lower strainer","Einschenken":"Pour cup","Servieren":"Serve","Ausspülen":"Rinse","Stammbuch":"Guestbook","Ton aus":"Sound off","Ton an":"Sound on","Ton ist aus":"Sound is off","Ton ist an":"Sound is on","Schliessen":"Close","Gäste":"Guests","Rezepte":"Recipes","Einladen":"Invite","Ein leerer Stuhl":"An empty chair","Noch nicht da gewesen.":"Has not visited yet.","Noch kein Rezept. Eine begeisterte Tasse wird hier notiert.":"No recipe yet. A delighted cup is noted here.","Begeistert":"Delighted","Begeistert, # Mal":"Delighted, # times","Sterne #/#":"Stars #/#","Regen":"Rain","Klar":"Clear","Schnee":"Snow","Wind":"Wind","Honig fehlt":"honey missing","Zitrone fehlt":"lemon missing","Milch fehlt":"milk missing","Minze fehlt":"mint missing","keine Milch":"no milk","nicht bitter":"not bitter","Frau Holunder kommt herein.":"Frau Holunder comes in.","Lio kommt herein.":"Lio comes in.","Mira kommt herein.":"Mira comes in.","Herr Quell kommt herein.":"Herr Quell comes in.","Noor kommt herein.":"Noor comes in.","Pema kommt herein.":"Pema comes in.","Mir ist kalt bis in die Finger. Blumig, heiss, und Honig wäre schön.":"I am cold down to my fingers. Floral, hot, and honey would be lovely.","Ich lese noch. Bitte wach, mit Zitrone, nicht zu dünn.":"I am still reading. Something waking, with lemon, not too thin.","Hell und eher kühl, sonst stimmt die Farbe nicht. Keine Milch.":"Light and on the cool side, or the color is wrong. No milk.","Stark und heiss, wie im Hafen. Milch darf dazu.":"Strong and hot, like the harbor. Milk is welcome.","Nach dem Garten: Minze. Honig und ein Minzblatt, wenn du hast.":"After the garden: mint. Honey and a mint leaf, if you have them.","Die Nacht soll in die Tasse. Floral, ruhig, nicht zu stark.":"The night should go in the cup. Floral, quiet, not too strong.","Genau die Wärme. Danke.":"Just the right warmth. Thank you.","Jetzt bleiben die Augen offen.":"Now my eyes will stay open.","Die Farbe stimmt. Wunderbar.":"The color is right. Wonderful.","Wie im Hafen. Danke.":"Like the harbor. Thank you.","Nachtgarten in der Tasse.":"A night garden in the cup.","Die Nacht passt hinein.":"The night fits inside.","Die Milch flockt aus. Das mag ich nicht.":"The milk has curdled. I do not like that.","Ein anderer Tee wäre mir lieber.":"I would rather have a different tea.","Die Tasse ist mir zu kühl.":"The cup is too cool for me.","Zu heiss für meine Zunge.":"Too hot for my tongue.","Etwas bitter für mich.":"A little bitter for me.","Etwas zu dünn.":"A little too thin.","Etwas zu stark für mich.":"A little too strong for me.","Milch mag ich in diesem Tee nicht.":"I do not want milk in this tea.","Die Zitrone ist mir zu scharf. Lieber ohne.":"The lemon is too sharp for me. Better without.","Honig brauche ich nicht.":"I do not need honey.","Honig hätte gut gepasst.":"Honey would have suited it.","Eine Zitrone hätte mich geweckt.":"A lemon would have woken me.","Milch hätte mich an den Hafen erinnert.":"Milk would have reminded me of the harbor.","Ein Minzblatt hätte den Garten gebracht.":"A mint leaf would have brought the garden.","Das tut gut. Danke.":"That does me good. Thank you.","Ich trinke ihn aus. Ganz meiner war er nicht.":"I will finish it. It was not quite mine.","Lieb, dass du einschenkst. Heute lieber ein andermal.":"Kind of you to pour. Maybe another time today.","Ich komme ein andermal. Die Kerze ist zu Ende.":"I will come another time. The candle has burned down.","Tippe den Kessel, bis er singt.":"Tap the kettle until it sings.","Das Stammbuch liegt noch auf dem Tresen.":"The guestbook is still on the counter.","Der Kessel singt. Tippe die Kanne zum Aufgiessen.":"The kettle is singing. Tap the pot to pour.","Der Kessel ruft. Nimm ihn herunter oder giesse auf.":"The kettle is calling. Take it off or pour.","Das Wasser ist verkocht.":"The water has boiled away.","Der Kessel ist leer. Erst auffüllen.":"The kettle is empty. Refill it first.","Der Kessel ist schon voll.":"The kettle is already full.","Frisches Wasser. Der Kessel muss neu heizen.":"Fresh water. The kettle must heat again.","Der Kessel steht auf der Flamme.":"The kettle is on the flame.","Der Kessel ist vom Feuer.":"The kettle is off the fire.","Die Kanne ist voll.":"The pot is full.","Zweiter Aufguss. Der Sud ist zarter.":"Second steep. The brew is lighter.","Laues Wasser. Der Tee wird still.":"Lukewarm water. The tea stays quiet.","Der Tee zieht.":"The tea is steeping.","Wasser in der Kanne. Jetzt die Blätter.":"Water in the pot. Now the leaves.","In der Kanne liegen schon Blätter.":"There are already leaves in the pot.","Die Blätter warten auf Wasser.":"The leaves are waiting for water.","Der Tee zieht noch nicht.":"The tea is not steeping yet.","Das Sieb ist oben. Der Sud hält an.":"The strainer is up. The brew holds.","Das Sieb ist wieder unten.":"The strainer is down again.","Die Kanne hat noch keine Blätter.":"The pot has no leaves yet.","Erst Wasser in die Kanne.":"Water in the pot first.","Die Milch flockt in der Tasse.":"The milk curdles in the cup.","Die Tasse steht bereit. Heiss und Stark.":"The cup is ready. Hot and strong.","Die Tasse steht bereit. Heiss und Mittel.":"The cup is ready. Hot and medium.","Die Tasse steht bereit. Heiss und Zart.":"The cup is ready. Hot and light.","Die Tasse steht bereit. Warm und Stark.":"The cup is ready. Warm and strong.","Die Tasse steht bereit. Warm und Mittel.":"The cup is ready. Warm and medium.","Die Tasse steht bereit. Warm und Zart.":"The cup is ready. Warm and light.","Die Tasse steht bereit. Kühl und Stark.":"The cup is ready. Cool and strong.","Die Tasse steht bereit. Kühl und Mittel.":"The cup is ready. Cool and medium.","Die Tasse steht bereit. Kühl und Zart.":"The cup is ready. Cool and light.","Die Zutaten liegen erst in der nächsten Tasse.":"The additions go into the next cup.","Die Kanne ist wieder klar.":"The pot is clear again.","Der Stuhl ist leer.":"The chair is empty.","Der Gast trinkt schon.":"The guest is already drinking.","Der Gast trinkt.":"The guest is drinking.","Die Kerze wird kurz.":"The candle is getting short.","Die Kerze ist heruntergebrannt.":"The candle has burned down.","Es sitzt schon jemand.":"Someone is already sitting.","Die Untertasse wartet auf Semmel.":"The saucer is waiting for Semmel.","Semmel schnurrt. In ihrem Fell hing eine Dose Bergamotte.":"Semmel purrs. A tin of bergamot was caught in her fur.","Semmel schnurrt und legt sich hin.":"Semmel purrs and lies down.","Semmel springt auf den Tresen und schaut die Milch an.":"Semmel jumps onto the counter and looks at the milk.","Neue Dose: Ingwer.":"New tin: Ginger.","Neue Dose: Grüntee.":"New tin: Green tea.","Neue Dose: Jasmin.":"New tin: Jasmine.","Neue Dose: Rooibos.":"New tin: Rooibos.","Neue Dose: Holunderblüte.":"New tin: Elderflower.","Neue Dose: Bergamotte.":"New tin: Bergamot.","Das Rezept kennst du schon.":"You already know this recipe.","Ins Stammbuch geschrieben.":"Written into the guestbook.","Sechs Sterne im Fenster. Der Abend ist rund.":"Six stars in the window. The evening is complete.","Regen am Fenster.":"Rain on the window.","Klare Nacht.":"Clear night.","Es schneit.":"It is snowing.","Wind an der Scheibe.":"Wind on the pane."};
+var SRC='de',CORNER='tr',D={"von":"of","und":"and","oder":"or","mit":"with","für":"for","Heiss":"Hot","Warm":"Warm","Kühl":"Cool","Stark":"Strong","Mittel":"Medium","Zart":"Light","Honig":"Honey","Zitrone":"Lemon","Milch":"Milk","Minze":"Mint","Zweig":"Sprig","Frischer Zweig":"Fresh sprig","Matter Zweig":"Tired sprig","Frische Minze":"Fresh mint","Matte Minze":"Tired mint","frische Minze":"fresh mint","matte Minze":"tired mint","Frische Minze. Sie duftet stärker als die Dose.":"Fresh mint. It smells stronger than the tin.","Ein matter Zweig. Die Hitze war zu viel.":"A tired sprig. The heat was too much.","Die Minze ruht noch. Ein neues Blatt braucht Zeit.":"The mint is resting. A new leaf needs time.","Der Zweig liegt wieder am Stock.":"The sprig is back on the plant.","Die Minze auf dem Sims lasst die Blätter hängen.":"The mint on the sill lets its leaves droop.","Die Minze ist matt von der Hitze.":"The mint is tired from the heat.","heiss":"hot","kühl":"cool","stark":"strong","zart":"light","Kamille":"Chamomile","Schwarztee":"Black tea","Pfefferminze":"Peppermint","Grüntee":"Green tea","Jasmin":"Jasmine","Ingwer":"Ginger","Rooibos":"Rooibos","Bergamotte":"Bergamot","Holunderblüte":"Elderflower","leer":"empty","Teestube":"Tea Room","Teestube am Abend":"Evening Tea Room","Teestube am Abend: Kessel, Kanne und Gäste. Tee ziehen lassen und das Stammbuch füllen.":"Evening Tea Room: kettle, pot and guests. Steep the tea and fill the guestbook.","Heize den Kessel, giesse auf, lass den Tee ziehen und serviere die Tasse.":"Heat the kettle, pour, let the tea steep and serve the cup.","Tresen mit Fenster, Kessel, Kanne, Tasse und Gast":"Counter with a window, kettle, pot, cup and guest","Tee wählen":"Choose a tea","Zutaten":"Additions","Handgriffe":"Actions","Untertasse":"Saucer","Heizen":"Heat","Heizt":"Heating","Auffüllen":"Refill","Aufgiessen":"Pour in","Blätter":"Leaves","Sieb heben":"Lift strainer","Sieb senken":"Lower strainer","Einschenken":"Pour cup","Servieren":"Serve","Ausspülen":"Rinse","Stammbuch":"Guestbook","Ton aus":"Sound off","Ton an":"Sound on","Ton ist aus":"Sound is off","Ton ist an":"Sound is on","Schliessen":"Close","Gäste":"Guests","Rezepte":"Recipes","Einladen":"Invite","Ein leerer Stuhl":"An empty chair","Noch nicht da gewesen.":"Has not visited yet.","Noch kein Rezept. Eine begeisterte Tasse wird hier notiert.":"No recipe yet. A delighted cup is noted here.","Begeistert":"Delighted","Begeistert, # Mal":"Delighted, # times","Sterne #/#":"Stars #/#","Regen":"Rain","Klar":"Clear","Schnee":"Snow","Wind":"Wind","Honig fehlt":"honey missing","Zitrone fehlt":"lemon missing","Milch fehlt":"milk missing","Minze fehlt":"mint missing","keine Milch":"no milk","nicht bitter":"not bitter","Frau Holunder kommt herein.":"Frau Holunder comes in.","Lio kommt herein.":"Lio comes in.","Mira kommt herein.":"Mira comes in.","Herr Quell kommt herein.":"Herr Quell comes in.","Noor kommt herein.":"Noor comes in.","Pema kommt herein.":"Pema comes in.","Mir ist kalt bis in die Finger. Blumig, heiss, und Honig wäre schön.":"I am cold down to my fingers. Floral, hot, and honey would be lovely.","Ich lese noch. Bitte wach, mit Zitrone, nicht zu dünn.":"I am still reading. Something waking, with lemon, not too thin.","Hell und eher kühl, sonst stimmt die Farbe nicht. Keine Milch.":"Light and on the cool side, or the color is wrong. No milk.","Stark und heiss, wie im Hafen. Milch darf dazu.":"Strong and hot, like the harbor. Milk is welcome.","Nach dem Garten: Minze. Honig und ein Minzblatt, wenn du hast.":"After the garden: mint. Honey and a mint leaf, if you have them.","Die Nacht soll in die Tasse. Floral, ruhig, nicht zu stark.":"The night should go in the cup. Floral, quiet, not too strong.","Genau die Wärme. Danke.":"Just the right warmth. Thank you.","Jetzt bleiben die Augen offen.":"Now my eyes will stay open.","Die Farbe stimmt. Wunderbar.":"The color is right. Wonderful.","Wie im Hafen. Danke.":"Like the harbor. Thank you.","Nachtgarten in der Tasse.":"A night garden in the cup.","Die Nacht passt hinein.":"The night fits inside.","Die Milch flockt aus. Das mag ich nicht.":"The milk has curdled. I do not like that.","Ein anderer Tee wäre mir lieber.":"I would rather have a different tea.","Die Tasse ist mir zu kühl.":"The cup is too cool for me.","Zu heiss für meine Zunge.":"Too hot for my tongue.","Etwas bitter für mich.":"A little bitter for me.","Etwas zu dünn.":"A little too thin.","Etwas zu stark für mich.":"A little too strong for me.","Milch mag ich in diesem Tee nicht.":"I do not want milk in this tea.","Die Zitrone ist mir zu scharf. Lieber ohne.":"The lemon is too sharp for me. Better without.","Honig brauche ich nicht.":"I do not need honey.","Honig hätte gut gepasst.":"Honey would have suited it.","Eine Zitrone hätte mich geweckt.":"A lemon would have woken me.","Milch hätte mich an den Hafen erinnert.":"Milk would have reminded me of the harbor.","Ein Minzblatt hätte den Garten gebracht.":"A mint leaf would have brought the garden.","Das tut gut. Danke.":"That does me good. Thank you.","Ich trinke ihn aus. Ganz meiner war er nicht.":"I will finish it. It was not quite mine.","Lieb, dass du einschenkst. Heute lieber ein andermal.":"Kind of you to pour. Maybe another time today.","Ich komme ein andermal. Die Kerze ist zu Ende.":"I will come another time. The candle has burned down.","Tippe den Kessel, bis er singt.":"Tap the kettle until it sings.","Das Stammbuch liegt noch auf dem Tresen.":"The guestbook is still on the counter.","Der Kessel singt. Tippe die Kanne zum Aufgiessen.":"The kettle is singing. Tap the pot to pour.","Der Kessel ruft. Nimm ihn herunter oder giesse auf.":"The kettle is calling. Take it off or pour.","Das Wasser ist verkocht.":"The water has boiled away.","Der Kessel ist leer. Erst auffüllen.":"The kettle is empty. Refill it first.","Der Kessel ist schon voll.":"The kettle is already full.","Frisches Wasser. Der Kessel muss neu heizen.":"Fresh water. The kettle must heat again.","Der Kessel steht auf der Flamme.":"The kettle is on the flame.","Der Kessel ist vom Feuer.":"The kettle is off the fire.","Die Kanne ist voll.":"The pot is full.","Zweiter Aufguss. Der Sud ist zarter.":"Second steep. The brew is lighter.","Laues Wasser. Der Tee wird still.":"Lukewarm water. The tea stays quiet.","Der Tee zieht.":"The tea is steeping.","Wasser in der Kanne. Jetzt die Blätter.":"Water in the pot. Now the leaves.","In der Kanne liegen schon Blätter.":"There are already leaves in the pot.","Die Blätter warten auf Wasser.":"The leaves are waiting for water.","Der Tee zieht noch nicht.":"The tea is not steeping yet.","Das Sieb ist oben. Der Sud hält an.":"The strainer is up. The brew holds.","Das Sieb ist wieder unten.":"The strainer is down again.","Die Kanne hat noch keine Blätter.":"The pot has no leaves yet.","Erst Wasser in die Kanne.":"Water in the pot first.","Die Milch flockt in der Tasse.":"The milk curdles in the cup.","Die Tasse steht bereit. Heiss und Stark.":"The cup is ready. Hot and strong.","Die Tasse steht bereit. Heiss und Mittel.":"The cup is ready. Hot and medium.","Die Tasse steht bereit. Heiss und Zart.":"The cup is ready. Hot and light.","Die Tasse steht bereit. Warm und Stark.":"The cup is ready. Warm and strong.","Die Tasse steht bereit. Warm und Mittel.":"The cup is ready. Warm and medium.","Die Tasse steht bereit. Warm und Zart.":"The cup is ready. Warm and light.","Die Tasse steht bereit. Kühl und Stark.":"The cup is ready. Cool and strong.","Die Tasse steht bereit. Kühl und Mittel.":"The cup is ready. Cool and medium.","Die Tasse steht bereit. Kühl und Zart.":"The cup is ready. Cool and light.","Die Zutaten liegen erst in der nächsten Tasse.":"The additions go into the next cup.","Die Kanne ist wieder klar.":"The pot is clear again.","Der Stuhl ist leer.":"The chair is empty.","Der Gast trinkt schon.":"The guest is already drinking.","Der Gast trinkt.":"The guest is drinking.","Die Kerze wird kurz.":"The candle is getting short.","Die Kerze ist heruntergebrannt.":"The candle has burned down.","Es sitzt schon jemand.":"Someone is already sitting.","Die Untertasse wartet auf Semmel.":"The saucer is waiting for Semmel.","Semmel schnurrt. In ihrem Fell hing eine Dose Bergamotte.":"Semmel purrs. A tin of bergamot was caught in her fur.","Semmel schnurrt und legt sich hin.":"Semmel purrs and lies down.","Semmel springt auf den Tresen und schaut die Milch an.":"Semmel jumps onto the counter and looks at the milk.","Neue Dose: Ingwer.":"New tin: Ginger.","Neue Dose: Grüntee.":"New tin: Green tea.","Neue Dose: Jasmin.":"New tin: Jasmine.","Neue Dose: Rooibos.":"New tin: Rooibos.","Neue Dose: Holunderblüte.":"New tin: Elderflower.","Neue Dose: Bergamotte.":"New tin: Bergamot.","Das Rezept kennst du schon.":"You already know this recipe.","Ins Stammbuch geschrieben.":"Written into the guestbook.","Sechs Sterne im Fenster. Der Abend ist rund.":"Six stars in the window. The evening is complete.","Regen am Fenster.":"Rain on the window.","Klare Nacht.":"Clear night.","Es schneit.":"It is snowing.","Wind an der Scheibe.":"Wind on the pane."};
 var KEY='playbot-lang',OTHER=SRC==='de'?'en':'de',lang=SRC;
 function pref(){try{var v=localStorage.getItem(KEY);if(v==='de'||v==='en')return v}catch(e){}return(navigator.language||'en').toLowerCase().indexOf('de')===0?'de':'en'}
 var NUM=/-?\d+(?:[.,]\d+)?/g,rec=new WeakMap(),nodes=[],attrRec=new WeakMap(),attrEls=[];
