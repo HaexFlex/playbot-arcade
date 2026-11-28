@@ -262,7 +262,9 @@ fifth skip on the child hops and cheers with both arms up, then walks off. The f
 Never over ice, at night, in winter, in a strong wind or in the map view; hidden behind ridges. With sound on a tiny
 bright 'tik' at every skip (a little higher each time) and a soft plunk at the end (fx bus). About 0.01-0.03 ms a
 frame, spot search under 1 ms every 3 s. `screenshot-skipping.png` shows a 7-skip throw; `tools/skip-check.js`
-checks it on a desktop and a phone.
+checks it on a desktop and a phone. The 🪨 'Skipping stones' wish counts the best throw seen: 4 skips for the first star, 5 for the
+second, a full 7 for the third. It is a best, not a count, so resetting the wishes clears it (a later 5-skip throw
+gives 2 stars again).
 
 **Mallards at the footbridge**: by day (7:00-18:30), all year while the stream is open (no ice, storm or heavy rain),
 a pair of mallards potters about the stream around a standing footbridge (up to 2 pairs at different bridges, 1 on a
@@ -420,7 +422,7 @@ freeze again at night). On winter days the bullfinches in the bare trees call no
 low, slightly wistful whistled *pew*, and when the fox or a skater sends them up you hear a quick whirr of small wings.
 
 ## Valley wishes
-Tap the **Wishes** star for a small panel of twenty-six gentle goals, each with three stars:
+Tap the **Wishes** star for a small panel of twenty-seven gentle goals, each with three stars:
 a lake to row on (one still lake covering 3.5%, 6% or 10% of the valley), a deep green forest
 (32%, 38%, 45% forest), a little village (3, 6, 10 cottages), the mill wheel turns (1, 2, 3 mills
 turning), dry feet in a storm (1, 3, 5 cottages kept dry until a storm has passed), rainbow hunter
@@ -434,7 +436,7 @@ waterfall (the tallest fall right now, 12, 25 or 45 m: a strong stream pouring o
 wet ground settles; dig a steep pit just below a fast stream, and catch it quickly, because the wet cliff
 slumps within seconds; storms on the steep slopes make wild ones too), a long river (1.6, 2 or 2.5 km
 from a spring all the way to the valley's edge; see below) and a bridge over the stream (🌉, 1, 2, 3 little wooden
-footbridges standing right now; see Footbridges), and a game of Poohsticks (🪵, 1, 3, 6 games seen from a footbridge; see Poohsticks). Ten more are for the valley's quiet
+footbridges standing right now; see Footbridges), a game of Poohsticks (🪵, 1, 3, 6 games seen from a footbridge; see Poohsticks) and skipping stones (🪨, a throw seen with 4, 5 or 7 skips; the best throw since the page opened counts, so the stars stay but the count starts again after a reload; see Stone skipping). Ten more are for the valley's quiet
 animals and weather, counted when you see them on screen: a doe at the spring house (1, 2, 4 visits where the roe doe
 drinks at a spring-house trough), a hedgehog in the gardens (1, 3, 6 summer-night visits where it snuffles
 in view), a startled doe barks (1, 2, 3 alarm barks heard with the sound on when a shower sends her off),
