@@ -284,6 +284,15 @@ half a minute or so the child reels it in, winding with both hands, and walks ho
 in a valley gives a hint (English and German). About 0.05-0.07 ms a frame, spot search about 1 ms every 4 s.
 `screenshot-kite.png` shows a kite flying high above its child; `tools/kite-check.js` checks it on a desktop and a phone.
 
+**Kite launch helper**: on about half the kite outings (if the ground just downwind of the spot is open) a second
+village child comes along carrying the kite under its arm. It walks out about two cells downwind and holds the kite up
+high over its head while the flyer pays out a taut string and waits a moment; as the flyer starts to run into the wind
+it lets go with a little hop, arms flung up, and the kite climbs straight out of its hands. Then it trots back to stand
+beside the flyer and watch, jumps and cheers whenever the kite loops the loop, and walks home with the flyer at the end.
+The first pair in a valley gives its own hint (English and German). Same cost as a lone kite (about 0.05 ms a frame).
+`screenshot-kitepair.png` shows the kite held up just before the launch; `tools/kitepair-check.js` checks it on a desktop
+and a phone.
+
 **Mallards at the footbridge**: by day (7:00-18:30), all year while the stream is open (no ice, storm or heavy rain),
 a pair of mallards potters about the stream around a standing footbridge (up to 2 pairs at different bridges, 1 on a
 phone): a drake with a glossy green head, white collar, chestnut breast and pale grey body, and a mottled brown hen a
